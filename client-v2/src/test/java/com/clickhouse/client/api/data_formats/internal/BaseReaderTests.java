@@ -11,6 +11,7 @@ import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.data.ClickHouseVersion;
+import com.clickhouse.data.ClickHouseDataType;
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
@@ -25,6 +26,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 @Test(groups = {"integration"})
@@ -425,7 +427,125 @@ public class BaseReaderTests extends BaseIntegrationTest {
         OffsetDateTime actualOffsetDateTime = records.get(0).getOffsetDateTime("field");
         Assert.assertEquals(actualOffsetDateTime, expectedOffsetDateTime);
     }
-    
+
+    @Test(groups = {"integration"})
+    public void testGetObjectArrayWithNullableElements() throws Exception {
+        final String table = "test_get_object_array_with_nullable_elements";
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        client.execute(tableDefinition(table,
+                "id Int32",
+                "arr_nullable Array(Nullable(Int32))",
+                "arr2d_nullable Array(Array(Nullable(Int32)))")).get();
+
+        client.execute("INSERT INTO " + table + " VALUES (1, [1, NULL, 2], [[1, NULL], [NULL, 3]])").get();
+
+        try (QueryResponse response = client.query("SELECT * FROM " + table).get()) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+            Assert.assertNotNull(reader.next());
+
+            Object[] arrNullable = reader.getObjectArray("arr_nullable");
+            Assert.assertNotNull(arrNullable);
+            Assert.assertEquals(arrNullable.length, 3);
+            Assert.assertEquals(arrNullable[0], 1);
+            Assert.assertNull(arrNullable[1]);
+            Assert.assertEquals(arrNullable[2], 2);
+
+            Object[] arr2dNullable = reader.getObjectArray("arr2d_nullable");
+            Assert.assertNotNull(arr2dNullable);
+            Assert.assertEquals(arr2dNullable.length, 2);
+            Assert.assertTrue(arr2dNullable[0] instanceof Object[]);
+            Assert.assertTrue(arr2dNullable[1] instanceof Object[]);
+
+            Object[] inner0 = (Object[]) arr2dNullable[0];
+            Assert.assertEquals(inner0.length, 2);
+            Assert.assertEquals(inner0[0], 1);
+            Assert.assertNull(inner0[1]);
+
+            Object[] inner1 = (Object[]) arr2dNullable[1];
+            Assert.assertEquals(inner1.length, 2);
+            Assert.assertNull(inner1[0]);
+            Assert.assertEquals(inner1[1], 3);
+        }
+
+        List<GenericRecord> records = client.queryAll("SELECT * FROM " + table);
+        Assert.assertEquals(records.size(), 1);
+        GenericRecord record = records.get(0);
+
+        Object[] arrNullableRecord = record.getObjectArray("arr_nullable");
+        Assert.assertNotNull(arrNullableRecord);
+        Assert.assertEquals(arrNullableRecord.length, 3);
+        Assert.assertEquals(arrNullableRecord[0], 1);
+        Assert.assertNull(arrNullableRecord[1]);
+        Assert.assertEquals(arrNullableRecord[2], 2);
+
+        Object[] arr2dNullableRecord = record.getObjectArray("arr2d_nullable");
+        Assert.assertNotNull(arr2dNullableRecord);
+        Assert.assertEquals(arr2dNullableRecord.length, 2);
+
+        Object[] innerRecord0 = (Object[]) arr2dNullableRecord[0];
+        Assert.assertEquals(innerRecord0.length, 2);
+        Assert.assertEquals(innerRecord0[0], 1);
+        Assert.assertNull(innerRecord0[1]);
+
+        Object[] innerRecord1 = (Object[]) arr2dNullableRecord[1];
+        Assert.assertEquals(innerRecord1.length, 2);
+        Assert.assertNull(innerRecord1[0]);
+        Assert.assertEquals(innerRecord1[1], 3);
+    }
+
+    @Test(groups = {"integration"})
+    public void testGetObjectArrayWhenValueIsList() throws Exception {
+        final String table = "test_get_object_array_when_value_is_list";
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        client.execute(tableDefinition(table,
+                "id Int32",
+                "arr Array(Int32)",
+                "arr2d Array(Array(Int32))")).get();
+        client.execute("INSERT INTO " + table + " VALUES (1, [10, 20, 30], [[1, 2], [3]])").get();
+
+        try (Client listClient = newClient()
+                .typeHintMapping(Collections.singletonMap(ClickHouseDataType.Array, Object.class))
+                .build()) {
+            try (QueryResponse response = listClient.query("SELECT * FROM " + table).get()) {
+                ClickHouseBinaryFormatReader reader = listClient.newBinaryFormatReader(response);
+                Assert.assertNotNull(reader.next());
+
+                Object[] arr = reader.getObjectArray("arr");
+                Assert.assertNotNull(arr);
+                Assert.assertEquals(arr.length, 3);
+                Assert.assertEquals(arr[0], 10);
+                Assert.assertEquals(arr[1], 20);
+                Assert.assertEquals(arr[2], 30);
+
+                Object[] arr2d = reader.getObjectArray("arr2d");
+                Assert.assertNotNull(arr2d);
+                Assert.assertEquals(arr2d.length, 2);
+                Assert.assertTrue(arr2d[0] instanceof List<?>);
+                Assert.assertTrue(arr2d[1] instanceof List<?>);
+                Assert.assertEquals((List<?>) arr2d[0], Arrays.asList(1, 2));
+                Assert.assertEquals((List<?>) arr2d[1], Collections.singletonList(3));
+            }
+
+            List<GenericRecord> records = listClient.queryAll("SELECT * FROM " + table);
+            Assert.assertEquals(records.size(), 1);
+
+            Object[] arrRecord = records.get(0).getObjectArray("arr");
+            Assert.assertNotNull(arrRecord);
+            Assert.assertEquals(arrRecord.length, 3);
+            Assert.assertEquals(arrRecord[0], 10);
+            Assert.assertEquals(arrRecord[1], 20);
+            Assert.assertEquals(arrRecord[2], 30);
+
+            Object[] arr2dRecord = records.get(0).getObjectArray("arr2d");
+            Assert.assertNotNull(arr2dRecord);
+            Assert.assertEquals(arr2dRecord.length, 2);
+            Assert.assertTrue(arr2dRecord[0] instanceof List<?>);
+            Assert.assertTrue(arr2dRecord[1] instanceof List<?>);
+            Assert.assertEquals((List<?>) arr2dRecord[0], Arrays.asList(1, 2));
+            Assert.assertEquals((List<?>) arr2dRecord[1], Collections.singletonList(3));
+        }
+    }
+
 
     public static String tableDefinition(String table, String... columns) {
         StringBuilder sb = new StringBuilder();

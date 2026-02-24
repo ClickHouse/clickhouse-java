@@ -6,11 +6,9 @@ import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
-import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
-import com.clickhouse.client.api.data_formats.internal.SerializerUtils;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
@@ -34,19 +32,13 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.sql.Connection;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.time.Period;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
-import java.time.temporal.ChronoField;
 import java.time.temporal.ChronoUnit;
-import java.time.temporal.TemporalAccessor;
-import java.time.temporal.TemporalField;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -1142,6 +1134,392 @@ public class DataTypeTests extends BaseIntegrationTest {
                 Assert.assertEquals(reader.getLocalDate("d32_min"), minDate32);
                 Assert.assertEquals(reader.getLocalDate("d32_max"), maxDate32);
             }
+        }
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "testNestedArrays_dp")
+    public void testNestedArrays(String columnDef, String insertValues, String[] expectedStrValues, 
+                                 String[] expectedListValues) throws Exception {
+        final String table = "test_nested_arrays";
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        client.execute(tableDefinition(table, "rowId Int32", columnDef)).get();
+
+        client.execute("INSERT INTO " + table + " VALUES " + insertValues).get().close();
+
+        List<GenericRecord> records = client.queryAll("SELECT * FROM " + table + " ORDER BY rowId");
+        Assert.assertEquals(records.size(), expectedStrValues.length);
+
+        for (GenericRecord record : records) {
+            int rowId = record.getInteger("rowId");
+            
+            // Check getString() - includes quotes for string values
+            String actualValue = record.getString("arr");
+            Assert.assertEquals(actualValue, expectedStrValues[rowId - 1], 
+                    "getString() mismatch at row " + rowId + " for " + columnDef);
+            
+            // Check getObject() - should return an ArrayValue
+            Object objValue = record.getObject("arr");
+            Assert.assertNotNull(objValue, "getObject() returned null at row " + rowId);
+            Assert.assertTrue(objValue instanceof BinaryStreamReader.ArrayValue,
+                    "getObject() should return ArrayValue at row " + rowId + ", got: " + objValue.getClass().getName());
+            BinaryStreamReader.ArrayValue arrayValue = (BinaryStreamReader.ArrayValue) objValue;
+            Assert.assertEquals(arrayValue.asList().toString(), expectedListValues[rowId - 1],
+                    "getObject().asList() mismatch at row " + rowId + " for " + columnDef);
+            
+            // Check getList() - should return a List representation (no quotes for strings)
+            List<?> listValue = record.getList("arr");
+            Assert.assertNotNull(listValue, "getList() returned null at row " + rowId);
+            Assert.assertEquals(listValue.toString(), expectedListValues[rowId - 1],
+                    "getList() mismatch at row " + rowId + " for " + columnDef);
+        }
+    }
+
+    @DataProvider
+    public Object[][] testNestedArrays_dp() {
+        return new Object[][] {
+                // 2D arrays of integers - Array(Array(Int32))
+                {
+                        "arr Array(Array(Int32))",
+                        "(1, [[1, 2], [3, 4]]), (2, [[5, 6, 7]]), (3, [[]]), (4, [[8], [], [9, 10]]), " +
+                        "(5, [[11]]), (6, [[12, 13], [14, 15]]), (7, [[100, 200]]), (8, [[16]]), (9, [[17, 18]]), (10, [[19, 20, 21]])",
+                        new String[] {
+                                "[[1, 2], [3, 4]]", "[[5, 6, 7]]", "[[]]", "[[8], [], [9, 10]]",
+                                "[[11]]", "[[12, 13], [14, 15]]", "[[100, 200]]", "[[16]]", "[[17, 18]]", "[[19, 20, 21]]"
+                        },
+                        new String[] {
+                                "[[1, 2], [3, 4]]", "[[5, 6, 7]]", "[[]]", "[[8], [], [9, 10]]",
+                                "[[11]]", "[[12, 13], [14, 15]]", "[[100, 200]]", "[[16]]", "[[17, 18]]", "[[19, 20, 21]]"
+                        }
+                },
+                // 2D arrays of strings - Array(Array(String))
+                {
+                        "arr Array(Array(String))",
+                        "(1, [['a', 'b'], ['c', 'd']]), (2, [['hello', 'world']]), (3, [[]]), (4, [['x'], [], ['y', 'z']]), " +
+                        "(5, [['test']]), (6, [['foo', 'bar']]), (7, [['single']]), (8, [['alpha', 'beta']]), (9, [['one']]), (10, [['end']])",
+                        new String[] {  // getString() format - with quotes
+                                "[['a', 'b'], ['c', 'd']]", "[['hello', 'world']]", "[[]]", "[['x'], [], ['y', 'z']]",
+                                "[['test']]", "[['foo', 'bar']]", "[['single']]", "[['alpha', 'beta']]", "[['one']]", "[['end']]"
+                        },
+                        new String[] {  // getList() format - no quotes
+                                "[[a, b], [c, d]]", "[[hello, world]]", "[[]]", "[[x], [], [y, z]]",
+                                "[[test]]", "[[foo, bar]]", "[[single]]", "[[alpha, beta]]", "[[one]]", "[[end]]"
+                        }
+                },
+                // 3D arrays of integers - Array(Array(Array(Int32)))
+                {
+                        "arr Array(Array(Array(Int32)))",
+                        "(1, [[[1, 2], [3]]]), (2, [[[4], [5, 6]], [[7]]]), (3, [[[]]]), (4, [[[8, 9]]]), " +
+                        "(5, [[[10], [11, 12]]]), (6, [[[13]]]), (7, [[[14, 15], [16]]]), (8, [[[17]]]), (9, [[[18, 19]]]), (10, [[[]]])",
+                        new String[] {
+                                "[[[1, 2], [3]]]", "[[[4], [5, 6]], [[7]]]", "[[[]]]", "[[[8, 9]]]",
+                                "[[[10], [11, 12]]]", "[[[13]]]", "[[[14, 15], [16]]]", "[[[17]]]", "[[[18, 19]]]", "[[[]]]"
+                        },
+                        new String[] {
+                                "[[[1, 2], [3]]]", "[[[4], [5, 6]], [[7]]]", "[[[]]]", "[[[8, 9]]]",
+                                "[[[10], [11, 12]]]", "[[[13]]]", "[[[14, 15], [16]]]", "[[[17]]]", "[[[18, 19]]]", "[[[]]]"
+                        }
+                },
+                // 2D arrays of floats - Array(Array(Float64))
+                {
+                        "arr Array(Array(Float64))",
+                        "(1, [[1.1, 2.2], [3.3]]), (2, [[4.4]]), (3, [[5.5, 6.6, 7.7]]), (4, [[]]), " +
+                        "(5, [[8.8]]), (6, [[9.9, 10.1]]), (7, [[11.2]]), (8, [[12.3, 13.4]]), (9, [[14.5]]), (10, [[15.6, 16.7]])",
+                        new String[] {
+                                "[[1.1, 2.2], [3.3]]", "[[4.4]]", "[[5.5, 6.6, 7.7]]", "[[]]",
+                                "[[8.8]]", "[[9.9, 10.1]]", "[[11.2]]", "[[12.3, 13.4]]", "[[14.5]]", "[[15.6, 16.7]]"
+                        },
+                        new String[] {
+                                "[[1.1, 2.2], [3.3]]", "[[4.4]]", "[[5.5, 6.6, 7.7]]", "[[]]",
+                                "[[8.8]]", "[[9.9, 10.1]]", "[[11.2]]", "[[12.3, 13.4]]", "[[14.5]]", "[[15.6, 16.7]]"
+                        }
+                },
+                // 3D arrays of strings - Array(Array(Array(String)))
+                {
+                        "arr Array(Array(Array(String)))",
+                        "(1, [[['a', 'b']]]), (2, [[['c'], ['d', 'e']]]), (3, [[[]]]), (4, [[['f']]]), " +
+                        "(5, [[['g', 'h']]]), (6, [[['i']]]), (7, [[['a', 'b'], ['c']], [['d', 'e', 'f']]]), (8, [[[]]]), (9, [[['m']]]), (10, [[['n', 'o']]])",
+                        new String[] {  // getString() format - with quotes
+                                "[[['a', 'b']]]", "[[['c'], ['d', 'e']]]", "[[[]]]", "[[['f']]]",
+                                "[[['g', 'h']]]", "[[['i']]]", "[[['a', 'b'], ['c']], [['d', 'e', 'f']]]", "[[[]]]", "[[['m']]]", "[[['n', 'o']]]"
+                        },
+                        new String[] {  // getList() format - no quotes
+                                "[[[a, b]]]", "[[[c], [d, e]]]", "[[[]]]", "[[[f]]]",
+                                "[[[g, h]]]", "[[[i]]]", "[[[a, b], [c]], [[d, e, f]]]", "[[[]]]", "[[[m]]]", "[[[n, o]]]"
+                        }
+                },
+                // 2D arrays of nullable integers - Array(Array(Nullable(Int32)))
+                {
+                        "arr Array(Array(Nullable(Int32)))",
+                        "(1, [[1, NULL, 2]]), (2, [[NULL]]), (3, [[3, 4, NULL]]), (4, [[]]), " +
+                        "(5, [[NULL, NULL]]), (6, [[5]]), (7, [[6, NULL]]), (8, [[NULL, 7]]), (9, [[8, 9]]), (10, [[NULL]])",
+                        new String[] {
+                                "[[1, NULL, 2]]", "[[NULL]]", "[[3, 4, NULL]]", "[[]]",
+                                "[[NULL, NULL]]", "[[5]]", "[[6, NULL]]", "[[NULL, 7]]", "[[8, 9]]", "[[NULL]]"
+                        },
+                        new String[] {
+                                "[[1, null, 2]]", "[[null]]", "[[3, 4, null]]", "[[]]",
+                                "[[null, null]]", "[[5]]", "[[6, null]]", "[[null, 7]]", "[[8, 9]]", "[[null]]"
+                        }
+                },
+                // 4D arrays of integers - Array(Array(Array(Array(Int32))))
+                {
+                        "arr Array(Array(Array(Array(Int32))))",
+                        "(1, [[[[1, 2]]]]), (2, [[[[3], [4, 5]]]]), (3, [[[[]]]]), (4, [[[[6]]]]), " +
+                        "(5, [[[[7, 8]]]]), (6, [[[[9]]]]), (7, [[[[10, 11]]]]), (8, [[[[]]]]), (9, [[[[12]]]]), (10, [[[[13, 14]]]])",
+                        new String[] {
+                                "[[[[1, 2]]]]", "[[[[3], [4, 5]]]]", "[[[[]]]]", "[[[[6]]]]",
+                                "[[[[7, 8]]]]", "[[[[9]]]]", "[[[[10, 11]]]]", "[[[[]]]]", "[[[[12]]]]", "[[[[13, 14]]]]"
+                        },
+                        new String[] {
+                                "[[[[1, 2]]]]", "[[[[3], [4, 5]]]]", "[[[[]]]]", "[[[[6]]]]",
+                                "[[[[7, 8]]]]", "[[[[9]]]]", "[[[[10, 11]]]]", "[[[[]]]]", "[[[[12]]]]", "[[[[13, 14]]]]"
+                        }
+                }
+        };
+    }
+
+    @Test(groups = {"integration"})
+    public void testGetObjectArrayMethods() throws Exception {
+        final String table = "test_get_object_array_methods";
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        client.execute("CREATE TABLE " + table + " (" +
+                "rowId Int32, " +
+                "uint64_arr Array(UInt64), " +
+                "enum_arr Array(Enum8('abc' = 1, 'cde' = 2, 'xyz' = 3)), " +
+                "dt_arr Array(DateTime('UTC')), " +
+                "fstr_arr Array(FixedString(4)), " +
+                "str_arr Array(String), " +
+                "int_arr Array(Int32), " +
+                "arr2d Array(Array(Int64)), " +
+                "arr3d Array(Array(Array(Int32)))" +
+                ") Engine = MergeTree ORDER BY rowId").get();
+
+        client.execute("INSERT INTO " + table + " VALUES " +
+                "(1, " +
+                "[100, 200, 18000044073709551615], " +
+                "['abc', 'cde'], " +
+                "['2030-10-09 08:07:06', '2031-10-09 08:07:06'], " +
+                "['abcd', 'efgh'], " +
+                "['hello', 'world'], " +
+                "[10, 20, 30], " +
+                "[[1, 2, 3], [4, 5]], " +
+                "[[[1, 2], [3]], [[4, 5, 6]]]" +
+                "), " +
+                "(2, " +
+                "[], " +
+                "['xyz'], " +
+                "[], " +
+                "[], " +
+                "[], " +
+                "[], " +
+                "[[]], " +
+                "[[[]]]" +
+                ")").get();
+
+        List<GenericRecord> records = client.queryAll("SELECT * FROM " + table + " ORDER BY rowId");
+        Assert.assertEquals(records.size(), 2);
+
+        // --- Row 1: non-empty arrays ---
+        GenericRecord row1 = records.get(0);
+        Assert.assertEquals(row1.getInteger("rowId"), 1);
+
+        // Array(UInt64) -> getObjectArray returns BigInteger[]
+        Object[] uint64Arr = row1.getObjectArray("uint64_arr");
+        Assert.assertNotNull(uint64Arr);
+        Assert.assertEquals(uint64Arr.length, 3);
+        Assert.assertTrue(uint64Arr[0] instanceof java.math.BigInteger);
+        Assert.assertEquals(uint64Arr[0], java.math.BigInteger.valueOf(100));
+        Assert.assertEquals(uint64Arr[1], java.math.BigInteger.valueOf(200));
+        Assert.assertEquals(uint64Arr[2], new java.math.BigInteger("18000044073709551615"));
+
+        // Array(Enum8) -> getObjectArray returns EnumValue[]
+        Object[] enumArr = row1.getObjectArray("enum_arr");
+        Assert.assertNotNull(enumArr);
+        Assert.assertEquals(enumArr.length, 2);
+        Assert.assertTrue(enumArr[0] instanceof BinaryStreamReader.EnumValue);
+        Assert.assertEquals(enumArr[0].toString(), "abc");
+        Assert.assertEquals(enumArr[1].toString(), "cde");
+
+        // Array(DateTime) -> getObjectArray returns ZonedDateTime[]
+        Object[] dtArr = row1.getObjectArray("dt_arr");
+        Assert.assertNotNull(dtArr);
+        Assert.assertEquals(dtArr.length, 2);
+        Assert.assertTrue(dtArr[0] instanceof java.time.ZonedDateTime);
+        java.time.ZonedDateTime zdt1 = (java.time.ZonedDateTime) dtArr[0];
+        java.time.ZonedDateTime zdt2 = (java.time.ZonedDateTime) dtArr[1];
+        Assert.assertEquals(zdt1.getYear(), 2030);
+        Assert.assertEquals(zdt1.getMonthValue(), 10);
+        Assert.assertEquals(zdt1.getDayOfMonth(), 9);
+        Assert.assertEquals(zdt1.getHour(), 8);
+        Assert.assertEquals(zdt1.getMinute(), 7);
+        Assert.assertEquals(zdt1.getSecond(), 6);
+        Assert.assertEquals(zdt2.getYear(), 2031);
+
+        // Array(FixedString) -> getObjectArray returns String[]
+        Object[] fstrArr = row1.getObjectArray("fstr_arr");
+        Assert.assertNotNull(fstrArr);
+        Assert.assertEquals(fstrArr.length, 2);
+        Assert.assertEquals(fstrArr[0], "abcd");
+        Assert.assertEquals(fstrArr[1], "efgh");
+
+        // Array(FixedString) -> getStringArray
+        String[] fstrStrings = row1.getStringArray("fstr_arr");
+        Assert.assertEquals(fstrStrings, new String[]{"abcd", "efgh"});
+
+        // Array(String) -> getObjectArray returns String[]
+        Object[] strArr = row1.getObjectArray("str_arr");
+        Assert.assertNotNull(strArr);
+        Assert.assertEquals(strArr[0], "hello");
+        Assert.assertEquals(strArr[1], "world");
+
+        // Array(Int32) -> getObjectArray returns boxed Integer[]
+        Object[] intArr = row1.getObjectArray("int_arr");
+        Assert.assertNotNull(intArr);
+        Assert.assertEquals(intArr.length, 3);
+        Assert.assertEquals(intArr[0], 10);
+        Assert.assertEquals(intArr[1], 20);
+        Assert.assertEquals(intArr[2], 30);
+
+        // Array(Array(Int64)) 2D -> getObjectArray returns nested Object[]
+        Object[] arr2d = row1.getObjectArray("arr2d");
+        Assert.assertNotNull(arr2d);
+        Assert.assertEquals(arr2d.length, 2);
+        Assert.assertTrue(arr2d[0] instanceof Object[]);
+        Assert.assertTrue(arr2d[1] instanceof Object[]);
+        Object[] inner2d_0 = (Object[]) arr2d[0];
+        Assert.assertEquals(inner2d_0.length, 3);
+        Assert.assertEquals(inner2d_0[0], 1L);
+        Assert.assertEquals(inner2d_0[1], 2L);
+        Assert.assertEquals(inner2d_0[2], 3L);
+        Object[] inner2d_1 = (Object[]) arr2d[1];
+        Assert.assertEquals(inner2d_1.length, 2);
+        Assert.assertEquals(inner2d_1[0], 4L);
+        Assert.assertEquals(inner2d_1[1], 5L);
+
+        // Array(Array(Array(Int32))) 3D -> getObjectArray returns 3-level nested Object[]
+        Object[] arr3d = row1.getObjectArray("arr3d");
+        Assert.assertNotNull(arr3d);
+        Assert.assertEquals(arr3d.length, 2);
+
+        // [[[1, 2], [3]], [[4, 5, 6]]]
+        Object[] dim1_0 = (Object[]) arr3d[0];
+        Assert.assertEquals(dim1_0.length, 2);
+        Object[] dim2_0_0 = (Object[]) dim1_0[0];
+        Assert.assertEquals(dim2_0_0.length, 2);
+        Assert.assertEquals(dim2_0_0[0], 1);
+        Assert.assertEquals(dim2_0_0[1], 2);
+        Object[] dim2_0_1 = (Object[]) dim1_0[1];
+        Assert.assertEquals(dim2_0_1.length, 1);
+        Assert.assertEquals(dim2_0_1[0], 3);
+
+        Object[] dim1_1 = (Object[]) arr3d[1];
+        Assert.assertEquals(dim1_1.length, 1);
+        Object[] dim2_1_0 = (Object[]) dim1_1[0];
+        Assert.assertEquals(dim2_1_0.length, 3);
+        Assert.assertEquals(dim2_1_0[0], 4);
+        Assert.assertEquals(dim2_1_0[1], 5);
+        Assert.assertEquals(dim2_1_0[2], 6);
+
+        // --- Row 2: edge cases (empty arrays, single elements) ---
+        GenericRecord row2 = records.get(1);
+        Assert.assertEquals(row2.getInteger("rowId"), 2);
+
+        // Empty arrays
+        Object[] emptyUint64 = row2.getObjectArray("uint64_arr");
+        Assert.assertNotNull(emptyUint64);
+        Assert.assertEquals(emptyUint64.length, 0);
+
+        Object[] emptyDt = row2.getObjectArray("dt_arr");
+        Assert.assertNotNull(emptyDt);
+        Assert.assertEquals(emptyDt.length, 0);
+
+        Object[] emptyStr = row2.getObjectArray("str_arr");
+        Assert.assertNotNull(emptyStr);
+        Assert.assertEquals(emptyStr.length, 0);
+
+        Object[] emptyInt = row2.getObjectArray("int_arr");
+        Assert.assertNotNull(emptyInt);
+        Assert.assertEquals(emptyInt.length, 0);
+
+        // Single-element enum array
+        Object[] singleEnum = row2.getObjectArray("enum_arr");
+        Assert.assertEquals(singleEnum.length, 1);
+        Assert.assertEquals(singleEnum[0].toString(), "xyz");
+
+        String[] singleEnumStr = row2.getStringArray("enum_arr");
+        Assert.assertEquals(singleEnumStr, new String[]{"xyz"});
+
+        // 2D with inner empty: [[]]
+        Object[] arr2dEmpty = row2.getObjectArray("arr2d");
+        Assert.assertNotNull(arr2dEmpty);
+        Assert.assertEquals(arr2dEmpty.length, 1);
+        Assert.assertTrue(arr2dEmpty[0] instanceof Object[]);
+        Assert.assertEquals(((Object[]) arr2dEmpty[0]).length, 0);
+
+        // 3D with inner empty: [[[]]]
+        Object[] arr3dEmpty = row2.getObjectArray("arr3d");
+        Assert.assertNotNull(arr3dEmpty);
+        Assert.assertEquals(arr3dEmpty.length, 1);
+        Object[] arr3dInner = (Object[]) arr3dEmpty[0];
+        Assert.assertEquals(arr3dInner.length, 1);
+        Assert.assertTrue(arr3dInner[0] instanceof Object[]);
+        Assert.assertEquals(((Object[]) arr3dInner[0]).length, 0);
+    }
+
+    @Test(groups = {"integration"})
+    public void testGetStringArrayAndGetObjectArrayWhenValueIsList() throws Exception {
+        final String table = "test_get_string_array_and_object_array_when_value_is_list";
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        client.execute("CREATE TABLE " + table + " (" +
+                "rowId Int32, " +
+                "str_arr Array(String), " +
+                "arr2d Array(Array(Int32))" +
+                ") Engine = MergeTree ORDER BY rowId").get();
+
+        client.execute("INSERT INTO " + table + " VALUES " +
+                "(1, ['hello', 'world'], [[1, 2], [3]])").get();
+
+        try (Client listClient = newClient()
+                .typeHintMapping(Collections.singletonMap(ClickHouseDataType.Array, Object.class))
+                .build()) {
+            // Reader path: arrays are decoded as List due to Array -> Object type hint mapping.
+            try (QueryResponse response = listClient.query("SELECT * FROM " + table).get()) {
+                ClickHouseBinaryFormatReader reader = listClient.newBinaryFormatReader(response);
+                Assert.assertNotNull(reader.next());
+
+                Object[] strObjectArr = reader.getObjectArray("str_arr");
+                Assert.assertNotNull(strObjectArr);
+                Assert.assertEquals(strObjectArr, new Object[] {"hello", "world"});
+
+                Object[] arr2dObjectArr = reader.getObjectArray("arr2d");
+                Assert.assertNotNull(arr2dObjectArr);
+                Assert.assertEquals(arr2dObjectArr.length, 2);
+                Assert.assertTrue(arr2dObjectArr[0] instanceof List<?>);
+                Assert.assertTrue(arr2dObjectArr[1] instanceof List<?>);
+                Assert.assertEquals((List<?>) arr2dObjectArr[0], Arrays.asList(1, 2));
+                Assert.assertEquals((List<?>) arr2dObjectArr[1], Collections.singletonList(3));
+
+                Assert.expectThrows(ClientException.class, () -> reader.getStringArray("str_arr"));
+            }
+
+            // queryAll path (MapBackedRecord): also list-backed values.
+            List<GenericRecord> records = listClient.queryAll("SELECT * FROM " + table + " ORDER BY rowId");
+            Assert.assertEquals(records.size(), 1);
+
+            GenericRecord row = records.get(0);
+            Object[] strObjectArr = row.getObjectArray("str_arr");
+            Assert.assertNotNull(strObjectArr);
+            Assert.assertEquals(strObjectArr, new Object[] {"hello", "world"});
+
+            Object[] arr2dObjectArr = row.getObjectArray("arr2d");
+            Assert.assertNotNull(arr2dObjectArr);
+            Assert.assertEquals(arr2dObjectArr.length, 2);
+            Assert.assertTrue(arr2dObjectArr[0] instanceof List<?>);
+            Assert.assertTrue(arr2dObjectArr[1] instanceof List<?>);
+            Assert.assertEquals((List<?>) arr2dObjectArr[0], Arrays.asList(1, 2));
+            Assert.assertEquals((List<?>) arr2dObjectArr[1], Collections.singletonList(3));
+
+            Assert.expectThrows(ClientException.class, () -> row.getStringArray("str_arr"));
         }
     }
 

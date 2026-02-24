@@ -129,7 +129,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
             int p = positions[i] + posOffset;
             String val = values[i];
             if (val == null) {
-                throw new SQLException("Parameter at position '" + i + "' is not set");
+                throw new SQLException("Parameter at position '" + (i + 1) + "' is not set");
             }
             compiledSql.replace(p, p+1, val);
             posOffset += val.length() - 1;
@@ -798,6 +798,8 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                 return "fromUnixTimestamp64Nano(" + (((Instant) x).getEpochSecond() * 1_000_000_000L + ((Instant) x).getNano()) + ")";
             } else if (x instanceof InetAddress) {
                 return QUOTE + ((InetAddress) x).getHostAddress() + QUOTE;
+            } else if (x instanceof byte[]) {
+                return JdbcUtils.convertToUnhexExpression((byte[]) x);
             } else if (x instanceof java.sql.Array) {
                 com.clickhouse.jdbc.types.Array array = (com.clickhouse.jdbc.types.Array) x;
                 int nestedLevel = Math.max(1, array.getNestedLevel());

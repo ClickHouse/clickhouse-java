@@ -4,14 +4,18 @@ import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import org.testng.Assert;
-import org.testng.annotations.*;
+import org.testng.annotations.DataProvider;
+import org.testng.annotations.Test;
 
+import java.io.InputStream;
 import java.math.BigDecimal;
 import java.sql.SQLException;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.zip.CRC32;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNull;
@@ -65,6 +69,9 @@ public class JdbcUtilsTest {
                 new String[][] { new String[] {"1", "2", "3"}, new String[] {"4", "5", "6"} });
 
         assertNull(JdbcUtils.convertArray(null, Integer.class, 1));
+
+        Assert.assertThrows(IllegalArgumentException.class, () -> JdbcUtils.convertArray(new Object[0], String.class, 0 ));
+        Assert.assertThrows(IllegalStateException.class, () -> JdbcUtils.convertArray(new Object[] { new Object[] { 1, 2, 3}}, String.class, 1 ));
     }
 
 
@@ -79,6 +86,9 @@ public class JdbcUtilsTest {
         assertEquals(dst[2], src.get(2));
 
         assertNull(JdbcUtils.convertList(null, Integer.class, 1));
+
+        Assert.assertThrows(IllegalArgumentException.class, () -> JdbcUtils.convertList(Collections.emptyList(), String.class, 0));
+        Assert.assertThrows(IllegalStateException.class, () -> JdbcUtils.convertList(Arrays.asList(Collections.singletonList(1)), String.class, 1));
     }
 
 
@@ -108,5 +118,36 @@ public class JdbcUtilsTest {
         for (ClickHouseDataType dt : ClickHouseDataType.values()) {
             Assert.assertNotNull(JdbcUtils.convertToJavaClass(dt), "Data type " + dt + " has no mapping to java class");
         }
+    }
+
+    @Test(groups = {"unit"})
+    public void testConvertToUnhexExpression() throws Exception {
+        // Load binary file from test resources
+        byte[] originalBytes;
+        try (InputStream is = getClass().getResourceAsStream("/ch_logo.png")) {
+            Assert.assertNotNull(is, "ch_logo.png not found in test resources");
+            originalBytes = is.readAllBytes();
+        }
+
+        // Calculate checksum of original bytes
+        CRC32 originalChecksum = new CRC32();
+        originalChecksum.update(originalBytes);
+        long expectedChecksum = originalChecksum.getValue();
+
+        // Convert to unhex expression
+        String unhexExpr = JdbcUtils.convertToUnhexExpression(originalBytes);
+        Assert.assertTrue(unhexExpr.startsWith("unhex('"), "Expression should start with unhex('");
+        Assert.assertTrue(unhexExpr.endsWith("')"), "Expression should end with ')");
+
+        // Extract hex string and decode back to bytes
+        String hexString = unhexExpr.substring("unhex('".length(), unhexExpr.length() - "')".length());
+        assertEquals(hexString.length(), originalBytes.length * 2, "Hex string length should be twice the byte array length");
+
+        byte[] decodedBytes = JdbcUtils.decodeHexString(hexString);
+
+        // Verify checksum of decoded bytes matches original
+        CRC32 decodedChecksum = new CRC32();
+        decodedChecksum.update(decodedBytes);
+        assertEquals(decodedChecksum.getValue(), expectedChecksum, "Checksum of decoded bytes should match original");
     }
 }

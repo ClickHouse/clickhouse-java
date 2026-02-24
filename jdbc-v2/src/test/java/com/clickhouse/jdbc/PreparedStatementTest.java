@@ -177,8 +177,11 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testSetBytes() throws Exception {
+        // see com.clickhouse.jdbc.JdbcDataTypeTests.testStringsUsedAsBytes
+        // setBytes is dedicated for binary strings (see spec).
+        // arrays are set via Array object.
         try (Connection conn = getJdbcConnection()) {
-            try (PreparedStatement stmt = conn.prepareStatement("SELECT ?::Array(Int8)")) {
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT ?")) {
                 stmt.setBytes(1, new byte[] { 1, 2, 3 });
                 try (ResultSet rs = stmt.executeQuery()) {
                     assertTrue(rs.next());

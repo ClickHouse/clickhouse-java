@@ -176,6 +176,11 @@ public class BinaryReaderBackedRecord implements GenericRecord {
     }
 
     @Override
+    public Object[] getObjectArray(String colName) {
+        return reader.getObjectArray(colName);
+    }
+
+    @Override
     public String getString(int index) {
         return reader.getString(index);
     }
@@ -333,6 +338,11 @@ public class BinaryReaderBackedRecord implements GenericRecord {
     @Override
     public String[] getStringArray(int index) {
         return reader.getStringArray(index);
+    }
+
+    @Override
+    public Object[] getObjectArray(int index) {
+        return reader.getObjectArray(index);
     }
 
     @Override

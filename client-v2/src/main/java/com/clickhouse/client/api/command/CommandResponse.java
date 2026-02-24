@@ -5,6 +5,8 @@ import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.metrics.ServerMetrics;
 import com.clickhouse.client.api.query.QueryResponse;
 
+import java.util.Map;
+
 public class CommandResponse implements AutoCloseable {
 
     private final QueryResponse response;
@@ -70,6 +72,25 @@ public class CommandResponse implements AutoCloseable {
      */
     public long getServerTime() {
         return response.getServerTime();
+    }
+
+    /**
+     * Returns the value of {@code X-ClickHouse-Server-Display-Name} response header.
+     *
+     * @return server display name or {@code null} if not present
+     */
+    public String getServerDisplayName() {
+        return response.getServerDisplayName();
+    }
+
+    /**
+     * Returns all collected response headers as an unmodifiable map.
+     * Only whitelisted ClickHouse headers are included.
+     *
+     * @return map of header name to header value
+     */
+    public Map<String, String> getResponseHeaders() {
+        return response.getResponseHeaders();
     }
 
     @Override

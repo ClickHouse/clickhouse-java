@@ -130,11 +130,23 @@ public class ResultSetMetaDataImplTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = { "integration" })
     public void testGetColumnTypeMap() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 ResultSet rs = stmt.executeQuery("select map('a', 1) as a");
+                ResultSetMetaData rsmd = rs.getMetaData();
+                assertEquals(rsmd.getColumnType(1), Types.OTHER);
+                assertEquals(rsmd.getColumnClassName(1), Object.class.getName());
+            }
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testGetColumnTypeTuple() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                ResultSet rs = stmt.executeQuery("select tuple('a', 1) as t");
                 ResultSetMetaData rsmd = rs.getMetaData();
                 assertEquals(rsmd.getColumnType(1), Types.OTHER);
                 assertEquals(rsmd.getColumnClassName(1), Object.class.getName());
