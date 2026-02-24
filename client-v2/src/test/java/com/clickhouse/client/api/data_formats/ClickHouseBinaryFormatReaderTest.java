@@ -846,4 +846,35 @@ public class ClickHouseBinaryFormatReaderTest {
         Assert.assertEquals(reader.getList(2).size(), 0);
         Assert.assertEquals(reader.getList(3).size(), 0);
     }
+
+    @Test
+    public void testHasValueWithMissingColumns() throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+        String[] names = new String[]{"a", "b"};
+        String[] types = new String[]{"UInt32", "UInt32"};
+
+        BinaryStreamUtils.writeVarInt(out, names.length);
+        for (String name : names) {
+            BinaryStreamUtils.writeString(out, name);
+        }
+        for (String type : types) {
+            BinaryStreamUtils.writeString(out, type);
+        }
+
+        BinaryStreamUtils.writeUnsignedInt32(out, 1L);
+        BinaryStreamUtils.writeUnsignedInt32(out, 2L);
+
+        InputStream in = new ByteArrayInputStream(out.toByteArray());
+        QuerySettings querySettings = new QuerySettings().setUseTimeZone("UTC");
+        RowBinaryWithNamesAndTypesFormatReader reader =
+                new RowBinaryWithNamesAndTypesFormatReader(in, querySettings, new BinaryStreamReader.CachingByteBufferAllocator());
+        reader.next();
+
+        Assert.assertTrue(reader.hasValue("a"), "Expected hasValue(\"a\") to be true");
+        Assert.assertTrue(reader.hasValue(1), "Expected hasValue(1) to be true");
+        Assert.assertFalse(reader.hasValue("missing"), "Expected hasValue(\"missing\") to return false, not throw");
+        Assert.assertFalse(reader.hasValue(100), "Expected hasValue(100) to return false, not throw");
+        Assert.assertFalse(reader.hasValue(0), "Expected hasValue(0) to return false, not throw");
+    }
 }
