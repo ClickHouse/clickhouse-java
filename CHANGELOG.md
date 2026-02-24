@@ -1,3 +1,10 @@
+## 0.9.7
+
+### Breaking changes
+- [jdbc] Default port is not added anymore - now port should be explicitly set. Previously `http://localhost` was transformed to `http://localhost:8123`.
+Parsing URL with standard tools is not stable because `URI.create()` doesn't guarantee correct port number parsing. 
+Implementing more complex logic for minor case would add even more complexity. (https://github.com/ClickHouse/clickhouse-java/issues/2753)
+
 ## 0.9.6
 Release is aimed to address potential security risk in one of the dependencies (see below). We strongly recommend to upgrade. 
 

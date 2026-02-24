@@ -8,6 +8,7 @@ import com.clickhouse.jdbc.Driver;
 import com.clickhouse.jdbc.DriverProperties;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import org.apache.hc.client5.http.utils.URIUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -148,20 +149,14 @@ public class JdbcConfiguration {
      * @param ssl - if SSL protocol should be used
      * @return URL without JDBC prefix
      */
-    private static String createConnectionURL(String url, boolean ssl) throws SQLException {
+    static String createConnectionURL(String url, boolean ssl) throws SQLException {
         String adjustedURL = ssl && url.startsWith("http://")
             ? "https://" + url.substring(7)
             : url;
         try {
             URI tmp = URI.create(adjustedURL);
-            String asciiString = tmp.toASCIIString();
-            if (tmp.getPort() < 0) {
-                String port = ssl || adjustedURL.startsWith("https")
-                    ? ":" + ClickHouseHttpProto.DEFAULT_HTTPS_PORT
-                    : ":" + ClickHouseHttpProto.DEFAULT_HTTP_PORT;
-                asciiString += port;
-            }
-            return asciiString;
+            // URI may incorrectly parse port and logic based on port number is unstable.
+            return tmp.toASCIIString();
         } catch (IllegalArgumentException iae) {
             throw new SQLException("Failed to parse URL '" + url + "'", iae);
         }

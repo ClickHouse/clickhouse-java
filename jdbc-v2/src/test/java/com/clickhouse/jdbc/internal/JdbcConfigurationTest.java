@@ -23,61 +23,61 @@ import static org.testng.Assert.assertTrue;
 public class JdbcConfigurationTest {
 
     private static final  JdbcConfigurationTestData[] VALID_URLs = new JdbcConfigurationTestData[] {
-        new JdbcConfigurationTestData("jdbc:ch://localhost"),
-        new JdbcConfigurationTestData("jdbc:clickhouse://localhost"),
-        new JdbcConfigurationTestData("jdbc:clickhouse:http://localhost"),
-        new JdbcConfigurationTestData("jdbc:clickhouse:https://localhost")
-            .withExpectedConnectionURL("https://localhost:8443"),
+        new JdbcConfigurationTestData("jdbc:ch://localhost:8123")
+                .withExpectedConnectionURL("http://localhost:8123"),
+        new JdbcConfigurationTestData("jdbc:clickhouse://localhost:8123")
+                .withExpectedConnectionURL("http://localhost:8123"),
+        new JdbcConfigurationTestData("jdbc:clickhouse:http://unknown-host.local:8443")
+                .withExpectedConnectionURL("http://unknown-host.local:8443"),
+        new JdbcConfigurationTestData("jdbc:clickhouse:http://localhost:8443")
+                .withExpectedConnectionURL("http://localhost:8443"),
         new JdbcConfigurationTestData("jdbc:clickhouse:https://localhost:8123")
             .withExpectedConnectionURL("https://localhost:8123"),
-        new JdbcConfigurationTestData("jdbc:clickhouse://localhost")
+        new JdbcConfigurationTestData("jdbc:clickhouse:https://localhost:8123")
+            .withExpectedConnectionURL("https://localhost:8123"),
+        new JdbcConfigurationTestData("jdbc:clickhouse://localhost:8443")
             .withAdditionalConnectionParameters(
                 Map.of(JdbcConfiguration.USE_SSL_PROP, "true"))
             .withExpectedConnectionURL("https://localhost:8443"), // ssl should not be passed to client
-        new JdbcConfigurationTestData("jdbc:clickhouse://[::1]")
+        new JdbcConfigurationTestData("jdbc:clickhouse://[::1]:8123")
             .withExpectedConnectionURL("http://[::1]:8123"),
         new JdbcConfigurationTestData("jdbc:clickhouse://[::1]:8123")
             .withExpectedConnectionURL("http://[::1]:8123"),
         new JdbcConfigurationTestData("jdbc:clickhouse://localhost:8443")
             .withExpectedConnectionURL("http://localhost:8443"),
-        new JdbcConfigurationTestData("jdbc:clickhouse://localhost/database")
+        new JdbcConfigurationTestData("jdbc:clickhouse://localhost:8123/database")
             .withAdditionalExpectedClientProperties(
                 Map.of("database", "database")),
         new JdbcConfigurationTestData("jdbc:clickhouse://localhost:42/database")
             .withExpectedConnectionURL("http://localhost:42")
             .withAdditionalExpectedClientProperties(
                 Map.of("database", "database")),
-        new JdbcConfigurationTestData("jdbc:clickhouse://localhost/data-base")
+        new JdbcConfigurationTestData("jdbc:clickhouse://localhost:8123/data-base")
             .withAdditionalExpectedClientProperties(
                 Map.of("database", "data-base")),
-        new JdbcConfigurationTestData("jdbc:clickhouse://localhost/data%20base")
+        new JdbcConfigurationTestData("jdbc:clickhouse://localhost:8123/data%20base")
             .withAdditionalExpectedClientProperties(
                 Map.of("database", "data base")),
-        new JdbcConfigurationTestData("jdbc:clickhouse://localhost/data%2Fbase")
+        new JdbcConfigurationTestData("jdbc:clickhouse://localhost:8123/data%2Fbase")
             .withAdditionalExpectedClientProperties(
                 Map.of("database", "data/base")),
-        new JdbcConfigurationTestData("jdbc:clickhouse://localhost/☺")
+        new JdbcConfigurationTestData("jdbc:clickhouse://localhost:8123/☺")
             .withAdditionalExpectedClientProperties(
                 Map.of("database", "☺")),
-        new JdbcConfigurationTestData("jdbc:clickhouse://localhost/db?custom_key1=val1&custom_key2=val2")
+        new JdbcConfigurationTestData("jdbc:clickhouse://localhost:8123/db?custom_key1=val1&custom_key2=val2")
             .withAdditionalExpectedClientProperties(
                 Map.of(
                     "database", "db",
                     "custom_key1", "val1",
                     "custom_key2", "val2"
                 )),
-        new JdbcConfigurationTestData("jdbc:clickhouse://localhost/db?custom_key1=val%201")
+        new JdbcConfigurationTestData("jdbc:clickhouse://localhost:8123/db?custom_key1=val%201")
             .withAdditionalExpectedClientProperties(
                 Map.of(
                     "database", "db",
                     "custom_key1", "val 1"
                 )),
-        new JdbcConfigurationTestData("jdbc:clickhouse://localhost/?custom_key1=val1")
-            .withAdditionalExpectedClientProperties(
-                Map.of(
-                    "custom_key1", "val1"
-                )),
-        new JdbcConfigurationTestData("jdbc:clickhouse://localhost?custom_key1=val1")
+        new JdbcConfigurationTestData("jdbc:clickhouse://localhost:8123/?custom_key1=val1")
             .withAdditionalExpectedClientProperties(
                 Map.of(
                     "custom_key1", "val1"
@@ -94,12 +94,12 @@ public class JdbcConfigurationTest {
                 Map.of(
                     "custom_key1", "val1"
                 )),
-        new JdbcConfigurationTestData("jdbc:clickhouse://localhost?custom_key1=☺")
+        new JdbcConfigurationTestData("jdbc:clickhouse://localhost:8123?custom_key1=☺")
             .withAdditionalExpectedClientProperties(
                 Map.of(
                     "custom_key1", "☺"
                 )),
-        new JdbcConfigurationTestData("jdbc:clickhouse://localhost?custom_key1=val1,val2")
+        new JdbcConfigurationTestData("jdbc:clickhouse://localhost:8123?custom_key1=val1,val2")
             .withAdditionalExpectedClientProperties(
                 Map.of(
                     "custom_key1", "val1,val2"
