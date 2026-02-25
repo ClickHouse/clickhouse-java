@@ -49,6 +49,13 @@ public class ClickHouseSqlParser {
 
     private static final Logger log = LoggerFactory.getLogger(ClickHouseSqlParser.class);
 
+    private static final Set<String> ALLOWED_ALIAS_KEYWORDS =
+            ClickHouseSqlUtils.getKeywordGroup(ClickHouseSqlUtils.KEYWORD_GROUP_ALLOWED_ALIASES);
+
+    private static boolean isAllowedAlias(Token t) {
+        return t != null && ALLOWED_ALIAS_KEYWORDS.contains(t.image.toUpperCase(Locale.ROOT));
+    }
+
     private final List<ClickHouseSqlStatement> statements = new ArrayList<>();
 
     private ParseHandler handler;
@@ -520,7 +527,12 @@ void deleteStmt(): {} {
 // https://clickhouse.tech/docs/en/sql-reference/statements/describe-table/
 void describeStmt(): {} {
     (<DESCRIBE> | <DESC>) { token_source.table = "columns"; }
-    (LOOKAHEAD({ getToken(1).kind == TABLE }) <TABLE>)? tableIdentifier(true) (anyExprList())?
+    (LOOKAHEAD({ getToken(1).kind == TABLE }) <TABLE>)?
+    (
+        LOOKAHEAD({ getToken(1).kind == LPAREN }) <LPAREN> anyExprList() <RPAREN>
+        | tableIdentifier(true)
+    )
+    (anyExprList())?
 }
 
 // https://clickhouse.tech/docs/en/sql-reference/statements/detach/
@@ -575,8 +587,13 @@ void grantStmt(): {} { // not interested
 void insertStmt(): {} {
     <INSERT> <INTO>
     (
-        LOOKAHEAD({ getToken(1).kind == FUNCTION }) <FUNCTION> functionExpr() 
-        | (LOOKAHEAD(2) <TABLE>)? tableIdentifier(true)
+        LOOKAHEAD({ getToken(1).kind == FUNCTION
+            && !tokenIn(2, VALUES, FORMAT, SETTINGS, SELECT, WITH, INFILE)
+            && getToken(3).kind == LPAREN }) <FUNCTION> functionExpr()
+        | (
+            LOOKAHEAD({ getToken(1).kind == TABLE
+                && !tokenIn(2, VALUES, FORMAT, SETTINGS, SELECT, WITH, LPAREN) }) <TABLE>
+        )? tableIdentifier(true)
     )
     (
         LOOKAHEAD(2) infilePart()
@@ -678,6 +695,7 @@ void showStmt(): {} {
             (<DATABASE> databaseIdentifier(true))
             | LOOKAHEAD(2) (LOOKAHEAD(1) <CREATE>)? (LOOKAHEAD(1) <SETTINGS>)? <PROFILE> anyIdentifier()
             | LOOKAHEAD(2) (<DICTIONARY> tableIdentifier(true))
+            | LOOKAHEAD(2) (LOOKAHEAD(1) <CHANGED>)? <SETTINGS> { token_source.table = "settings"; }
             | LOOKAHEAD(2) ((LOOKAHEAD(2) <TEMPORARY>)? (LOOKAHEAD(2) <TABLE>)? tableIdentifier(true))
         )
     )
@@ -725,12 +743,12 @@ void columnExprList(): {} {
 
 void withExpr(): {} {
     nestedExpr()
+    (LOOKAHEAD(2) <LBRACKET> anyExprList() <RBRACKET>)*
     (
         (
             LOOKAHEAD({ getToken(1).kind == FLOATING_LITERAL })
             <FLOATING_LITERAL> | <DOT> <DECIMAL_LITERAL>
         )+
-        | (LOOKAHEAD(2) <LBRACKET> anyExprList() <RBRACKET>)+
         | LOOKAHEAD(2) <IS> (<NOT>)? <NULL>
         | LOOKAHEAD(2) (<NOT>)? betweenExpr()
         | LOOKAHEAD(2) (<NOT>)? (<ILIKE> | <LIKE>) nestedExpr()
@@ -747,12 +765,12 @@ void columnsExpr(): {} {
         LOOKAHEAD(2) (<APPLY> | <EXCEPT> | <REPLACE>) <LPAREN> anyExprList() <RPAREN>
     )*
     | nestedExpr()
+    (LOOKAHEAD(2) <LBRACKET> anyExprList() <RBRACKET>)*
     (
         (
             LOOKAHEAD({ getToken(1).kind == FLOATING_LITERAL })
             <FLOATING_LITERAL> | <DOT> <DECIMAL_LITERAL>
         )+
-        | (LOOKAHEAD(2) <LBRACKET> anyExprList() <RBRACKET>)+
         | LOOKAHEAD(2) <IS> (<NOT>)? <NULL>
         | LOOKAHEAD(2) (<NOT>)? betweenExpr()
         | LOOKAHEAD(2) (<NOT>)? (<ILIKE> | <LIKE>) nestedExpr()
@@ -773,11 +791,11 @@ void nestedExpr(): {} {
         (<WHEN> nestedExpr() <THEN> nestedExpr())+ (<ELSE> nestedExpr())? <END>
     | LOOKAHEAD(2) <INTERVAL> (LOOKAHEAD(2) <STRING_LITERAL> | nestedExpr() interval())
     | columnExpr()
+    (LOOKAHEAD(2) <LBRACKET> anyExprList() <RBRACKET>)*
     (
         (
             <FLOATING_LITERAL> | <DOT> <DECIMAL_LITERAL>
         )+
-        | (LOOKAHEAD(2) <LBRACKET> anyExprList() <RBRACKET>)+
         | LOOKAHEAD(2) <IS> (<NOT>)? <NULL>
         | LOOKAHEAD(2) (<NOT>)? betweenExpr()
         | LOOKAHEAD(2) (<NOT>)? (<ILIKE> | <LIKE>) nestedExpr()
@@ -843,7 +861,7 @@ void outfilePart(): {} {
 }
 
 void settingsPart(): {} {
-    <SETTINGS> { token_source.addPosition(token); } settingExprList()
+    (LOOKAHEAD(1) <CHANGED>)? <SETTINGS> { token_source.addPosition(token); } (LOOKAHEAD(2) settingExprList())?
 }
 
 void withTotalPart(): {} {
@@ -888,13 +906,25 @@ void anyColumnExpr(): {} {
     | nestedIdentifier()
 }
 
+Token aliasIdentifier(): { Token t; } {
+    (
+        t = <IDENTIFIER>
+        | t = <BACK_QUOTED_NAME>
+        | t = <DOUBLE_QUOTED_NAME>
+        | t = variable()
+        | LOOKAHEAD({ isAllowedAlias(getToken(1)) })
+          t = anyKeyword()
+    )
+    { return t; }
+}
+
 Token aliasExpr(): { Token t = null; } {
     (
-        LOOKAHEAD(2) <AS> t = anyIdentifier()
+        LOOKAHEAD(2) <AS> t = aliasIdentifier()
         | LOOKAHEAD(2) formatPart()
         | LOOKAHEAD(2) settingsPart()
         | LOOKAHEAD(2) outfilePart()
-        | t = identifier()
+        | t = aliasIdentifier()
     )
     { return t; }
 }
@@ -950,10 +980,12 @@ void settingExprList(): {} {
 }
 
 void settingExpr(): { String key; } {
-    identifier() { key = token.image; } <EQ_SINGLE> literal() { token_source.addSetting(key, token.image); }
+    anyIdentifier() { key = token.image; } <EQ_SINGLE> literal() { token_source.addSetting(key, token.image); }
 }
 
-// basics
+// --- Base definitions
+
+
 Token anyIdentifier(): { Token t; } {
     (
         t = <BACK_QUOTED_NAME>
@@ -961,17 +993,6 @@ Token anyIdentifier(): { Token t; } {
         | t = variable()
         | t = <IDENTIFIER>
         | t = anyKeyword()
-    )
-    { return t; }
-}
-
-Token identifier(): { Token t; } {
-    (
-        t = <BACK_QUOTED_NAME>
-        | t = <DOUBLE_QUOTED_NAME>
-        | t = variable()
-        | t = <IDENTIFIER>
-        | t = keyword()
     )
     { return t; }
 }
@@ -1045,38 +1066,16 @@ Token anyKeyword(): { Token t; } {
         | t = <MOVE> | t = <OPTIMIZE> | t = <RENAME> | t = <REVOKE> | t = <SELECT> | t = <SET> | t = <SHOW> | t = <SYSTEM>
         | t = <TRUNCATE> | t = <UPDATE> | t = <USE> | t = <WATCH> | t = <UNDROP>
         // others
-        | t = <ALL> | t = <AND> | t = <APPLY> | t = <ARRAY> | t = <AS> | t = <ASOF> | t = <BETWEEN> | t = <CASE> 
-        | t = <CLUSTER> | t = <COMPRESSION> | t = <DATE> | t = <DATABASE> | t = <DATABASES> | t = <DICTIONARY> | t = <DICTIONARIES> 
+        | t = <ALL> | t = <AND> | t = <APPLY> | t = <ARRAY> | t = <AS> | t = <ASOF> | t = <BEGIN> | t = <BETWEEN> | t = <CASE> | t = <CHANGED>
+        | t = <CLUSTER> | t = <COMMIT> | t = <COMPRESSION> | t = <DATE> | t = <DATABASE> | t = <DATABASES> | t = <DICTIONARY> | t = <DICTIONARIES> 
         | t = <DISTINCT> | t = <ELSE> | t = <END> | t = <EXCEPT> | t = <FORMAT> | t = <FROM> | t = <FINAL> | t = <FULL> 
         | t = <FUNCTION> | t = <GLOBAL> | t = <GROUP> | t = <HAVING> | t = <IF> | t = <ILIKE> | t = <IN> | t = <INFILE> | t = <INNER> 
         | t = <INPUT> | t = <INTERVAL> | t = <INTO> | t = <IS> | t = <LEVEL> | t = <JOIN> | t = <LEFT> | t = <LIKE> | t = <LIMIT> | t = <LIVE> 
         | t = <MATERIALIZED> | t = <NOT> | t = <OFFSET> | t = <ON> | t = <OR> | t = <ORDER> | t = <OUTFILE> | t = <POLICY>
-        | t = <PREWHERE> | t = <PROFILE> | t = <QUOTA> | t = <REPLACE> | t = <RIGHT> | t = <ROLE> | t = <ROW> | t = <SAMPLE>
+        | t = <PREWHERE> | t = <PROFILE> | t = <QUOTA> | t = <REPLACE> | t = <RIGHT> | t = <ROLE> | t = <ROLLBACK> | t = <ROW> | t = <SAMPLE>
         | t = <SETTINGS> | t = <STDOUT> | t = <TEMPORARY> | t = <TABLE> | t = <TABLES> | t = <THEN> | t = <TIES> | t = <TIMESTAMP> 
-        | t = <TOP> | t = <TOTALS> | t = <VALUES> | t = <VIEW> | t = <USER> | t = <UNION> | t = <USING> 
+        | t = <TOP> | t = <TOTALS> | t = <TRANSACTION> | t = <VALUES> | t = <VIEW> | t = <USER> | t = <UNION> | t = <USING> 
         | t = <WHEN> | t = <WHERE> | t = <WITH> | t = <REGEXP>
-        // interval
-        | t = <SECOND> | t = <MINUTE> | t = <HOUR> | t = <DAY> | t = <WEEK> | t = <MONTH> | t = <QUARTER> | t = <YEAR>
-        // values
-        | t = <INF> | t = <NAN> | t = <NULL>
-    )
-    { return t; }
-}
-
-Token keyword(): { Token t; } {
-    (
-        // leading keywords(except with)
-        t = <ALTER> | t = <ATTACH> | t = <CHECK> | t = <CREATE> | t = <DELETE> | t = <DESC> | t = <DESCRIBE>
-        | t = <DETACH> | t = <DROP> | t = <EXCHANGE> | t = <EXISTS> | t = <EXPLAIN> | t = <GRANT> | t = <INSERT> | t = <KILL>
-        | t = <MOVE>  | t = <OPTIMIZE> | t = <RENAME> | t = <REVOKE> | t = <SELECT> | t = <SET> | t = <SHOW> | t = <SYSTEM>
-        | t = <TRUNCATE> | t = <UPDATE> | t = <USE> | t = <WATCH> | t = <UNDROP>
-        // others
-        | t = <CASE> | t = <CLUSTER> | t = <DATE> | t = <DATABASE> | t = <DATABASES> | t = <DICTIONARY> 
-        | t = <DICTIONARIES> | t = <DISTINCT> | t = <ELSE> | t = <END> | t = <EXCEPT>| t = <FUNCTION> 
-        | t = <IF> | t = <INTERVAL> | t = <IS> | t = <INFILE> | t = <LIVE>  | t = <MATERIALIZED> | t = <OUTFILE> | t = <POLICY> 
-        | t = <PROFILE> | t = <QUOTA> | t = <REPLACE> | t = <ROLE> | t = <ROW> | t = <TEMPORARY> 
-        | t = <TABLE> | t = <TABLES> | t = <THEN> | t = <TIES> | t = <TIMESTAMP> | t = <TOP> | t = <TOTALS> 
-        | t = <VALUES> | t = <VIEW> | t = <WHEN> | t = <USER> | t = <REGEXP>
         // interval
         | t = <SECOND> | t = <MINUTE> | t = <HOUR> | t = <DAY> | t = <WEEK> | t = <MONTH> | t = <QUARTER> | t = <YEAR>
         // values
@@ -1089,6 +1088,7 @@ Token keyword(): { Token t; } {
 TOKEN: {
     <ALTER    : <A> <L> <T> <E> <R>>
     | <ATTACH   : <A> <T> <T> <A> <C> <H>        >
+    | <CHANGED  : <C> <H> <A> <N> <G> <E> <D>        >
     | <CHECK    : <C> <H> <E> <C> <K>            >
     | <CREATE   : <C> <R> <E> <A> <T> <E>        >
     | <DELETE   : <D> <E> <L> <E> <T> <E>        >

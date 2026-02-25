@@ -1113,4 +1113,34 @@ public class ConnectionTest extends JdbcIntegrationTest {
             }
         }
     }
+
+    @Test(groups = {"integration"})
+    public void testOldCustomSettingsParameter() throws Exception {
+        if (isCloud()) {
+            return; // no custom settings on cloud instance
+        }
+
+        String sql = "SELECT " +
+                "    getSetting('max_threads') AS max_threads, " +
+                "    getSetting('session_timezone') AS tz ";
+        Properties properties = new Properties();
+        properties.put(DriverProperties.CUSTOM_SETTINGS.getKey(), "max_threads=10,session_timezone=Asia/Tokyo");
+        try (Connection connection = getJdbcConnection(properties)) {
+            try (Statement stmt = connection.createStatement(); ResultSet rs = stmt.executeQuery(sql)){
+                assertTrue(rs.next());
+                assertEquals(rs.getString(1), "10");
+                assertEquals(rs.getString(2), "Asia/Tokyo");
+            }
+        }
+
+        properties = new Properties();
+        properties.put(DriverProperties.CUSTOM_HTTP_PARAMS.getKey(), "max_threads=10,session_timezone=Asia/Tokyo");
+        try (Connection connection = getJdbcConnection(properties)) {
+            try (Statement stmt = connection.createStatement(); ResultSet rs = stmt.executeQuery(sql)){
+                assertTrue(rs.next());
+                assertEquals(rs.getString(1), "10");
+                assertEquals(rs.getString(2), "Asia/Tokyo");
+            }
+        }
+    }
 }

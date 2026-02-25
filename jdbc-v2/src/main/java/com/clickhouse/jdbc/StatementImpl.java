@@ -235,7 +235,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         return updateCount;
     }
 
-    protected void postUpdateActions() throws SQLException {
+    private void postUpdateActions() throws SQLException {
         if (parsedStatement.getUseDatabase() != null) {
             this.localSettings.setDatabase(parsedStatement.getUseDatabase());
         }

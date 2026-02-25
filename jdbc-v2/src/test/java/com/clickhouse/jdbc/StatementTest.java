@@ -4,6 +4,7 @@ import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.data.ClickHouseVersion;
+import com.clickhouse.jdbc.internal.SqlParserFacade;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -397,17 +398,27 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
+    @DataProvider(name = "testSettingRolesDP")
+    public static Object[][] testSettingRolesDP() {
+        return new Object[][] {
+                {SqlParserFacade.SQLParser.JAVACC},
+                {SqlParserFacade.SQLParser.ANTLR4_PARAMS_PARSER},
+                {SqlParserFacade.SQLParser.ANTLR4},
+        };
+    }
 
-    @Test(groups = {"integration"})
-    public void testSettingRole() throws SQLException {
+    @Test(groups = {"integration"}, dataProvider = "testSettingRolesDP", dataProviderClass = StatementTest.class)
+    public void testSettingRole(SqlParserFacade.SQLParser parser) throws SQLException {
         if (earlierThan(24, 4)) {//Min version is 24.4
             return;
         }
 
         List<String> roles = Arrays.asList("role1", "role2", "role3");
 
-        String userPass = "^1A" + RandomStringUtils.random(12, true, true) + "3B$";
-        try (ConnectionImpl conn = (ConnectionImpl) getJdbcConnection()) {
+        final String userPass = "^1A" + RandomStringUtils.random(12, true, true) + "3B$";
+        Properties properties = new Properties();
+        properties.setProperty(DriverProperties.SQL_PARSER.getKey(), parser.name());
+        try (ConnectionImpl conn = (ConnectionImpl) getJdbcConnection(properties)) {
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("DROP ROLE IF EXISTS " + String.join(", ", roles));
                 stmt.execute("DROP USER IF EXISTS some_user");
@@ -421,7 +432,7 @@ public class StatementTest extends JdbcIntegrationTest {
         Properties info = new Properties();
         info.setProperty("user", "some_user");
         info.setProperty("password", userPass);
-
+        info.setProperty(DriverProperties.SQL_PARSER.getKey(), parser.name());
         try (ConnectionImpl conn = new ConnectionImpl(getEndpointString(), info)) {
             GenericRecord dataRecord = conn.getClient().queryAll("SELECT currentRoles()").get(0);
             assertEquals(dataRecord.getList(1).size(), 0);
@@ -467,6 +478,53 @@ public class StatementTest extends JdbcIntegrationTest {
             assertEquals(dataRecord.getList(1).get(0), "role1");
             assertEquals(dataRecord.getList(1).get(1), "role2");
             assertEquals(dataRecord.getList(1).get(2), "role3");
+        }
+
+
+        Properties disableSavingRoles = new Properties();
+        disableSavingRoles.setProperty("user", "some_user");
+        disableSavingRoles.setProperty("password", userPass);
+        disableSavingRoles.setProperty(DriverProperties.REMEMBER_LAST_SET_ROLES.getKey(), "false");
+        disableSavingRoles.setProperty(DriverProperties.SQL_PARSER.getKey(), parser.name());
+        try (ConnectionImpl conn = new ConnectionImpl(getEndpointString(), disableSavingRoles)) {
+            GenericRecord dataRecord = conn.getClient().queryAll("SELECT currentRoles()").get(0);
+            assertEquals(dataRecord.getList(1).size(), 0);
+
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("SET ROLE role1");
+            }
+
+            dataRecord = conn.getClient().queryAll("SELECT currentRoles()").get(0);
+            assertEquals(dataRecord.getList(1).size(), 0);
+
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("SET ROLE role2");
+            }
+
+            dataRecord = conn.getClient().queryAll("SELECT currentRoles()").get(0);
+            assertEquals(dataRecord.getList(1).size(), 0);
+
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("SET ROLE NONE");
+            }
+
+            dataRecord = conn.getClient().queryAll("SELECT currentRoles()").get(0);
+            assertEquals(dataRecord.getList(1).size(), 0);
+
+
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("SET ROLE \"role1\",\"role2\"");
+            }
+
+            dataRecord = conn.getClient().queryAll("SELECT currentRoles()").get(0);
+            assertEquals(dataRecord.getList(1).size(), 0);
+
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("SET ROLE \"role1\",\"role2\",\"role3\"");
+            }
+
+            dataRecord = conn.getClient().queryAll("SELECT currentRoles()").get(0);
+            assertEquals(dataRecord.getList(1).size(), 0);
         }
     }
 

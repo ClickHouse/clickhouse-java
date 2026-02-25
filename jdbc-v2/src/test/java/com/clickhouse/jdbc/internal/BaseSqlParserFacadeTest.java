@@ -1,9 +1,19 @@
 package com.clickhouse.jdbc.internal;
 
 
+import com.clickhouse.jdbc.internal.parser.javacc.ClickHouseSqlUtils;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
+
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Properties;
+import java.util.stream.Collectors;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
@@ -14,7 +24,7 @@ public abstract class BaseSqlParserFacadeTest {
     protected SqlParserFacade parser;
 
     public BaseSqlParserFacadeTest(String name) throws Exception {
-        parser = SqlParserFacade.getParser(name);
+        parser = SqlParserFacade.getParser(name, new JdbcConfiguration("jdbc:ch:http://localhost:8123", new Properties()));
     }
 
     @Test
@@ -328,121 +338,122 @@ public abstract class BaseSqlParserFacadeTest {
 
     @DataProvider
     public Object[][] testMiscStmtDp() {
-        return new Object[][] {
-            {"SELECT x, a FROM (SELECT arrayJoin(['Hello', 'Goodbye']) AS x, [1, 2, 3] AS arr) ARRAY JOIN arr AS a", 0},
-            {"SELECT quantilesTiming(0.1, 0.5, 0.9)(dummy) FROM remote('127.0.0.{2,3}', 'system', 'one') GROUP BY 1 WITH TOTALS", 0}, // FROM remote issue
-            {"SELECT StartDate, sumMerge(Visits) AS Visits, uniqMerge(Users)  AS Users FROM basic_00040 GROUP BY StartDate ORDER BY StartDate", 0}, // keywords
-            {"SELECT uniq(URL) FROM test.hits WHERE TraficSourceID IN (7)", 0}, // keywords URL
-            {"SELECT INTERVAL '1 day'", 0},
-            {"SELECT INTERVAL 1 day", 0},
-            {"SET extremes = 1", 0},
-            {"CREATE TABLE check_query_log (N UInt32,S String) Engine = Log", 0 },
-            {"CREATE TABLE log (x UInt8) ENGINE = StripeLog", 0},
-            {"CREATE TABLE check_query_log (N UInt32,S String) Engine = MergeTree", 0 },
-            {"CREATE TABLE check_query_log (N UInt32,S String) Engine = ReplacingMergeTree", 0 },
-            {"select abs(log(e()) - 1) < 1e-8", 0},
-            {"SELECT SearchEngineID, ClientIP, count() AS c, sum(Refresh), avg(ResolutionWidth) " +
+        return new Object[][]{
+                {"SELECT x, a FROM (SELECT arrayJoin(['Hello', 'Goodbye']) AS x, [1, 2, 3] AS arr) ARRAY JOIN arr AS a", 0},
+                {"SELECT quantilesTiming(0.1, 0.5, 0.9)(dummy) FROM remote('127.0.0.{2,3}', 'system', 'one') GROUP BY 1 WITH TOTALS", 0}, // FROM remote issue
+                {"SELECT StartDate, sumMerge(Visits) AS Visits, uniqMerge(Users)  AS Users FROM basic_00040 GROUP BY StartDate ORDER BY StartDate", 0}, // keywords
+                {"SELECT uniq(URL) FROM test.hits WHERE TraficSourceID IN (7)", 0}, // keywords URL
+                {"SELECT INTERVAL '1 day'", 0},
+                {"SELECT INTERVAL 1 day", 0},
+                {"SET extremes = 1", 0},
+                {"CREATE TABLE check_query_log (N UInt32,S String) Engine = Log", 0},
+                {"CREATE TABLE log (x UInt8) ENGINE = StripeLog", 0},
+                {"CREATE TABLE check_query_log (N UInt32,S String) Engine = MergeTree", 0},
+                {"CREATE TABLE check_query_log (N UInt32,S String) Engine = ReplacingMergeTree", 0},
+                {"select abs(log(e()) - 1) < 1e-8", 0},
+                {"SELECT SearchEngineID, ClientIP, count() AS c, sum(Refresh), avg(ResolutionWidth) " +
                         " FROM test.hits_s3 WHERE SearchPhrase != '' GROUP BY SearchEngineID, ClientIP " +
                         "   ORDER BY c DESC LIMIT 10", 0},
-            {"SELECT (id % 10) AS key, count() FROM 03279_test_database.test_table_1 GROUP BY key ORDER BY key", 0},
-            {"SELECT ?", 1},
-            {"(SELECT ?)", 1},
-            {"SELECT * FROM table key WHERE ts = ?", 1},
-            {"SELECT * FROM table source WHERE ts = ?", 1},
-            {"SELECT * FROM table after WHERE ts = ?", 1},
-            {"SELECT * FROM table before WHERE ts = ?", 1},
-            {"SELECT * FROM table case WHERE ts = ?", 1},
-            {"SELECT * FROM table cluster WHERE ts = ?", 1},
-            {"SELECT * FROM table current WHERE ts = ?", 1},
-            {"SELECT * FROM table index WHERE ts = ?", 1},
-            {"SELECT * FROM table tables WHERE ts = ?", 1},
-            {"SELECT * FROM table test WHERE ts = ?", 1},
-            {"SELECT * FROM table view WHERE ts = ?", 1},
-            {"SELECT * FROM table primary WHERE ts = ?", 1},
-            {"insert into events (s) values ('a')", 0},
-            {"insert into `events` (s) values ('a')", 0},
-            {"SELECT COUNT(*) > 0 FROM system.databases WHERE name = ?", 1},
-            {"SELECT count(*) > 0 FROM system.databases WHERE c1 = ?", 1},
-            {"SELECT COUNT() FROM system.databases WHERE name = ?", 1},
-            {"alter table user delete where reg_time = ?", 1},
-            {"SELECT * FROM a,b WHERE id > ?", 1},
-            {"select ip from myusers where tenant=?", 1},
-            {"SELECT myColumn FROM myTable WHERE myColumn in (?, ?, ?)", 3},
-            {"DROP USER IF EXISTS default_impersonation_user", 0},
-            {"DROP ROLE IF EXISTS `vkonfwxapllzkkgkqdvt`", 0},
-            {"CREATE ROLE `kjxrsscptauligukwgmf` ON CLUSTER '{cluster}'", 0},
-            {"GRANT SELECT ON `test_data`.`venues` TO `vkonfwxapllzkkgkqdvt`", 0},
-            {"GRANT `uqkczgnpmpuktxhwvqqd` TO `default_impersonation_user`", 0},
-            {"SET ROLE NONE", 0},
-            {"CREATE ROLE IF NOT EXISTS row_a ON CLUSTER '{cluster}'", 0},
-            {"CREATE ROW POLICY role_policy_BTABPUVDDLXZPYBCJGGZ ON `test_data`.`products` AS RESTRICTIVE FOR SELECT USING (`id` = 1) TO `annhpwyelooonsmqjldo`", 0},
-            {"CREATE ROW POLICY role_policy_BTABPUVDDLXZPYBCJGGZ ON `products` AS RESTRICTIVE FOR SELECT USING (`id` = 1) TO `annhpwyelooonsmqjldo`", 0},
-            {"GRANT ON CLUSTER '{cluster}' row_a, row_b, row_c TO metabase_impersonation_test_user", 0},
-            {"GRANT ON CLUSTER '{cluster}' SELECT ON metabase_impersonation_test.test_1751397165968 TO metabase_impersonation_test_user", 0},
-            {"CREATE ROW POLICY OR REPLACE policy_row_a ON CLUSTER '{cluster}' ON metabase_impersonation_test.test_1751397165968 FOR SELECT USING s = 'a' TO row_a", 0},
-            {"CREATE ROW POLICY OR REPLACE policy_row_b ON CLUSTER '{cluster}' ON metabase_impersonation_test.test_1751397165968 FOR SELECT USING s = 'b' TO row_b", 0},
-            {"CREATE ROW POLICY OR REPLACE policy_row_c ON CLUSTER '{cluster}' ON metabase_impersonation_test.test_1751397165968 FOR SELECT USING s = 'c' TO row_c", 0},
-            {"GRANT SELECT ON `metabase_test_role_db`.`*` TO `metabase_test_role`,`metabase-test-role`", 0},
-            {"GRANT SELECT ON `metabase_test_role_db`.* TO `metabase_test_role`,`metabase-test-role`", 0},
-            {"GRANT `metabase_test_role`, `metabase-test-role` TO `metabase_test_user`", 0},
-            {"GRANT ON CLUSTER '{cluster}' SELECT ON `metabase_test_role_db`.* TO `metabase_test_role`, `metabase-test-role`", 0},
-            {"GRANT ON CLUSTER '{cluster}' `metabase_test_role`, `metabase-test-role` TO `metabase_test_user`", 0},
-            {"SELECT * FROM `test_data`.`categories` WHERE id = 1::String or id = ?", 1},
-            {"SELECT * FROM `test_data`.`categories` WHERE id = cast(1 as String) or id = ?", 1},
-            {"select * from test_data.categories WHERE test_data.categories.name = ? limit 4", 1},
-            {INSERT_INLINE_DATA, 0},
-            {"select sum(value) from `uuid_filter_db`.`uuid_filter_table` WHERE `uuid_filter_db`.`uuid_filter_table`.`uuid` IN (CAST('36f7f85c-d7f4-49e2-af05-f45d5f6636ad' AS UUID))", 0},
-            {"SELECT DISTINCT ON (column) FROM table WHERE column > ?", 1},
-            {"SELECT * FROM test_table \nUNION\n DISTINCT SELECT * FROM test_table", 0},
-            {"SELECT * FROM test_table \nUNION\n ALL SELECT * FROM test_table", 0},
-            {"SELECT * FROM test_table1 \nUNION\n SELECT * FROM test_table2 WHERE test_table2.column1 = ?", 1},
-            {COMPLEX_CTE, 4},
-            {SIMPLE_CTE, 0},
-            {CTE_CONSTANT_AS_VARIABLE, 1},
-            {"select toYear(dt) year from test WHERE val=?", 1},
-            {"select 1 year, 2 hour, 3 minute, 4 second", 0},
-            {"select toYear(dt) AS year from test WHERE val=?", 1},
-            {"select toYear(dt) AS yearx from test WHERE val=?", 1},
-            {"SELECT v FROM t WHERE f in (?)", 1},
-            {"SELECT v FROM t WHERE a > 10 AND event NOT IN (?)", 1},
-            {"SELECT v FROM t WHERE f in (1, 2, 3)", 0},
-            {"with ? as val1, numz as (select val1, number from system.numbers limit 10) select * from numz", 1},
-            {"WITH 'hello' REGEXP 'h' AS result SELECT 1", 0},
-            {"WITH (select 1) as a, z AS (select 2) SELECT 1", 0},
-            {"SELECT result FROM test_view(myParam = ?)", 1},
-            {"WITH toDate('2025-08-20') as DATE_END, events AS ( SELECT 1 ) SELECT * FROM events", 0},
-            {"select 1 table where 1 = ?", 1},
-            {"insert into t (i, t) values (1, timestamp '2010-01-01 00:00:00')", 0},
-            {"insert into t (i, t) values (1, date '2010-01-01')", 0},
-            {"SELECT timestamp '2010-01-01 00:00:00' as ts, date '2010-01-01' as d", 0},
-            {INSERT_WITH_COMMENTS, 4},
-            {"    /* INSERT TESTING ?? */\n SELECT ? AS num", 1},
-            {"/* SELECT ? TESTING */\n INSERT INTO test_table VALUES (?)", 1},
-            {"/* INSERT ? T??ESTING */\n\n\n UPDATE test_table SET num = ?", 1},
-            {"-- INSERT ? TESTING */\n SELECT ? AS num", 1},
-            {"     -- SELECT ? TESTING \n -- SELECT AGAIN ?\n INSERT INTO test_table VALUES (?)", 1},
-            {" SELECT ?    -- INSERT ? TESTING", 1},
-            {"#! INSERT ? TESTING \n SELECT ? AS num", 1},
-            {"#!INSERT ? TESTING \n SELECT ? AS num", 1},
-            {"# INSERT ? TESTING \n SELECT ? AS num", 1},
-            {"#INSERT ? TESTING \n SELECT ? AS num", 1},
-            {"\nINSERT INTO TESTING \n SELECT ? AS num", 1},
-            {"         \n          INSERT INTO TESTING \n SELECT ? AS num", 1},
-            {" SELECT '##?0.1' as f, ? as a\n #this is debug \n FROM table", 1},
-            {"WITH '#!?0.1' as f, ? as a\n #this is debug \n SELECT * FROM a", 1},
-            {SELECT_WITH_WHERE_CLAUSE_FUNC_WITH_PARAMS, 2},
-            {"SELECT arrayFilter(x -> x > 0, [0, 1, 2, -3])", 0},
-            {"SELECT [0, 1, 2, -3] arr, arrayFilter(x -> x > 0, arr)", 0},
-            {"SELECT arrayFill(x, y, z -> x > y AND x < z, [5, 3, 6, 2], [4, 7, 1, 3], [10, 2, 8, 5]) AS res", 0},
-            {"SELECT arrayFilter(x -> x LIKE '%World%', ['Hello', 'abc World']) AS res", 0},
-            {"SELECT arrayFilter(x -> not (x is null), ['Hello', 'abc World']) AS res", 0},
-            {"SELECT arrayDistinct(arrayFilter(x -> not (x is null), " +
-                    "              arrayConcat(t.s.arr1, t.s.arr2)" +
-                    "              )" +
-                    ")", 0},
-            {"select count(*) filter (where 1 = 1)", 0},
-            {"select countIf(*, 1 = ?)", 1},
-            {"select count(*) filter (where 1 = ?)", 1}
+                {"SELECT (id % 10) AS key, count() FROM 03279_test_database.test_table_1 GROUP BY key ORDER BY key", 0},
+                {"SELECT ?", 1},
+                {"(SELECT ?)", 1},
+                {"SELECT * FROM table key WHERE ts = ?", 1},
+                {"SELECT * FROM table source WHERE ts = ?", 1},
+                {"SELECT * FROM table after WHERE ts = ?", 1},
+                {"SELECT * FROM table before WHERE ts = ?", 1},
+                {"SELECT * FROM table case WHERE ts = ?", 1},
+                {"SELECT * FROM table cluster WHERE ts = ?", 1},
+                {"SELECT * FROM table current WHERE ts = ?", 1},
+                {"SELECT * FROM table index WHERE ts = ?", 1},
+                {"SELECT * FROM table tables WHERE ts = ?", 1},
+                {"SELECT * FROM table test WHERE ts = ?", 1},
+                {"SELECT * FROM table view WHERE ts = ?", 1},
+                {"SELECT * FROM table primary WHERE ts = ?", 1},
+                {"insert into events (s) values ('a')", 0},
+                {"insert into `events` (s) values ('a')", 0},
+                {"SELECT COUNT(*) > 0 FROM system.databases WHERE name = ?", 1},
+                {"SELECT count(*) > 0 FROM system.databases WHERE c1 = ?", 1},
+                {"SELECT COUNT() FROM system.databases WHERE name = ?", 1},
+                {"alter table user delete where reg_time = ?", 1},
+                {"SELECT * FROM a,b WHERE id > ?", 1},
+                {"select ip from myusers where tenant=?", 1},
+                {"SELECT myColumn FROM myTable WHERE myColumn in (?, ?, ?)", 3},
+                {"DROP USER IF EXISTS default_impersonation_user", 0},
+                {"DROP ROLE IF EXISTS `vkonfwxapllzkkgkqdvt`", 0},
+                {"CREATE ROLE `kjxrsscptauligukwgmf` ON CLUSTER '{cluster}'", 0},
+                {"GRANT SELECT ON `test_data`.`venues` TO `vkonfwxapllzkkgkqdvt`", 0},
+                {"GRANT `uqkczgnpmpuktxhwvqqd` TO `default_impersonation_user`", 0},
+                {"SET ROLE NONE", 0},
+                {"CREATE ROLE IF NOT EXISTS row_a ON CLUSTER '{cluster}'", 0},
+                {"CREATE ROW POLICY role_policy_BTABPUVDDLXZPYBCJGGZ ON `test_data`.`products` AS RESTRICTIVE FOR SELECT USING (`id` = 1) TO `annhpwyelooonsmqjldo`", 0},
+                {"CREATE ROW POLICY role_policy_BTABPUVDDLXZPYBCJGGZ ON `products` AS RESTRICTIVE FOR SELECT USING (`id` = 1) TO `annhpwyelooonsmqjldo`", 0},
+                {"GRANT ON CLUSTER '{cluster}' row_a, row_b, row_c TO metabase_impersonation_test_user", 0},
+                {"GRANT ON CLUSTER '{cluster}' SELECT ON metabase_impersonation_test.test_1751397165968 TO metabase_impersonation_test_user", 0},
+                {"CREATE ROW POLICY OR REPLACE policy_row_a ON CLUSTER '{cluster}' ON metabase_impersonation_test.test_1751397165968 FOR SELECT USING s = 'a' TO row_a", 0},
+                {"CREATE ROW POLICY OR REPLACE policy_row_b ON CLUSTER '{cluster}' ON metabase_impersonation_test.test_1751397165968 FOR SELECT USING s = 'b' TO row_b", 0},
+                {"CREATE ROW POLICY OR REPLACE policy_row_c ON CLUSTER '{cluster}' ON metabase_impersonation_test.test_1751397165968 FOR SELECT USING s = 'c' TO row_c", 0},
+                {"GRANT SELECT ON `metabase_test_role_db`.`*` TO `metabase_test_role`,`metabase-test-role`", 0},
+                {"GRANT SELECT ON `metabase_test_role_db`.* TO `metabase_test_role`,`metabase-test-role`", 0},
+                {"GRANT `metabase_test_role`, `metabase-test-role` TO `metabase_test_user`", 0},
+                {"GRANT ON CLUSTER '{cluster}' SELECT ON `metabase_test_role_db`.* TO `metabase_test_role`, `metabase-test-role`", 0},
+                {"GRANT ON CLUSTER '{cluster}' `metabase_test_role`, `metabase-test-role` TO `metabase_test_user`", 0},
+                {"SELECT * FROM `test_data`.`categories` WHERE id = 1::String or id = ?", 1},
+                {"SELECT * FROM `test_data`.`categories` WHERE id = cast(1 as String) or id = ?", 1},
+                {"select * from test_data.categories WHERE test_data.categories.name = ? limit 4", 1},
+                {INSERT_INLINE_DATA, 0},
+                {"select sum(value) from `uuid_filter_db`.`uuid_filter_table` WHERE `uuid_filter_db`.`uuid_filter_table`.`uuid` IN (CAST('36f7f85c-d7f4-49e2-af05-f45d5f6636ad' AS UUID))", 0},
+                {"SELECT DISTINCT ON (column) FROM table WHERE column > ?", 1},
+                {"SELECT * FROM test_table \nUNION\n DISTINCT SELECT * FROM test_table", 0},
+                {"SELECT * FROM test_table \nUNION\n ALL SELECT * FROM test_table", 0},
+                {"SELECT * FROM test_table1 \nUNION\n SELECT * FROM test_table2 WHERE test_table2.column1 = ?", 1},
+                {COMPLEX_CTE, 4},
+                {SIMPLE_CTE, 0},
+                {CTE_CONSTANT_AS_VARIABLE, 1},
+                {"select toYear(dt) year from test WHERE val=?", 1},
+                {"select 1 year, 2 hour, 3 minute, 4 second", 0},
+                {"select toYear(dt) AS year from test WHERE val=?", 1},
+                {"select toYear(dt) AS yearx from test WHERE val=?", 1},
+                {"SELECT v FROM t WHERE f in (?)", 1},
+                {"SELECT v FROM t WHERE a > 10 AND event NOT IN (?)", 1},
+                {"SELECT v FROM t WHERE f in (1, 2, 3)", 0},
+                {"with ? as val1, numz as (select val1, number from system.numbers limit 10) select * from numz", 1},
+                {"WITH 'hello' REGEXP 'h' AS result SELECT 1", 0},
+                {"WITH (select 1) as a, z AS (select 2) SELECT 1", 0},
+                {"SELECT result FROM test_view(myParam = ?)", 1},
+                {"WITH toDate('2025-08-20') as DATE_END, events AS ( SELECT 1 ) SELECT * FROM events", 0},
+                {"select 1 table where 1 = ?", 1},
+                {"insert into t (i, t) values (1, timestamp '2010-01-01 00:00:00')", 0},
+                {"insert into t (i, t) values (1, date '2010-01-01')", 0},
+                {"SELECT timestamp '2010-01-01 00:00:00' as ts, date '2010-01-01' as d", 0},
+                {INSERT_WITH_COMMENTS, 4},
+                {"    /* INSERT TESTING ?? */\n SELECT ? AS num", 1},
+                {"/* SELECT ? TESTING */\n INSERT INTO test_table VALUES (?)", 1},
+                {"/* INSERT ? T??ESTING */\n\n\n UPDATE test_table SET num = ?", 1},
+                {"-- INSERT ? TESTING */\n SELECT ? AS num", 1},
+                {"     -- SELECT ? TESTING \n -- SELECT AGAIN ?\n INSERT INTO test_table VALUES (?)", 1},
+                {" SELECT ?    -- INSERT ? TESTING", 1},
+                {"#! INSERT ? TESTING \n SELECT ? AS num", 1},
+                {"#!INSERT ? TESTING \n SELECT ? AS num", 1},
+                {"# INSERT ? TESTING \n SELECT ? AS num", 1},
+                {"#INSERT ? TESTING \n SELECT ? AS num", 1},
+                {"\nINSERT INTO TESTING \n SELECT ? AS num", 1},
+                {"         \n          INSERT INTO TESTING \n SELECT ? AS num", 1},
+                {" SELECT '##?0.1' as f, ? as a\n #this is debug \n FROM table", 1},
+                {"WITH '#!?0.1' as f, ? as a\n #this is debug \n SELECT * FROM a", 1},
+                {SELECT_WITH_WHERE_CLAUSE_FUNC_WITH_PARAMS, 2},
+                {"SELECT arrayFilter(x -> x > 0, [0, 1, 2, -3])", 0},
+                {"SELECT [0, 1, 2, -3] arr, arrayFilter(x -> x > 0, arr)", 0},
+                {"SELECT arrayFill(x, y, z -> x > y AND x < z, [5, 3, 6, 2], [4, 7, 1, 3], [10, 2, 8, 5]) AS res", 0},
+                {"SELECT arrayFilter(x -> x LIKE '%World%', ['Hello', 'abc World']) AS res", 0},
+                {"SELECT arrayFilter(x -> not (x is null), ['Hello', 'abc World']) AS res", 0},
+                {"SELECT arrayDistinct(arrayFilter(x -> not (x is null), " +
+                        "              arrayConcat(t.s.arr1, t.s.arr2)" +
+                        "              )" +
+                        ")", 0},
+                {"select count(*) filter (where 1 = 1)", 0},
+                {"select countIf(*, 1 = ?)", 1},
+                {"select count(*) filter (where 1 = ?)", 1},
+                {WHEN_HAS_ARRAY, 0},
         };
     }
 
@@ -542,6 +553,22 @@ public abstract class BaseSqlParserFacadeTest {
             "    EventDate = toDate(?) AND\n" +
             "    EventTime <= ts_upper_bound;";
 
+    private static final String WHEN_HAS_ARRAY = "SELECT\n" +
+            "    field1,\n" +
+            "    CASE\n" +
+            "        WHEN position(field1, 'a') > 0 THEN 'Action1'\n" +
+            "        WHEN position(field1, 'b') > 0 THEN 'Action2'\n" +
+            "        WHEN\n" +
+            "             splitByChar('_', field1)[3] IN ('type1', 'type2')\n" +
+            "             AND match(\n" +
+            "                 splitByChar('_', field1)[4],\n" +
+            "                 '(SUBTYPE1|SUBTYPE2|SUBTYPE3)'\n" +
+            "             )\n" +
+            "            THEN 'Action3'\n" +
+            "        ELSE null\n" +
+            "    END AS action_to_do\n" +
+            "FROM db.table1";
+
     @Test(dataProvider = "testStatementWithoutResultSetDP")
     public void testStatementsForResultSet(String sql, int args, boolean hasResultSet) {
         System.out.println("sql: " + sql);
@@ -565,6 +592,7 @@ public abstract class BaseSqlParserFacadeTest {
                 /* has result set */
                 {"SELECT * FROM test_table", 0, true},
                 {"SELECT 1 table WHERE 1 = ?", 1, true},
+                {"SELECT * FROM transaction", 0, true},
                 {"SHOW CREATE TABLE `db`.`test_table`", 0, true},
                 {"SHOW CREATE TEMPORARY TABLE `db1`.`tmp_table`", 0, true},
                 {"SHOW CREATE DICTIONARY dict1", 0, true},
@@ -616,6 +644,9 @@ public abstract class BaseSqlParserFacadeTest {
                 {"EXPLAIN SELECT 1", 0, true},
                 {"EXPLAIN SELECT sum(number) FROM numbers(10) UNION ALL SELECT sum(number) FROM numbers(10) ORDER BY sum(number) ASC FORMAT TSV", 0, true},
                 {"DESCRIBE TABLE table", 0, true},
+                {"DESCRIBE TABLE (select 1::Uint32)", 0, true},
+                {"DESCRIBE (select 1::Uint32)", 0, true},
+                {"DESCRIBE (select column.sub_column.field FROM some table)", 0, true},
                 {"DESC TABLE table1", 0, true},
                 {"EXISTS TABLE `db`.`table01`", 0, true},
                 {"CHECK GRANT SELECT(col2) ON table_2", 0, true},
@@ -765,5 +796,109 @@ public abstract class BaseSqlParserFacadeTest {
                 {"UNDROP TABLE db.tab UUID '857d-4a57-9ee0-327da5d60a90' ON CLUSTER `default`", 0, false},
 
         };
+    }
+
+    /**
+     * Reads SQL keywords from the resource file.
+     * Keywords are listed one per line, comments start with #.
+     */
+    private List<String> loadKeywords(String resourceName) throws Exception {
+        List<String> keywords = new ArrayList<>();
+        try (InputStream is = getClass().getClassLoader().getResourceAsStream(resourceName);
+             BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
+
+            String line;
+            while ((line = reader.readLine()) != null) {
+                line = line.trim();
+                // Skip empty lines and comments
+                if (!line.isEmpty() && !line.startsWith("#")) {
+                    keywords.add(line);
+                }
+            }
+        }
+        return keywords;
+    }
+
+    /**
+     * Test that keywords allowed as aliases can be used as table names and aliases.
+     */
+    @Test
+    public void testKeywordAliasesAsTableNames() throws Exception {
+        List<String> keywords = new ArrayList<>(
+                ClickHouseSqlUtils.getKeywordGroup(ClickHouseSqlUtils.KEYWORD_GROUP_ALLOWED_ALIASES));
+        Assert.assertFalse(keywords.isEmpty(), "Keywords list should not be empty");
+
+        List<String> failedKeywords = new ArrayList<>();
+
+        for (String keyword : keywords) {
+
+            // Test 1: SELECT * FROM table AS <keyword>
+            String sql3 = "SELECT * FROM table AS " + keyword;
+            ParsedPreparedStatement stmt3 = parser.parsePreparedStatement(sql3);
+            if (stmt3.isHasErrors()) {
+                failedKeywords.add(keyword + " (test: SELECT * FROM table AS " + keyword + ")");
+            }
+
+
+            // Test 2: SELECT * FROM table <keyword> (implicit alias)
+            String sql4 = "SELECT * FROM table " + keyword;
+            ParsedPreparedStatement stmt4 = parser.parsePreparedStatement(sql4);
+            if (stmt4.isHasErrors()) {
+                failedKeywords.add(keyword + " (test: SELECT * FROM table " + keyword + ")");
+            }
+
+        }
+
+        // Report all failures at once
+        if (!failedKeywords.isEmpty()) {
+            String failureMessage = "The following keywords caused parsing errors:\n" +
+                    failedKeywords.stream().collect(Collectors.joining("\n"));
+            Assert.fail(failureMessage);
+        }
+    }
+
+    /**
+     * Test that keywords allowed as table names can be used as table names.
+     */
+    @Test
+    public void testAllowedTableKeywords() throws Exception {
+        List<String> keywords = loadKeywords("allowed_keyword_tablenames.txt");
+        Assert.assertFalse(keywords.isEmpty());
+        List<String> failedKeywords = new ArrayList<>();
+
+        for (String keyword : keywords) {
+            // Test 1: SELECT * FROM <keyword>
+            String sql1 = "SELECT * FROM " + keyword;
+            ParsedPreparedStatement stmt1 = parser.parsePreparedStatement(sql1);
+            if (stmt1.isHasErrors()) {
+                failedKeywords.add(keyword + " (test: SELECT * FROM " + keyword + ")");
+            }
+
+            // Test 1: SELECT * FROM <keyword> WHERE col = ?
+            String sql2 = "SELECT * FROM " + keyword + " WHERE col = ?";
+            ParsedPreparedStatement stmt2 = parser.parsePreparedStatement(sql2);
+            if (stmt2.isHasErrors()) {
+                failedKeywords.add(keyword + " (test: SELECT * FROM " + keyword + " WHERE col = ?)");
+            }
+            Assert.assertEquals(stmt2.getArgCount(), 1, "Should have 1 parameter for: " + sql2);
+
+            // Test 2: INSERT INTO <keyword> VALUES (?)
+            String sql5 = "INSERT INTO " + keyword + " VALUES (?)";
+            ParsedPreparedStatement stmt5 = parser.parsePreparedStatement(sql5);
+            if (stmt5.isHasErrors()) {
+                failedKeywords.add(keyword + " (test: INSERT INTO " + keyword + " VALUES (?))");
+            }
+            Assert.assertEquals(stmt5.getArgCount(), 1, "Should have 1 parameter for: " + sql5);
+            if (!stmt5.getTable().equalsIgnoreCase(keyword)) {
+                failedKeywords.add(keyword + " (test: INSERT INTO " + keyword + " VALUES (?)) table name check failed");
+            }
+        }
+
+        // Report all failures at once
+        if (!failedKeywords.isEmpty()) {
+            String failureMessage = "The following keywords caused parsing errors:\n" +
+                    failedKeywords.stream().collect(Collectors.joining("\n"));
+            Assert.fail(failureMessage);
+        }
     }
 }

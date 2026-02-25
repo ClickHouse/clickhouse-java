@@ -299,6 +299,11 @@ public class JdbcConfiguration {
             propertyInfos.put(prop.getKey(), propertyInfo);
 
             if (DRIVER_PROP_KEYS.contains(prop.getKey())) {
+                if (prop.getKey().equalsIgnoreCase(DriverProperties.CUSTOM_HTTP_PARAMS.getKey()) ||
+                    prop.getKey().equalsIgnoreCase(DriverProperties.CUSTOM_SETTINGS.getKey())) {
+                    ClientConfigProperties.toKeyValuePairs(prop.getValue())
+                            .forEach((k, v) -> clientProperties.put(ClientConfigProperties.serverSetting(k), v));
+                }
                 driverProperties.put(prop.getKey(), prop.getValue());
             } else {
                 clientProperties.put(prop.getKey(), prop.getValue());

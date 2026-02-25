@@ -694,6 +694,41 @@ public class QueryTests extends BaseIntegrationTest {
         }
     }
 
+    @Test(groups = {"integration"})
+    public void testSimpleResultSetReadWithBinaryReader() throws Exception {
+        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
+
+        try (QueryResponse response = client.query("SELECT 1 a, null::Nullable(Int32) b", settings).get(3, TimeUnit.SECONDS)) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+
+            Assert.assertTrue(reader.hasNext());
+            reader.next();
+            Assert.assertEquals(reader.getInteger(1), 1);
+
+            Assert.assertTrue(reader.hasValue(1));
+            Assert.assertFalse(reader.hasValue(2));
+            Assert.assertFalse(reader.hasValue(3));
+
+            Assert.assertTrue(reader.hasValue("a"));
+            Assert.assertFalse(reader.hasValue("b"));
+            Assert.assertFalse(reader.hasValue("c"));
+        }
+
+        List<GenericRecord> records = client.queryAll("SELECT 1 a, null::Nullable(Int32) b", settings);
+
+        GenericRecord record = records.get(0);
+
+        Assert.assertEquals(record.getInteger(1), 1);
+
+        Assert.assertTrue(record.hasValue(1));
+        Assert.assertFalse(record.hasValue(2));
+        Assert.assertFalse(record.hasValue(3));
+
+        Assert.assertTrue(record.hasValue("a"));
+        Assert.assertFalse(record.hasValue("b"));
+        Assert.assertFalse(record.hasValue("c"));
+    }
+
     private final static List<String> NULL_DATASET_COLUMNS = Arrays.asList(
             "id UInt32",
             "col1 UInt32 NULL",

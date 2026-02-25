@@ -86,11 +86,10 @@ public class TableSchema {
      * @return - column name
      */
     public String indexToName(int index) {
-        try {
-            return columns.get(index).getColumnName();
-        } catch (IndexOutOfBoundsException e) {
+        if (index < 0 || index >= columns.size()) {
             throw new NoSuchColumnException("Result has no column with index = " + index);
         }
+        return columns.get(index).getColumnName();
     }
 
     /**
@@ -127,6 +126,25 @@ public class TableSchema {
             throw new NoSuchColumnException("Result has no column with name '" + name + "'");
         }
         return index;
+    }
+
+    /**
+     * Looks up for column 1-based index for a column name.
+     * @param columnName - name of column to search
+     * @return column 1-based index of column or -1 if not found
+     */
+    public int findColumnIndex(String columnName) {
+        Integer index = colIndex.get(columnName);
+        return index == null ? -1 : index + 1;
+    }
+
+    public String findColumnName(int colIndex) {
+        int lookupIndex = colIndex - 1;
+        if (lookupIndex < 0 || lookupIndex >= columns.size()) {
+            return null;
+        }
+
+        return columns.get(lookupIndex).getColumnName();
     }
 
     @Override

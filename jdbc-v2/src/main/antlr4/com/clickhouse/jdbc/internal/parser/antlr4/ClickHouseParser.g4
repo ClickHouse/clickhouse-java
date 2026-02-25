@@ -668,7 +668,7 @@ setStmt
 // SET ROLE statement
 
 setRoleStmt
-    : SET (DEFAULT)? ROLE (setRolesList | NONE | ALL (EXCEPT setRolesList)) (TO identifier | CURRENT_USER (COMMA identifier | CURRENT_USER)*)?
+    : SET (DEFAULT)? ROLE ( NONE | setRolesList | ALL (EXCEPT setRolesList)) (TO identifier | CURRENT_USER (COMMA identifier | CURRENT_USER)*)?
     ;
 
 setRolesList
@@ -1217,8 +1217,10 @@ interval
     ;
 
 keyword
-    // except NULL_SQL, INF, NAN_SQL
-    : AFTER
+    : ACCESS
+    | ADD
+    | ADMIN
+    | AFTER
     | ALIAS
     | ALL
     | ALTER
@@ -1232,53 +1234,83 @@ keyword
     | AST
     | ASYNC
     | ATTACH
+    | AVG
+    | AZURE
+    | BACKUP
+    | BCRYPT_HASH
+    | BCRYPT_PASSWORD
     | BETWEEN
     | BOTH
     | BY
+    | CACHE
+    | CACHES
     | CASE
     | CAST
+    | CHANGEABLE_IN_READONLY
+    | CHANGED
     | CHECK
+    | CLEANUP
     | CLEAR
     | CLUSTER
+    | CLUSTERS
+    | CN
     | CODEC
     | COLLATE
+    | COLLECTION
     | COLUMN
+    | COLUMNS
     | COMMENT
+    | CONNECTIONS
+    | CONST
     | CONSTRAINT
     | CREATE
     | CROSS
     | CUBE
     | CURRENT
+    | CURRENT_USER
     | DATABASE
     | DATABASES
     | DATE
+    | DAY
     | DEDUPLICATE
     | DEFAULT
+    | DEFINER
     | DELAY
     | DELETE
-    | DESCRIBE
     | DESC
     | DESCENDING
+    | DESCRIBE
     | DETACH
     | DICTIONARIES
     | DICTIONARY
     | DISK
     | DISTINCT
     | DISTRIBUTED
+    | DOUBLE_SHA1_HASH
+    | DOUBLE_SHA1_PASSWORD
     | DROP
     | ELSE
+    | ENABLED
     | END
     | ENGINE
+    | ENGINES
+    | ESTIMATE
     | EVENTS
+    | EXCEPT
+    | EXCHANGE
     | EXISTS
     | EXPLAIN
     | EXPRESSION
+    | EXTENDED
     | EXTRACT
+    | FETCH
     | FETCHES
+    | FILE
+    | FILESYSTEM
+    | FILTER
     | FINAL
     | FIRST
     | FLUSH
-    | FOR
     | FOLLOWING
     | FOR
     | FORMAT
@@ -1286,17 +1318,29 @@ keyword
     | FROM
     | FULL
     | FUNCTION
+    | FUNCTIONS
     | GLOBAL
+    | GRANT
+    | GRANTEES
+    | GRANTS
     | GRANULARITY
     | GROUP
-    | GRANT
     | HAVING
+    | HDFS
     | HIERARCHICAL
+    | HOST
+    | HOUR
+    | HTTP
     | ID
+    | IDENTIFIED
     | IF
     | ILIKE
+    | IMPLICIT
     | IN
     | INDEX
+    | INDEXES
+    | INDICES
+    | INHERIT
     | INJECTIVE
     | INNER
     | INSERT
@@ -1308,147 +1352,430 @@ keyword
     | JOIN
     | JSON_FALSE
     | JSON_TRUE
+    | KERBEROS
     | KEY
+    | KEYED
+    | KEYS
     | KILL
     | LAST
     | LAYOUT
+    | LDAP
     | LEADING
     | LEFT
     | LIFETIME
+    | LIGHTWEIGHT
     | LIKE
     | LIMIT
+    | LIMITS
     | LIVE
     | LOCAL
-    | LOGS
     | LOG
+    | LOGS
     | MATERIALIZE
     | MATERIALIZED
     | MAX
     | MERGES
+    | METRICS
     | MIN
+    | MINUTE
     | MODIFY
+    | MONTH
     | MOVE
     | MUTATION
-    | NO
-    | NOT
-    | NULLS
-    | NULL_SQL
     | NAME
+    | NAMED
+    | NO
+    | NONE
+    | NO_PASSWORD
+    | NOT
+    | NULL_SQL
+    | NULLS
     | OFFSET
     | ON
+    | ONLY
     | OPTIMIZE
+    | OPTION
     | OR
     | ORDER
     | OUTER
     | OUTFILE
     | OVER
+    | OVERRIDE
+    | PART
     | PARTITION
+    | PARTS
+    | PERMISSIVE
+    | PIPELINE
+    | PLAINTEXT_PASSWORD
+    | PLAN
+    | POLICY
     | POPULATE
     | PRECEDING
     | PREWHERE
     | PRIMARY
+    | PROCESSLIST
     | PROFILE
+    | PROFILES
+    | PROJECTION
+    | PULL
+    | QUARTER
+    | QUERIES
+    | QUERY
+    | QUOTA
+    | RANDOMIZED
     | RANGE
+    | READONLY
+    | REALM
+    | REFRESH
+    | REGEXP
     | RELOAD
-    | REMOVE
     | REMOTE
+    | REMOVE
     | RENAME
     | REPLACE
     | REPLICA
     | REPLICATED
+    | RESOURCE
+    | RESTORE
+    | RESTRICTIVE
+    | REVOKE
     | RIGHT
+    | ROLE
+    | ROLES
     | ROLLUP
     | ROW
     | ROWS
-    | REVOKE
+    | S3
     | SAMPLE
+    | SCRAM_SHA256_HASH
+    | SCRAM_SHA256_PASSWORD
+    | SECOND
+    | SECURITY
     | SELECT
     | SEMI
     | SENDS
+    | SERVER
     | SET
+    | SETTING
     | SETTINGS
+    | SHA256_HASH
+    | SHA256_PASSWORD
+    | SHARD
     | SHOW
     | SOURCE
+    | SQL
+    | SSH_KEY
+    | SSL_CERTIFICATE
     | START
     | STATISTICS
     | STOP
+    | STRICT
     | SUBSTRING
+    | SUM
     | SYNC
     | SYNTAX
     | SYSTEM
     | TABLE
     | TABLES
+    | TAG
     | TEMPORARY
     | TEST
     | THEN
+    | THREAD
     | TIES
     | TIMEOUT
     | TIMESTAMP
-    | TOTALS
-    | TRAILING
-    | TRIM
-    | TRUNCATE
-    | TRACKING
     | TO
     | TOP
+    | TOTALS
+    | TRACKING
+    | TRAILING
+    | TRANSACTION
+    | TREE
+    | TRIM
+    | TRUNCATE
     | TTL
     | TYPE
     | UNBOUNDED
+    | UNDROP
+    | UNFREEZE
     | UNION
+    | UNTIL
     | UPDATE
+    | URL
     | USE
-    | USING
     | USER
     | USERS
+    | USING
     | UUID
-    | URL
+    | VALID
     | VALUES
     | VIEW
     | VOLUME
     | WATCH
+    | WEEK
     | WHEN
     | WHERE
     | WINDOW
     | WITH
-    | QUERIES
-    | SUM
-    | AVG
-    | REFRESH
-    | EXPLAIN
+    | WORKLOAD
+    | WRITABLE
+    | YEAR
+    | ZKPATH
     ;
 
 keywordForAlias
-    : DATE
-    | FIRST
-    | ID
-    | KEY
-    | SOURCE
+    : ACCESS
+    | ADD
+    | ADMIN
     | AFTER
+    | ALIAS
+    | ALTER
+    | AND
+    | ASCENDING
+    | AST
+    | ASYNC
+    | ATTACH
+    | AZURE
+    | BACKUP
+    | BCRYPT_HASH
+    | BCRYPT_PASSWORD
+    | BOTH
+    | BY
+    | CACHE
+    | CACHES
     | CASE
+    | CAST
+    | CHANGEABLE_IN_READONLY
+    | CHANGED
+    | CHECK
+    | CLEANUP
+    | CLEAR
     | CLUSTER
+    | CLUSTERS
+    | CN
+    | CODEC
+    | COLLATE
+    | COLLECTION
+    | COLUMN
+    | COLUMNS
+    | COMMENT
+    | CONNECTIONS
+    | CONST
+    | CONSTRAINT
+    | CREATE
+    | CUBE
     | CURRENT
-    | INDEX
-    | TABLES
-    | TABLE
-    | TEST
-    | VIEW
-    | PRIMARY
-    | GRANT
-    | YEAR
+    | CURRENT_USER
+    | DATABASE
+    | DATABASES
+    | DATE
     | DAY
-    | MONTH
+    | DEDUPLICATE
+    | DEFAULT
+    | DEFINER
+    | DELAY
+    | DELETE
+    | DESC
+    | DESCENDING
+    | DESCRIBE
+    | DETACH
+    | DICTIONARIES
+    | DICTIONARY
+    | DISK
+    | DISTINCT
+    | DOUBLE_SHA1_HASH
+    | DOUBLE_SHA1_PASSWORD
+    | DROP
+    | ENABLED
+    | END
+    | ENGINE
+    | ENGINES
+    | ESTIMATE
+    | EVENTS
+    | EXCHANGE
+    | EXISTS
+    | EXPLAIN
+    | EXPRESSION
+    | EXTENDED
+    | FETCH
+    | FILE
+    | FILESYSTEM
+    | FILTER
+    | FIRST
+    | FOLLOWING
+    | FOR
+    | FREEZE
+    | FUNCTION
+    | FUNCTIONS
+    | GRANT
+    | GRANTEES
+    | GRANTS
+    | GRANULARITY
+    | HDFS
+    | HIERARCHICAL
+    | HOST
     | HOUR
+    | HTTP
+    | ID
+    | IDENTIFIED
+    | IF
+    | IMPLICIT
+    | IN
+    | INDEX
+    | INDEXES
+    | INDICES
+    | INHERIT
+    | INJECTIVE
+    | INSERT
+    | INTERVAL
+    | IP
+    | IS
+    | IS_OBJECT_ID
+    | KERBEROS
+    | KEY
+    | KEYED
+    | KEYS
+    | KILL
+    | LAST
+    | LAYOUT
+    | LDAP
+    | LEADING
+    | LIFETIME
+    | LIGHTWEIGHT
+    | LIMITS
+    | LIVE
+    | LOCAL
+    | MATERIALIZE
+    | MATERIALIZED
+    | MAX
+    | MERGES
+    | METRICS
+    | MIN
     | MINUTE
-    | SECOND
+    | MODIFY
+    | MONTH
+    | MOVE
+    | MUTATION
+    | NAME
+    | NAMED
+    | NO
+    | NONE
+    | NO_PASSWORD
+    | NULL_SQL
+    | NULLS
+    | OPTIMIZE
+    | OPTION
+    | OR
+    | OUTER
+    | OUTFILE
+    | OVER
+    | OVERRIDE
+    | PART
+    | PARTITION
+    | PARTS
+    | PERMISSIVE
+    | PIPELINE
+    | PLAINTEXT_PASSWORD
+    | PLAN
+    | POLICY
+    | POPULATE
+    | PRECEDING
+    | PRIMARY
+    | PROCESSLIST
+    | PROFILE
+    | PROFILES
+    | PROJECTION
+    | PULL
+    | QUARTER
+    | QUERY
+    | QUOTA
+    | RANDOMIZED
+    | RANGE
+    | READONLY
+    | REALM
+    | REFRESH
+    | REGEXP
+    | REMOVE
+    | RENAME
+    | REPLACE
+    | REPLICATED
+    | RESOURCE
+    | RESTORE
+    | RESTRICTIVE
     | REVOKE
-    | URL
+    | ROLE
+    | ROLES
+    | ROLLUP
+    | ROW
+    | ROWS
+    | S3
+    | SCRAM_SHA256_HASH
+    | SCRAM_SHA256_PASSWORD
+    | SECOND
+    | SECURITY
+    | SELECT
+    | SERVER
+    | SET
+    | SETTING
+    | SHA256_HASH
+    | SHA256_PASSWORD
+    | SHARD
+    | SHOW
+    | SOURCE
+    | SQL
+    | SSH_KEY
+    | SSL_CERTIFICATE
+    | START
     | STATISTICS
+    | STRICT
+    | SYNC
+    | SYNTAX
+    | SYSTEM
+    | TABLE
+    | TABLES
+    | TAG
+    | TEMPORARY
+    | TEST
+    | THEN
+    | THREAD
+    | TIES
+    | TIMESTAMP
+    | TO
+    | TOP
+    | TOTALS
+    | TRACKING
+    | TRAILING
+    | TRANSACTION
+    | TREE
+    | TRUNCATE
+    | TTL
+    | TYPE
+    | UNBOUNDED
+    | UNDROP
+    | UNFREEZE
+    | UNTIL
+    | UPDATE
+    | URL
+    | USE
+    | USER
+    | VALID
+    | VALUES
+    | VIEW
+    | VOLUME
+    | WATCH
+    | WEEK
+    | WHEN
+    | WORKLOAD
+    | WRITABLE
+    | YEAR
+    | ZKPATH
     ;
 
 alias
     : IDENTIFIER
     | keywordForAlias
-    ; // |interval| can't be an alias, otherwise 'INTERVAL 1 SOMETHING' becomes ambiguous.
+    ;
 
 identifier
     : BACKTICK_ID

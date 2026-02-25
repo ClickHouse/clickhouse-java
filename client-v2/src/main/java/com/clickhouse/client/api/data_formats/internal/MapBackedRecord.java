@@ -2,6 +2,7 @@ package com.clickhouse.client.api.data_formats.internal;
 
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.internal.DataTypeConverter;
+import com.clickhouse.client.api.metadata.NoSuchColumnException;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.NullValueException;
@@ -11,6 +12,7 @@ import com.clickhouse.data.value.ClickHouseGeoMultiPolygonValue;
 import com.clickhouse.data.value.ClickHouseGeoPointValue;
 import com.clickhouse.data.value.ClickHouseGeoPolygonValue;
 import com.clickhouse.data.value.ClickHouseGeoRingValue;
+import com.google.common.collect.ImmutableList;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -310,7 +312,8 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public boolean hasValue(int colIndex) {
-        return hasValue(schema.columnIndexToName(colIndex));
+        String columnName = schema.findColumnName(colIndex);
+        return columnName != null && hasValue(columnName);
     }
 
     @Override

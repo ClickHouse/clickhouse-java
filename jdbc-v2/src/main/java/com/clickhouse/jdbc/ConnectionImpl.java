@@ -119,7 +119,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
 
 
             this.sqlParser = SqlParserFacade.getParser(config.getDriverProperty(DriverProperties.SQL_PARSER.getKey(),
-                    DriverProperties.SQL_PARSER.getDefaultValue()));
+                    DriverProperties.SQL_PARSER.getDefaultValue()), config);
             this.featureManager = new FeatureManager(this.config);
         } catch (SQLException e) {
             throw e;

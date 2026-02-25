@@ -569,12 +569,15 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public boolean hasValue(int colIndex) {
+        if (colIndex < 1 || colIndex > currentRecord.length) {
+            return false;
+        }
         return currentRecord[colIndex - 1] != null;
     }
 
     @Override
     public boolean hasValue(String colName) {
-        return hasValue(schema.nameToColumnIndex(colName));
+        return hasValue(schema.findColumnIndex(colName));
     }
 
     @Override
