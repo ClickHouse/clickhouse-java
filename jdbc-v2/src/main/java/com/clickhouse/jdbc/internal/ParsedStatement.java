@@ -17,6 +17,8 @@ public final class ParsedStatement {
 
     private boolean hasErrors;
 
+    private String statementVerb;
+
     public void setUseDatabase(String useDatabase) {
         this.useDatabase = useDatabase;
     }
@@ -55,5 +57,13 @@ public final class ParsedStatement {
 
     public void setHasErrors(boolean hasErrors) {
         this.hasErrors = hasErrors;
+    }
+
+    public String getStatementVerb() {
+        return statementVerb;
+    }
+
+    public void setStatementVerb(String statementVerb) {
+        this.statementVerb = statementVerb;
     }
 }

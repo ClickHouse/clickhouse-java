@@ -1,11 +1,15 @@
 package com.clickhouse.jdbc.internal;
 
 import com.clickhouse.client.api.sql.SQLUtils;
+import com.google.common.collect.ImmutableSet;
 import com.clickhouse.data.ClickHouseUtils;
 import com.clickhouse.jdbc.DriverProperties;
 import com.clickhouse.jdbc.internal.parser.antlr4.ClickHouseLexer;
 import com.clickhouse.jdbc.internal.parser.antlr4.ClickHouseParser;
 import com.clickhouse.jdbc.internal.parser.antlr4.ClickHouseParserBaseListener;
+import com.clickhouse.jdbc.internal.parser.antlr4_light.ClickHouseLightParser;
+import com.clickhouse.jdbc.internal.parser.antlr4_light.ClickHouseLightParserBaseListener;
+import com.clickhouse.jdbc.internal.parser.antlr4_light.ClickHouseLightParserListener;
 import com.clickhouse.jdbc.internal.parser.javacc.ClickHouseSqlParser;
 import com.clickhouse.jdbc.internal.parser.javacc.ClickHouseSqlStatement;
 import com.clickhouse.jdbc.internal.parser.javacc.ClickHouseSqlUtils;
@@ -27,6 +31,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 public abstract class SqlParserFacade {
@@ -444,6 +449,236 @@ public abstract class SqlParserFacade {
         }
     }
 
+    private static class ANTLR4LightParser extends SqlParserFacade {
+        private static final ImmutableSet<String> VERBS_WITHOUT_RESULT_SET = ImmutableSet.<String>builder()
+                .add("ALTER")
+                .add("ATTACH")
+                .add("BACKUP")
+                .add("CREATE")
+                .add("DELETE")
+                .add("DETACH")
+                .add("DROP")
+                .add("EXCHANGE")
+                .add("GRANT")
+                .add("INSERT")
+                .add("KILL")
+                .add("MOVE")
+                .add("OPTIMIZE")
+                .add("RENAME")
+                .add("REPLACE")
+                .add("RESTORE")
+                .add("REVOKE")
+                .add("SET")
+                .add("TRUNCATE")
+                .add("UNDROP")
+                .add("UPDATE")
+                .add("USE")
+                .build();
+
+        private static boolean isStmtWithResultSetVerb(String verb) {
+            return !VERBS_WITHOUT_RESULT_SET.contains(verb);
+        }
+
+        private static String normalizeVerb(String rawVerb) {
+            return rawVerb == null ? null : rawVerb.toUpperCase(Locale.ROOT);
+        }
+
+        @Override
+        public ParsedStatement parsedStatement(String sql) {
+            ParsedStatement stmt = new ParsedStatement();
+            parseSQL(sql, new ANTLR4LightParser.ParsedStatementListener(stmt));
+            return stmt;
+        }
+
+        @Override
+        public ParsedPreparedStatement parsePreparedStatement(String sql) {
+            ParsedPreparedStatement stmt = new ParsedPreparedStatement();
+            parseSQL(sql, new ANTLR4LightParser.ParsedPreparedStatementListener(stmt));
+
+            // Combine database and table like JavaCC does
+            String tableName = stmt.getTable();
+            if (stmt.getDatabase() != null && stmt.getTable() != null) {
+                tableName = String.format("%s.%s", stmt.getDatabase(), stmt.getTable());
+            }
+            stmt.setTable(tableName);
+
+            parseParameters(sql, stmt);
+            return stmt;
+        }
+
+        protected ClickHouseLightParser parseSQL(String sql, ClickHouseLightParserListener listener) {
+            CharStream charStream = CharStreams.fromString(sql);
+            ClickHouseLexer lexer = new ClickHouseLexer(charStream);
+            ClickHouseLightParser parser = new ClickHouseLightParser(new CommonTokenStream(lexer));
+            parser.removeErrorListeners();
+            parser.addErrorListener(new ANTLR4Parser.ParserErrorListener());
+
+            ClickHouseLightParser.QueryStmtContext parseTree = parser.queryStmt();
+            IterativeParseTreeWalker.DEFAULT.walk(listener, parseTree);
+
+            return parser;
+        }
+
+        private static class ParsedStatementListener extends ClickHouseLightParserBaseListener {
+            private final ParsedStatement stmt;
+
+            public ParsedStatementListener(ParsedStatement stmt) {
+                this.stmt = stmt;
+                this.stmt.setHasResultSet(true);
+                this.stmt.setInsert(false);
+            }
+
+            @Override
+            public void visitErrorNode(ErrorNode node) {
+                stmt.setHasErrors(true);
+            }
+
+            @Override
+            public void enterInsertQueryStmt(ClickHouseLightParser.InsertQueryStmtContext ctx) {
+                stmt.setStatementVerb("INSERT");
+                stmt.setInsert(true);
+                stmt.setHasResultSet(false);
+            }
+
+            @Override
+            public void enterSetQueryStmt(ClickHouseLightParser.SetQueryStmtContext ctx) {
+                stmt.setStatementVerb("SET");
+                stmt.setHasResultSet(false);
+            }
+
+            @Override
+            public void enterUseQueryStmt(ClickHouseLightParser.UseQueryStmtContext ctx) {
+                stmt.setStatementVerb("USE");
+                stmt.setHasResultSet(false);
+            }
+
+            @Override
+            public void enterUseStmt(ClickHouseLightParser.UseStmtContext ctx) {
+                if (ctx.identifier() != null) {
+                    stmt.setUseDatabase(SQLUtils.unquoteIdentifier(ctx.identifier().getText()));
+                }
+            }
+
+            @Override
+            public void enterStatementVerb(ClickHouseLightParser.StatementVerbContext ctx) {
+                String verb = normalizeVerb(ctx.getText());
+                stmt.setStatementVerb(verb);
+                stmt.setHasResultSet(isStmtWithResultSetVerb(verb));
+            }
+        }
+
+        private static class ParsedPreparedStatementListener extends ClickHouseLightParserBaseListener {
+
+            private final ParsedPreparedStatement stmt;
+
+            public ParsedPreparedStatementListener(ParsedPreparedStatement stmt) {
+                this.stmt = stmt;
+                this.stmt.setHasResultSet(true);
+                this.stmt.setInsert(false);
+            }
+
+            @Override
+            public void visitErrorNode(ErrorNode node) {
+                stmt.setHasErrors(true);
+            }
+
+            @Override
+            public void enterInsertQueryStmt(ClickHouseLightParser.InsertQueryStmtContext ctx) {
+                stmt.setStatementVerb("INSERT");
+                stmt.setInsert(true);
+                stmt.setHasResultSet(false);
+            }
+
+            @Override
+            public void enterSetQueryStmt(ClickHouseLightParser.SetQueryStmtContext ctx) {
+                stmt.setStatementVerb("SET");
+                stmt.setHasResultSet(false);
+            }
+
+            @Override
+            public void enterUseQueryStmt(ClickHouseLightParser.UseQueryStmtContext ctx) {
+                stmt.setStatementVerb("USE");
+                stmt.setHasResultSet(false);
+            }
+
+            @Override
+            public void enterUseStmt(ClickHouseLightParser.UseStmtContext ctx) {
+                if (ctx.identifier() != null) {
+                    stmt.setUseDatabase(SQLUtils.unquoteIdentifier(ctx.identifier().getText()));
+                }
+            }
+
+            @Override
+            public void enterStatementVerb(ClickHouseLightParser.StatementVerbContext ctx) {
+                String verb = normalizeVerb(ctx.getText());
+                stmt.setStatementVerb(verb);
+                stmt.setHasResultSet(isStmtWithResultSetVerb(verb));
+            }
+
+            @Override
+            public void enterInsertFunctionStmt(ClickHouseLightParser.InsertFunctionStmtContext ctx) {
+                super.enterInsertFunctionStmt(ctx);
+            }
+
+            @Override
+            public void enterInsertTableStmt(ClickHouseLightParser.InsertTableStmtContext ctx) {
+                ClickHouseLightParser.TableIdentifierContext tableIdentifier = ctx.tableIdentifier();
+                if (tableIdentifier == null) {
+                    return;
+                }
+
+                List<ClickHouseLightParser.IdentifierContext> identifiers = tableIdentifier.identifier();
+                if (identifiers.isEmpty()) {
+                    return;
+                }
+
+                if (identifiers.size() == 1) {
+                    stmt.setTable(ClickHouseSqlUtils.unescape(identifiers.get(0).getText()));
+                } else {
+                    stmt.setDatabase(identifiers.subList(0, identifiers.size() - 1).stream()
+                            .map(id -> ClickHouseSqlUtils.unescape(id.getText()))
+                            .collect(Collectors.joining(".")));
+                    stmt.setTable(ClickHouseSqlUtils.unescape(identifiers.get(identifiers.size() - 1).getText()));
+                }
+
+                ClickHouseLightParser.ColumnsClauseContext columnsClause = ctx.columnsClause();
+                if (columnsClause != null) {
+                    List<ClickHouseLightParser.NestedIdentifierContext> columns = columnsClause.nestedIdentifier();
+                    String[] insertColumns = new String[columns.size()];
+                    for (int i = 0; i < columns.size(); i++) {
+                        insertColumns[i] = columns.get(i).getText();
+                    }
+                    stmt.setInsertColumns(insertColumns);
+                }
+            }
+
+            @Override
+            public void enterDataClauseSelect(ClickHouseLightParser.DataClauseSelectContext ctx) {
+                stmt.setInsertWithSelect(true);
+            }
+
+            @Override
+            public void enterDataClauseValues(ClickHouseLightParser.DataClauseValuesContext ctx) {
+                stmt.setAssignValuesGroups(ctx.assignmentValues().size());
+            }
+
+            @Override
+            public void enterAssignmentValues(ClickHouseLightParser.AssignmentValuesContext ctx) {
+                int currentStart = stmt.getAssignValuesListStartPosition();
+                int currentStop = stmt.getAssignValuesListStopPosition();
+                int start = ctx.getStart().getStartIndex();
+                int stop = ctx.getStop().getStopIndex();
+
+                if (currentStart < 0 || start < currentStart) {
+                    stmt.setAssignValuesListStartPosition(start);
+                }
+                if (currentStop < 0 || stop > currentStop) {
+                    stmt.setAssignValuesListStopPosition(stop);
+                }
+            }
+        }
+    }
+
     private static void parseParameters(String originalQuery, ParsedPreparedStatement stmt) {
         int len = originalQuery.length();
         for (int i = 0; i < len; i++) {
@@ -488,7 +723,14 @@ public abstract class SqlParserFacade {
          * ANTLR4 used to determine sql type (SELECT, INSERT, etc.), extract some information.
          * Separate procedure parses sql for `?` parameter placeholders.
          */
-        ANTLR4
+        ANTLR4,
+
+        /**
+         * Lightweight parser that extracts only required information from statement.
+         * There passes invalid statements to server. It is done to not block unknown statements from execution.
+         *
+         */
+        ANTLR4_LIGHT,
     }
 
     public static SqlParserFacade getParser(String name, JdbcConfiguration jdbcConfiguration) throws SQLException {
@@ -503,6 +745,8 @@ public abstract class SqlParserFacade {
                     return new ANTLR4AndParamsParser(saveRoles);
                 case ANTLR4:
                     return new ANTLR4Parser(saveRoles);
+                case ANTLR4_LIGHT:
+                    return new ANTLR4LightParser();
             }
             throw new SQLException("Unsupported parser: " + parserSelection);
         } catch (IllegalArgumentException e) {

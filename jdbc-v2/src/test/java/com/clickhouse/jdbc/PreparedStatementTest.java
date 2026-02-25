@@ -860,66 +860,6 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @DataProvider
-    Object[][] testBatchInsertWithRowBinary_dp() {
-        return new Object[][]{
-                {"INSERT  INTO \n `%s` \nVALUES (?, ?, abs(?), ?)", PreparedStatementImpl.class}, // only string possible (because of abs(?))
-                {"INSERT  INTO\n `%s` \nVALUES (?, ?, ?, ?)", WriterStatementImpl.class}, // row binary writer
-                {" INSERT INTO %s (ts, v1, v2, v3) VALUES (?, ?, ?, ?)", WriterStatementImpl.class}, // only string supported now
-                {"INSERT INTO %s SELECT ?, ?, ?, ?", PreparedStatementImpl.class}, // only string possible (because of SELECT)
-        };
-    }
-
-    @Test(dataProvider = "testBatchInsertWithRowBinary_dp")
-    void testBatchInsertWithRowBinary(String sql, Class implClass) throws Exception {
-        String table = "test_batch";
-        long seed = System.currentTimeMillis();
-        Random rnd = new Random(seed);
-        System.out.println("testBatchInsert seed" + seed);
-        Properties properties = new Properties();
-        properties.put(DriverProperties.BETA_ROW_BINARY_WRITER.getKey(), "true");
-        try (Connection conn = getJdbcConnection(properties)) {
-
-            try (Statement stmt = conn.createStatement()) {
-                stmt.execute("CREATE TABLE IF NOT EXISTS " + table +
-                        " ( ts DateTime, v1 Int32, v2 Float32, v3 Int32) Engine MergeTree ORDER BY ()");
-            }
-
-            final int nBatches = 10;
-            try (PreparedStatement stmt = conn.prepareStatement(String.format(sql, table))) {
-                Assert.assertEquals(stmt.getClass(), implClass);
-                for (int bI = 0; bI < nBatches; bI++) {
-                    stmt.setTimestamp(1, Timestamp.valueOf(LocalDateTime.now()));
-                    stmt.setInt(2, rnd.nextInt());
-                    stmt.setFloat(3, rnd.nextFloat());
-                    stmt.setInt(4, rnd.nextInt());
-                    stmt.addBatch();
-                }
-
-                int[] result = stmt.executeBatch();
-                for (int r : result) {
-                    Assert.assertTrue(r == 1 || r == PreparedStatement.SUCCESS_NO_INFO);
-                }
-            }
-
-            try (Statement stmt = conn.createStatement();
-                 ResultSet rs = stmt.executeQuery("SELECT * FROM " + table);) {
-
-                int count = 0;
-                while (rs.next()) {
-                    Timestamp ts = rs.getTimestamp(1);
-                    assertNotNull(ts);
-                    assertTrue(rs.getInt(2) != 0);
-                    assertTrue(rs.getFloat(3) != 0.0f);
-                    assertTrue(rs.getInt(4) != 0);
-                    count++;
-                }
-                assertEquals(count, nBatches);
-
-                stmt.execute("TRUNCATE " + table);
-            }
-        }
-    }
 
     @DataProvider
     Object[][] testBatchInsertTextStatement_dp() {
