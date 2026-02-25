@@ -4,6 +4,8 @@ import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
+import java.util.Properties;
+
 public class Antlr4LightParserTest extends BaseSqlParserFacadeTest {
     public Antlr4LightParserTest() throws Exception {
         super(SqlParserFacade.SQLParser.ANTLR4_LIGHT.name());
@@ -11,7 +13,8 @@ public class Antlr4LightParserTest extends BaseSqlParserFacadeTest {
 
     @Test
     public void testOtherStatementSavesFirstVerb() throws Exception {
-        SqlParserFacade parser = SqlParserFacade.getParser(SqlParserFacade.SQLParser.ANTLR4_LIGHT.name());
+        SqlParserFacade parser = SqlParserFacade.getParser(SqlParserFacade.SQLParser.ANTLR4_LIGHT.name(),
+                new JdbcConfiguration("jdbc:ch://localhost:8123/", new Properties()));
         ParsedPreparedStatement stmt = parser.parsePreparedStatement("WITH cte AS (SELECT 1) SELECT * FROM cte");
         Assert.assertEquals(stmt.getStatementVerb(), "WITH");
         Assert.assertTrue(stmt.isHasResultSet());
@@ -23,7 +26,8 @@ public class Antlr4LightParserTest extends BaseSqlParserFacadeTest {
 
     @Test
     public void testUseAndInsertAreParsed() throws Exception {
-        SqlParserFacade parser = SqlParserFacade.getParser(SqlParserFacade.SQLParser.ANTLR4_LIGHT.name());
+        SqlParserFacade parser = SqlParserFacade.getParser(SqlParserFacade.SQLParser.ANTLR4_LIGHT.name(),
+                new JdbcConfiguration("jdbc:ch://localhost:8123/", new Properties()));
 
         ParsedStatement useStmt = parser.parsedStatement("USE analytics");
         Assert.assertEquals(useStmt.getStatementVerb(), "USE");
@@ -111,7 +115,8 @@ public class Antlr4LightParserTest extends BaseSqlParserFacadeTest {
 
     private SqlParserFacade lightParser() {
         try {
-            return SqlParserFacade.getParser(SqlParserFacade.SQLParser.ANTLR4_LIGHT.name());
+            return SqlParserFacade.getParser(SqlParserFacade.SQLParser.ANTLR4_LIGHT.name(),
+                    new JdbcConfiguration("jdbc:ch://localhost:8123/", new Properties()));
         } catch (Exception e) {
             throw new RuntimeException("Unable to create ANTLR4 light parser", e);
         }
