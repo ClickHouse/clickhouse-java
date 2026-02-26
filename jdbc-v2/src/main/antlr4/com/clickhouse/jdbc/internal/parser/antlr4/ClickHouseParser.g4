@@ -1217,7 +1217,8 @@ interval
     ;
 
 keyword
-    : ACCESS
+    : ABI
+    | ACCESS
     | ADD
     | ADMIN
     | AFTER
@@ -1227,6 +1228,7 @@ keyword
     | AND
     | ANTI
     | ANY
+    | ARGUMENTS
     | ARRAY
     | AS
     | ASCENDING
@@ -1289,6 +1291,7 @@ keyword
     | DOUBLE_SHA1_HASH
     | DOUBLE_SHA1_PASSWORD
     | DROP
+    | DRY
     | ELSE
     | ENABLED
     | END
@@ -1357,6 +1360,7 @@ keyword
     | KEYED
     | KEYS
     | KILL
+    | LANGUAGE
     | LAST
     | LAYOUT
     | LDAP
@@ -1438,6 +1442,7 @@ keyword
     | RESOURCE
     | RESTORE
     | RESTRICTIVE
+    | RETURNS
     | REVOKE
     | RIGHT
     | ROLE
@@ -1445,6 +1450,7 @@ keyword
     | ROLLUP
     | ROW
     | ROWS
+    | RUN
     | S3
     | SAMPLE
     | SCRAM_SHA256_HASH
@@ -1525,13 +1531,15 @@ keyword
     ;
 
 keywordForAlias
-    : ACCESS
+    : ABI
+    | ACCESS
     | ADD
     | ADMIN
     | AFTER
     | ALIAS
     | ALTER
     | AND
+    | ARGUMENTS
     | ASCENDING
     | AST
     | ASYNC
@@ -1587,6 +1595,7 @@ keywordForAlias
     | DOUBLE_SHA1_HASH
     | DOUBLE_SHA1_PASSWORD
     | DROP
+    | DRY
     | ENABLED
     | END
     | ENGINE
@@ -1637,6 +1646,7 @@ keywordForAlias
     | KEYED
     | KEYS
     | KILL
+    | LANGUAGE
     | LAST
     | LAYOUT
     | LDAP
@@ -1703,12 +1713,14 @@ keywordForAlias
     | RESOURCE
     | RESTORE
     | RESTRICTIVE
+    | RETURNS
     | REVOKE
     | ROLE
     | ROLES
     | ROLLUP
     | ROW
     | ROWS
+    | RUN
     | S3
     | SCRAM_SHA256_HASH
     | SCRAM_SHA256_PASSWORD
