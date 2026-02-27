@@ -254,7 +254,7 @@ public class JDBCDateTimeTests extends JdbcIntegrationTest {
                     Assert.assertFalse(rs.next());
                 }
 
-                Array range = conn.createArrayOf("Array(Date)", new Object[] {Date.valueOf("2025-02-01"),
+                Array range = conn.createArrayOf("Date", new Object[] {Date.valueOf("2025-02-01"),
                         Date.valueOf("2025-02-03")});
                 pStmt.setArray(1, range);
                 try (ResultSet rs = pStmt.executeQuery()) {
