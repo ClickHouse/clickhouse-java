@@ -1443,6 +1443,80 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
         }
     }
 
+    /**
+     * Verifies that Array(Map(LowCardinality(String), String)) with empty maps decodes correctly.
+     * Regression test for <a href="https://github.com/ClickHouse/clickhouse-java/issues/2657">#2657</a>
+     */
+    @Test(groups = {"integration"})
+    public void testArrayOfMapsWithLowCardinalityAndEmptyMaps() throws Exception {
+        runQuery("CREATE TABLE test_array_map_lc_empty ("
+                + "StartedDateTime DateTime, "
+                + "traits Array(Map(LowCardinality(String), String))"
+                + ") ENGINE = MergeTree ORDER BY StartedDateTime");
+
+        try (Connection conn = getJdbcConnection();
+             Statement stmt = conn.createStatement()) {
+
+            stmt.executeUpdate("INSERT INTO test_array_map_lc_empty (StartedDateTime, traits) VALUES ("
+                    + "'2025-11-11 00:00:01', "
+                    + "["
+                    + "  map(), "
+                    + "  map("
+                    + "    'RandomKey1','Value1',"
+                    + "    'RandomKey2','Value2',"
+                    + "    'RandomKey3','Value3',"
+                    + "    'RandomKey4','Value4',"
+                    + "    'RandomKey5','Value5',"
+                    + "    'RandomKey6','Value6',"
+                    + "    'RandomKey7','Value7',"
+                    + "    'RandomKey8','Value8'"
+                    + "  ), "
+                    + "  map(), map(), map(), map(), map(), map()"
+                    + "]"
+                    + ")");
+
+            Map<String, String> expectedNonEmptyMap = new HashMap<>();
+            expectedNonEmptyMap.put("RandomKey1", "Value1");
+            expectedNonEmptyMap.put("RandomKey2", "Value2");
+            expectedNonEmptyMap.put("RandomKey3", "Value3");
+            expectedNonEmptyMap.put("RandomKey4", "Value4");
+            expectedNonEmptyMap.put("RandomKey5", "Value5");
+            expectedNonEmptyMap.put("RandomKey6", "Value6");
+            expectedNonEmptyMap.put("RandomKey7", "Value7");
+            expectedNonEmptyMap.put("RandomKey8", "Value8");
+
+            // Run multiple iterations because the bug is intermittent
+            for (int attempt = 0; attempt < 10; attempt++) {
+                try (ResultSet rs = stmt.executeQuery("SELECT traits FROM test_array_map_lc_empty")) {
+                    Assert.assertTrue(rs.next(), "Expected a row on attempt " + attempt);
+
+                    Array traitsArray = rs.getArray(1);
+                    Assert.assertEquals(traitsArray.getBaseTypeName(), "Map(LowCardinality(String), String)");
+
+                    Object[] maps = (Object[]) traitsArray.getArray();
+                    Assert.assertEquals(maps.length, 8, "Expected 8 maps in array on attempt " + attempt);
+
+                    @SuppressWarnings("unchecked")
+                    Map<String, String> firstMap = (Map<String, String>) maps[0];
+                    Assert.assertTrue(firstMap.isEmpty(), "First map should be empty on attempt " + attempt);
+
+                    @SuppressWarnings("unchecked")
+                    Map<String, String> secondMap = (Map<String, String>) maps[1];
+                    Assert.assertEquals(secondMap, expectedNonEmptyMap, "Second map mismatch on attempt " + attempt);
+
+                    for (int i = 2; i < 8; i++) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, String> emptyMap = (Map<String, String>) maps[i];
+                        Assert.assertTrue(emptyMap.isEmpty(),
+                                "Map at index " + i + " should be empty on attempt " + attempt);
+                    }
+
+                    Assert.assertFalse(rs.next());
+                }
+            }
+        }
+    }
+
     @Test(groups = { "integration" })
     public void testNullableTypesSimpleStatement() throws SQLException {
         runQuery("CREATE TABLE test_nullable (order Int8, "

@@ -648,6 +648,10 @@ public class BinaryStreamReader {
                 itemClass = float.class;
             } else if (firstValue instanceof Double) {
                 itemClass = double.class;
+            } else if (firstValue instanceof Map) {
+                itemClass = Map.class;
+            } else if (firstValue instanceof List) {
+                itemClass = List.class;
             }
 
             array = new ArrayValue(itemClass, len);
@@ -701,7 +705,7 @@ public class BinaryStreamReader {
                 Array.set(array, index, value);
             } catch (IllegalArgumentException e) {
                 throw new IllegalArgumentException("Failed to set value at index: " + index +
-                        " value " + value + " of class " + value.getClass().getName(), e);
+                        " value " + value + " of class " + value.getClass().getName() + " when array is type of " + array.getClass(), e);
             }
         }
 
