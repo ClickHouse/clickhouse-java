@@ -2,6 +2,7 @@
 # Source: https://clickhouse.joesstuff.co.uk/keywords.html
 # Individual keywords extracted and deduplicated from system.keywords table
 
+ABI
 ACCESS
 ACTION
 ADD
@@ -17,6 +18,7 @@ ANTI
 ANY
 APPEND
 APPLY
+ARGUMENTS
 ARRAY
 AS
 ASC
@@ -105,6 +107,7 @@ DIV
 DOUBLE_SHA1_HASH
 DOUBLE_SHA1_PASSWORD
 DROP
+DRY
 ELSE
 EMPTY
 ENABLED
@@ -198,6 +201,7 @@ KEYED
 KEYS
 KILL
 KIND
+LANGUAGE
 LARGE
 LAST
 LAYOUT
@@ -334,6 +338,7 @@ RESTORE
 RESTRICT
 RESTRICTIVE
 RESUME
+RETURNS
 REVOKE
 REWRITE
 RIGHT
@@ -343,6 +348,7 @@ ROLLBACK
 ROLLUP
 ROW
 ROWS
+RUN
 S
 S3
 SALT
