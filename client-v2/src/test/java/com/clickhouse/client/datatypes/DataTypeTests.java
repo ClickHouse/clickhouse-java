@@ -1529,6 +1529,47 @@ public class DataTypeTests extends BaseIntegrationTest {
         }
     }
 
+    /**
+     * Regression test for https://github.com/ClickHouse/clickhouse-go/issues/1775
+     * When scanning JSON rows into a map, keys that are absent in a given row must not
+     * appear in that row's result, even when another row in the same result set contains
+     * those keys.
+     */
+    @Test(groups = {"integration"})
+    public void testJSONScanDoesNotLeakKeysAcrossRows() throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
+        final String table = "test_json_no_key_leak";
+        final CommandSettings cmdSettings = (CommandSettings) new CommandSettings()
+                .serverSetting("enable_json_type", "1")
+                .serverSetting("allow_experimental_json_type", "1");
+
+        client.execute("DROP TABLE IF EXISTS " + table).get().close();
+        client.execute(tableDefinition(table, "data JSON"), cmdSettings).get().close();
+        client.execute("INSERT INTO " + table + " VALUES ('{\"a\": \"foo\"}'::JSON), ('{\"b\": \"bar\"}'::JSON)").get().close();
+
+        List<GenericRecord> records = client.queryAll("SELECT * FROM " + table + " ORDER BY data");
+        Assert.assertEquals(records.size(), 2);
+
+        for (GenericRecord record : records) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> data = (Map<String, Object>) record.getObject("data");
+            Assert.assertNotNull(data, "JSON column should not be null");
+
+            if (data.containsKey("a")) {
+                Assert.assertFalse(data.containsKey("b"),
+                        "Row with key 'a' should not contain key 'b', but got: " + data);
+            } else if (data.containsKey("b")) {
+                Assert.assertFalse(data.containsKey("a"),
+                        "Row with key 'b' should not contain key 'a', but got: " + data);
+            } else {
+                Assert.fail("Expected row to contain either key 'a' or 'b', but got: " + data);
+            }
+        }
+    }
+
     public static String tableDefinition(String table, String... columns) {
         StringBuilder sb = new StringBuilder();
         sb.append("CREATE TABLE " + table + " ( ");
