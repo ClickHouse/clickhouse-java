@@ -705,7 +705,7 @@ public class BinaryStreamReader {
                 Array.set(array, index, value);
             } catch (IllegalArgumentException e) {
                 throw new IllegalArgumentException("Failed to set value at index: " + index +
-                        " value " + value + " of class " + value.getClass().getName() + " when array is type of " + array.getClass(), e);
+                        " value " + value + " of class " + value.getClass().getName() + " when array type is " + array.getClass(), e);
             }
         }
 

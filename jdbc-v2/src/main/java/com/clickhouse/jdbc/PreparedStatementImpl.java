@@ -484,7 +484,6 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         ensureOpen();
         TimeZone tz = (cal == null ? defaultCalendar : cal).getTimeZone();
         values[parameterIndex - 1] = encodeObject(DataTypeUtils.toZonedDateTime(x, tz));
-        values[parameterIndex - 1] = encodeObject(DataTypeUtils.toZonedDateTime(x, tz));
     }
 
     @Override

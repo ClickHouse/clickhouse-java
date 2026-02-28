@@ -230,7 +230,7 @@ public class JDBCDateTimeTests extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(groups = {"integration"})
     void testDateInRange() throws Exception {
         try (Connection conn = getJdbcConnection();
              Statement stmt = conn.createStatement())   {
