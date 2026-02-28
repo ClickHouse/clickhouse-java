@@ -135,7 +135,6 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     public ResultSet executeQuery() throws SQLException {
         ensureOpen();
         String buildSQL = buildSQL();
-        System.out.println(buildSQL);
         return super.executeQueryImpl(buildSQL, localSettings);
     }
 
@@ -485,6 +484,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         ensureOpen();
         TimeZone tz = (cal == null ? defaultCalendar : cal).getTimeZone();
         values[parameterIndex - 1] = encodeObject(DataTypeUtils.toZonedDateTime(x, tz));
+        values[parameterIndex - 1] = encodeObject(DataTypeUtils.toZonedDateTime(x, tz));
     }
 
     @Override
@@ -744,10 +744,6 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     
     private static final char QUOTE = '\'';
 
-    /** Matches a datetime string that ends with a decimal point followed only by zeros, e.g. "2024-09-10 22:58:20.0".
-     *  Such strings are produced by {@link Timestamp#toString()} and are rejected by ClickHouse DateTime. */
-    private static final Pattern TRAILING_ZERO_FRACTION = Pattern.compile("(\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}:\\d{2})\\.0+$");
-
     private static final char O_BRACKET = '[';
     private static final char C_BRACKET = ']';
 
@@ -758,12 +754,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
             if (x == null) {
                 return "NULL";
             } else if (x instanceof String) {
-                String s = (String) x;
-                Matcher m = TRAILING_ZERO_FRACTION.matcher(s);
-                if (m.matches()) {
-                    s = m.group(1);
-                }
-                return QUOTE + SQLUtils.escapeSingleQuotes(s) + QUOTE;
+                return QUOTE + SQLUtils.escapeSingleQuotes((String) x) + QUOTE;
             } else if (x instanceof Boolean) {
                 return (Boolean) x ? "1" : "0";
             } else if (x instanceof Date) {

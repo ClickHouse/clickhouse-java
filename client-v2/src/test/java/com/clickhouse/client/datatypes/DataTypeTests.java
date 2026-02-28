@@ -1541,10 +1541,10 @@ public class DataTypeTests extends BaseIntegrationTest {
                 .serverSetting("allow_experimental_json_type", "1");
 
         client.execute("DROP TABLE IF EXISTS " + table).get().close();
-        client.execute(tableDefinition(table, "data JSON"), cmdSettings).get().close();
-        client.execute("INSERT INTO " + table + " VALUES ('{\"a\": \"foo\"}'::JSON), ('{\"b\": \"bar\"}'::JSON)").get().close();
+        client.execute(tableDefinition(table, "id UInt32", "data JSON"), cmdSettings).get().close();
+        client.execute("INSERT INTO " + table + " VALUES (1, '{\"a\": \"foo\"}'::JSON), (2, '{\"b\": \"bar\"}'::JSON)", cmdSettings).get().close();
 
-        List<GenericRecord> records = client.queryAll("SELECT * FROM " + table + " ORDER BY data");
+        List<GenericRecord> records = client.queryAll("SELECT * FROM " + table + " ORDER BY id");
         Assert.assertEquals(records.size(), 2);
 
         for (GenericRecord record : records) {
