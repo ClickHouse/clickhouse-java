@@ -236,6 +236,48 @@ public class ResultSetMetaDataImplTest extends JdbcIntegrationTest {
         }
     }
 
+    @Test(groups = { "integration" })
+    public void testColumnNamesStrippedFromTablePrefix() throws Exception {
+        final String t1 = "rsmd_test_prefix_t1";
+        final String t2 = "rsmd_test_prefix_t2";
+        try (Connection conn = getJdbcConnection();
+             Statement stmt = conn.createStatement()) {
+            stmt.executeUpdate("DROP TABLE IF EXISTS " + t1);
+            stmt.executeUpdate("DROP TABLE IF EXISTS " + t2);
+            stmt.executeUpdate("CREATE TABLE " + t1 + " (id Int32, val String) ENGINE = MergeTree ORDER BY id");
+            stmt.executeUpdate("CREATE TABLE " + t2 + " (id Int32, name String) ENGINE = MergeTree ORDER BY id");
+            stmt.executeUpdate("INSERT INTO " + t1 + " VALUES (1, 'test_val')");
+            stmt.executeUpdate("INSERT INTO " + t2 + " VALUES (1, 'test_name')");
+
+            // JOIN: ClickHouse includes table name prefix in column metadata (e.g., "t1.id")
+            try (ResultSet rs = stmt.executeQuery(
+                    "SELECT " + t1 + ".id, " + t2 + ".name FROM " + t1 + " JOIN " + t2 + " ON " + t1 + ".id = " + t2 + ".id")) {
+                ResultSetMetaData rsmd = rs.getMetaData();
+                assertEquals(rsmd.getColumnCount(), 2);
+                assertEquals(rsmd.getColumnName(1), "id");
+                assertEquals(rsmd.getColumnName(2), "name");
+                assertEquals(rsmd.getColumnLabel(1), "id");
+                assertEquals(rsmd.getColumnLabel(2), "name");
+                assertTrue(rs.next());
+                assertEquals(rs.getInt("id"), 1);
+                assertEquals(rs.getString("name"), "test_name");
+                assertFalse(rs.next());
+            }
+
+            // Alias dot notation: SELECT t.col FROM table AS t
+            try (ResultSet rs = stmt.executeQuery("SELECT t.id, t.val FROM " + t1 + " AS t")) {
+                ResultSetMetaData rsmd = rs.getMetaData();
+                assertEquals(rsmd.getColumnCount(), 2);
+                assertEquals(rsmd.getColumnName(1), "id");
+                assertEquals(rsmd.getColumnName(2), "val");
+                assertTrue(rs.next());
+                assertEquals(rs.getInt("id"), 1);
+                assertEquals(rs.getString("val"), "test_val");
+                assertFalse(rs.next());
+            }
+        }
+    }
+
     static void assertColumnNames(ResultSet rs, String... names) throws Exception {
         ResultSetMetaData metadata = rs.getMetaData();
         assertEquals(names.length, metadata.getColumnCount());

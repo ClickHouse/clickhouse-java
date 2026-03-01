@@ -6,6 +6,7 @@ import com.clickhouse.client.api.DataTypeUtils;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
+import java.sql.Array;
 import java.sql.Connection;
 import java.sql.Date;
 import java.sql.PreparedStatement;
@@ -20,6 +21,7 @@ import java.time.LocalTime;
 import java.time.Month;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Calendar;
 import java.util.Properties;
@@ -223,6 +225,85 @@ public class JDBCDateTimeTests extends JdbcIntegrationTest {
                         Assert.assertEquals(rs.getObject(3, time.getClass()), time);
                     }
                     racerId++;
+                }
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    void testDateInRange() throws Exception {
+        try (Connection conn = getJdbcConnection();
+             Statement stmt = conn.createStatement())   {
+
+            stmt.executeUpdate("DROP TABLE IF EXISTS test_date_in_range");
+            stmt.executeUpdate("CREATE TABLE test_date_in_range ( id UInt32, d Date) Engine MergeTree ORDER BY()");
+            stmt.executeUpdate("INSERT INTO test_date_in_range VALUES (1, '2025-01-01') , (2, '2025-02-01') , (3, '2025-02-03')");
+
+            try (PreparedStatement pStmt = conn.prepareStatement("SELECT * FROM test_date_in_range WHERE d IN (?) ORDER BY id")){
+                pStmt.setDate(1, Date.valueOf("2025-02-01"));
+                try (ResultSet rs = pStmt.executeQuery()) {
+                    Assert.assertTrue(rs.next());
+                    Assert.assertEquals(rs.getInt(1), 2);
+                    Assert.assertFalse(rs.next());
+                }
+
+                pStmt.setObject(1, LocalDate.parse("2025-02-01"));
+                try (ResultSet rs = pStmt.executeQuery()) {
+                    Assert.assertTrue(rs.next());
+                    Assert.assertEquals(rs.getInt(1), 2);
+                    Assert.assertFalse(rs.next());
+                }
+
+                Array range = conn.createArrayOf("Date", new Object[] {Date.valueOf("2025-02-01"),
+                        Date.valueOf("2025-02-03")});
+                pStmt.setArray(1, range);
+                try (ResultSet rs = pStmt.executeQuery()) {
+                    Assert.assertTrue(rs.next());
+                    Assert.assertEquals(rs.getInt(1), 2);
+                    Assert.assertTrue(rs.next());
+                    Assert.assertEquals(rs.getInt(1), 3);
+                    Assert.assertFalse(rs.next());
+                }
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    void testTimestampInRange() throws Exception {
+        try (Connection conn = getJdbcConnection();
+             Statement stmt = conn.createStatement()) {
+
+            stmt.executeUpdate("DROP TABLE IF EXISTS test_timestamp_in_range");
+            stmt.executeUpdate("CREATE TABLE test_timestamp_in_range (id UInt32, ts DateTime) Engine MergeTree ORDER BY()");
+            stmt.executeUpdate("INSERT INTO test_timestamp_in_range VALUES " +
+                    "(1, '2025-01-01 08:00:00'), (2, '2025-01-01 12:00:00'), (3, '2025-01-01 18:00:00'), (4, '2025-01-02 00:00:00')");
+
+            ZoneId utc = ZoneId.of("UTC");
+            try (PreparedStatement pStmt = conn.prepareStatement("SELECT * FROM test_timestamp_in_range WHERE ts BETWEEN ? AND ? ORDER BY id")) {
+                ZonedDateTime start = ZonedDateTime.of(2025, 1, 1, 10, 0, 0, 0, utc);
+                ZonedDateTime end = ZonedDateTime.of(2025, 1, 1, 20, 0, 0, 0, utc);
+                pStmt.setObject(1, start);
+                pStmt.setObject(2, end);
+                try (ResultSet rs = pStmt.executeQuery()) {
+                    Assert.assertTrue(rs.next());
+                    Assert.assertEquals(rs.getInt(1), 2);
+                    Assert.assertEquals(rs.getObject(2, ZonedDateTime.class), ZonedDateTime.of(2025, 1, 1, 12, 0, 0, 0, utc));
+                    Assert.assertTrue(rs.next());
+                    Assert.assertEquals(rs.getInt(1), 3);
+                    Assert.assertEquals(rs.getObject(2, ZonedDateTime.class), ZonedDateTime.of(2025, 1, 1, 18, 0, 0, 0, utc));
+                    Assert.assertFalse(rs.next());
+                }
+            }
+
+            try (PreparedStatement pStmt = conn.prepareStatement("SELECT * FROM test_timestamp_in_range WHERE ts BETWEEN ? AND ? ORDER BY id")) {
+                pStmt.setObject(1, ZonedDateTime.of(2025, 1, 1, 0, 0, 0, 0, utc));
+                pStmt.setObject(2, ZonedDateTime.of(2025, 1, 1, 12, 0, 0, 0, utc));
+                try (ResultSet rs = pStmt.executeQuery()) {
+                    Assert.assertTrue(rs.next());
+                    Assert.assertEquals(rs.getInt(1), 1);
+                    Assert.assertTrue(rs.next());
+                    Assert.assertEquals(rs.getInt(1), 2);
+                    Assert.assertFalse(rs.next());
                 }
             }
         }

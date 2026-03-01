@@ -1285,6 +1285,43 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
+    @Test(groups = {"integration"})
+    public void testDescribeStatement() throws Exception {
+        try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
+            boolean isResultSet = stmt.execute("DESCRIBE table (SELECT 10, 'message', 30)");
+            Assert.assertTrue(isResultSet);
+            try (ResultSet rs = stmt.getResultSet()) {
+                Object[][] expected = new Object[][] {
+                        {"10", "UInt8"},
+                        {"'message'", "String"},
+                        {"30", "UInt8"},
+                };
+
+                for (Object[] objects : expected) {
+                    Assert.assertTrue(rs.next());
+                    Assert.assertEquals(rs.getString("name"), objects[0]);
+                    Assert.assertEquals(rs.getString("type"), objects[1]);
+                }
+            }
+        }
+
+        try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
+            boolean isResultSet = stmt.execute("DESCRIBE TABLE (SELECT numbers.number FROM system.numbers)");
+            Assert.assertTrue(isResultSet);
+            try (ResultSet rs = stmt.getResultSet()) {
+                Object[][] expected = new Object[][] {
+                        {"number", "UInt64"},
+                };
+
+                for (Object[] objects : expected) {
+                    Assert.assertTrue(rs.next());
+                    Assert.assertEquals(rs.getString("name"), objects[0]);
+                    Assert.assertEquals(rs.getString("type"), objects[1]);
+                }
+            }
+        }
+    }
+
     private static String getDBName(Statement stmt) throws SQLException {
         try (ResultSet rs = stmt.executeQuery("SELECT database()")) {
             rs.next();

@@ -1529,6 +1529,109 @@ public class DataTypeTests extends BaseIntegrationTest {
         }
     }
 
+    @Test(groups = {"integration"})
+    public void testJSONScanDoesNotLeakKeysAcrossRows() throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
+        final String table = "test_json_no_key_leak";
+        final CommandSettings cmdSettings = (CommandSettings) new CommandSettings()
+                .serverSetting("enable_json_type", "1")
+                .serverSetting("allow_experimental_json_type", "1");
+
+        client.execute("DROP TABLE IF EXISTS " + table).get().close();
+        client.execute(tableDefinition(table, "id UInt32", "data JSON"), cmdSettings).get().close();
+        client.execute("INSERT INTO " + table + " VALUES (1, '{\"a\": \"foo\"}'::JSON), (2, '{\"b\": \"bar\"}'::JSON)", cmdSettings).get().close();
+
+        List<GenericRecord> records = client.queryAll("SELECT * FROM " + table + " ORDER BY id");
+        Assert.assertEquals(records.size(), 2);
+
+        for (GenericRecord record : records) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> data = (Map<String, Object>) record.getObject("data");
+            Assert.assertNotNull(data, "JSON column should not be null");
+
+            if (data.containsKey("a")) {
+                Assert.assertFalse(data.containsKey("b"),
+                        "Row with key 'a' should not contain key 'b', but got: " + data);
+            } else if (data.containsKey("b")) {
+                Assert.assertFalse(data.containsKey("a"),
+                        "Row with key 'b' should not contain key 'a', but got: " + data);
+            } else {
+                Assert.fail("Expected row to contain either key 'a' or 'b', but got: " + data);
+            }
+        }
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "testJSONSubPathAccess_dp")
+    public void testJSONSubPathAccess(String query, Object[] expectedValues) throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
+        final String table = "test_json_sub_path_access";
+        client.execute("DROP TABLE IF EXISTS " + table).get().close();
+
+        CommandSettings jsonSettings = (CommandSettings) new CommandSettings()
+                .serverSetting("enable_json_type", "1")
+                .serverSetting("allow_experimental_json_type", "1");
+        client.execute("CREATE TABLE " + table + " (`i` Int64, `j` JSON) ENGINE = MergeTree ORDER BY i",
+                jsonSettings).get().close();
+        client.execute("INSERT INTO " + table + " VALUES " +
+                "(1, '{\"m\":{\"a\":[{\"d\": 9000}]}}'), " +
+                "(2, '{\"m\":{\"a\":[{\"d\": 42}, {\"d\": 7}]}}')", jsonSettings).get().close();
+
+        String fullQuery = query.replace("${table}", table);
+        try (QueryResponse response = client.query(fullQuery).get()) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+            int rowIndex = 0;
+            while (reader.next() != null) {
+                Assert.assertTrue(rowIndex < expectedValues.length,
+                        "More rows returned than expected for query: " + fullQuery);
+                Object actual = reader.readValue(1);
+                if (actual instanceof BinaryStreamReader.ArrayValue) {
+                    actual = ((BinaryStreamReader.ArrayValue) actual).asList();
+                }
+                Assert.assertEquals(actual, expectedValues[rowIndex],
+                        "Mismatch at row " + rowIndex + " for query: " + fullQuery);
+                rowIndex++;
+            }
+            Assert.assertEquals(rowIndex, expectedValues.length,
+                    "Row count mismatch for query: " + fullQuery);
+        }
+    }
+
+    @DataProvider
+    public Object[][] testJSONSubPathAccess_dp() {
+        Map<String, Object> obj9000 = Collections.singletonMap("d", 9000L);
+        Map<String, Object> obj42 = Collections.singletonMap("d", 42L);
+        Map<String, Object> obj7 = Collections.singletonMap("d", 7L);
+
+        return new Object[][] {
+                // gh#2703: backtick-quoted JSON path with array element access
+                {
+                        "SELECT j.`m`.`a`[].`d`[1] FROM ${table} ORDER BY i",
+                        new Object[] { 9000L, 42L }
+                },
+                // dot-notation sub-path access
+                {
+                        "SELECT j.m.a FROM ${table} ORDER BY i",
+                        new Object[] { Arrays.asList(obj9000), Arrays.asList(obj42, obj7) }
+                },
+                // array element access with index
+                {
+                        "SELECT j.m.a[].d[1] FROM ${table} ORDER BY i",
+                        new Object[] { 9000L, 42L }
+                },
+                // sub-column access to nested field
+                {
+                        "SELECT j.m.a[].d FROM ${table} ORDER BY i",
+                        new Object[] { Arrays.asList(9000L), Arrays.asList(42L, 7L) }
+                },
+        };
+    }
+
     public static String tableDefinition(String table, String... columns) {
         StringBuilder sb = new StringBuilder();
         sb.append("CREATE TABLE " + table + " ( ");
