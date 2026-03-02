@@ -239,7 +239,7 @@ public enum ClientConfigProperties {
     // Key used to identify default value in configuration map
     public static final String DEFAULT_KEY = "_default_";
 
-    public static final String NO_THROW_ON_UNKNOWN_CONFIG = "no_throw_on_unknown_config";
+    public static final String IGNORE_UNKNOWN_CONFIG_KEY = "ignore_unknown_config_key";
 
     public static String serverSetting(String key) {
         return SERVER_SETTING_PREFIX + key;
@@ -363,10 +363,10 @@ public enum ClientConfigProperties {
             }
         }
 
-        tmpMap.remove(ClientConfigProperties.NO_THROW_ON_UNKNOWN_CONFIG);
+        tmpMap.remove(ClientConfigProperties.IGNORE_UNKNOWN_CONFIG_KEY);
         if (!tmpMap.isEmpty()) {
             String msg = "Unknown and unmapped config properties: " + tmpMap.keySet();
-            if (configMap.containsKey(NO_THROW_ON_UNKNOWN_CONFIG)) {
+            if (Boolean.parseBoolean(String.valueOf(configMap.get(IGNORE_UNKNOWN_CONFIG_KEY)))) {
                 LOG.warn(msg);
             } else {
                 throw new ClientMisconfigurationException(msg);
