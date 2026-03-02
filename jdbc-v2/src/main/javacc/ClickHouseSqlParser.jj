@@ -831,7 +831,7 @@ void columnExpr(): { Token t; } {
     | (LOOKAHEAD(2) macro())+
     | LOOKAHEAD(2, { !(tokenIn(1, INF, NAN, NULL) && tokenIn(2, DOT)) }) literal()
     | LOOKAHEAD(2, { getToken(2).kind == LPAREN }) functionExpr() { token_source.funcUsed = true; }
-    | anyIdentifier() (LOOKAHEAD(2) <DOT> anyIdentifier())*
+    | anyIdentifier() (LOOKAHEAD(2) <DOT> (<CARET>)? anyIdentifier())*
 }
 
 // interested parts
@@ -930,7 +930,7 @@ Token aliasExpr(): { Token t = null; } {
 }
 
 void nestedIdentifier(): {} {
-    (<ASTERISK> | anyIdentifier()) (LOOKAHEAD(2) <DOT> (<ASTERISK> | anyIdentifier()))*
+    (<ASTERISK> | anyIdentifier()) (LOOKAHEAD(2) <DOT> (<CARET>)? (<ASTERISK> | anyIdentifier()))*
 }
 
 void tableIdentifier(boolean record): { } {
@@ -1029,7 +1029,7 @@ Token numberLiteral(): { Token t = null; StringBuilder sb = new StringBuilder();
 }
 
 void operator(): {} {
-    (<ARROW> | <ASTERISK> | <CONCAT> | <CONVERT> | <DASH> | <EQ_DOUBLE> | <EQ_SINGLE>
+    (<ARROW> | <ASTERISK> | <CARET> | <CONCAT> | <CONVERT> | <DASH> | <EQ_DOUBLE> | <EQ_SINGLE>
     | <GE> | <GT> | <LE> | <LT> | <NOT_EQ> | <PERCENT> | <PLUS> | <SLASH>)
 }
 
@@ -1286,6 +1286,7 @@ TOKEN: {
     | <RPAREN: ")">
     | <SEMICOLON: ";">
     | <SLASH: "/">
+    | <CARET: "^">
     | <#UNDERSCORE: "_">
 }
 

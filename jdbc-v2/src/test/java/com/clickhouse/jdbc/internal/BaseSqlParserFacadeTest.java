@@ -652,7 +652,8 @@ public abstract class BaseSqlParserFacadeTest {
                 {"CHECK GRANT SELECT(col2) ON table_2", 0, true},
                 {"CHECK TABLE test_table", 0, true},
                 {"CHECK TABLE t0 PARTITION ID '201003' FORMAT PrettyCompactMonoBlock SETTINGS check_query_single_value_result = 0", 0, true},
-
+                {"select toJSONString(data.^header_index) from database.analyzed limit 1;", 0, true},
+                {"select toJSONString(data.^header_index), ? as text from database.analyzed limit 1;", 1, true},
 
                 /* no result set */
                 {"INSERT INTO test_table VALUES (1, ?)", 1, false},
