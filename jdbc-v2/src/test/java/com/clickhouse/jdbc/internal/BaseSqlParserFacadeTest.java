@@ -454,6 +454,10 @@ public abstract class BaseSqlParserFacadeTest {
                 {"select countIf(*, 1 = ?)", 1},
                 {"select count(*) filter (where 1 = ?)", 1},
                 {WHEN_HAS_ARRAY, 0},
+                {EXTEND_JOIN_ALIAS_SYNTAX, 0},
+                {"SELECT * FROM t WHERE hasToken(message, 'DDLWorker')", 0},
+                {"SELECT * FROM t WHERE hasAllTokens(message, ['peak', 'memory'])", 0},
+                {"SELECT * FROM t WHERE hasAnyTokens(message, tokens('01442_merge_detach_attach'))", 0},
         };
     }
 
@@ -568,6 +572,11 @@ public abstract class BaseSqlParserFacadeTest {
             "        ELSE null\n" +
             "    END AS action_to_do\n" +
             "FROM db.table1";
+
+    private static final String EXTEND_JOIN_ALIAS_SYNTAX = "SELECT *\n" +
+            "FROM (SELECT 1) AS t(a)\n" +
+            "JOIN (SELECT 1) AS u(b)\n" +
+            "ON a = b";
 
     @Test(dataProvider = "testStatementWithoutResultSetDP")
     public void testStatementsForResultSet(String sql, int args, boolean hasResultSet) {
