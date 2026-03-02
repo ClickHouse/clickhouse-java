@@ -4,6 +4,32 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 JAR_PATH="${SCRIPT_DIR}/target/clickhouse-client-cli-1.0.0.jar"
 
+if [[ "${1:-}" == "extract-from-config" ]]; then
+  shift
+  key=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --key)
+        key="${2:-}"
+        shift 2
+        ;;
+      --key=*)
+        key="${1#--key=}"
+        shift
+        ;;
+      *)
+        shift
+        ;;
+    esac
+  done
+
+  # Minimal compatibility for clickhouse-test usage.
+  if [[ "${key}" == "listen_host" ]]; then
+    echo "127.0.0.1"
+  fi
+  exit 0
+fi
+
 if [[ ! -f "${JAR_PATH}" ]]; then
   echo "Jar not found: ${JAR_PATH}" >&2
   echo "Build it first: (cd ${SCRIPT_DIR} && mvn package -DskipTests)" >&2

@@ -80,6 +80,7 @@ Type your SQL and press `Ctrl+D` (EOF) to execute.
 | `--help`           |             | Print usage              |
 
 Unknown long options in the form `--name value` / `--name=value` are also accepted and forwarded as ClickHouse server settings.
+Compatibility-only options used by tests are accepted but ignored.
 
 ## Examples
 
