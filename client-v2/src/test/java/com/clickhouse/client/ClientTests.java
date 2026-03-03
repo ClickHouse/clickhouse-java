@@ -502,7 +502,7 @@ public class ClientTests extends BaseIntegrationTest {
             Assert.assertTrue(ex.getMessage().contains("unknown_setting"));
         }
 
-        try (Client client = newClient().setOption(ClientConfigProperties.NO_THROW_ON_UNKNOWN_CONFIG, "what ever").setOption("unknown_setting", "value").build()) {
+        try (Client client = newClient().setOption(ClientConfigProperties.IGNORE_UNKNOWN_CONFIG_KEY, "true").setOption("unknown_setting", "value").build()) {
             Assert.assertTrue(client.ping());
         }
 
