@@ -194,6 +194,6 @@ public class DriverTest extends JdbcIntegrationTest {
         }
 
         // next should not throw exception
-        driver.connect(getEndpointString() + "?unknown_setting=1&" + ClientConfigProperties.NO_THROW_ON_UNKNOWN_CONFIG + "=1", new Properties()).close();
+        driver.connect(getEndpointString() + "?unknown_setting=1&" + ClientConfigProperties.IGNORE_UNKNOWN_CONFIG_KEY + "=true", new Properties()).close();
     }
 }
