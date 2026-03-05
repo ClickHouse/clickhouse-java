@@ -678,6 +678,36 @@ public class QueryTests extends BaseIntegrationTest {
         }
     }
 
+    @Test(groups = {"integration"})
+    public void testGetSchemaWithEmptyResult() throws Exception {
+        try (Records records = client.queryRecords("SELECT 1 as id, 'test' as name LIMIT 0").get(3, TimeUnit.SECONDS)) {
+            Assert.assertTrue(records.isEmpty());
+
+            TableSchema schema = records.getSchema();
+            Assert.assertNotNull(schema);
+            Assert.assertEquals(schema.getColumns().size(), 2);
+            Assert.assertEquals(schema.getColumnByIndex(1).getColumnName(), "id");
+            Assert.assertEquals(schema.getColumnByIndex(2).getColumnName(), "name");
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testGetSchemaWithResults() throws Exception {
+        try (Records records = client.queryRecords("SELECT 1 as id, 'test' as name").get(3, TimeUnit.SECONDS)) {
+            Assert.assertFalse(records.isEmpty());
+
+            TableSchema recordsSchema = records.getSchema();
+            Assert.assertNotNull(recordsSchema);
+            Assert.assertEquals(recordsSchema.getColumns().size(), 2);
+
+            for (GenericRecord record : records) {
+                Assert.assertEquals(record.getInteger("id"), Integer.valueOf(1));
+                Assert.assertEquals(record.getString("name"), "test");
+                Assert.assertEquals(record.getSchema(), recordsSchema);
+            }
+        }
+    }
+
     @Test(description = "Verifies that queryRecords reads all values from the response", groups = {"integration"})
     public void testQueryRecordsReadsAllValues() throws Exception {
         try (Records records = client.queryRecords("SELECT toInt32(number) FROM system.numbers LIMIT 3").get(3, TimeUnit.SECONDS)) {
