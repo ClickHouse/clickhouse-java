@@ -20,7 +20,7 @@
         <javacc-plugin.version>5.0.0</javacc-plugin.version>
         <spec.title>JDBC</spec.title>
         <spec.version>4.2</spec.version>
-        <jackson.version>2.17.2</jackson.version>
+        <jackson.version>2.18.6</jackson.version>
         <lombok.version>1.18.36</lombok.version>
         <shade.base>${project.groupId}.shaded</shade.base>
     </properties>
