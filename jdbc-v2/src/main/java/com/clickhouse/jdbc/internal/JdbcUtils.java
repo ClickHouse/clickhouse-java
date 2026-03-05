@@ -130,7 +130,7 @@ public class JdbcUtils {
         map.put(JDBCType.CHAR, String.class);
         map.put(JDBCType.VARCHAR, String.class);
         map.put(JDBCType.LONGVARCHAR, String.class);
-        map.put(JDBCType.NUMERIC, java.math.BigDecimal.class);
+        map.put(JDBCType.NUMERIC, java.math.BigInteger.class);
         map.put(JDBCType.DECIMAL, java.math.BigDecimal.class);
         map.put(JDBCType.BIT, Boolean.class);
         map.put(JDBCType.BOOLEAN, Boolean.class);
@@ -173,21 +173,6 @@ public class JdbcUtils {
         for (Map.Entry<ClickHouseDataType, SQLType> e : CLICKHOUSE_TO_SQL_TYPE_MAP.entrySet()) {
             if (e.getValue().equals(JDBCType.OTHER)) {
                 switch (e.getKey()) {
-                    case UInt64:
-                        map.put(e.getKey(), BigInteger.class);
-                        break;
-                    case UInt128:
-                        map.put(e.getKey(), BigInteger.class);
-                        break;
-                    case UInt256:
-                        map.put(e.getKey(), BigInteger.class);
-                        break;
-                    case Int128:
-                        map.put(e.getKey(), BigInteger.class);
-                        break;
-                    case Int256:
-                        map.put(e.getKey(), BigInteger.class);
-                        break;
                     case Point:
                         map.put(e.getKey(), double[].class);
                         break;
