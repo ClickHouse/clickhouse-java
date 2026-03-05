@@ -2,6 +2,7 @@ package com.clickhouse.client.api.query;
 
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.internal.BinaryReaderBackedRecord;
+import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.metrics.ServerMetrics;
 
@@ -62,6 +63,15 @@ public class Records implements Iterable<GenericRecord>, AutoCloseable {
      */
     public boolean isEmpty() {
         return empty;
+    }
+
+    /**
+     * Returns the schema of the collection.
+     *
+     * @return table schema with column definitions
+     */
+    public TableSchema getSchema() {
+        return reader.getSchema();
     }
 
     Stream<GenericRecord> stream() {
