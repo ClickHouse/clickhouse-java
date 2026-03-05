@@ -1,15 +1,18 @@
 package com.clickhouse.client;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -21,16 +24,66 @@ import com.clickhouse.data.ClickHouseDataType;
 public class DatasetBuilder {
 
 
+    private final ValueGenerators defaultGenerators = new ValueGenerators();
 
-    public static class Dataset { 
+    public ValueGenerators getDefaultGenerators() {
+        return defaultGenerators;
+    }
+
+    public static class Dataset {
+        private String createTable;
+        private String tableName;
         private List<String> columns = new ArrayList<>();
         private List<ClickHouseColumn> chColumns = new ArrayList<>();
         private List<Function<Integer, String>> sqlValueGenerators = new ArrayList<>();
 
-        public Dataset(List<String> columns, List<ClickHouseColumn> chColumns, List<Function<Integer, String>> sqlValueGenerators) {
+        public Dataset(String tableName, List<String> columns, List<ClickHouseColumn> chColumns, List<Function<Integer, String>> sqlValueGenerators) {
+            this.tableName = tableName;
             this.columns = columns;
             this.chColumns = chColumns;
             this.sqlValueGenerators = sqlValueGenerators;
+            StringBuilder sb = new StringBuilder();
+            sb.append("CREATE TABLE IF NOT EXISTS ").append(tableName).append(" (\n");
+            for (int i = 0; i < columns.size(); i++) {
+                sb.append("    ").append(columns.get(i));
+                if (i < columns.size() - 1) {
+                    sb.append(",");
+                }
+                sb.append("\n");
+            }
+            sb.append(") ENGINE = ").append("MergeTree Order By()");
+            createTable = sb.toString();
+        }
+
+        public String getCreateTable() {
+            return createTable;
+        }
+
+        public String getTableName() {
+            return tableName;
+        }
+
+        /**
+         * Generates TSV content for this dataset and returns it as an InputStream
+         * backed by a ByteBuffer.
+         *
+         * @param numRows number of rows to generate
+         * @return InputStream over the TSV bytes
+         */
+        public InputStream toTsvInputStream(int numRows) {
+            StringBuilder sb = new StringBuilder();
+            for (int row = 0; row < numRows; row++) {
+                for (int col = 0; col < sqlValueGenerators.size(); col++) {
+                    if (col > 0) {
+                        sb.append('\t');
+                    }
+                    sb.append(sqlValueGenerators.get(col).apply(row));
+                }
+                sb.append('\n');
+            }
+            byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+            ByteBuffer buffer = ByteBuffer.wrap(bytes);
+            return new ByteArrayInputStream(buffer.array(), buffer.position(), buffer.remaining());
         }
     }
 
@@ -40,13 +93,17 @@ public class DatasetBuilder {
      */
     public static class SchemaBasedBuilder {
 
-        private final ValueGenerators generators = new ValueGenerators();
+        private final ValueGenerators generators;
 
         private List<String> columns = new ArrayList<>();
         private List<ClickHouseColumn> chColumns = new ArrayList<>();
         private List<Function<Integer, String>> sqlValueGenerators = new ArrayList<>();
 
         private int columnCount = 0;
+
+        public SchemaBasedBuilder(ValueGenerators generators) {
+            this.generators = generators;
+        }
 
         private SchemaBasedBuilder addColumn(String prefix, String typeExpr, Function<Integer, String> generator) {
             String columnName = prefix + columnCount++;
@@ -308,19 +365,17 @@ public class DatasetBuilder {
 
         // ---- Build ----
 
-        public Dataset build(String tableName, String engine) {
-            StringBuilder sb = new StringBuilder();
-            sb.append("CREATE TABLE IF NOT EXISTS ").append(tableName).append(" (\n");
-            for (int i = 0; i < columns.size(); i++) {
-                sb.append("    ").append(columns.get(i));
-                if (i < columns.size() - 1) {
-                    sb.append(",");
-                }
-                sb.append("\n");
-            }
-            sb.append(") ENGINE = ").append(engine);
-            return new Dataset(columns, chColumns, sqlValueGenerators);
+        public Dataset build(String tableName) {
+            return new Dataset(tableName, columns, chColumns, sqlValueGenerators);
         }
+
+
+        private final Random random = new Random();
+
+        public Dataset build() {
+            return build("test_table_" + Math.abs(random.nextLong()));
+        }
+
 
         private static String enumDef(Object... values) {
             if (values.length % 2 != 0) {
