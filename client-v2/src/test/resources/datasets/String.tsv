@@ -1,0 +1,104 @@
+
+ 
+hello
+world
+Hello, World!
+clickhouse
+ClickHouse
+test string
+The quick brown fox jumps over the lazy dog
+12345
+0
+-1
+true
+false
+null
+NULL
+None
+undefined
+	
+line1\nline2
+tab\there
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+unicode: こんにちは
+unicode: 日本語
+unicode: 中文
+unicode: Русский
+unicode: العربية
+unicode: हिन्दी
+unicode: 한국어
+emoji: 😀🎉🚀
+special: !@#$%^&*()
+special: <>&"'`
+special: \\backslash\\
+json: {"key": "value"}
+json: [{"a":1},{"b":2}]
+xml: <tag>value</tag>
+csv: field1,field2,field3
+tsv: field1\tfield2\tfield3
+sql: SELECT * FROM table WHERE id = 1
+url: https://clickhouse.com
+email: user@example.com
+ip: 192.168.1.1
+uuid: 550e8400-e29b-41d4-a716-446655440000
+date: 2024-01-01
+path: /usr/local/bin/clickhouse
+windows path: C:\\Users\\test
+1234567890
+0.123456789
+-0.000001
+3.14159265358979323846
+a b c d e f g h i j k
+UPPERCASE STRING
+lowercase string
+MiXeD CaSe StRiNg
+123abc
+abc123
+a1b2c3d4e5
+   leading spaces
+trailing spaces   
+   both sides   
+repeat: aaabbbccc
+numbers: 0123456789
+hex: 0x1a2b3c4d
+binary: 01010101
+octal: 01234567
+scientific: 1.23e+10
+negative: -9999
+positive: +9999
+slash: a/b/c/d
+backslash: a\\b\\c\\d
+pipe: a|b|c
+colon: a:b:c
+semi: a;b;c
+ascii printable: !"#$%&'()*+,-./
+ascii printable: 0123456789:;<=>?
+ascii printable: @ABCDEFGHIJKLMNO
+ascii printable: PQRSTUVWXYZ[\\]^_
+ascii printable: `abcdefghijklmno
+ascii printable: pqrstuvwxyz{|}~
+a
+ab
+abc
+abcd
+abcde
+中
+αβγδ
+☃
+∞
+±
+√2
+π
+€$£¥
+quotes: "hello" 'world'
+mixed quotes: it's a "test"
+very long string: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+repeat chars: abababababababababababababababababababababababababababababababababababababababababababababababababab
+all digits: 0123456789all digits: 0123456789all digits: 0123456789all digits: 0123456789all digits: 0123456789
+whitespace only:     
+newlines: first\nsecond\nthird
+carriage return: first\rsecond
+form feed: first\fsecond
+vertical tab: first\vsecond
+mixed whitespace: \t \n \r
