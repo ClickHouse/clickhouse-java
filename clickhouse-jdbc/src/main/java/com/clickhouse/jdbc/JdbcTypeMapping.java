@@ -234,6 +234,8 @@ public class JdbcTypeMapping {
                 case UInt128:
                 case Int256:
                 case UInt256:
+                    sqlType = Types.NUMERIC;
+                    break;
                 case Decimal:
                 case Decimal32:
                 case Decimal64:
