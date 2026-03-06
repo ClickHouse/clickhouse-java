@@ -30,6 +30,24 @@ public class DatasetBuilder {
         return defaultGenerators;
     }
 
+    public static class DatasetSnapshot {
+        private final InputStream inputStream;
+        private final List<List<String>> values;
+
+        public DatasetSnapshot(InputStream inputStream, List<List<String>> values) {
+            this.inputStream = inputStream;
+            this.values = values;
+        }
+
+        public InputStream getInputStream() {
+            return inputStream;
+        }
+
+        public List<List<String>> getValues() {
+            return values;
+        }
+    }
+
     public static class Dataset {
         private String createTable;
         private String tableName;
@@ -51,7 +69,7 @@ public class DatasetBuilder {
                 }
                 sb.append("\n");
             }
-            sb.append(") ENGINE = ").append("MergeTree Order By()");
+            sb.append(") ENGINE = ").append("MergeTree Order By(id)");
             createTable = sb.toString();
         }
 
@@ -63,27 +81,37 @@ public class DatasetBuilder {
             return tableName;
         }
 
+        public List<ClickHouseColumn> getChColumns() {
+            return chColumns;
+        }
+
         /**
-         * Generates TSV content for this dataset and returns it as an InputStream
-         * backed by a ByteBuffer.
+         * Generates TSV content for this dataset and returns a snapshot
+         * containing both the InputStream over TSV bytes and the raw values.
          *
          * @param numRows number of rows to generate
-         * @return InputStream over the TSV bytes
+         * @return snapshot with InputStream and values indexed by [row][column]
          */
-        public InputStream toTsvInputStream(int numRows) {
+        public DatasetSnapshot toTsvInputStream(int numRows) {
+            List<List<String>> values = new ArrayList<>(numRows);
             StringBuilder sb = new StringBuilder();
             for (int row = 0; row < numRows; row++) {
+                List<String> rowValues = new ArrayList<>(sqlValueGenerators.size());
                 for (int col = 0; col < sqlValueGenerators.size(); col++) {
                     if (col > 0) {
                         sb.append('\t');
                     }
-                    sb.append(sqlValueGenerators.get(col).apply(row));
+                    String value = sqlValueGenerators.get(col).apply(row);
+                    rowValues.add(value);
+                    sb.append(value);
                 }
                 sb.append('\n');
+                values.add(rowValues);
             }
             byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
             ByteBuffer buffer = ByteBuffer.wrap(bytes);
-            return new ByteArrayInputStream(buffer.array(), buffer.position(), buffer.remaining());
+            InputStream inputStream = new ByteArrayInputStream(buffer.array(), buffer.position(), buffer.remaining());
+            return new DatasetSnapshot(inputStream, values);
         }
     }
 
@@ -366,7 +394,19 @@ public class DatasetBuilder {
         // ---- Build ----
 
         public Dataset build(String tableName) {
-            return new Dataset(tableName, columns, chColumns, sqlValueGenerators);
+            List<String> allColumns = new ArrayList<>();
+            allColumns.add("id UInt64");
+            allColumns.addAll(columns);
+
+            List<ClickHouseColumn> allChColumns = new ArrayList<>();
+            allChColumns.add(ClickHouseColumn.of("id", "UInt64"));
+            allChColumns.addAll(chColumns);
+
+            List<Function<Integer, String>> allGenerators = new ArrayList<>();
+            allGenerators.add(index -> String.valueOf(index));
+            allGenerators.addAll(sqlValueGenerators);
+
+            return new Dataset(tableName, allColumns, allChColumns, allGenerators);
         }
 
 
