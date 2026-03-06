@@ -8,6 +8,8 @@ import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
@@ -32,6 +34,7 @@ public abstract class BaseReaderWriterTests<R> extends BaseIntegrationTest {
     public void setupClass() {
         sharedClient = createSharedClient();
     }
+    //IPv6 value fe80::1%eth0 contains a zone ID (%eth0), which ClickHouse doesn't support — the % and everything after it breaks TSV parsing because ClickHouse sees the %eth0\t... as garbage.
 
     @Test(groups = {"integration"})
     void doReaderTest() throws Exception {
@@ -40,6 +43,27 @@ public abstract class BaseReaderWriterTests<R> extends BaseIntegrationTest {
                 .int8()
                 .int16()
                 .int32()
+                .int64()
+                .int128()
+                .int256()
+                .uint8()
+                .uint16()
+                .uint32()
+                .uint64()
+                .bool()
+//                .date()
+//                .date32()
+//                .dateTime()
+                .uint128()
+                .uint256()
+                .float32()
+                .float64()
+//                .string()
+//                .dateTime64(3)
+//                .decimal(18, 4)
+                .ipv4()
+//                .ipv6()
+                .uuid()
                 .build();
 
         sharedClient.execute(ds.getCreateTable()).get().close();
@@ -74,8 +98,73 @@ public abstract class BaseReaderWriterTests<R> extends BaseIntegrationTest {
 
             String actual = columnReader.apply(record, colName);
             String expected = expectedRow.get(col);
-            Assert.assertEquals(actual, expected,
-                    "Mismatch at row " + rowIndex + ", column '" + colName + "' (" + dataType + ")");
+            String ctx = "row " + rowIndex + ", column '" + colName + "' (" + dataType + ")";
+
+            if (dataType == ClickHouseDataType.Float32) {
+                assertFloat32Equals(actual, expected, ctx);
+            } else if (dataType == ClickHouseDataType.Float64) {
+                assertFloat64Equals(actual, expected, ctx);
+            } else if (dataType == ClickHouseDataType.IPv6) {
+                Assert.assertEquals(actual, normalizeIPv6(expected), "Mismatch at " + ctx);
+            } else {
+                Assert.assertEquals(actual, expected, "Mismatch at " + ctx);
+            }
+        }
+    }
+
+    private static String normalizeSpecialFloatValues(String value) {
+        switch (value) {
+            case "inf":  return "Infinity";
+            case "-inf": return "-Infinity";
+            case "nan":  return "NaN";
+            default:     return value;
+        }
+    }
+
+    /**
+     * Compares Float32 values numerically to handle precision differences
+     * between Java's and ClickHouse's float parsing. Allows up to 1 ULP of
+     * difference for finite values.
+     */
+    private static void assertFloat32Equals(String actual, String expected, String ctx) {
+        float a = Float.parseFloat(actual);
+        float e = Float.parseFloat(normalizeSpecialFloatValues(expected));
+        if (Float.isNaN(e)) {
+            Assert.assertTrue(Float.isNaN(a), "Expected NaN at " + ctx + " but got " + actual);
+        } else if (Float.isInfinite(e)) {
+            Assert.assertEquals(a, e, "Mismatch at " + ctx);
+        } else {
+            Assert.assertEquals(a, e, Math.ulp(e),
+                    "Float32 mismatch at " + ctx + ": expected " + expected + " but got " + actual);
+        }
+    }
+
+    /**
+     * Compares Float64 values numerically, same rationale as Float32.
+     */
+    private static void assertFloat64Equals(String actual, String expected, String ctx) {
+        double a = Double.parseDouble(actual);
+        double e = Double.parseDouble(normalizeSpecialFloatValues(expected));
+        if (Double.isNaN(e)) {
+            Assert.assertTrue(Double.isNaN(a), "Expected NaN at " + ctx + " but got " + actual);
+        } else if (Double.isInfinite(e)) {
+            Assert.assertEquals(a, e, "Mismatch at " + ctx);
+        } else {
+            Assert.assertEquals(a, e, Math.ulp(e),
+                    "Float64 mismatch at " + ctx + ": expected " + expected + " but got " + actual);
+        }
+    }
+
+    /**
+     * Parses the IPv6 string through Java's InetAddress to produce the same
+     * expanded representation that Inet6Address.getHostAddress() returns
+     * (e.g. "::" becomes "0:0:0:0:0:0:0:0").
+     */
+    private static String normalizeIPv6(String value) {
+        try {
+            return InetAddress.getByName(value).getHostAddress();
+        } catch (UnknownHostException e) {
+            return value;
         }
     }
 
