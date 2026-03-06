@@ -158,11 +158,13 @@ public class JdbcTypeMapping {
                 sqlType = Types.BIGINT;
             } else if (javaClass == float.class || javaClass == Float.class) {
                 sqlType = Types.FLOAT;
-            } else if (javaClass == double.class || javaClass == Double.class) {
-                sqlType = Types.DOUBLE;
-            } else if (javaClass == BigInteger.class || javaClass == BigDecimal.class) {
-                sqlType = Types.DECIMAL;
-            } else if (javaClass == Date.class || javaClass == LocalDate.class) {
+        } else if (javaClass == double.class || javaClass == Double.class) {
+            sqlType = Types.DOUBLE;
+        } else if (javaClass == BigInteger.class) {
+            sqlType = Types.NUMERIC;
+        } else if (javaClass == BigDecimal.class) {
+            sqlType = Types.DECIMAL;
+        } else if (javaClass == Date.class || javaClass == LocalDate.class) {
                 sqlType = Types.DATE;
             } else if (javaClass == Time.class || javaClass == LocalTime.class) {
                 sqlType = Types.TIME;
@@ -528,6 +530,13 @@ public class JdbcTypeMapping {
 
         ClickHouseDataType type = column.getDataType();
         switch (type) {
+            case UInt64:
+            case Int128:
+            case UInt128:
+            case Int256:
+            case UInt256:
+                clazz = BigInteger.class;
+                break;
             case DateTime:
             case DateTime32:
             case DateTime64:
