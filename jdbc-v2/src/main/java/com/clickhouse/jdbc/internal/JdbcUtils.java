@@ -9,7 +9,6 @@ import com.clickhouse.data.Tuple;
 import com.clickhouse.jdbc.types.Array;
 import com.google.common.collect.ImmutableMap;
 
-import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
