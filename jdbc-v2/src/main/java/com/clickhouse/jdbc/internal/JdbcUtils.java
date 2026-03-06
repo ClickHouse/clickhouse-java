@@ -346,6 +346,8 @@ public class JdbcUtils {
                 return Double.parseDouble(value.toString());
             } else if (type == java.math.BigDecimal.class) {
                 return new java.math.BigDecimal(value.toString());
+            } else if (type == java.math.BigInteger.class) {
+                return new java.math.BigInteger(value.toString());
             } else if (type == Duration.class && value instanceof LocalDateTime) {
                 return DataTypeUtils.localDateTimeToDuration((LocalDateTime) value);
             } else if (value instanceof TemporalAccessor) {
