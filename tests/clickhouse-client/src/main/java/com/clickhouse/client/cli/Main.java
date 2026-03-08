@@ -16,6 +16,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
@@ -23,12 +28,20 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.LinkedHashMap;
+import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
  * Simple CLI tool that mimics clickhouse-client.
  * Executes a SQL query against a ClickHouse server and prints results in TSV format.
+ *
+ * <p>Supports two backend implementations selected via the {@code CLICKHOUSE_CLIENT_CLI_IMPL}
+ * environment variable:
+ * <ul>
+ *   <li>{@code client} (default) &ndash; uses the ClickHouse client-v2 API</li>
+ *   <li>{@code jdbc} &ndash; uses the ClickHouse JDBC driver</li>
+ * </ul>
  *
  * Usage:
  *   java -jar clickhouse-client-cli.jar [options]
@@ -53,6 +66,9 @@ public class Main {
 
     private static final long QUERY_TIMEOUT_SECONDS = 300;
     private static final String LOG_PATH_ENV = "CLICKHOUSE_CLIENT_CLI_LOG";
+    private static final String IMPL_ENV = "CLICKHOUSE_CLIENT_CLI_IMPL";
+    private static final String IMPL_CLIENT = "client";
+    private static final String IMPL_JDBC = "jdbc";
     private static final Path DEFAULT_LOG_PATH = Paths.get("/tmp/clickhouse-client-cli.log");
     private static final Path FALLBACK_LOG_PATH = Paths.get("clickhouse-client-cli.log");
     private static final Set<String> CLIENT_ONLY_SETTINGS = createClientOnlySettings();
@@ -199,8 +215,12 @@ public class Main {
             System.exit(1);
         }
 
-        String endpoint = (secure ? "https://" : "http://") + host + ":" + port;
-        appendLog(logPath, "endpoint=" + endpoint);
+        String impl = System.getenv(IMPL_ENV);
+        if (impl == null || impl.isBlank()) {
+            impl = IMPL_CLIENT;
+        }
+
+        appendLog(logPath, "impl=" + impl);
         appendLog(logPath, "database=" + database + ", user=" + user + ", secure=" + secure + ", multiquery=" + multiquery);
         appendLog(logPath, "log_comment=" + safeForLog(logComment));
         appendLog(logPath, "send_logs_level=" + safeForLog(sendLogsLevel));
@@ -210,6 +230,38 @@ public class Main {
         for (int qi = 0; qi < queries.size(); qi++) {
             appendLog(logPath, "query[" + qi + "]=" + queries.get(qi));
         }
+
+        try {
+            switch (impl) {
+                case IMPL_CLIENT:
+                    executeWithClient(host, port, user, password, database, secure,
+                            logComment, sendLogsLevel, maxInsertThreads,
+                            extraServerSettings, queries, logPath);
+                    break;
+                case IMPL_JDBC:
+                    executeWithJdbc(host, port, user, password, database, secure,
+                            logComment, sendLogsLevel, maxInsertThreads,
+                            extraServerSettings, queries, logPath);
+                    break;
+                default:
+                    System.err.println("Unknown " + IMPL_ENV + " value: " + impl
+                            + ". Supported: " + IMPL_CLIENT + ", " + IMPL_JDBC);
+                    System.exit(1);
+            }
+        } catch (Exception e) {
+            appendLog(logPath, "error=" + e.getMessage());
+            System.err.println("Error: " + e.getMessage());
+            System.exit(1);
+        }
+    }
+
+    private static void executeWithClient(String host, int port, String user, String password,
+                                            String database, boolean secure,
+                                            String logComment, String sendLogsLevel, String maxInsertThreads,
+                                            Map<String, String> extraServerSettings,
+                                            List<String> queries, Path logPath) throws Exception {
+        String endpoint = (secure ? "https://" : "http://") + host + ":" + port;
+        appendLog(logPath, "endpoint=" + endpoint);
 
         try (Client client = new Client.Builder()
                 .addEndpoint(endpoint)
@@ -239,7 +291,6 @@ public class Main {
                 appendLog(logPath, "executing_query=" + q);
                 try (QueryResponse response = client.query(q, settings)
                         .get(QUERY_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
-
                     try (InputStream is = response.getInputStream()) {
                         byte[] buf = new byte[8192];
                         int n;
@@ -250,10 +301,90 @@ public class Main {
                     }
                 }
             }
-        } catch (Exception e) {
-            appendLog(logPath, "error=" + e.getMessage());
-            System.err.println("Error: " + e.getMessage());
-            System.exit(1);
+        }
+    }
+
+    private static void executeWithJdbc(String host, int port, String user, String password,
+                                         String database, boolean secure,
+                                         String logComment, String sendLogsLevel, String maxInsertThreads,
+                                         Map<String, String> extraServerSettings,
+                                         List<String> queries, Path logPath) throws Exception {
+        String protocol = secure ? "https" : "http";
+        String jdbcUrl = "jdbc:clickhouse:" + protocol + "://" + host + ":" + port + "/" + database;
+        appendLog(logPath, "jdbc_url=" + jdbcUrl);
+
+        Properties props = new Properties();
+        props.setProperty("user", user);
+        props.setProperty("password", password);
+
+        addServerSetting(props, "log_comment", logComment);
+        addServerSetting(props, "send_logs_level", sendLogsLevel);
+        addServerSetting(props, "max_insert_threads", maxInsertThreads);
+        for (Map.Entry<String, String> entry : extraServerSettings.entrySet()) {
+            addServerSetting(props, entry.getKey(), entry.getValue());
+        }
+
+        try (Connection conn = DriverManager.getConnection(jdbcUrl, props);
+             Statement stmt = conn.createStatement()) {
+
+            for (String q : queries) {
+                appendLog(logPath, "executing_query=" + q);
+                boolean hasResultSet = stmt.execute(q);
+                if (hasResultSet) {
+                    try (ResultSet rs = stmt.getResultSet()) {
+                        writeResultSetAsTsv(rs);
+                    }
+                }
+            }
+        }
+    }
+
+    private static void addServerSetting(Properties props, String name, String value) {
+        if (value != null && !value.isBlank()) {
+            props.setProperty("clickhouse_setting_" + name, value);
+        }
+    }
+
+    private static void writeResultSetAsTsv(ResultSet rs) throws Exception {
+        ResultSetMetaData meta = rs.getMetaData();
+        int columnCount = meta.getColumnCount();
+        StringBuilder line = new StringBuilder();
+
+        while (rs.next()) {
+            line.setLength(0);
+            for (int i = 1; i <= columnCount; i++) {
+                if (i > 1) {
+                    line.append('\t');
+                }
+                String val = rs.getString(i);
+                if (val == null) {
+                    line.append("\\N");
+                } else {
+                    escapeTsv(val, line);
+                }
+            }
+            line.append('\n');
+            System.out.print(line);
+        }
+        System.out.flush();
+    }
+
+    private static void escapeTsv(String value, StringBuilder out) {
+        for (int i = 0; i < value.length(); i++) {
+            char ch = value.charAt(i);
+            switch (ch) {
+                case '\\':
+                    out.append('\\').append('\\');
+                    break;
+                case '\t':
+                    out.append('\\').append('t');
+                    break;
+                case '\n':
+                    out.append('\\').append('n');
+                    break;
+                default:
+                    out.append(ch);
+            }
         }
     }
 
@@ -474,6 +605,10 @@ public class Main {
         System.err.println("Known server settings are forwarded to ClickHouse.");
         System.err.println("Client-only and unknown settings are accepted but not sent to server.");
         System.err.println("If --query is not specified, the query is read from stdin.");
+        System.err.println();
+        System.err.println("Environment variables:");
+        System.err.println("  CLICKHOUSE_CLIENT_CLI_IMPL   Backend implementation: 'client' (default) or 'jdbc'");
+        System.err.println("  CLICKHOUSE_CLIENT_CLI_LOG    Path to log file for troubleshooting");
     }
 
     private static SettingScope classifySetting(String settingName) {

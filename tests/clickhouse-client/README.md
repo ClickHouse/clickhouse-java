@@ -19,13 +19,25 @@ A wrapper script named `clickhouse-client` is provided in `bin/` directory. It i
 java application. It is required because `clickhouse-test` script calls `clickhouse-client` binary found in `PATH` environment variable.
 It is recommended to set `PATH` locally in terminal session to not override real `clickhouse-client`.
 
-Java application accepts `CLICKHOUSE_CLIENT_CLI_LOG` variable to define an log output needed for troubleshooting.
-Examples of how to run: 
+## Environment variables
+
+| Variable | Description |
+|---|---|
+| `CLICKHOUSE_CLIENT_CLI_IMPL` | Backend implementation to use: `client` (default, uses client-v2 API) or `jdbc` (uses ClickHouse JDBC driver) |
+| `CLICKHOUSE_CLIENT_CLI_LOG` | Path to log file for troubleshooting |
+
+## Examples
+
+Run tests using the default client-v2 backend:
 
 ```shell
-
-
 cd ClickHouse-master
 CLICKHOUSE_CLIENT_CLI_LOG=./test-run.log PATH="$PATH:/home/someuser/clickhouse-java/tests/clickhouse-client/bin/" tests/clickhouse-test 01428_hash_set_nan_key
+```
 
+Run tests using the JDBC backend:
+
+```shell
+cd ClickHouse-master
+CLICKHOUSE_CLIENT_CLI_IMPL=jdbc CLICKHOUSE_CLIENT_CLI_LOG=./test-run.log PATH="$PATH:/home/someuser/clickhouse-java/tests/clickhouse-client/bin/" tests/clickhouse-test 01428_hash_set_nan_key
 ```

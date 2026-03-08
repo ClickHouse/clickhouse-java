@@ -23,7 +23,7 @@
     <dependencies>
         <dependency>
             <groupId>com.clickhouse</groupId>
-            <artifactId>client-v2</artifactId>
+            <artifactId>clickhouse-jdbc</artifactId>
             <version>${clickhouse-java.version}</version>
             <classifier>all</classifier>
         </dependency>
