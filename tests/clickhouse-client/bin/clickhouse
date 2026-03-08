@@ -2,7 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-JAR_PATH="${SCRIPT_DIR}/target/clickhouse-client-cli-1.0.0.jar"
+JAR_PATH="${SCRIPT_DIR}/../target/clickhouse-client-cli-1.0.0.jar"
 
 if [[ "${1:-}" == "extract-from-config" ]]; then
   shift
