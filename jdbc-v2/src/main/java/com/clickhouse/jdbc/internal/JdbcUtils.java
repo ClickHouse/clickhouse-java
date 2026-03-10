@@ -9,7 +9,6 @@ import com.clickhouse.data.Tuple;
 import com.clickhouse.jdbc.types.Array;
 import com.google.common.collect.ImmutableMap;
 
-import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
@@ -44,9 +43,9 @@ public class JdbcUtils {
 
     public static final Map<String, SQLType> CLICKHOUSE_TYPE_NAME_TO_SQL_TYPE_MAP = Collections.unmodifiableMap(generateTypeMap().entrySet()
             .stream().collect(
-                HashMap::new,
-                (map, entry) -> map.put(entry.getKey().name(), entry.getValue()),
-                HashMap::putAll
+                    HashMap::new,
+                    (map, entry) -> map.put(entry.getKey().name(), entry.getValue()),
+                    HashMap::putAll
             ));
 
     private static Map<ClickHouseDataType, SQLType> generateTypeMap() {
@@ -55,14 +54,14 @@ public class JdbcUtils {
         map.put(ClickHouseDataType.Int16, JDBCType.SMALLINT);
         map.put(ClickHouseDataType.Int32, JDBCType.INTEGER);
         map.put(ClickHouseDataType.Int64, JDBCType.BIGINT);
-        map.put(ClickHouseDataType.Int128, JDBCType.OTHER);
-        map.put(ClickHouseDataType.Int256, JDBCType.OTHER);
+        map.put(ClickHouseDataType.Int128, JDBCType.NUMERIC);
+        map.put(ClickHouseDataType.Int256, JDBCType.NUMERIC);
         map.put(ClickHouseDataType.UInt8, JDBCType.SMALLINT);
         map.put(ClickHouseDataType.UInt16, JDBCType.INTEGER);
         map.put(ClickHouseDataType.UInt32, JDBCType.BIGINT);
-        map.put(ClickHouseDataType.UInt64, JDBCType.OTHER);
-        map.put(ClickHouseDataType.UInt128, JDBCType.OTHER);
-        map.put(ClickHouseDataType.UInt256, JDBCType.OTHER);
+        map.put(ClickHouseDataType.UInt64, JDBCType.NUMERIC);
+        map.put(ClickHouseDataType.UInt128, JDBCType.NUMERIC);
+        map.put(ClickHouseDataType.UInt256, JDBCType.NUMERIC);
         map.put(ClickHouseDataType.Float32, JDBCType.FLOAT);
         map.put(ClickHouseDataType.Float64, JDBCType.DOUBLE);
         map.put(ClickHouseDataType.BFloat16, JDBCType.FLOAT);
@@ -130,7 +129,7 @@ public class JdbcUtils {
         map.put(JDBCType.CHAR, String.class);
         map.put(JDBCType.VARCHAR, String.class);
         map.put(JDBCType.LONGVARCHAR, String.class);
-        map.put(JDBCType.NUMERIC, java.math.BigDecimal.class);
+        map.put(JDBCType.NUMERIC, java.math.BigInteger.class);
         map.put(JDBCType.DECIMAL, java.math.BigDecimal.class);
         map.put(JDBCType.BIT, Boolean.class);
         map.put(JDBCType.BOOLEAN, Boolean.class);
@@ -173,21 +172,6 @@ public class JdbcUtils {
         for (Map.Entry<ClickHouseDataType, SQLType> e : CLICKHOUSE_TO_SQL_TYPE_MAP.entrySet()) {
             if (e.getValue().equals(JDBCType.OTHER)) {
                 switch (e.getKey()) {
-                    case UInt64:
-                        map.put(e.getKey(), BigInteger.class);
-                        break;
-                    case UInt128:
-                        map.put(e.getKey(), BigInteger.class);
-                        break;
-                    case UInt256:
-                        map.put(e.getKey(), BigInteger.class);
-                        break;
-                    case Int128:
-                        map.put(e.getKey(), BigInteger.class);
-                        break;
-                    case Int256:
-                        map.put(e.getKey(), BigInteger.class);
-                        break;
                     case Point:
                         map.put(e.getKey(), double[].class);
                         break;
@@ -361,6 +345,8 @@ public class JdbcUtils {
                 return Double.parseDouble(value.toString());
             } else if (type == java.math.BigDecimal.class) {
                 return new java.math.BigDecimal(value.toString());
+            } else if (type == java.math.BigInteger.class) {
+                return new java.math.BigInteger(value.toString());
             } else if (type == Duration.class && value instanceof LocalDateTime) {
                 return DataTypeUtils.localDateTimeToDuration((LocalDateTime) value);
             } else if (value instanceof TemporalAccessor) {

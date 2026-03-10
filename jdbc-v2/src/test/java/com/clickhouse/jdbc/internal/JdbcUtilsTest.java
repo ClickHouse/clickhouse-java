@@ -9,6 +9,8 @@ import org.testng.annotations.Test;
 
 import java.io.InputStream;
 import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.sql.JDBCType;
 import java.sql.SQLException;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -149,5 +151,23 @@ public class JdbcUtilsTest {
         CRC32 decodedChecksum = new CRC32();
         decodedChecksum.update(decodedBytes);
         assertEquals(decodedChecksum.getValue(), expectedChecksum, "Checksum of decoded bytes should match original");
+    }
+
+    @Test(groups = {"unit"})
+    public void testClickHouseToSqlType() {
+        assertEquals(JdbcUtils.convertToSqlType(ClickHouseDataType.Int128), JDBCType.NUMERIC);
+        assertEquals(JdbcUtils.convertToSqlType(ClickHouseDataType.Int256), JDBCType.NUMERIC);
+        assertEquals(JdbcUtils.convertToSqlType(ClickHouseDataType.UInt64), JDBCType.NUMERIC);
+        assertEquals(JdbcUtils.convertToSqlType(ClickHouseDataType.UInt128), JDBCType.NUMERIC);
+        assertEquals(JdbcUtils.convertToSqlType(ClickHouseDataType.UInt256), JDBCType.NUMERIC);
+    }
+
+    @Test(groups = {"unit"})
+    public void testClickHouseToJavaClass() {
+        assertEquals(JdbcUtils.convertToJavaClass(ClickHouseDataType.Int128), BigInteger.class);
+        assertEquals(JdbcUtils.convertToJavaClass(ClickHouseDataType.Int256), BigInteger.class);
+        assertEquals(JdbcUtils.convertToJavaClass(ClickHouseDataType.UInt64), BigInteger.class);
+        assertEquals(JdbcUtils.convertToJavaClass(ClickHouseDataType.UInt128), BigInteger.class);
+        assertEquals(JdbcUtils.convertToJavaClass(ClickHouseDataType.UInt256), BigInteger.class);
     }
 }
