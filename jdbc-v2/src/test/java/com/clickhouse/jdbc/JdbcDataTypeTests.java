@@ -240,6 +240,189 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
     }
 
     @Test(groups = { "integration" })
+    public void testBigIntegerTypesMapping() throws SQLException {
+        String tableName = "test_biginteger_mapping";
+
+        // Create table with all large integer types
+        runQuery("CREATE TABLE " + tableName + " ("
+                + "id Int32, "
+                + "int128_col Int128, "
+                + "int256_col Int256, "
+                + "uint64_col UInt64, "
+                + "uint128_col UInt128, "
+                + "uint256_col UInt256, "
+                + "int128_null Nullable(Int128), "
+                + "int256_null Nullable(Int256), "
+                + "uint64_null Nullable(UInt64), "
+                + "uint128_null Nullable(UInt128), "
+                + "uint256_null Nullable(UInt256)"
+                + ") ENGINE = MergeTree ORDER BY id");
+
+        // Test values
+        BigInteger int128Min = new BigInteger("-170141183460469231731687303715884105728"); // -2^127
+        BigInteger int128Max = new BigInteger("170141183460469231731687303715884105727");  // 2^127 - 1
+        BigInteger int256Min = new BigInteger("-57896044618658097711785492504343953926634992332820282019728792003956564819968"); // -2^255
+        BigInteger int256Max = new BigInteger("57896044618658097711785492504343953926634992332820282019728792003956564819967");  // 2^255 - 1
+        BigInteger uint64Max = new BigInteger("18446744073709551615"); // 2^64 - 1
+        BigInteger uint128Max = new BigInteger("340282366920938463463374607431768211455"); // 2^128 - 1
+        BigInteger uint256Max = new BigInteger("115792089237316195423570985008687907853269984665640564039457584007913129639935"); // 2^256 - 1
+
+        // Insert minimum values
+        insertData("INSERT INTO " + tableName + " VALUES ("
+                + "1, "
+                + int128Min + ", " + int256Min + ", 0, 0, 0, "
+                + "NULL, NULL, NULL, NULL, NULL"
+                + ")");
+
+        // Insert maximum values
+        insertData("INSERT INTO " + tableName + " VALUES ("
+                + "2, "
+                + int128Max + ", " + int256Max + ", " + uint64Max + ", " + uint128Max + ", " + uint256Max + ", "
+                + "NULL, NULL, NULL, NULL, NULL"
+                + ")");
+
+        // Insert random values with PreparedStatement
+        Random rand = new Random(System.currentTimeMillis());
+        BigInteger int128Random = new BigInteger(127, rand);
+        BigInteger int256Random = new BigInteger(255, rand);
+        BigInteger uint64Random = BigInteger.valueOf(rand.nextLong(Long.MAX_VALUE));
+        BigInteger uint128Random = new BigInteger(128, rand);
+        BigInteger uint256Random = new BigInteger(256, rand);
+
+        try (Connection conn = getJdbcConnection()) {
+            try (PreparedStatement pstmt = conn.prepareStatement(
+                    "INSERT INTO " + tableName + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")) {
+                pstmt.setInt(1, 3);
+                pstmt.setObject(2, int128Random);
+                pstmt.setObject(3, int256Random);
+                pstmt.setObject(4, uint64Random);
+                pstmt.setObject(5, uint128Random);
+                pstmt.setObject(6, uint256Random);
+                pstmt.setObject(7, int128Random);
+                pstmt.setObject(8, int256Random);
+                pstmt.setObject(9, uint64Random);
+                pstmt.setObject(10, uint128Random);
+                pstmt.setObject(11, uint256Random);
+                pstmt.executeUpdate();
+            }
+        }
+
+        // Verify results and metadata
+        try (Connection conn = getJdbcConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                try (ResultSet rs = stmt.executeQuery("SELECT * FROM " + tableName + " ORDER BY id")) {
+                    ResultSetMetaData meta = rs.getMetaData();
+
+                    // Verify metadata for each large integer column
+                    // Int128
+                    assertEquals(meta.getColumnType(2), Types.NUMERIC, "Int128 should map to Types.NUMERIC");
+                    assertEquals(meta.getColumnTypeName(2), "Int128", "Int128 column type name");
+                    assertEquals(meta.getColumnClassName(2), BigInteger.class.getName(), "Int128 should map to BigInteger class");
+
+                    // Int256
+                    assertEquals(meta.getColumnType(3), Types.NUMERIC, "Int256 should map to Types.NUMERIC");
+                    assertEquals(meta.getColumnTypeName(3), "Int256", "Int256 column type name");
+                    assertEquals(meta.getColumnClassName(3), BigInteger.class.getName(), "Int256 should map to BigInteger class");
+
+                    // UInt64
+                    assertEquals(meta.getColumnType(4), Types.NUMERIC, "UInt64 should map to Types.NUMERIC");
+                    assertEquals(meta.getColumnTypeName(4), "UInt64", "UInt64 column type name");
+                    assertEquals(meta.getColumnClassName(4), BigInteger.class.getName(), "UInt64 should map to BigInteger class");
+
+                    // UInt128
+                    assertEquals(meta.getColumnType(5), Types.NUMERIC, "UInt128 should map to Types.NUMERIC");
+                    assertEquals(meta.getColumnTypeName(5), "UInt128", "UInt128 column type name");
+                    assertEquals(meta.getColumnClassName(5), BigInteger.class.getName(), "UInt128 should map to BigInteger class");
+
+                    // UInt256
+                    assertEquals(meta.getColumnType(6), Types.NUMERIC, "UInt256 should map to Types.NUMERIC");
+                    assertEquals(meta.getColumnTypeName(6), "UInt256", "UInt256 column type name");
+                    assertEquals(meta.getColumnClassName(6), BigInteger.class.getName(), "UInt256 should map to BigInteger class");
+
+                    // Verify first row (minimum values)
+                    assertTrue(rs.next(), "Should have first row");
+                    assertEquals(rs.getInt("id"), 1);
+
+                    // Verify that getObject() returns BigInteger instances
+                    Object int128Obj = rs.getObject("int128_col");
+                    assertTrue(int128Obj instanceof BigInteger, "Int128 getObject() should return BigInteger, got: " + int128Obj.getClass().getName());
+                    assertEquals(int128Obj, int128Min, "Int128 min value");
+
+                    Object int256Obj = rs.getObject("int256_col");
+                    assertTrue(int256Obj instanceof BigInteger, "Int256 getObject() should return BigInteger, got: " + int256Obj.getClass().getName());
+                    assertEquals(int256Obj, int256Min, "Int256 min value");
+
+                    Object uint64Obj = rs.getObject("uint64_col");
+                    assertTrue(uint64Obj instanceof BigInteger, "UInt64 getObject() should return BigInteger, got: " + uint64Obj.getClass().getName());
+                    assertEquals(uint64Obj, BigInteger.ZERO, "UInt64 zero value");
+
+                    Object uint128Obj = rs.getObject("uint128_col");
+                    assertTrue(uint128Obj instanceof BigInteger, "UInt128 getObject() should return BigInteger, got: " + uint128Obj.getClass().getName());
+                    assertEquals(uint128Obj, BigInteger.ZERO, "UInt128 zero value");
+
+                    Object uint256Obj = rs.getObject("uint256_col");
+                    assertTrue(uint256Obj instanceof BigInteger, "UInt256 getObject() should return BigInteger, got: " + uint256Obj.getClass().getName());
+                    assertEquals(uint256Obj, BigInteger.ZERO, "UInt256 zero value");
+
+                    // Verify nullable columns
+                    assertNull(rs.getObject("int128_null"), "Nullable Int128 should be null");
+                    assertNull(rs.getObject("int256_null"), "Nullable Int256 should be null");
+                    assertNull(rs.getObject("uint64_null"), "Nullable UInt64 should be null");
+                    assertNull(rs.getObject("uint128_null"), "Nullable UInt128 should be null");
+                    assertNull(rs.getObject("uint256_null"), "Nullable UInt256 should be null");
+
+                    // Verify second row (maximum values)
+                    assertTrue(rs.next(), "Should have second row");
+                    assertEquals(rs.getInt("id"), 2);
+                    assertEquals(rs.getObject("int128_col"), int128Max, "Int128 max value");
+                    assertEquals(rs.getObject("int256_col"), int256Max, "Int256 max value");
+                    assertEquals(rs.getObject("uint64_col"), uint64Max, "UInt64 max value");
+                    assertEquals(rs.getObject("uint128_col"), uint128Max, "UInt128 max value");
+                    assertEquals(rs.getObject("uint256_col"), uint256Max, "UInt256 max value");
+
+                    // Verify third row (random values)
+                    assertTrue(rs.next(), "Should have third row");
+                    assertEquals(rs.getInt("id"), 3);
+                    assertEquals(rs.getObject("int128_col"), int128Random, "Int128 random value");
+                    assertEquals(rs.getObject("int256_col"), int256Random, "Int256 random value");
+                    assertEquals(rs.getObject("uint64_col"), uint64Random, "UInt64 random value");
+                    assertEquals(rs.getObject("uint128_col"), uint128Random, "UInt128 random value");
+                    assertEquals(rs.getObject("uint256_col"), uint256Random, "UInt256 random value");
+
+                    // Verify that nullable columns contain the inserted values
+                    assertEquals(rs.getObject("int128_null"), int128Random, "Nullable Int128 with value");
+                    assertEquals(rs.getObject("int256_null"), int256Random, "Nullable Int256 with value");
+                    assertEquals(rs.getObject("uint64_null"), uint64Random, "Nullable UInt64 with value");
+                    assertEquals(rs.getObject("uint128_null"), uint128Random, "Nullable UInt128 with value");
+                    assertEquals(rs.getObject("uint256_null"), uint256Random, "Nullable UInt256 with value");
+
+                    assertFalse(rs.next(), "Should have no more rows");
+                }
+            }
+        }
+
+        // Additional test: verify getObject(index, BigInteger.class) works correctly
+        try (Connection conn = getJdbcConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                try (ResultSet rs = stmt.executeQuery("SELECT int128_col, int256_col, uint64_col, uint128_col, uint256_col FROM " + tableName + " WHERE id = 2")) {
+                    assertTrue(rs.next());
+
+                    // Verify that getObject with specific class works
+                    assertEquals(rs.getObject(1, BigInteger.class), int128Max, "getObject(index, BigInteger.class) for Int128");
+                    assertEquals(rs.getObject(2, BigInteger.class), int256Max, "getObject(index, BigInteger.class) for Int256");
+                    assertEquals(rs.getObject(3, BigInteger.class), uint64Max, "getObject(index, BigInteger.class) for UInt64");
+                    assertEquals(rs.getObject(4, BigInteger.class), uint128Max, "getObject(index, BigInteger.class) for UInt128");
+                    assertEquals(rs.getObject(5, BigInteger.class), uint256Max, "getObject(index, BigInteger.class) for UInt256");
+
+                    assertFalse(rs.next());
+                }
+            }
+        }
+
+        log.info("BigInteger types mapping test completed successfully");
+    }
+
+    @Test(groups = { "integration" })
     public void testUnsignedIntegerTypes() throws Exception {
         Random rand = new Random();
         runQuery("CREATE TABLE test_unsigned_integers (order Int8, "
