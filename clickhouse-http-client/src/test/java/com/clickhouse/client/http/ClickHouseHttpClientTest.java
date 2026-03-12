@@ -535,7 +535,7 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
                 try (ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance()
                         .createPipedOutputStream(config)) {
                     // start the worker thread which transfer data from the input into ClickHouse
-                    future = request.data(stream.getInputStream()).execute();
+                    future = request.data(stream.getInputStream()).set("async_insert", "0").execute();
                     // write bytes into the piped stream
                     LongStream.range(0, numRows).forEachOrdered(
                             n -> {

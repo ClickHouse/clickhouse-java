@@ -30,6 +30,10 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
     }
     @Override
     public ClickHouseConnection newConnection(Properties properties) throws SQLException {
+        if (properties == null) {
+            properties = new Properties();
+        }
+        properties.setProperty("custom_http_params", "async_insert=0");
         return (ClickHouseConnection) newDataSource(properties).getConnection();
     }
 

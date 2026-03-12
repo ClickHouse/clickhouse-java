@@ -7,6 +7,7 @@ import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
+import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -48,7 +49,8 @@ public class InsertClientContentCompressionTests extends InsertTests {
             client.register(SamplePOJO.class, client.getTableSchema(tableName));
             InsertSettings settings = new InsertSettings()
                     .setDeduplicationToken(RandomStringUtils.randomAlphabetic(36))
-                    .setQueryId(String.valueOf(UUID.randomUUID()));
+                    .setQueryId(String.valueOf(UUID.randomUUID()))
+                    .serverSetting(ServerSettings.ASYNC_INSERT, "0");
             System.out.println("Inserting POJO: " + pojo);
             try (InsertResponse response = client.insert(tableName, Collections.singletonList(pojo), settings).get(10, TimeUnit.SECONDS)) {
                 Assert.assertEquals(response.getWrittenRows(), 1);

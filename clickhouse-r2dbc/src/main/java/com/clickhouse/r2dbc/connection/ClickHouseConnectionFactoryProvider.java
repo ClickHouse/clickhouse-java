@@ -5,9 +5,9 @@ import com.clickhouse.client.ClickHouseNodes;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
+import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.config.ClickHouseOption;
 import com.clickhouse.data.ClickHouseUtils;
-
 import io.r2dbc.spi.ConnectionFactory;
 import io.r2dbc.spi.ConnectionFactoryOptions;
 import io.r2dbc.spi.Option;
@@ -22,7 +22,14 @@ import java.util.Objects;
 import java.util.ServiceLoader;
 import java.util.Set;
 
-import static io.r2dbc.spi.ConnectionFactoryOptions.*;
+import static io.r2dbc.spi.ConnectionFactoryOptions.DATABASE;
+import static io.r2dbc.spi.ConnectionFactoryOptions.DRIVER;
+import static io.r2dbc.spi.ConnectionFactoryOptions.HOST;
+import static io.r2dbc.spi.ConnectionFactoryOptions.PASSWORD;
+import static io.r2dbc.spi.ConnectionFactoryOptions.PORT;
+import static io.r2dbc.spi.ConnectionFactoryOptions.PROTOCOL;
+import static io.r2dbc.spi.ConnectionFactoryOptions.SSL;
+import static io.r2dbc.spi.ConnectionFactoryOptions.USER;
 
 public class ClickHouseConnectionFactoryProvider implements io.r2dbc.spi.ConnectionFactoryProvider {
 
@@ -53,6 +60,7 @@ public class ClickHouseConnectionFactoryProvider implements io.r2dbc.spi.Connect
         } catch (Exception e) {
             // ignore
         }
+        allOptions.add(Option.valueOf("custom_http_params"));
         connQueryParams = Collections.unmodifiableList(new ArrayList<>(allOptions));
     }
 

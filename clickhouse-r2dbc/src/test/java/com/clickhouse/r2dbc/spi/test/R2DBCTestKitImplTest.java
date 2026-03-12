@@ -54,7 +54,7 @@ public class R2DBCTestKitImplTest implements TestKit<String> {
         ClickHouseServerForTest.beforeSuite();
 
         connectionFactory = ConnectionFactories.get(
-                format("r2dbc:clickhouse:%s://%s:%s@%s/%s?falan=filan&%s#tag1", DEFAULT_PROTOCOL, USER, PASSWORD,
+                format("r2dbc:clickhouse:%s://%s:%s@%s/%s?falan=filan&custom_http_params=async_insert=0&%s#tag1", DEFAULT_PROTOCOL, USER, PASSWORD,
                         getClickHouseAddress(DEFAULT_PROTOCOL, false), DATABASE, EXTRA_PARAM));
         jdbcTemplate = jdbcTemplate(null);
     }
@@ -85,10 +85,10 @@ public class R2DBCTestKitImplTest implements TestKit<String> {
         Driver driver = new ClickHouseDriver();
         DriverManager.registerDriver(driver);
         if (database == null) {
-            source.setJdbcUrl(format("jdbc:clickhouse:%s://%s?%s", DEFAULT_PROTOCOL,
+            source.setJdbcUrl(format("jdbc:clickhouse:%s://%s?custom_http_params=async_insert=0%s", DEFAULT_PROTOCOL,
                     getClickHouseAddress(DEFAULT_PROTOCOL, false), EXTRA_PARAM));
         } else {
-            source.setJdbcUrl(format("jdbc:clickhouse:%s://%s/%s?%s", DEFAULT_PROTOCOL,
+            source.setJdbcUrl(format("jdbc:clickhouse:%s://%s/%s?custom_http_params=async_insert=0&%s", DEFAULT_PROTOCOL,
                     getClickHouseAddress(DEFAULT_PROTOCOL, false), DATABASE, EXTRA_PARAM));
         }
 

@@ -6,6 +6,8 @@ import com.clickhouse.client.api.ClientMisconfigurationException;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.insert.InsertResponse;
+import com.clickhouse.client.api.insert.InsertSettings;
+import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.insert.SamplePOJO;
 import com.github.tomakehurst.wiremock.WireMockServer;
@@ -83,7 +85,8 @@ public class ProxyTests extends BaseIntegrationTest{
         }
 
         try {
-            InsertResponse response = client.get().insert(tableName, simplePOJOs).get(120, TimeUnit.SECONDS);
+            InsertResponse response = client.get().insert(tableName, simplePOJOs, new InsertSettings()
+                    .serverSetting(ServerSettings.ASYNC_INSERT, "0")).get(120, TimeUnit.SECONDS);
             Assert.assertEquals(response.getWrittenRows(), 1000);
         } catch (Exception e) {
             fail("Should not have thrown exception.", e);
