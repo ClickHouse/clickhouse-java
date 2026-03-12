@@ -67,10 +67,18 @@ public abstract class SqlParserFacade {
         }
 
         private boolean isStmtWithResultSet(ClickHouseSqlStatement parsedStmt) {
-            return parsedStmt.getStatementType() == StatementType.SELECT || parsedStmt.getStatementType() == StatementType.SHOW
-                    || parsedStmt.getStatementType() == StatementType.EXPLAIN || parsedStmt.getStatementType() == StatementType.DESCRIBE
-                    || parsedStmt.getStatementType() == StatementType.EXISTS || parsedStmt.getStatementType() == StatementType.CHECK;
-
+            switch (parsedStmt.getStatementType()) {
+                case SELECT:
+                case SHOW:
+                case EXPLAIN:
+                case DESCRIBE:
+                case EXISTS:
+                case CHECK:
+                case UNKNOWN:
+                    return true;
+                default:
+                    return false;
+            }
         }
 
         @Override

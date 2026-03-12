@@ -1785,4 +1785,31 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
             }
         }
     }
+
+    @Test(groups = {"integration"})
+    public void testUnknownStatementTest() throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT number, FROM system.numbers LIMIT 3")) {
+                Assert.assertTrue(stmt.execute());
+
+                try (ResultSet rs = stmt.getResultSet()) {
+                    for (int i = 0; i < 3; i++) {
+                        Assert.assertTrue(rs.next());
+                        Assert.assertEquals(rs.getLong(1), i);
+                    }
+                }
+            }
+
+            try (Statement stmt = conn.createStatement()) {
+                Assert.assertTrue(stmt.execute("SELECT number, FROM system.numbers LIMIT 3"));
+
+                try (ResultSet rs = stmt.getResultSet()) {
+                    for (int i = 0; i < 3; i++) {
+                        Assert.assertTrue(rs.next());
+                        Assert.assertEquals(rs.getLong(1), i);
+                    }
+                }
+            }
+        }
+    }
 }

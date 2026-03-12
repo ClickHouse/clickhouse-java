@@ -115,6 +115,9 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         ensureOpen();
         currentUpdateCount = -1;
         currentResultSet = executeQueryImpl(sql, localSettings);
+        if (currentResultSet == null) {
+            throw new SQLException("Called method expects empty or filled result set but query has returned none. ", ExceptionUtils.SQL_STATE_CLIENT_ERROR);
+        }
         return currentResultSet;
     }
 
@@ -180,7 +183,8 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             ClickHouseBinaryFormatReader reader = connection.getClient().newBinaryFormatReader(response);
             if (reader.getSchema() == null) {
                 reader.close();
-                throw new SQLException("Called method expects empty or filled result set but query has returned none. Consider using `java.sql.Statement.execute(java.lang.String)`", ExceptionUtils.SQL_STATE_CLIENT_ERROR);
+                onResultSetClosed(null); // no more result sets left - close statement.
+                return null;
             }
             return new ResultSetImpl(this, response, reader, this::handleSocketTimeoutException);
         } catch (Exception e) {
@@ -345,7 +349,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         currentResultSet = null;
         if (parsedStatement.isHasResultSet()) {
             currentResultSet = executeQueryImpl(sql, localSettings);
-            return true;
+            return currentResultSet != null;
         } else {
             currentUpdateCount = executeUpdateImpl(sql, localSettings);
             postUpdateActions();
