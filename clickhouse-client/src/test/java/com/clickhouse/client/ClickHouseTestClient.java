@@ -7,7 +7,7 @@ public class ClickHouseTestClient implements ClickHouseClient {
 
     @Override
     public boolean accept(ClickHouseProtocol protocol) {
-        return true;
+        return protocol == ClickHouseProtocol.MYSQL; // to avoid taking this client in other tests
     }
 
     @Override

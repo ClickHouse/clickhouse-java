@@ -83,7 +83,7 @@ public class ApacheHttpConnectionImplTest extends ClickHouseHttpClientTest {
 
         try (ClickHouseClient client = ClickHouseClient.newInstance()) {
 
-            ClickHouseRequest<?> req1 = newRequest(client, server);
+            ClickHouseRequest<?> req1 = newRequest(client, server).option(ClickHouseHttpOption.CUSTOM_PARAMS, "async_insert=0");
             try (ClickHouseResponse resp = req1.query("select 1").executeAndWait()) {
                 Assert.assertEquals(resp.firstRecord().getValue(0).asString(), "1");
             }
