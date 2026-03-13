@@ -466,18 +466,21 @@ public class ClientTests extends BaseIntegrationTest {
             InsertSettings insertSettings = new InsertSettings()
                     .setQueryId(queryId)
                     .serverSetting(ServerSettings.ASYNC_INSERT, "1")
-                    .serverSetting(ServerSettings.WAIT_ASYNC_INSERT, "1");
+                    .serverSetting(ServerSettings.WAIT_ASYNC_INSERT, "1")
+                    .serverSetting(ServerSettings.INPUT_FORMAT_BINARY_READ_JSON_AS_STRING, "1");
 
             String csvData = "0.33\n0.44\n0.55\n";
             client.insert("server_settings_test_table", new ByteArrayInputStream(csvData.getBytes()), ClickHouseFormat.CSV, insertSettings).get().close();
 
             client.execute("SYSTEM FLUSH LOGS").get().close();
 
-            List<GenericRecord> logRecords = client.queryAll("SELECT * FROM clusterAllReplicas('default', system.query_log) WHERE query_id = '" + queryId + "' AND type = 'QueryFinish'");
+            List<GenericRecord> logRecords = client.queryAll("SELECT Settings, ProfileEvents['AsyncInsertQuery'] as was_async FROM clusterAllReplicas('default', system.query_log) WHERE query_id = '" + queryId + "' AND type = 'QueryFinish'");
 
             GenericRecord record = logRecords.get(0);
+            Assert.assertTrue(record.getBoolean("was_async"));
             String settings = record.getString(record.getSchema().nameToColumnIndex("Settings"));
-            Assert.assertTrue(settings.contains(ServerSettings.ASYNC_INSERT + "=1"));
+            Assert.assertTrue(settings.contains("input_format_binary_read_json_as_string=1"));
+//            Assert.assertTrue(settings.contains(ServerSettings.ASYNC_INSERT + "=1")); // async settings are not reflected in query log any more
 //            Assert.assertTrue(settings.contains(ServerSettings.WAIT_ASYNC_INSERT + "=1")); // uncomment after server fix 
         }
     }

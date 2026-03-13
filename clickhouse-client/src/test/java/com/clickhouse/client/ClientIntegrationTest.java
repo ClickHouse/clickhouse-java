@@ -95,6 +95,39 @@ import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
 public abstract class ClientIntegrationTest extends BaseIntegrationTest {
+
+    public static final ClickHouseOption CUSTOM_HTTP_PARAMS_OPT = new ClickHouseOption() {
+        @Override
+        public Serializable getDefaultValue() {
+            return null;
+        }
+
+        @Override
+        public String getDescription() {
+            return "";
+        }
+
+        @Override
+        public String getKey() {
+            return "custom_http_params";
+        }
+
+        @Override
+        public Class<? extends Serializable> getValueType() {
+            return String.class;
+        }
+
+        @Override
+        public boolean isSensitive() {
+            return false;
+        }
+
+        @Override
+        public String name() {
+            return "custom_http_params";
+        }
+    };
+
     protected void checkRowCount(String queryOrTableName, int expectedRowCount) throws ClickHouseException {
         try (ClickHouseClient client = getClient()) {
             checkRowCount(newRequest(client, getServer()).format(ClickHouseFormat.RowBinaryWithNamesAndTypes),
@@ -1869,7 +1902,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             try (ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance()
                     .createPipedOutputStream(config)) {
                 // start the worker thread which transfer data from the input into ClickHouse
-                future = request.data(stream.getInputStream()).execute();
+                future = request.data(stream.getInputStream()).set("async_insert", "0").execute();
                 // write bytes into the piped stream
                 for (int i = 0; i < rows; i++) {
                     BinaryStreamUtils.writeInt64(stream, i);
@@ -1999,7 +2032,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             CompletableFuture<ClickHouseResponse> future;
             try (ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(config)) {
                 // start the worker thread which transfer data from the input into ClickHouse
-                future = request.data(stream.getInputStream()).execute();
+                future = request.data(stream.getInputStream()).set("async_insert", "0").execute();
                 for (int i = 0; i < numberOfRecords; i++) {
                     BinaryStreamUtils.writeBytes(stream, String.format("{\"i\": %s, \"\": \"JSON\"}", i).getBytes(StandardCharsets.UTF_8));
                 }
@@ -2208,7 +2241,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                 throw new SkipException("Transaction was supported since 22.7");
             }
 
-            ClickHouseRequest<?> txRequest = newRequest(client, server).transaction();
+            ClickHouseRequest<?> txRequest = newRequest(client, server).set("async_insert", "0").transaction();
             try (ClickHouseResponse response = txRequest.query("insert into " + tableName + " values(1)(2)(3)")
                     .executeAndWait()) {
                 // ignore
@@ -2349,7 +2382,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                 throw new SkipException("Transaction was supported since 22.7");
             }
 
-            ClickHouseRequest<?> request = newRequest(client, server).transaction();
+            ClickHouseRequest<?> request = newRequest(client, server).set("async_insert", "0").transaction();
             ClickHouseTransaction tx = request.getTransaction();
             try (ClickHouseResponse response = newRequest(client, server)
                     .query("insert into " + tableName + " values(0, '?')").executeAndWait()) {
@@ -2367,7 +2400,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             rows += 3;
 
             checkRowCount(request, tableName, rows);
-            ClickHouseRequest<?> otherRequest = newRequest(client, server).transaction(tx);
+            ClickHouseRequest<?> otherRequest = newRequest(client, server).set("async_insert", "0").transaction(tx);
             checkRowCount(otherRequest, tableName, rows);
             checkRowCount(tableName, rows);
 
@@ -2413,8 +2446,8 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                 throw new SkipException("Transaction was supported since 22.7");
             }
 
-            ClickHouseRequest<?> req1 = newRequest(client, server).transaction();
-            ClickHouseRequest<?> req2 = newRequest(client, server).transaction();
+            ClickHouseRequest<?> req1 = newRequest(client, server).set("async_insert", "0").transaction();
+            ClickHouseRequest<?> req2 = newRequest(client, server).set("async_insert", "0").transaction();
             try (ClickHouseResponse response = req1.query("insert into " + tableName + " values(1)").executeAndWait()) {
                 // ignore
             }
@@ -2557,6 +2590,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             checkRowCount(tableName, 0);
             request.transaction(1);
             try (ClickHouseResponse response = request.write().query("insert into " + tableName + " values(1)(2)(3)")
+                    .set("async_insert", "0")
                     .executeAndWait()) {
                 // ignore
             }
@@ -2591,7 +2625,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             if (!checkServerVersion(client, server, "[22.7,)")) {
                 throw new SkipException("Transaction was supported since 22.7");
             }
-            ClickHouseRequest<?> request = newRequest(client, server);
+            ClickHouseRequest<?> request = newRequest(client, server).set("async_insert", "0");
             ClickHouseTransaction.setImplicitTransaction(request, true);
             try (ClickHouseResponse response = request.query("insert into " + tableName + " values(1)")
                     .executeAndWait()) {
@@ -2640,7 +2674,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                 try (ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance()
                         .createPipedOutputStream(config)) {
                     // start the worker thread which transfer data from the input into ClickHouse
-                    future = request.data(stream.getInputStream()).execute();
+                    future = request.data(stream.getInputStream()).set("async_insert", "0").execute();
                     // write bytes into the piped stream
                     LongStream.range(0, numRows).forEachOrdered(
                             n -> {
