@@ -135,7 +135,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     public ResultSet executeQuery() throws SQLException {
         ensureOpen();
         String buildSQL = buildSQL();
-        return super.executeQueryImpl(buildSQL, localSettings);
+        return super.executeQuery(buildSQL);
     }
 
     @Override
@@ -295,7 +295,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         ensureOpen();
         if (parsedPreparedStatement.isHasResultSet()) {
             currentResultSet = super.executeQueryImpl(buildSQL(), localSettings);
-            return true;
+            return currentResultSet != null;
         } else {
             currentUpdateCount = super.executeUpdateImpl(buildSQL(), localSettings);
             return false;
