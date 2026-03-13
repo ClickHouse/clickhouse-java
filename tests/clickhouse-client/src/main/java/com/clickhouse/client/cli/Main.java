@@ -4,6 +4,13 @@ import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseFormat;
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.CommandLineParser;
+import org.apache.commons.cli.DefaultParser;
+import org.apache.commons.cli.HelpFormatter;
+import org.apache.commons.cli.Option;
+import org.apache.commons.cli.Options;
+import org.apache.commons.cli.ParseException;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 
@@ -28,6 +35,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.LinkedHashMap;
@@ -80,6 +88,19 @@ public class Main {
             .setRecordSeparator('\n')
             .setNullString("\\N")
             .build();
+    private static final String USAGE_HEADER = System.lineSeparator()
+            + "Known server settings are forwarded to ClickHouse."
+            + System.lineSeparator()
+            + "Client-only and unknown settings are accepted but not sent to server."
+            + System.lineSeparator()
+            + "If --query is not specified, the query is read from stdin."
+            + System.lineSeparator()
+            + System.lineSeparator()
+            + "Environment variables:"
+            + System.lineSeparator()
+            + "  CLICKHOUSE_CLIENT_CLI_IMPL   Backend implementation: 'client' (default) or 'jdbc'"
+            + System.lineSeparator()
+            + "  CLICKHOUSE_CLIENT_CLI_LOG    Path to log file for troubleshooting";
     private static final Set<String> CLIENT_ONLY_SETTINGS = createClientOnlySettings();
     private static final Set<String> SERVER_SETTINGS = createServerSettings();
 
@@ -97,116 +118,60 @@ public class Main {
         boolean multiquery = false;
         Map<String, String> extraServerSettings = new LinkedHashMap<>();
         Path logPath = resolveLogPath();
+        Options options = createBaseOptions();
+        Set<String> knownLongOptions = collectLongOptionNames(options);
 
         appendLog(logPath, "=== clickhouse-client invocation ===");
         appendLog(logPath, "timestamp=" + new Date());
         appendLog(logPath, "argv=" + String.join(" ", args));
 
-        for (int i = 0; i < args.length; i++) {
-            ParsedOption option = parseOption(args[i]);
-            String argName = option.name;
-            String inlineValue = option.inlineValue;
-            switch (argName) {
-                case "--host":
-                case "-h":
-                    host = valueOrNextArg(args, i, argName, inlineValue);
-                    if (inlineValue == null) {
-                        i++;
-                    }
-                    break;
-                case "--port":
-                    port = Integer.parseInt(valueOrNextArg(args, i, "--port", inlineValue));
-                    if (inlineValue == null) {
-                        i++;
-                    }
-                    break;
-                case "--user":
-                case "-u":
-                    user = valueOrNextArg(args, i, argName, inlineValue);
-                    if (inlineValue == null) {
-                        i++;
-                    }
-                    break;
-                case "--password":
-                    password = valueOrNextArg(args, i, "--password", inlineValue);
-                    if (inlineValue == null) {
-                        i++;
-                    }
-                    break;
-                case "--database":
-                case "-d":
-                    database = valueOrNextArg(args, i, argName, inlineValue);
-                    if (inlineValue == null) {
-                        i++;
-                    }
-                    break;
-                case "--query":
-                case "-q":
-                    query = valueOrNextArg(args, i, argName, inlineValue);
-                    if (inlineValue == null) {
-                        i++;
-                    }
-                    break;
-                case "--log_comment":
-                case "--log-comment":
-                    logComment = valueOrNextArg(args, i, argName, inlineValue);
-                    if (inlineValue == null) {
-                        i++;
-                    }
-                    break;
-                case "--send_logs_level":
-                case "--send-logs-level":
-                    sendLogsLevel = valueOrNextArg(args, i, argName, inlineValue);
-                    if (inlineValue == null) {
-                        i++;
-                    }
-                    break;
-                case "--max_insert_threads":
-                case "--max-insert-threads":
-                    maxInsertThreads = valueOrNextArg(args, i, argName, inlineValue);
-                    if (inlineValue == null) {
-                        i++;
-                    }
-                    break;
-                case "--secure":
-                case "-s":
-                    secure = true;
-                    break;
-                case "--multiline":
-                case "-n":
-                    break;
-                case "--multiquery":
-                case "--multi-query":
-                    multiquery = true;
-                    break;
-                case "--help":
-                    printUsage();
-                    System.exit(0);
-                    break;
-                default:
-                    if (argName.startsWith("--")) {
-                        String settingName = argName.substring(2).replace('-', '_');
-                        String settingValue = inlineValue;
-                        if (settingValue == null && hasNextValueToken(args, i)) {
-                            settingValue = args[++i];
-                        }
-                        if (settingValue == null) {
-                            // Keep compatibility with flag-style options that have no explicit value.
-                            settingValue = "1";
-                        }
-                        SettingScope scope = classifySetting(settingName);
-                        if (scope == SettingScope.SERVER) {
-                            extraServerSettings.put(settingName, settingValue);
-                        }
-                    } else if (isDetachedValueToken(argName)) {
-                        // Some test runners may accidentally shift argv tokenization.
-                        // For compatibility, ignore standalone value tokens.
-                    } else {
-                        System.err.println("Unknown option: " + args[i]);
-                        printArgContext(args, i);
-                        printUsage();
-                        System.exit(1);
-                    }
+        registerDynamicLongOptions(options, knownLongOptions, args);
+
+        CommandLineParser parser = DefaultParser.builder()
+                .setAllowPartialMatching(false)
+                .build();
+        CommandLine cmd;
+        try {
+            cmd = parser.parse(options, args);
+        } catch (ParseException e) {
+            System.err.println("Error: " + e.getMessage());
+            printUsage(options);
+            System.exit(1);
+            return;
+        }
+
+        if (cmd.hasOption("help")) {
+            printUsage(options);
+            System.exit(0);
+        }
+
+        host = cmd.getOptionValue("host", host);
+        String portValue = cmd.getOptionValue("port");
+        if (portValue != null) {
+            port = Integer.parseInt(portValue);
+        }
+        user = cmd.getOptionValue("user", user);
+        password = cmd.getOptionValue("password", password);
+        database = cmd.getOptionValue("database", database);
+        query = cmd.getOptionValue("query", query);
+        logComment = firstNonNullOptionValue(cmd, "log_comment", "log-comment");
+        sendLogsLevel = firstNonNullOptionValue(cmd, "send_logs_level", "send-logs-level");
+        maxInsertThreads = firstNonNullOptionValue(cmd, "max_insert_threads", "max-insert-threads");
+        secure = cmd.hasOption("secure");
+        multiquery = cmd.hasOption("multiquery") || cmd.hasOption("multi-query");
+
+        for (Option option : cmd.getOptions()) {
+            String longOpt = option.getLongOpt();
+            if (longOpt == null || knownLongOptions.contains(longOpt)) {
+                continue;
+            }
+            String settingName = longOpt.replace('-', '_');
+            String settingValue = option.hasArg() ? option.getValue() : null;
+            if (settingValue == null) {
+                settingValue = "1";
+            }
+            if (classifySetting(settingName) == SettingScope.SERVER) {
+                extraServerSettings.put(settingName, settingValue);
             }
         }
 
@@ -367,50 +332,80 @@ public class Main {
         printer.flush();
     }
 
-    private static String nextArg(String[] args, int currentIndex, String flag) {
-        int nextIndex = currentIndex + 1;
-        if (nextIndex >= args.length) {
-            System.err.println("Missing value for " + flag);
-            printArgContext(args, currentIndex);
-            System.exit(1);
-        }
-        String nextToken = args[nextIndex];
-        if (nextToken.startsWith("--")) {
-            System.err.println("Missing value for " + flag);
-            printArgContext(args, currentIndex);
-            System.exit(1);
-        }
-        return nextToken;
+    private static Options createBaseOptions() {
+        Options options = new Options();
+        options.addOption(Option.builder("h").longOpt("host").hasArg().argName("HOST")
+                .desc("Server host (default: localhost)").build());
+        options.addOption(Option.builder().longOpt("port").hasArg().argName("PORT")
+                .desc("HTTP port (default: 8123)").build());
+        options.addOption(Option.builder("u").longOpt("user").hasArg().argName("USER")
+                .desc("Username (default: default)").build());
+        options.addOption(Option.builder().longOpt("password").hasArg().argName("PASSWORD")
+                .desc("Password (default: empty)").build());
+        options.addOption(Option.builder("d").longOpt("database").hasArg().argName("DB")
+                .desc("Database (default: default)").build());
+        options.addOption(Option.builder("q").longOpt("query").hasArg().argName("SQL")
+                .desc("SQL query to execute").build());
+        options.addOption(Option.builder().longOpt("log_comment").hasArg().argName("VALUE")
+                .desc("Comment for query_log records").build());
+        options.addOption(Option.builder().longOpt("log-comment").hasArg().argName("VALUE").build());
+        options.addOption(Option.builder().longOpt("send_logs_level").hasArg().argName("VALUE")
+                .desc("Server log level to send with result").build());
+        options.addOption(Option.builder().longOpt("send-logs-level").hasArg().argName("VALUE").build());
+        options.addOption(Option.builder().longOpt("max_insert_threads").hasArg().argName("VALUE")
+                .desc("Max insert threads setting").build());
+        options.addOption(Option.builder().longOpt("max-insert-threads").hasArg().argName("VALUE").build());
+        options.addOption(Option.builder("s").longOpt("secure")
+                .desc("Use HTTPS").build());
+        options.addOption(Option.builder("n").longOpt("multiline")
+                .desc("(ignored, accepted for compatibility)").build());
+        options.addOption(Option.builder().longOpt("multiquery")
+                .desc("Execute multiple ';'-separated queries").build());
+        options.addOption(Option.builder().longOpt("multi-query").build());
+        options.addOption(Option.builder().longOpt("help")
+                .desc("Print this help").build());
+        return options;
     }
 
-    private static String valueOrNextArg(String[] args, int currentIndex, String flag, String inlineValue) {
-        if (inlineValue != null) {
-            return inlineValue;
-        }
-        return nextArg(args, currentIndex, flag);
-    }
-
-    private static ParsedOption parseOption(String arg) {
-        if (arg.startsWith("-")) {
-            int eq = arg.indexOf('=');
-            if (eq > 0) {
-                return new ParsedOption(arg.substring(0, eq), arg.substring(eq + 1));
+    private static Set<String> collectLongOptionNames(Options options) {
+        Set<String> names = new HashSet<>();
+        for (Option option : options.getOptions()) {
+            if (option.getLongOpt() != null) {
+                names.add(option.getLongOpt());
             }
         }
-        return new ParsedOption(arg, null);
+        return names;
     }
 
-    private static boolean hasNextValueToken(String[] args, int currentIndex) {
-        int nextIndex = currentIndex + 1;
-        if (nextIndex >= args.length) {
-            return false;
+    private static void registerDynamicLongOptions(Options options, Set<String> knownLongOptions, String[] args) {
+        Set<String> added = new LinkedHashSet<>();
+        for (String arg : args) {
+            if (arg == null || !arg.startsWith("--") || "--".equals(arg)) {
+                continue;
+            }
+            int eq = arg.indexOf('=');
+            String longOpt = eq >= 0 ? arg.substring(2, eq) : arg.substring(2);
+            if (longOpt.isBlank() || knownLongOptions.contains(longOpt) || added.contains(longOpt)) {
+                continue;
+            }
+            options.addOption(Option.builder()
+                    .longOpt(longOpt)
+                    .hasArg()
+                    .optionalArg(true)
+                    .argName("VALUE")
+                    .build());
+            added.add(longOpt);
         }
-        String nextToken = args[nextIndex];
-        return !nextToken.startsWith("--");
     }
 
-    private static boolean isDetachedValueToken(String token) {
-        return token != null && !token.isEmpty() && !token.startsWith("-");
+    private static String firstNonNullOptionValue(CommandLine cmd, String... optionNames) {
+        for (String optionName : optionNames) {
+            String value = cmd.getOptionValue(optionName);
+            if (value != null) {
+                return value;
+            }
+        }
+        return null;
     }
 
     private static Path resolveLogPath() {
@@ -454,35 +449,6 @@ public class Main {
 
     private static String safeForLog(String value) {
         return value == null ? "<null>" : value;
-    }
-
-    private static void printArgContext(String[] args, int currentIndex) {
-        int contextSize = 6;
-        int start = Math.max(0, currentIndex - contextSize);
-        int end = Math.min(args.length - 1, currentIndex + 1);
-        StringBuilder sb = new StringBuilder();
-        sb.append("Argument context: ");
-        for (int j = start; j <= end; j++) {
-            if (j > start) {
-                sb.append(' ');
-            }
-            if (j == currentIndex) {
-                sb.append(">>").append(args[j]).append("<<");
-            } else {
-                sb.append(args[j]);
-            }
-        }
-        System.err.println(sb.toString());
-    }
-
-    private static final class ParsedOption {
-        private final String name;
-        private final String inlineValue;
-
-        private ParsedOption(String name, String inlineValue) {
-            this.name = name;
-            this.inlineValue = inlineValue;
-        }
     }
 
     private static String readStdin() {
@@ -563,31 +529,10 @@ public class Main {
         return queries;
     }
 
-    private static void printUsage() {
-        System.err.println("Usage: clickhouse-client [options]");
-        System.err.println();
-        System.err.println("Options:");
-        System.err.println("  --host, -h       Server host (default: localhost)");
-        System.err.println("  --port           HTTP port (default: 8123)");
-        System.err.println("  --user, -u       Username (default: default)");
-        System.err.println("  --password       Password (default: empty)");
-        System.err.println("  --database, -d   Database (default: default)");
-        System.err.println("  --query, -q      SQL query to execute");
-        System.err.println("  --log_comment    Comment for query_log records");
-        System.err.println("  --send_logs_level Server log level to send with result");
-        System.err.println("  --max_insert_threads Max insert threads setting");
-        System.err.println("  --multiquery     Execute multiple ';'-separated queries");
-        System.err.println("  --secure, -s     Use HTTPS");
-        System.err.println("  --help           Print this help");
-        System.err.println();
-        System.err.println("Both '--option value' and '--option=value' formats are supported.");
-        System.err.println("Known server settings are forwarded to ClickHouse.");
-        System.err.println("Client-only and unknown settings are accepted but not sent to server.");
-        System.err.println("If --query is not specified, the query is read from stdin.");
-        System.err.println();
-        System.err.println("Environment variables:");
-        System.err.println("  CLICKHOUSE_CLIENT_CLI_IMPL   Backend implementation: 'client' (default) or 'jdbc'");
-        System.err.println("  CLICKHOUSE_CLIENT_CLI_LOG    Path to log file for troubleshooting");
+    private static void printUsage(Options options) {
+        HelpFormatter formatter = new HelpFormatter();
+        formatter.setOptionComparator(null);
+        formatter.printHelp("clickhouse-client [options]", USAGE_HEADER, options, "", true);
     }
 
     private static SettingScope classifySetting(String settingName) {
