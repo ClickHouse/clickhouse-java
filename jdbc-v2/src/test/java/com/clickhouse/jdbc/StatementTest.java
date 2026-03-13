@@ -1322,9 +1322,11 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test(groups = {"integration"})
-    public void testUnknownStatementTest() throws Exception {
-        try (Connection conn = getJdbcConnection()) {
+    @Test(groups = {"integration"}, dataProvider = "testUnknownStatementTest_DP")
+    public void testUnknownStatementTest(String parserName) throws Exception {
+        Properties properties = new Properties();
+        properties.setProperty(DriverProperties.SQL_PARSER.getKey(), parserName);
+        try (Connection conn = getJdbcConnection(properties)) {
 
             try (Statement stmt = conn.createStatement()) {
                 Assert.assertTrue(stmt.execute("SELECT number, FROM system.numbers LIMIT 3"));
@@ -1337,6 +1339,15 @@ public class StatementTest extends JdbcIntegrationTest {
                 }
             }
         }
+    }
+
+    @DataProvider
+    public static Object[][] testUnknownStatementTest_DP() {
+        return new Object[][] {
+                {SqlParserFacade.SQLParser.ANTLR4.name()},
+                {SqlParserFacade.SQLParser.ANTLR4_PARAMS_PARSER.name()},
+                {SqlParserFacade.SQLParser.JAVACC.name()},
+        };
     }
 
     private static String getDBName(Statement stmt) throws SQLException {

@@ -183,6 +183,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             ClickHouseBinaryFormatReader reader = connection.getClient().newBinaryFormatReader(response);
             if (reader.getSchema() == null) {
                 reader.close();
+                response.close();
                 onResultSetClosed(null); // no more result sets left - close statement.
                 return null;
             }

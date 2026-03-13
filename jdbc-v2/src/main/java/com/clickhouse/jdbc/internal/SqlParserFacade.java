@@ -170,6 +170,9 @@ public abstract class SqlParserFacade {
         public ParsedStatement parsedStatement(String sql) {
             ParsedStatement stmt = new ParsedStatement();
             parseSQL(sql, new ParsedStatementListener(stmt, processUseRolesExpr));
+            if (stmt.isHasErrors()) {
+                stmt.setHasResultSet(true);
+            }
             return stmt;
         }
 
@@ -177,7 +180,9 @@ public abstract class SqlParserFacade {
         public ParsedPreparedStatement parsePreparedStatement(String sql) {
             ParsedPreparedStatement stmt = new ParsedPreparedStatement();
             parseSQL(sql, new ParsedPreparedStatementListener(stmt, processUseRolesExpr));
-            
+            if (stmt.isHasErrors()) {
+                stmt.setHasResultSet(true);
+            }
             // Combine database and table like JavaCC does
             String tableName = stmt.getTable();
             if (stmt.getDatabase() != null && stmt.getTable() != null) {
@@ -403,7 +408,9 @@ public abstract class SqlParserFacade {
         public ParsedPreparedStatement parsePreparedStatement(String sql) {
             ParsedPreparedStatement stmt = new ParsedPreparedStatement();
             parseSQL(sql, new ParseStatementAndParamsListener(stmt, processUseRolesExpr));
-            
+            if (stmt.isHasErrors()) {
+                stmt.setHasResultSet(true);
+            }
             // Combine database and table like JavaCC does
             String tableName = stmt.getTable();
             if (stmt.getDatabase() != null && stmt.getTable() != null) {
