@@ -544,6 +544,39 @@ public class ArrayResultSetTest {
     }
 
     @Test
+    void testNextIterationCount() throws SQLException {
+        Integer[] array = {10, 20, 30};
+        ArrayResultSet rs = new ArrayResultSet(array, ClickHouseColumn.parse("v Array(Int32)").get(0));
+
+        int count = 0;
+        while (rs.next()) {
+            assertEquals(rs.getInt(2), array[count]);
+            count++;
+        }
+        assertEquals(count, array.length, "next() should return true exactly array.length times");
+        assertFalse(rs.next(), "next() should keep returning false after exhaustion");
+    }
+
+    @Test
+    void testNextEmptyArray() throws SQLException {
+        Integer[] array = {};
+        ArrayResultSet rs = new ArrayResultSet(array, ClickHouseColumn.parse("v Array(Int32)").get(0));
+
+        assertFalse(rs.next(), "next() should return false immediately for an empty array");
+        assertFalse(rs.next(), "next() should keep returning false on subsequent calls");
+    }
+
+    @Test
+    void testNextSingleElement() throws SQLException {
+        Integer[] array = {42};
+        ArrayResultSet rs = new ArrayResultSet(array, ClickHouseColumn.parse("v Array(Int32)").get(0));
+
+        assertTrue(rs.next());
+        assertEquals(rs.getInt(2), 42);
+        assertFalse(rs.next(), "next() should return false after the only element");
+    }
+
+    @Test
     void testArrayOfObjects() throws Exception {
         Object[] array = {null, 2, 3};
         ArrayResultSet rs = new ArrayResultSet(array, ClickHouseColumn.parse("v Array(Nullable(UInt32))").get(0));
