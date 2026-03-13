@@ -4,11 +4,14 @@ import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseFormat;
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVPrinter;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -71,6 +74,12 @@ public class Main {
     private static final String IMPL_JDBC = "jdbc";
     private static final Path DEFAULT_LOG_PATH = Paths.get("/tmp/clickhouse-client-cli.log");
     private static final Path FALLBACK_LOG_PATH = Paths.get("clickhouse-client-cli.log");
+    private static final CSVFormat CLICKHOUSE_TSV_FORMAT = CSVFormat.TDF.builder()
+            .setQuote(null)
+            .setEscape('\\')
+            .setRecordSeparator('\n')
+            .setNullString("\\N")
+            .build();
     private static final Set<String> CLIENT_ONLY_SETTINGS = createClientOnlySettings();
     private static final Set<String> SERVER_SETTINGS = createServerSettings();
 
@@ -348,44 +357,14 @@ public class Main {
     private static void writeResultSetAsTsv(ResultSet rs) throws Exception {
         ResultSetMetaData meta = rs.getMetaData();
         int columnCount = meta.getColumnCount();
-        StringBuilder line = new StringBuilder();
-
+        CSVPrinter printer = new CSVPrinter(new OutputStreamWriter(System.out, StandardCharsets.UTF_8), CLICKHOUSE_TSV_FORMAT);
         while (rs.next()) {
-            line.setLength(0);
             for (int i = 1; i <= columnCount; i++) {
-                if (i > 1) {
-                    line.append('\t');
-                }
-                String val = rs.getString(i);
-                if (val == null) {
-                    line.append("\\N");
-                } else {
-                    escapeTsv(val, line);
-                }
+                printer.print(rs.getString(i));
             }
-            line.append('\n');
-            System.out.print(line);
+            printer.println();
         }
-        System.out.flush();
-    }
-
-    private static void escapeTsv(String value, StringBuilder out) {
-        for (int i = 0; i < value.length(); i++) {
-            char ch = value.charAt(i);
-            switch (ch) {
-                case '\\':
-                    out.append('\\').append('\\');
-                    break;
-                case '\t':
-                    out.append('\\').append('t');
-                    break;
-                case '\n':
-                    out.append('\\').append('n');
-                    break;
-                default:
-                    out.append(ch);
-            }
-        }
+        printer.flush();
     }
 
     private static String nextArg(String[] args, int currentIndex, String flag) {
