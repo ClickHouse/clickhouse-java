@@ -1,5 +1,24 @@
 package com.clickhouse.jdbc.internal;
 
+import com.clickhouse.jdbc.DriverProperties;
+import org.testng.Assert;
+import org.testng.annotations.Test;
+
+import java.sql.SQLException;
+import java.util.Properties;
+
+public class JdbcConfigurationTest {
+
+    @Test
+    public void testIgnoreUnsupportedRequestsParsing() throws SQLException {
+        Properties props = new Properties();
+        props.setProperty(DriverProperties.IGNORE_UNSUPPORTED_VALUES.getKey(), "1");
+        JdbcConfiguration cfg = new JdbcConfiguration("jdbc:clickhouse://localhost", props);
+        Assert.assertTrue(cfg.isIgnoreUnsupportedRequests());
+    }
+}
+package com.clickhouse.jdbc.internal;
+
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 

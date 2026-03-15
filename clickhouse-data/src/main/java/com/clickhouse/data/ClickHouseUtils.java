@@ -85,6 +85,25 @@ public final class ClickHouseUtils {
     public static final String VARIABLE_PREFIX = "{{";
     public static final String VARIABLE_SUFFIX = "}}";
 
+    /**
+     * Parses a boolean value from string. Accepts "true"/"false" and "1"/"0".
+     *
+     * @param value string value
+     * @return parsed boolean, or {@code false} if value is null or unrecognized
+     */
+    public static boolean parseBoolean(String value) {
+        if (value == null) {
+            return false;
+        }
+        if ("1".equals(value)) {
+            return true;
+        }
+        if ("0".equals(value)) {
+            return false;
+        }
+        return Boolean.parseBoolean(value);
+    }
+
     private static <T> T findFirstService(Class<? extends T> serviceInterface) {
         ClickHouseChecker.nonNull(serviceInterface, "serviceInterface");
 
