@@ -1323,7 +1323,7 @@ public class StatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = {"integration"}, dataProvider = "testUnknownStatementTest_DP")
-    public void testUnknownStatementTest(String parserName) throws Exception {
+    public void testUnknownStatement(String parserName) throws Exception {
         Properties properties = new Properties();
         properties.setProperty(DriverProperties.SQL_PARSER.getKey(), parserName);
         try (Connection conn = getJdbcConnection(properties)) {

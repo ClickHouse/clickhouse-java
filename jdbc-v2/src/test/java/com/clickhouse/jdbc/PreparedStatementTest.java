@@ -1787,7 +1787,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = {"integration"})
-    public void testUnknownStatementTest() throws Exception {
+    public void testUnknownStatement() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement("SELECT number, FROM system.numbers LIMIT 3")) {
                 Assert.assertTrue(stmt.execute());
@@ -1815,7 +1815,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
             String tmpTable = "tmp_no_result_" + RandomStringUtils.randomAlphanumeric(8);
             // PreparedStatement: execute() should return false, executeQuery() should throw
             try (PreparedStatement stmt = conn.prepareStatement(
-                    "CREATE TEMPORARY TABLE " + tmpTable + " (x Int32)")) {
+                    "CREATE TABLE " + tmpTable + " (x Int32) Engine MergeTree ORDER BY()")) {
                 Assert.assertFalse(stmt.execute(), "DDL should not produce a ResultSet");
                 Assert.assertNull(stmt.getResultSet(), "ResultSet should be null for DDL");
                 assertThrows(SQLException.class, stmt::executeQuery);
@@ -1824,11 +1824,11 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
             String tmpTable2 = "tmp_no_result_" + RandomStringUtils.randomAlphanumeric(8);
             try (Statement stmt = conn.createStatement()) {
                 Assert.assertFalse(
-                        stmt.execute("CREATE TEMPORARY TABLE " + tmpTable2 + " (x Int32)"),
+                        stmt.execute("CREATE TABLE " + tmpTable2 + " (x Int32) Engine MergeTree ORDER BY()"),
                         "DDL should not produce a ResultSet");
                 Assert.assertNull(stmt.getResultSet(), "ResultSet should be null for DDL");
                 assertThrows(SQLException.class,
-                        () -> stmt.executeQuery("CREATE TEMPORARY TABLE " + tmpTable2 + " (x Int32)"));
+                        () -> stmt.executeQuery("CREATE TABLE " + tmpTable2 + " (x Int32) Engine MergeTree ORDER BY()"));
             }
         }
     }

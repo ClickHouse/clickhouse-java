@@ -364,7 +364,6 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         ensureOpen();
         parsedStatement = connection.getSqlParser().parsedStatement(sql);
         currentUpdateCount = -1;
-        currentResultSet = null;
         if (parsedStatement.isHasResultSet()) {
             currentResultSet = executeQueryImpl(sql, localSettings);
             return currentResultSet != null;
