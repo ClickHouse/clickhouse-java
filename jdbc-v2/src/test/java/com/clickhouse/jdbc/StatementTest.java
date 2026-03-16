@@ -1337,6 +1337,17 @@ public class StatementTest extends JdbcIntegrationTest {
                         Assert.assertEquals(rs.getLong(1), i);
                     }
                 }
+
+
+                stmt.execute("DROP TABLE IF EXISTS test_unknown_statement_test");
+                stmt.execute("CREATE TABLE test_unknown_statement_test (v Int32) Engine MergeTree ORDER BY ()");
+
+                stmt.execute("INSERT INTO test_unknown_statement_test VALUES (1);");
+                assertEquals(stmt.getUpdateCount(), 1);
+
+                stmt.executeUpdate("INSERT INTO test_unknown_statement_test VALUES (2);");
+                assertEquals(stmt.getUpdateCount(), 1);
+
             }
         }
     }
