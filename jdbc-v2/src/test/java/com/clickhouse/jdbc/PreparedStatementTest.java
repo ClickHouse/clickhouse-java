@@ -1810,6 +1810,26 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                     }
                 }
             }
+
+            // No-ResultSet path: DDL should not produce a ResultSet
+            String tmpTable = "tmp_no_result_" + RandomStringUtils.randomAlphanumeric(8);
+            // PreparedStatement: execute() should return false, executeQuery() should throw
+            try (PreparedStatement stmt = conn.prepareStatement(
+                    "CREATE TEMPORARY TABLE " + tmpTable + " (x Int32)")) {
+                Assert.assertFalse(stmt.execute(), "DDL should not produce a ResultSet");
+                Assert.assertNull(stmt.getResultSet(), "ResultSet should be null for DDL");
+                assertThrows(SQLException.class, stmt::executeQuery);
+            }
+            // Statement: execute() should return false, executeQuery() should throw
+            String tmpTable2 = "tmp_no_result_" + RandomStringUtils.randomAlphanumeric(8);
+            try (Statement stmt = conn.createStatement()) {
+                Assert.assertFalse(
+                        stmt.execute("CREATE TEMPORARY TABLE " + tmpTable2 + " (x Int32)"),
+                        "DDL should not produce a ResultSet");
+                Assert.assertNull(stmt.getResultSet(), "ResultSet should be null for DDL");
+                assertThrows(SQLException.class,
+                        () -> stmt.executeQuery("CREATE TEMPORARY TABLE " + tmpTable2 + " (x Int32)"));
+            }
         }
     }
 }

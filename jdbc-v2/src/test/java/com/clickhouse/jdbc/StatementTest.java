@@ -1342,11 +1342,16 @@ public class StatementTest extends JdbcIntegrationTest {
                 stmt.execute("DROP TABLE IF EXISTS test_unknown_statement_test");
                 stmt.execute("CREATE TABLE test_unknown_statement_test (v Int32) Engine MergeTree ORDER BY ()");
 
-                stmt.execute("INSERT INTO test_unknown_statement_test VALUES (1);");
+                // INSERT via execute(...) must not produce a ResultSet and should return false
+                boolean hasResultSet = stmt.execute("INSERT INTO test_unknown_statement_test VALUES (1);");
+                assertFalse(hasResultSet);
                 assertEquals(stmt.getUpdateCount(), 1);
 
                 stmt.executeUpdate("INSERT INTO test_unknown_statement_test VALUES (2);");
                 assertEquals(stmt.getUpdateCount(), 1);
+
+                assertThrows(SQLException.class,
+                        () -> stmt.executeQuery("INSERT INTO test_unknown_statement_test VALUES (3);"));
 
             }
         }

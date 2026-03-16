@@ -190,9 +190,18 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
                     // Best effort: leave writtenRows as 0 if we can't obtain it.
                 }
                 this.currentUpdateCount = (int) Math.min(writtenRows, Integer.MAX_VALUE);
-                reader.close();
-                response.close();
-                onResultSetClosed(null); // no more result sets left - close statement.
+                try {
+                    reader.close();
+                } catch (Exception closeEx) {
+                    LOG.warn("Failed to close reader when schema is null", closeEx);
+                } finally {
+                    try {
+                        response.close();
+                    } catch (Exception closeRespEx) {
+                        LOG.warn("Failed to close response when schema is null", closeRespEx);
+                    }
+                }
+                onResultSetClosed(null);
                 return null;
             }
             return new ResultSetImpl(this, response, reader, this::handleSocketTimeoutException);
