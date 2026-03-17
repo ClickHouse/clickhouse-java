@@ -79,7 +79,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
             this.appName = "";
             this.readOnly = false;
             this.holdability = ResultSet.HOLD_CURSORS_OVER_COMMIT;
-            String clientName = "ClickHouse JDBC Driver V2/" + Driver.getLibraryVersion();
+            String clientName = Driver.DRIVER_CLIENT_NAME + Driver.getLibraryVersion();
 
             Map<String, String> clientProperties = config.getClientProperties();
             if (clientProperties.get(ClientConfigProperties.CLIENT_NAME.getKey()) != null) {

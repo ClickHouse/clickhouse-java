@@ -306,33 +306,53 @@ public class ConnectionTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = { "integration" }, dataProvider = "setAndGetClientInfoTestDataProvider")
-    public void setAndGetClientInfoTest(String clientName) throws SQLException {
+    public void setAndGetClientInfoTest(String clientName) throws Exception {
         final String unsupportedProperty = "custom-unsupported-property";
+
+        // case when set via config
+        Properties clientNameConfig = new Properties();
+        if (clientName != null) {
+            clientNameConfig.setProperty(ClientConfigProperties.CLIENT_NAME.getKey(), clientName);
+        }
+        try (Connection localConnection = this.getJdbcConnection(clientNameConfig);
+             Statement stmt = localConnection.createStatement()) {
+
+            executeQueryAndVerifyUserAgent(stmt, clientName);
+        }
+
+        // case when set in runtime
         try (Connection localConnection = this.getJdbcConnection();
                 Statement stmt = localConnection.createStatement()) {
+
+            executeQueryAndVerifyUserAgent(stmt, ""); // default value
+
             localConnection.setClientInfo(unsupportedProperty, "i-am-unsupported-property");
             Assert.assertNull(localConnection.getClientInfo("custom-property"));
             localConnection.setClientInfo(ClientInfoProperties.APPLICATION_NAME.getKey(), clientName);
             Assert.assertEquals(localConnection.getClientInfo(ClientInfoProperties.APPLICATION_NAME.getKey()), clientName);
             Assert.assertNull(localConnection.getClientInfo(unsupportedProperty));
 
-            final String testQuery = "SELECT '" + UUID.randomUUID() + "'";
-            stmt.execute(testQuery);
-            String queryId = ((StatementImpl)stmt).getLastQueryId();
-            stmt.getResultSet().close(); // close result set to finalize request.
-            stmt.execute("SYSTEM FLUSH LOGS");
+            executeQueryAndVerifyUserAgent(stmt, clientName);
+        }
+    }
+
+    private void executeQueryAndVerifyUserAgent(Statement stmt, String clientName) throws Exception {
+        final String testQuery = "SELECT '" + UUID.randomUUID() + "'";
+        stmt.execute(testQuery);
+        String queryId = ((StatementImpl)stmt).getLastQueryId();
+        stmt.getResultSet().close(); // close result set to finalize request.
+        stmt.execute("SYSTEM FLUSH LOGS");
 
 
-            final String logQuery ="SELECT http_user_agent FROM clusterAllReplicas('default', system.query_log) WHERE query_id = " +  stmt.enquoteLiteral(queryId);
-            try (ResultSet rs = stmt.executeQuery(logQuery)) {
-                Assert.assertTrue(rs.next());
-                String userAgent = rs.getString("http_user_agent");
-                if (clientName != null && !clientName.isEmpty()) {
-                    Assert.assertTrue(userAgent.startsWith(clientName), "Expected to start with '" + clientName + "' but value was '" + userAgent + "'");
-                }
-                Assert.assertTrue(userAgent.contains(Client.CLIENT_USER_AGENT), "Expected to contain '" + Client.CLIENT_USER_AGENT + "' but value was '" + userAgent + "'");
-                Assert.assertTrue(userAgent.contains(Driver.DRIVER_CLIENT_NAME), "Expected to contain '" + Driver.DRIVER_CLIENT_NAME + "' but value was '" + userAgent + "'");
+        final String logQuery ="SELECT http_user_agent FROM clusterAllReplicas('default', system.query_log) WHERE query_id = " +  stmt.enquoteLiteral(queryId);
+        try (ResultSet rs = stmt.executeQuery(logQuery)) {
+            Assert.assertTrue(rs.next());
+            String userAgent = rs.getString("http_user_agent");
+            if (clientName != null && !clientName.isEmpty()) {
+                Assert.assertTrue(userAgent.startsWith(clientName), "Expected to start with '" + clientName + "' but value was '" + userAgent + "'");
             }
+            Assert.assertTrue(userAgent.contains(Client.CLIENT_USER_AGENT), "Expected to contain '" + Client.CLIENT_USER_AGENT + "' but value was '" + userAgent + "'");
+            Assert.assertTrue(userAgent.contains(Driver.DRIVER_CLIENT_NAME), "Expected to contain '" + Driver.DRIVER_CLIENT_NAME + "' but value was '" + userAgent + "'");
         }
     }
 
