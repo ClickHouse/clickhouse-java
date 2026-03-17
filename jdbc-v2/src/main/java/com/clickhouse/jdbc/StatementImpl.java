@@ -115,6 +115,10 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         ensureOpen();
         currentUpdateCount = -1;
         currentResultSet = executeQueryImpl(sql, localSettings);
+        if (currentResultSet == null) {
+            throw new SQLException("executeQuery() requires a ResultSet; use execute() for statements that do not produce one.",
+                    ExceptionUtils.SQL_STATE_CLIENT_ERROR);
+        }
         return currentResultSet;
     }
 
@@ -179,8 +183,26 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             }
             ClickHouseBinaryFormatReader reader = connection.getClient().newBinaryFormatReader(response);
             if (reader.getSchema() == null) {
-                reader.close();
-                throw new SQLException("Called method expects empty or filled result set but query has returned none. Consider using `java.sql.Statement.execute(java.lang.String)`", ExceptionUtils.SQL_STATE_CLIENT_ERROR);
+                long writtenRows = 0L;
+                try {
+                    writtenRows = response.getWrittenRows();
+                } catch (Exception ignore) {
+                    // Best effort: leave writtenRows as 0 if we can't obtain it.
+                }
+                this.currentUpdateCount = (int) Math.min(writtenRows, Integer.MAX_VALUE);
+                try {
+                    reader.close();
+                } catch (Exception closeEx) {
+                    LOG.warn("Failed to close reader when schema is null", closeEx);
+                } finally {
+                    try {
+                        response.close();
+                    } catch (Exception closeRespEx) {
+                        LOG.warn("Failed to close response when schema is null", closeRespEx);
+                    }
+                }
+                onResultSetClosed(null);
+                return null;
             }
             return new ResultSetImpl(this, response, reader, this::handleSocketTimeoutException);
         } catch (Exception e) {
@@ -342,10 +364,9 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         ensureOpen();
         parsedStatement = connection.getSqlParser().parsedStatement(sql);
         currentUpdateCount = -1;
-        currentResultSet = null;
         if (parsedStatement.isHasResultSet()) {
             currentResultSet = executeQueryImpl(sql, localSettings);
-            return true;
+            return currentResultSet != null;
         } else {
             currentUpdateCount = executeUpdateImpl(sql, localSettings);
             postUpdateActions();

@@ -1322,6 +1322,50 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
+    @Test(groups = {"integration"}, dataProvider = "testUnknownStatementTest_DP")
+    public void testUnknownStatement(String parserName) throws Exception {
+        Properties properties = new Properties();
+        properties.setProperty(DriverProperties.SQL_PARSER.getKey(), parserName);
+        try (Connection conn = getJdbcConnection(properties)) {
+
+            try (Statement stmt = conn.createStatement()) {
+                Assert.assertTrue(stmt.execute("SELECT number, FROM system.numbers LIMIT 3"));
+
+                try (ResultSet rs = stmt.getResultSet()) {
+                    for (int i = 0; i < 3; i++) {
+                        Assert.assertTrue(rs.next());
+                        Assert.assertEquals(rs.getLong(1), i);
+                    }
+                }
+
+
+                stmt.execute("DROP TABLE IF EXISTS test_unknown_statement_test");
+                stmt.execute("CREATE TABLE test_unknown_statement_test (v Int32) Engine MergeTree ORDER BY ()");
+
+                // INSERT via execute(...) must not produce a ResultSet and should return false
+                boolean hasResultSet = stmt.execute("INSERT INTO test_unknown_statement_test VALUES (1);");
+                assertFalse(hasResultSet);
+                assertEquals(stmt.getUpdateCount(), 1);
+
+                stmt.executeUpdate("INSERT INTO test_unknown_statement_test VALUES (2);");
+                assertEquals(stmt.getUpdateCount(), 1);
+
+                assertThrows(SQLException.class,
+                        () -> stmt.executeQuery("INSERT INTO test_unknown_statement_test VALUES (3);"));
+
+            }
+        }
+    }
+
+    @DataProvider
+    public static Object[][] testUnknownStatementTest_DP() {
+        return new Object[][] {
+                {SqlParserFacade.SQLParser.ANTLR4.name()},
+                {SqlParserFacade.SQLParser.ANTLR4_PARAMS_PARSER.name()},
+                {SqlParserFacade.SQLParser.JAVACC.name()},
+        };
+    }
+
     private static String getDBName(Statement stmt) throws SQLException {
         try (ResultSet rs = stmt.executeQuery("SELECT database()")) {
             rs.next();

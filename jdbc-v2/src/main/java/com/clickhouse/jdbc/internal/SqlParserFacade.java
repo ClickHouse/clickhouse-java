@@ -67,10 +67,18 @@ public abstract class SqlParserFacade {
         }
 
         private boolean isStmtWithResultSet(ClickHouseSqlStatement parsedStmt) {
-            return parsedStmt.getStatementType() == StatementType.SELECT || parsedStmt.getStatementType() == StatementType.SHOW
-                    || parsedStmt.getStatementType() == StatementType.EXPLAIN || parsedStmt.getStatementType() == StatementType.DESCRIBE
-                    || parsedStmt.getStatementType() == StatementType.EXISTS || parsedStmt.getStatementType() == StatementType.CHECK;
-
+            switch (parsedStmt.getStatementType()) {
+                case SELECT:
+                case SHOW:
+                case EXPLAIN:
+                case DESCRIBE:
+                case EXISTS:
+                case CHECK:
+                case UNKNOWN:
+                    return true;
+                default:
+                    return false;
+            }
         }
 
         @Override
@@ -162,6 +170,9 @@ public abstract class SqlParserFacade {
         public ParsedStatement parsedStatement(String sql) {
             ParsedStatement stmt = new ParsedStatement();
             parseSQL(sql, new ParsedStatementListener(stmt, processUseRolesExpr));
+            if (stmt.isHasErrors()) {
+                stmt.setHasResultSet(true);
+            }
             return stmt;
         }
 
@@ -169,7 +180,9 @@ public abstract class SqlParserFacade {
         public ParsedPreparedStatement parsePreparedStatement(String sql) {
             ParsedPreparedStatement stmt = new ParsedPreparedStatement();
             parseSQL(sql, new ParsedPreparedStatementListener(stmt, processUseRolesExpr));
-            
+            if (stmt.isHasErrors()) {
+                stmt.setHasResultSet(true);
+            }
             // Combine database and table like JavaCC does
             String tableName = stmt.getTable();
             if (stmt.getDatabase() != null && stmt.getTable() != null) {
@@ -395,7 +408,9 @@ public abstract class SqlParserFacade {
         public ParsedPreparedStatement parsePreparedStatement(String sql) {
             ParsedPreparedStatement stmt = new ParsedPreparedStatement();
             parseSQL(sql, new ParseStatementAndParamsListener(stmt, processUseRolesExpr));
-            
+            if (stmt.isHasErrors()) {
+                stmt.setHasResultSet(true);
+            }
             // Combine database and table like JavaCC does
             String tableName = stmt.getTable();
             if (stmt.getDatabase() != null && stmt.getTable() != null) {
