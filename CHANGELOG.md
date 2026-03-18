@@ -1,13 +1,5 @@
 ## 0.9.8
 
-### Updated Dependencies
-
-- **[repo]** Upgraded `at.yawk.lz4:lz4-java` from `1.10.2` to `1.10.4` to pick up native performance fixes. (https://github.com/ClickHouse/clickhouse-java/pull/2778)
-
-- **[repo]** Upgraded `com.fasterxml.jackson.core:jackson-core` from `2.17.2` to `2.18.6` in `jdbc-v2`. (https://github.com/ClickHouse/clickhouse-java/pull/2767)
-
-- **[repo]** Upgraded `com.fasterxml.jackson.core:jackson-core` from `2.17.2` to `2.18.6` in `examples/client-v2`. (https://github.com/ClickHouse/clickhouse-java/pull/2766)
-
 ### Improvements 
 
 - **[client-v2]** Added `Records#getSchema()` to expose table schema metadata even when query result is empty. (https://github.com/ClickHouse/clickhouse-java/pull/2777)
@@ -18,8 +10,15 @@
 
 - **[jdbc-v2]** Fixed off-by-one bug in `ArrayResultSet#next()` that could return `true` one extra time and then fail with `SQLException: No current row`. (https://github.com/ClickHouse/clickhouse-java/pull/2790)
 
-- **[jdbc-v2]** Fixed handling of `UNKNOWN` SQL statements that return a result set. (https://github.com/ClickHouse/clickhouse-java/issues/2784)
+- **[jdbc-v2]** Fixed handling of malformed `SELECT`-like queries (for example, `SELECT a, FROM table`): previously, the driver could fail to read returned data when query type was not inferred before execution; now it detects a returned result set at runtime from the server response and reads it correctly. (https://github.com/ClickHouse/clickhouse-java/issues/2784)
 
+### Updated Dependencies
+
+- **[repo]** Upgraded `at.yawk.lz4:lz4-java` from `1.10.2` to `1.10.4` to pick up native performance fixes. (https://github.com/ClickHouse/clickhouse-java/pull/2778)
+
+- **[repo]** Upgraded `com.fasterxml.jackson.core:jackson-core` from `2.17.2` to `2.18.6` in `jdbc-v2`. (https://github.com/ClickHouse/clickhouse-java/pull/2767)
+
+- **[repo]** Upgraded `com.fasterxml.jackson.core:jackson-core` from `2.17.2` to `2.18.6` in `examples/client-v2`. (https://github.com/ClickHouse/clickhouse-java/pull/2766)
 
 ## 0.9.7
 
