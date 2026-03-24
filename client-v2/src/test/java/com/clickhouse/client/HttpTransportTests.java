@@ -36,6 +36,7 @@ import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.nio.ByteBuffer;
@@ -54,6 +55,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
+import java.util.zip.GZIPOutputStream;
 
 import static com.github.tomakehurst.wiremock.stubbing.Scenario.STARTED;
 import static org.testng.Assert.fail;
@@ -1248,6 +1250,160 @@ public class HttpTransportTests extends BaseIntegrationTest {
             Assert.assertTrue(e.getCause().getMessage().startsWith("There is no handle /some-path?"));
         }
 
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "testHttpStatusErrorBodyDataProvider")
+    public void testHttpStatusErrorsIncludeResponseBody(int httpStatus, String responseBody, String expectedBodyPart) throws Exception {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
+        WireMockServer mockServer = new WireMockServer(WireMockConfiguration
+                .options().dynamicPort().notifier(new ConsoleNotifier(false)));
+        mockServer.start();
+
+        try {
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .willReturn(WireMock.aResponse()
+                            .withStatus(httpStatus)
+                            .withBody(responseBody))
+                    .build());
+
+            try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
+                    .setUsername("default")
+                    .setPassword(ClickHouseServerForTest.getPassword())
+                    .compressServerResponse(false)
+                    .build()) {
+
+                Throwable thrown = Assert.expectThrows(Throwable.class,
+                        () -> client.query("SELECT 1").get(1, TimeUnit.SECONDS));
+                ServerException serverException = findServerException(thrown);
+                Assert.assertNotNull(serverException, "Expected ServerException in cause chain");
+                Assert.assertEquals(serverException.getTransportProtocolCode(), httpStatus);
+                Assert.assertTrue(serverException.getMessage().contains(expectedBodyPart),
+                        "Expected to contain '" + expectedBodyPart + "', but was: " + serverException.getMessage());
+            }
+        } finally {
+            mockServer.stop();
+        }
+    }
+
+    @DataProvider(name = "testHttpStatusErrorBodyDataProvider")
+    public static Object[][] testHttpStatusErrorBodyDataProvider() {
+        return new Object[][]{
+                {HttpStatus.SC_UNAUTHORIZED, "Unauthorized: invalid credentials for user default", "invalid credentials"},
+                {HttpStatus.SC_FORBIDDEN, "Forbidden: user default has no access to this operation", "no access"},
+                {HttpStatus.SC_NOT_FOUND, "Not found: requested endpoint does not exist", "requested endpoint"}
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "testHttpStatusWithoutBodyDataProvider")
+    public void testHttpStatusErrorsWithoutBody(int httpStatus) throws Exception {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
+        WireMockServer mockServer = new WireMockServer(WireMockConfiguration
+                .options().dynamicPort().notifier(new ConsoleNotifier(false)));
+        mockServer.start();
+
+        try {
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .willReturn(WireMock.aResponse().withStatus(httpStatus))
+                    .build());
+
+            try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
+                    .setUsername("default")
+                    .setPassword(ClickHouseServerForTest.getPassword())
+                    .compressServerResponse(false)
+                    .build()) {
+
+                Throwable thrown = Assert.expectThrows(Throwable.class,
+                        () -> client.query("SELECT 1").get(1, TimeUnit.SECONDS));
+                ServerException serverException = findServerException(thrown);
+                Assert.assertNotNull(serverException, "Expected ServerException in cause chain");
+                Assert.assertEquals(serverException.getTransportProtocolCode(), httpStatus);
+                Assert.assertTrue(serverException.getMessage().contains("unknown server error"),
+                        "Expected unknown error message for empty body, but was: " + serverException.getMessage());
+            }
+        } finally {
+            mockServer.stop();
+        }
+    }
+
+    @DataProvider(name = "testHttpStatusWithoutBodyDataProvider")
+    public static Object[][] testHttpStatusWithoutBodyDataProvider() {
+        return new Object[][]{
+                {HttpStatus.SC_UNAUTHORIZED},
+                {HttpStatus.SC_FORBIDDEN},
+                {HttpStatus.SC_NOT_FOUND}
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "testHttpStatusCompressedBodyDataProvider")
+    public void testHttpStatusErrorsWithHttpCompression(int httpStatus, String responseBody, String expectedBodyPart) throws Exception {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
+        WireMockServer mockServer = new WireMockServer(WireMockConfiguration
+                .options().dynamicPort().notifier(new ConsoleNotifier(false)));
+        mockServer.start();
+
+        try {
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .willReturn(WireMock.aResponse()
+                            .withStatus(httpStatus)
+                            .withHeader(HttpHeaders.CONTENT_ENCODING, "gzip")
+                            .withBody(gzip(responseBody)))
+                    .build());
+
+            try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
+                    .setUsername("default")
+                    .setPassword(ClickHouseServerForTest.getPassword())
+                    .useHttpCompression(true)
+                    .compressServerResponse(true)
+                    .build()) {
+
+                Throwable thrown = Assert.expectThrows(Throwable.class,
+                        () -> client.query("SELECT 1").get(1, TimeUnit.SECONDS));
+                ServerException serverException = findServerException(thrown);
+                Assert.assertNotNull(serverException, "Expected ServerException in cause chain");
+                Assert.assertEquals(serverException.getTransportProtocolCode(), httpStatus);
+                Assert.assertTrue(serverException.getMessage().contains(expectedBodyPart),
+                        "Expected compressed body part '" + expectedBodyPart + "', but was: " + serverException.getMessage());
+            }
+        } finally {
+            mockServer.stop();
+        }
+    }
+
+    @DataProvider(name = "testHttpStatusCompressedBodyDataProvider")
+    public static Object[][] testHttpStatusCompressedBodyDataProvider() {
+        return new Object[][]{
+                {HttpStatus.SC_UNAUTHORIZED, "Unauthorized: token is expired", "token is expired"},
+                {HttpStatus.SC_FORBIDDEN, "Forbidden: policy denies this query", "policy denies"},
+                {HttpStatus.SC_NOT_FOUND, "Not found: route does not exist", "route does not exist"}
+        };
+    }
+
+    private static byte[] gzip(String value) throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try (GZIPOutputStream gzipOutputStream = new GZIPOutputStream(out)) {
+            gzipOutputStream.write(value.getBytes(StandardCharsets.UTF_8));
+        }
+        return out.toByteArray();
+    }
+
+    private static ServerException findServerException(Throwable throwable) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (current instanceof ServerException) {
+                return (ServerException) current;
+            }
+            current = current.getCause();
+        }
+        return null;
     }
 
     protected Client.Builder newClient() {
