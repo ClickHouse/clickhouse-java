@@ -11,6 +11,8 @@ import com.clickhouse.client.api.command.CommandResponse;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.enums.ProxyType;
+import com.clickhouse.client.api.http.ClickHouseHttpProto;
+import com.clickhouse.client.api.http.CrossOriginAwareRedirectStrategy;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.internal.DataTypeConverter;
 import com.clickhouse.client.api.internal.ServerSettings;
@@ -1185,6 +1187,183 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
         } finally {
             mockServer.stop();
+        }
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "testHttpRedirectOptionsProvider")
+    public void testHttpRedirectOptions(int[] allowedCodes, boolean shouldRedirect) throws Exception {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
+        int serverPort = new Random().nextInt(1000) + 10000;
+        WireMockServer mockServer = new WireMockServer(WireMockConfiguration
+                .options().port(serverPort)
+                .notifier(new Slf4jNotifier(true)));
+        mockServer.start();
+
+        final String proxyName = "db-proxy";
+        final String dbServer = "db-server";
+        try {
+            mockServer.addStubMapping(WireMock.post(WireMock.urlPathEqualTo("/"))
+                    .willReturn(WireMock.aResponse()
+                            .withStatus(HttpStatus.SC_TEMPORARY_REDIRECT)
+                            .withHeader(ClickHouseHttpProto.HEADER_SRV_DISPLAY_NAME, proxyName)
+                            .withHeader(HttpHeaders.LOCATION, "/redirected"))
+                    .build());
+
+            mockServer.addStubMapping(WireMock.post(WireMock.urlPathEqualTo("/redirected"))
+                    .willReturn(WireMock.aResponse()
+                            .withStatus(HttpStatus.SC_OK)
+                            .withHeader(ClickHouseHttpProto.HEADER_SRV_DISPLAY_NAME, dbServer)
+                            .withHeader(ClickHouseHttpProto.HEADER_SRV_SUMMARY, "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")
+                            .withBody("Ok.\n"))
+                    .build());
+
+            Client.Builder builder = new Client.Builder()
+                    .addEndpoint("http://localhost:" + serverPort + "/")
+                    .setUsername("default")
+                    .setPassword(ClickHouseServerForTest.getPassword())
+                    .compressServerResponse(false);
+
+            if (allowedCodes != null) {
+                builder.setHttpAllowedRedirectCodes(allowedCodes);
+            }
+
+            try (Client client = builder.build()) {
+                try (CommandResponse response = client.execute("SELECT 1").get(10, TimeUnit.SECONDS)) {
+                    Assert.assertEquals(response.getResponseHeaders().get(ClickHouseHttpProto.HEADER_SRV_DISPLAY_NAME),
+                            shouldRedirect ? dbServer : proxyName);
+                }
+            }
+
+            mockServer.verify(shouldRedirect ? 1 : 0, WireMock.postRequestedFor(WireMock.urlPathEqualTo("/redirected")));
+        } finally {
+            mockServer.stop();
+        }
+    }
+
+    @DataProvider(name = "testHttpRedirectOptionsProvider")
+    public static Object[][] testHttpRedirectOptionsProvider() {
+        return new Object[][]{
+                {null, false},
+                {new int[]{307}, true},
+                {new int[]{308}, false},
+        };
+    }
+
+    @Test(groups = {"integration"})
+    public void testCrossOriginRedirectPolicy() throws Exception {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
+        final String proxyName = "db-proxy";
+        final String dbServer = "db-server";
+        WireMockServer sourceServer = new WireMockServer(WireMockConfiguration
+                .options().dynamicPort()
+                .notifier(new Slf4jNotifier(true)));
+        WireMockServer targetServer = new WireMockServer(WireMockConfiguration
+                .options().dynamicPort()
+                .notifier(new Slf4jNotifier(true)));
+        sourceServer.start();
+        targetServer.start();
+
+        try {
+            sourceServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .willReturn(WireMock.aResponse()
+                            .withStatus(HttpStatus.SC_TEMPORARY_REDIRECT)
+                            .withHeader(ClickHouseHttpProto.HEADER_SRV_DISPLAY_NAME, proxyName)
+                            .withHeader(HttpHeaders.LOCATION, "http://127.0.0.1:" + targetServer.port() + "/redirected"))
+                    .build());
+            targetServer.addStubMapping(WireMock.post(WireMock.urlPathEqualTo("/redirected"))
+                    .willReturn(WireMock.aResponse()
+                            .withStatus(HttpStatus.SC_OK)
+                            .withHeader(ClickHouseHttpProto.HEADER_SRV_DISPLAY_NAME, dbServer)
+                            .withHeader(ClickHouseHttpProto.HEADER_SRV_SUMMARY, "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")
+                            .withBody("Ok.\n"))
+                    .build());
+
+            Object[][] scenarios = new Object[][]{
+                    {null, proxyName, 0},
+                    {Boolean.FALSE, proxyName, 0},
+                    {Boolean.TRUE, dbServer, 1}
+            };
+            for (Object[] scenario : scenarios) {
+                Boolean allowCrossOrigin = (Boolean) scenario[0];
+                String expectedDisplayName = (String) scenario[1];
+                int expectedRedirectCalls = (int) scenario[2];
+
+                Client.Builder builder = new Client.Builder()
+                        .addEndpoint("http://localhost:" + sourceServer.port() + "/")
+                        .setUsername("default")
+                        .setPassword(ClickHouseServerForTest.getPassword())
+                        .compressServerResponse(false)
+                        .setHttpAllowedRedirectCodes(307);
+                if (allowCrossOrigin != null) {
+                    builder.setHttpRedirectStrategy(new CrossOriginAwareRedirectStrategy(allowCrossOrigin.booleanValue()));
+                }
+
+                try (Client client = builder.build()) {
+                    try (CommandResponse response = client.execute("SELECT 1").get(10, TimeUnit.SECONDS)) {
+                        Assert.assertEquals(response.getResponseHeaders().get(ClickHouseHttpProto.HEADER_SRV_DISPLAY_NAME),
+                                expectedDisplayName);
+                    }
+                }
+                targetServer.verify(expectedRedirectCalls, WireMock.postRequestedFor(WireMock.urlPathEqualTo("/redirected")));
+            }
+        } finally {
+            sourceServer.stop();
+            targetServer.stop();
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testCrossOriginRedirectPolicyWithCustomStrategyAndNoAllowedCodes() throws Exception {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
+        final String proxyName = "db-proxy";
+        WireMockServer sourceServer = new WireMockServer(WireMockConfiguration
+                .options().dynamicPort()
+                .notifier(new Slf4jNotifier(true)));
+        WireMockServer targetServer = new WireMockServer(WireMockConfiguration
+                .options().dynamicPort()
+                .notifier(new Slf4jNotifier(true)));
+        sourceServer.start();
+        targetServer.start();
+
+        try {
+            sourceServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .willReturn(WireMock.aResponse()
+                            .withStatus(HttpStatus.SC_TEMPORARY_REDIRECT)
+                            .withHeader(ClickHouseHttpProto.HEADER_SRV_DISPLAY_NAME, proxyName)
+                            .withHeader(HttpHeaders.LOCATION, "http://127.0.0.1:" + targetServer.port() + "/redirected"))
+                    .build());
+            targetServer.addStubMapping(WireMock.post(WireMock.urlPathEqualTo("/redirected"))
+                    .willReturn(WireMock.aResponse()
+                            .withStatus(HttpStatus.SC_OK)
+                            .withHeader(ClickHouseHttpProto.HEADER_SRV_DISPLAY_NAME, "db-server")
+                            .withHeader(ClickHouseHttpProto.HEADER_SRV_SUMMARY, "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")
+                            .withBody("Ok.\n"))
+                    .build());
+
+            try (Client client = new Client.Builder()
+                    .addEndpoint("http://localhost:" + sourceServer.port() + "/")
+                    .setUsername("default")
+                    .setPassword(ClickHouseServerForTest.getPassword())
+                    .compressServerResponse(false)
+                    .setHttpRedirectStrategy(new CrossOriginAwareRedirectStrategy(true))
+                    .build()) {
+                try (CommandResponse response = client.execute("SELECT 1").get(10, TimeUnit.SECONDS)) {
+                    Assert.assertEquals(response.getResponseHeaders().get(ClickHouseHttpProto.HEADER_SRV_DISPLAY_NAME), proxyName);
+                }
+            }
+            targetServer.verify(0, WireMock.postRequestedFor(WireMock.urlPathEqualTo("/redirected")));
+        } finally {
+            sourceServer.stop();
+            targetServer.stop();
         }
     }
 

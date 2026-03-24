@@ -260,7 +260,7 @@ public class ClientTests extends BaseIntegrationTest {
                     Assert.assertEquals(config.get(p.getKey()), p.getDefaultValue(), "Default value doesn't match");
                 }
             }
-            Assert.assertEquals(config.size(), 34); // to check everything is set. Increment when new added.
+            Assert.assertEquals(config.size(), 35); // to check everything is set. Increment when new added.
         }
 
         try (Client client = new Client.Builder()
@@ -288,12 +288,13 @@ public class ClientTests extends BaseIntegrationTest {
                 .compressServerResponse(false)
                 .useHttpCompression(true)
                 .appCompressedData(true)
+                .setHttpAllowedRedirectCodes(301, 302, 307)
                 .setSocketTimeout(20, SECONDS)
                 .setSocketRcvbuf(100000)
                 .setSocketSndbuf(100000)
                 .build()) {
             Map<String, String> config = client.getConfiguration();
-            Assert.assertEquals(config.size(), 35); // to check everything is set. Increment when new added.
+            Assert.assertEquals(config.size(), 36); // to check everything is set. Increment when new added.
             Assert.assertEquals(config.get(ClientConfigProperties.DATABASE.getKey()), "mydb");
             Assert.assertEquals(config.get(ClientConfigProperties.MAX_EXECUTION_TIME.getKey()), "10");
             Assert.assertEquals(config.get(ClientConfigProperties.COMPRESSION_LZ4_UNCOMPRESSED_BUF_SIZE.getKey()), "300000");
@@ -314,6 +315,7 @@ public class ClientTests extends BaseIntegrationTest {
             Assert.assertEquals(config.get(ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getKey()), "false");
             Assert.assertEquals(config.get(ClientConfigProperties.USE_HTTP_COMPRESSION.getKey()), "true");
             Assert.assertEquals(config.get(ClientConfigProperties.APP_COMPRESSED_DATA.getKey()), "true");
+            Assert.assertEquals(config.get(ClientConfigProperties.HTTP_ALLOWED_REDIRECT_CODES.getKey()), "301,302,307");
             Assert.assertEquals(config.get(ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey()), "20000");
             Assert.assertEquals(config.get(ClientConfigProperties.SOCKET_RCVBUF_OPT.getKey()), "100000");
             Assert.assertEquals(config.get(ClientConfigProperties.SOCKET_SNDBUF_OPT.getKey()), "100000");
@@ -360,7 +362,34 @@ public class ClientTests extends BaseIntegrationTest {
                     Assert.assertEquals(config.get(p.getKey()), p.getDefaultValue(), "Default value doesn't match");
                 }
             }
-            Assert.assertEquals(config.size(), 34); // to check everything is set. Increment when new added.
+            Assert.assertEquals(config.size(), 35); // to check everything is set. Increment when new added.
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testRedirectOptionsValidation() {
+        try {
+            newClient().setHttpAllowedRedirectCodes(305);
+            Assert.fail("Exception expected");
+        } catch (IllegalArgumentException ex) {
+            Assert.assertTrue(ex.getMessage().contains("Unsupported HTTP redirect status code"));
+        }
+
+        try {
+            newClient().setOption(ClientConfigProperties.HTTP_ALLOWED_REDIRECT_CODES.getKey(), "301,999").build();
+            Assert.fail("Exception expected");
+        } catch (IllegalArgumentException ex) {
+            Assert.assertTrue(ex.getMessage().contains("Unsupported HTTP redirect status code"));
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testRedirectOptionsPositive() {
+        try (Client client = newClient()
+                .setHttpAllowedRedirectCodes(301, 303, 308)
+                .build()) {
+            Map<String, String> config = client.getConfiguration();
+            Assert.assertEquals(config.get(ClientConfigProperties.HTTP_ALLOWED_REDIRECT_CODES.getKey()), "301,303,308");
         }
     }
 

@@ -12,6 +12,8 @@ import com.clickhouse.client.api.ConnectionReuseStrategy;
 import com.clickhouse.client.api.DataTransferException;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.enums.ProxyType;
+import com.clickhouse.client.api.http.CrossOriginAwareRedirectStrategy;
+import com.clickhouse.client.api.http.HttpRedirectPolicy;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.transport.Endpoint;
 import com.clickhouse.data.ClickHouseFormat;
@@ -131,9 +133,10 @@ public class HttpAPIClientHelper {
 
     LZ4Factory lz4Factory;
 
-    public HttpAPIClientHelper(Map<String, Object> configuration, Object metricsRegistry, boolean initSslContext, LZ4Factory lz4Factory) {
+    public HttpAPIClientHelper(Map<String, Object> configuration, Object metricsRegistry, boolean initSslContext,
+                               LZ4Factory lz4Factory, HttpRedirectPolicy httpRedirectPolicy) {
         this.metricsRegistry = metricsRegistry;
-        this.httpClient = createHttpClient(initSslContext, configuration);
+        this.httpClient = createHttpClient(initSslContext, configuration, httpRedirectPolicy);
         this.lz4Factory = lz4Factory;
         assert this.lz4Factory != null;
 
@@ -266,7 +269,8 @@ public class HttpAPIClientHelper {
         return phccm;
     }
 
-    public CloseableHttpClient createHttpClient(boolean initSslContext, Map<String, Object> configuration) {
+    public CloseableHttpClient createHttpClient(boolean initSslContext, Map<String, Object> configuration,
+                                                HttpRedirectPolicy httpRedirectPolicy) {
         // Top Level builders
         HttpClientBuilder clientBuilder = HttpClientBuilder.create();
         SSLContext sslContext = initSslContext ? createSSLContext(configuration) : null;
@@ -337,6 +341,15 @@ public class HttpAPIClientHelper {
         }
 
         clientBuilder.disableContentCompression(); // will handle ourselves
+
+        List<Integer> allowedRedirectCodes = ClientConfigProperties.HTTP_ALLOWED_REDIRECT_CODES.getOrDefault(configuration);
+        if (allowedRedirectCodes.isEmpty()) {
+            clientBuilder.disableRedirectHandling();
+        } else {
+            CrossOriginAwareRedirectStrategy strategy = new CrossOriginAwareRedirectStrategy(
+                    allowedRedirectCodes, httpRedirectPolicy != null && httpRedirectPolicy.isCrossOriginRedirectAllowed());
+            clientBuilder.setRedirectStrategy(strategy);
+        }
 
         return clientBuilder.build();
     }
@@ -1016,4 +1029,5 @@ public class HttpAPIClientHelper {
             }
         }
     }
+
 }

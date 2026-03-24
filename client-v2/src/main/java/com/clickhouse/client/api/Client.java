@@ -12,6 +12,7 @@ import com.clickhouse.client.api.data_formats.internal.MapBackedRecord;
 import com.clickhouse.client.api.data_formats.internal.ProcessParser;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.enums.ProxyType;
+import com.clickhouse.client.api.http.HttpRedirectPolicy;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
@@ -144,7 +145,8 @@ public class Client implements AutoCloseable {
 
     private Client(Collection<Endpoint> endpoints, Map<String,String> configuration,
                    ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy,
-                   Object metricsRegistry, Supplier<String> queryIdGenerator) {
+                   Object metricsRegistry, Supplier<String> queryIdGenerator,
+                   HttpRedirectPolicy httpRedirectPolicy) {
         this.configuration = ClientConfigProperties.parseConfigMap(configuration);
         this.readOnlyConfig = Collections.unmodifiableMap(configuration);
         this.metricsRegistry = metricsRegistry;
@@ -191,7 +193,7 @@ public class Client implements AutoCloseable {
             this.lz4Factory = LZ4Factory.fastestJavaInstance();
         }
 
-        this.httpClientHelper = new HttpAPIClientHelper(this.configuration, metricsRegistry, initSslContext, lz4Factory);
+        this.httpClientHelper = new HttpAPIClientHelper(this.configuration, metricsRegistry, initSslContext, lz4Factory, httpRedirectPolicy);
         this.serverVersion = configuration.getOrDefault(ClientConfigProperties.SERVER_VERSION.getKey(), "unknown");
         this.dbUser = configuration.getOrDefault(ClientConfigProperties.USER.getKey(), ClientConfigProperties.USER.getDefObjVal());
         this.typeHintMapping = (Map<ClickHouseDataType, Class<?>>) this.configuration.get(ClientConfigProperties.TYPE_HINT_MAPPING.getKey());
@@ -264,6 +266,7 @@ public class Client implements AutoCloseable {
         private ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy;
         private Object metricRegistry = null;
         private Supplier<String> queryIdGenerator;
+        private HttpRedirectPolicy httpRedirectPolicy;
 
         public Builder() {
             this.endpoints = new HashSet<>();
@@ -701,6 +704,45 @@ public class Client implements AutoCloseable {
         public Builder setHttpCookiesEnabled(boolean enabled) {
             //TODO: extract to settings string constants
             this.configuration.put("client.http.cookies_enabled", String.valueOf(enabled));
+            return this;
+        }
+
+        /**
+         * Sets which redirect status codes are allowed for redirect handling.
+         * Redirect handling is enabled only when at least one status code is configured.
+         * Supported values are: 301, 302, 303, 307, 308.
+         * <p>
+         * Security note: following redirects may send credentials and request payload
+         * to another endpoint on cross-host redirects.
+         *
+         * @param statusCodes list of allowed redirect status codes
+         * @return this builder instance
+         */
+        public Builder setHttpAllowedRedirectCodes(int... statusCodes) {
+            if (statusCodes == null || statusCodes.length == 0) {
+                throw new IllegalArgumentException("At least one HTTP redirect status code is required");
+            }
+            StringJoiner joiner = new StringJoiner(VALUES_LIST_DELIMITER);
+            for (int statusCode : statusCodes) {
+                if (!ClientConfigProperties.isSupportedHttpRedirectStatus(statusCode)) {
+                    throw new IllegalArgumentException("Unsupported HTTP redirect status code: " + statusCode
+                            + ". Supported values are: " + ClientConfigProperties.SUPPORTED_HTTP_REDIRECT_STATUS_CODES);
+                }
+                joiner.add(String.valueOf(statusCode));
+            }
+            this.configuration.put(ClientConfigProperties.HTTP_ALLOWED_REDIRECT_CODES.getKey(), joiner.toString());
+            return this;
+        }
+
+        /**
+         * Sets HTTP redirect policy used by redirect strategy.
+         * By default cross-origin redirects are not allowed.
+         *
+         * @param strategy redirect policy
+         * @return this builder instance
+         */
+        public Builder setHttpRedirectStrategy(HttpRedirectPolicy strategy) {
+            this.httpRedirectPolicy = strategy;
             return this;
         }
 
@@ -1152,7 +1194,7 @@ public class Client implements AutoCloseable {
             }
 
             return new Client(this.endpoints, this.configuration, this.sharedOperationExecutor,
-                this.columnToMethodMatchingStrategy, this.metricRegistry, this.queryIdGenerator);
+                this.columnToMethodMatchingStrategy, this.metricRegistry, this.queryIdGenerator, this.httpRedirectPolicy);
         }
     }
 
