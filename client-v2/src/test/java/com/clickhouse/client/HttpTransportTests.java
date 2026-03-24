@@ -1226,6 +1226,30 @@ public class HttpTransportTests extends BaseIntegrationTest {
         }
     }
 
+    @Test(groups = {"integration"})
+    public void testNotFoundError() {
+        if (isCloud()) {
+            return; // not needed
+        }
+        ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
+
+        Client.Builder clientBuilder = new Client.Builder()
+                .addEndpoint("http://" + node.getHost() + ":" + node.getPort() + "/some-path")
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .compressClientRequest(false)
+                .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
+                .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1");
+
+        try (Client client = clientBuilder.build()) {
+            client.queryAll("select 1");
+            fail("Exception expected");
+        } catch (ClientException e) {
+            Assert.assertTrue(e.getCause().getMessage().startsWith("There is no handle /some-path?"));
+        }
+
+    }
+
     protected Client.Builder newClient() {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
         boolean isSecure = isCloud();

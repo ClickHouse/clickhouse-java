@@ -84,8 +84,10 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLEncoder;
 import java.net.UnknownHostException;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
@@ -104,6 +106,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 public class HttpAPIClientHelper {
 
@@ -351,75 +354,100 @@ public class HttpAPIClientHelper {
      * @param httpResponse - HTTP response
      * @return exception object with server code
      */
-    public Exception readError(ClassicHttpResponse httpResponse) {
-        final Header qIdHeader = httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID);
-        final String queryId = qIdHeader == null ? "" : qIdHeader.getValue();
+    public Exception readError(HttpPost req, ClassicHttpResponse httpResponse) {
+        final Header serverQueryIdHeader = httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID);
+        final Header clientQueryIdHeader = req.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID);
+        final Header queryHeader = Stream.of(serverQueryIdHeader, clientQueryIdHeader).filter(Objects::nonNull).findFirst().orElse(null);
+        final String queryId = queryHeader == null ? "" : queryHeader.getValue();
         int serverCode = getHeaderInt(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE), 0);
-        InputStream body = null;
         try {
-            body = httpResponse.getEntity().getContent();
-            byte[] buffer = new byte[ERROR_BODY_BUFFER_SIZE];
-            byte[] lookUpStr = String.format(ERROR_CODE_PREFIX_PATTERN, serverCode).getBytes(StandardCharsets.UTF_8);
-            StringBuilder msgBuilder = new StringBuilder();
-            boolean found = false;
-            while (true) {
-                int rBytes = -1;
-                try {
-                    rBytes = body.read(buffer);
-                } catch (ClientException e) {
-                    // Invalid LZ4 Magic
-                    if (body instanceof ClickHouseLZ4InputStream) {
-                        ClickHouseLZ4InputStream stream = (ClickHouseLZ4InputStream) body;
-                        body = stream.getInputStream();
-                        byte[] headerBuffer = stream.getHeaderBuffer();
-                        System.arraycopy(headerBuffer, 0, buffer, 0, headerBuffer.length);
-                        rBytes = headerBuffer.length;
-                    }
-                }
-                if (rBytes == -1) {
-                    break;
-                }
 
-                for (int i = 0; i < rBytes; i++) {
-                    if (buffer[i] == lookUpStr[0]) {
-                        found = true;
-                        for (int j = 1; j < Math.min(rBytes - i, lookUpStr.length); j++) {
-                            if (buffer[i + j] != lookUpStr[j]) {
-                                found = false;
-                                break;
-                            }
-                        }
-                        if (found) {
-                            msgBuilder.append(new String(buffer, i, rBytes - i, StandardCharsets.UTF_8));
-                            break;
-                        }
-                    }
-                }
 
-                if (found) {
-                    break;
-                }
-            }
-
-            while (true) {
-                int rBytes = body.read(buffer);
-                if (rBytes == -1) {
-                    break;
-                }
-                msgBuilder.append(new String(buffer, 0, rBytes, StandardCharsets.UTF_8));
-            }
-
-            String msg = msgBuilder.toString().replaceAll("\\s+", " ").replaceAll("\\\\n", " ")
-                    .replaceAll("\\\\/", "/");
-            if (msg.trim().isEmpty()) {
-                msg = String.format(ERROR_CODE_PREFIX_PATTERN, serverCode) + " <Unreadable error message> (transport error: " + httpResponse.getCode() + ")";
-            }
-            return new ServerException(serverCode, "Code: " + msg + " (queryId= " + queryId + ")", httpResponse.getCode(), queryId);
+            return serverCode > 0 ? readClickHouseError(httpResponse.getEntity(), serverCode, queryId, httpResponse.getCode()) :
+                    readNotClickHouseError(httpResponse.getEntity(), queryId, httpResponse.getCode());
         } catch (Exception e) {
             LOG.error("Failed to read error message", e);
             String msg = String.format(ERROR_CODE_PREFIX_PATTERN, serverCode) + " <Unreadable error message> (transport error: " + httpResponse.getCode() + ")";
             return new ServerException(serverCode, msg + " (queryId= " + queryId + ")", httpResponse.getCode(), queryId);
         }
+    }
+
+    private ServerException readNotClickHouseError(HttpEntity httpEntity, String queryId, int httpCode)  {
+
+        byte[] buffer = new byte[ERROR_BODY_BUFFER_SIZE];
+
+        String msg = null;
+        try {
+            InputStream body = httpEntity.getContent();
+            int msgLen = body.read(buffer, 0, buffer.length - 2);
+            msg = new String(buffer, 0, msgLen, StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            LOG.warn("Failed to read error message (queryId = " + queryId + ")", e);
+        }
+
+        String errormsg = msg == null ? "unknown server error" : msg;
+        return new ServerException(ServerException.CODE_UNKNOWN, errormsg + " (transport error: " + httpCode +")", httpCode, queryId);
+    }
+
+    private static ServerException readClickHouseError(HttpEntity httpEntity, int serverCode, String queryId, int httpCode) throws Exception {
+        InputStream body = httpEntity.getContent();
+        byte[] buffer = new byte[ERROR_BODY_BUFFER_SIZE];
+        byte[] lookUpStr = String.format(ERROR_CODE_PREFIX_PATTERN, serverCode).getBytes(StandardCharsets.UTF_8);
+        StringBuilder msgBuilder = new StringBuilder();
+        boolean found = false;
+        while (true) {
+            int rBytes = -1;
+            try {
+                rBytes = body.read(buffer);
+            } catch (ClientException e) {
+                // Invalid LZ4 Magic
+                if (body instanceof ClickHouseLZ4InputStream) {
+                    ClickHouseLZ4InputStream stream = (ClickHouseLZ4InputStream) body;
+                    body = stream.getInputStream();
+                    byte[] headerBuffer = stream.getHeaderBuffer();
+                    System.arraycopy(headerBuffer, 0, buffer, 0, headerBuffer.length);
+                    rBytes = headerBuffer.length;
+                }
+            }
+            if (rBytes == -1) {
+                break;
+            }
+
+            for (int i = 0; i < rBytes; i++) {
+                if (buffer[i] == lookUpStr[0]) {
+                    found = true;
+                    for (int j = 1; j < Math.min(rBytes - i, lookUpStr.length); j++) {
+                        if (buffer[i + j] != lookUpStr[j]) {
+                            found = false;
+                            break;
+                        }
+                    }
+                    if (found) {
+                        msgBuilder.append(new String(buffer, i, rBytes - i, StandardCharsets.UTF_8));
+                        break;
+                    }
+                }
+            }
+
+            if (found) {
+                break;
+            }
+        }
+
+        while (true) {
+            int rBytes = body.read(buffer);
+            if (rBytes == -1) {
+                break;
+            }
+            msgBuilder.append(new String(buffer, 0, rBytes, StandardCharsets.UTF_8));
+        }
+
+        String msg = msgBuilder.toString().replaceAll("\\s+", " ").replaceAll("\\\\n", " ")
+                .replaceAll("\\\\/", "/");
+        if (msg.trim().isEmpty()) {
+            msg = String.format(ERROR_CODE_PREFIX_PATTERN, serverCode) + " <Unreadable error message> (transport error: " + httpCode + ")";
+        }
+        return new ServerException(serverCode, "Code: " + msg + " (queryId= " + queryId + ")", httpCode, queryId);
     }
 
     private static final long POOL_VENT_TIMEOUT = 10000L;
@@ -536,7 +564,7 @@ public class HttpAPIClientHelper {
                 throw new ClientException("Server returned '502 Bad gateway'. Check network and proxy settings.");
             } else if (httpResponse.getCode() >= HttpStatus.SC_BAD_REQUEST || httpResponse.containsHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE)) {
                 try {
-                    throw readError(httpResponse);
+                    throw readError(req, httpResponse);
                 } finally {
                     httpResponse.close();
                 }
@@ -742,7 +770,7 @@ public class HttpAPIClientHelper {
         }
 
         // data compression
-        if (serverCompression && !(httpStatus == HttpStatus.SC_FORBIDDEN || httpStatus == HttpStatus.SC_UNAUTHORIZED)) {
+        if (serverCompression && !(httpStatus == HttpStatus.SC_FORBIDDEN || httpStatus == HttpStatus.SC_UNAUTHORIZED || httpStatus == HttpStatus.SC_NOT_FOUND)) {
             int buffSize = ClientConfigProperties.COMPRESSION_LZ4_UNCOMPRESSED_BUF_SIZE.getOrDefault(requestConfig);
             return new LZ4Entity(httpEntity, useHttpCompression, true, false, buffSize, true, lz4Factory);
         }
