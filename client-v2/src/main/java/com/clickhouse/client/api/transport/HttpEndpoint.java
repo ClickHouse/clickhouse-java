@@ -3,7 +3,6 @@ package com.clickhouse.client.api.transport;
 import com.clickhouse.client.api.ClientMisconfigurationException;
 
 import java.net.URI;
-import java.net.URL;
 
 public class HttpEndpoint implements Endpoint {
 
@@ -33,7 +32,9 @@ public class HttpEndpoint implements Endpoint {
         // Use URI constructor to properly handle encoding of path segments
         // Encode path segments separately to preserve slashes
         try {
-            this.uri = new URI(secure ? "https" : "http", null, host, port, this.path, null, null);
+            String scheme = secure ? "https" : "http";
+            String encodedPath = new URI(null, null, this.path, null).getRawPath();
+            this.uri = new URI(scheme + "://" + host + ":" + port + encodedPath);
         } catch (Exception e) {
             throw new ClientMisconfigurationException("Failed to create endpoint URL", e);
         }

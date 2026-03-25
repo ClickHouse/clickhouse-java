@@ -160,4 +160,11 @@ public class HttpEndpointTest {
         Assert.assertTrue(cyrillicEndpoint.getURI().toASCIIString().contains("%"),
                 "Cyrillic path should be percent-encoded in ASCII representation");
     }
+
+    @Test
+    public void testUnderscoreHostIsAcceptedInUri() {
+        HttpEndpoint endpoint = new HttpEndpoint("host_with_underscore", 8123, false, "/");
+        Assert.assertEquals(endpoint.getHost(), "host_with_underscore", "Original host should be preserved");
+        Assert.assertEquals(endpoint.getURI().toString(), "http://host_with_underscore:8123/");
+    }
 }
