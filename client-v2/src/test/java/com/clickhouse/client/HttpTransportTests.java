@@ -9,6 +9,7 @@ import com.clickhouse.client.api.ConnectionReuseStrategy;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.command.CommandResponse;
 import com.clickhouse.client.api.command.CommandSettings;
+import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.insert.InsertResponse;
@@ -26,6 +27,7 @@ import com.github.tomakehurst.wiremock.common.Slf4jNotifier;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import com.github.tomakehurst.wiremock.http.Fault;
 import com.github.tomakehurst.wiremock.http.trafficlistener.WiremockNetworkTrafficListener;
+import org.apache.hc.core5.http.ConnectionClosedException;
 import org.apache.hc.core5.http.ConnectionRequestTimeoutException;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpStatus;
@@ -606,7 +608,9 @@ public class HttpTransportTests extends BaseIntegrationTest {
     }
 
     static {
-        System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "DEBUG");
+        if (Boolean.getBoolean("test.debug")) {
+            System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "DEBUG");
+        }
     }
 
     @Test(groups = { "integration" })
@@ -1252,6 +1256,176 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
     }
 
+    @Test(groups = {"integration"})
+    public void testSmallNetworkBufferDoesNotBreakColumnDecoding() throws Exception {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
+        final int rowsToRead = 2_000;
+        final int networkBufferSize = 8196;
+        final String query = "SELECT toUInt32(number), toUInt64(number), now() FROM system.numbers LIMIT " + rowsToRead;
+        byte[] validBody = fetchBinaryPayload(query, networkBufferSize, 60);
+
+        Assert.assertTrue(validBody.length > 3, "Source binary payload is unexpectedly small");
+        byte[] corruptedBody = Arrays.copyOf(validBody, validBody.length - 5);
+
+        WireMockServer mockServer = new WireMockServer(WireMockConfiguration
+                .options().dynamicPort().notifier(new ConsoleNotifier(false)));
+        mockServer.start();
+        try {
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .willReturn(WireMock.aResponse()
+                            .withStatus(HttpStatus.SC_OK)
+                            .withHeader("X-ClickHouse-Summary", "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")
+                            .withBody(corruptedBody))
+                    .build());
+            Throwable thrown = assertBinaryDecodeFails(mockServer, query, networkBufferSize, 60,
+                    "Expected failure when reading truncated binary stream");
+            assertBinaryReadFailureContainsColumnName(thrown);
+        } finally {
+            mockServer.stop();
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testChunkedResponsePrematureEndIsReported() throws Exception {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
+        final String query = "SELECT toUInt32(number), toUInt64(number), now() FROM system.numbers LIMIT 10";
+
+        WireMockServer mockServer = new WireMockServer(WireMockConfiguration
+                .options().dynamicPort().notifier(new ConsoleNotifier(false)));
+        mockServer.start();
+        try {
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .willReturn(WireMock.aResponse()
+                            .withStatus(HttpStatus.SC_OK)
+                            .withHeader(HttpHeaders.TRANSFER_ENCODING, "chunked")
+                            .withFault(Fault.MALFORMED_RESPONSE_CHUNK))
+                    .build());
+            Throwable thrown = assertBinaryDecodeFails(mockServer, query, null, 30,
+                    "Expected failure when reading malformed chunked response");
+            ConnectionClosedException connectionClosedException = findCause(thrown, ConnectionClosedException.class);
+            boolean hasChunkedPrematureCloseSignature = containsMessageInCauseChain(thrown,
+                    "closing chunk expected",
+                    "premature end of chunk coded message body",
+                    "failed to read header");
+            Assert.assertTrue(connectionClosedException != null || hasChunkedPrematureCloseSignature,
+                    "Expected chunked/premature-close failure signature, but was: " + thrown);
+        } finally {
+            mockServer.stop();
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testTailCorruptedStreamFailsDecoding() throws Exception {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
+        final int rowsToRead = 100_000;
+        final int networkBufferSize = 8196;
+        final String query = "SELECT toUInt32(number), toUInt64(number), now() FROM system.numbers LIMIT " + rowsToRead;
+        byte[] validBody = fetchBinaryPayload(query, networkBufferSize, 60);
+
+        final int removedBytes = 3;
+        Assert.assertTrue(validBody.length > removedBytes, "Source binary payload is unexpectedly small");
+        byte[] corruptedBody = Arrays.copyOf(validBody, validBody.length - removedBytes);
+
+        WireMockServer mockServer = new WireMockServer(WireMockConfiguration
+                .options().dynamicPort().notifier(new ConsoleNotifier(false)));
+        mockServer.start();
+        try {
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .willReturn(WireMock.aResponse()
+                            .withStatus(HttpStatus.SC_OK)
+                            .withHeader("X-ClickHouse-Summary", "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")
+                            .withBody(corruptedBody))
+                    .build());
+            Throwable thrown = assertBinaryDecodeFails(mockServer, query, networkBufferSize, 60,
+                    "Expected failure when reading binary stream truncated at tail");
+            assertBinaryReadFailureContainsColumnName(thrown);
+        } finally {
+            mockServer.stop();
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testTailStreamFailureReportsPositiveTimeSinceLastNextCall() throws Exception {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
+        final int rowsToRead = 2000;
+        final int networkBufferSize = 8196;
+        final String query = "SELECT toUInt32(number), toUInt64(number), now() FROM system.numbers LIMIT " + rowsToRead;
+        byte[] validBody = fetchBinaryPayload(query, networkBufferSize, 60);
+        final int removedBytes = 3;
+        Assert.assertTrue(validBody.length > removedBytes, "Source binary payload is unexpectedly small");
+        byte[] corruptedBody = Arrays.copyOf(validBody, validBody.length - removedBytes);
+
+        WireMockServer mockServer = new WireMockServer(WireMockConfiguration
+                .options().dynamicPort().notifier(new ConsoleNotifier(false)));
+        mockServer.start();
+        try {
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .willReturn(WireMock.aResponse()
+                            .withStatus(HttpStatus.SC_OK)
+                            .withHeader("X-ClickHouse-Summary", "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")
+                            .withBody(corruptedBody))
+                    .build());
+
+            QuerySettings querySettings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
+            try (Client client = newMockServerClient(mockServer.port(), networkBufferSize)
+                    .build();
+                 QueryResponse response = client.query(query, querySettings).get(60, TimeUnit.SECONDS);
+                 ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response)) {
+                final int[] rowsRead = new int[] {0};
+                Throwable thrown = Assert.expectThrows(Throwable.class, () -> {
+                    while (true) {
+                        if (rowsRead[0] >= 5) {
+                            try {
+                                Thread.sleep(25);
+                            } catch (InterruptedException e) {
+                                Thread.currentThread().interrupt();
+                                throw new RuntimeException(e);
+                            }
+                        }
+                        if (reader.next() == null) {
+                            return;
+                        }
+                        rowsRead[0]++;
+                    }
+                });
+
+                Assert.assertTrue(rowsRead[0] >= 5,
+                        "Expected to read at least a few rows before failure, but read " + rowsRead[0]);
+                ClientException clientException = findCause(thrown, ClientException.class);
+                Assert.assertNotNull(clientException,
+                        "Expected ClientException in cause chain, but was: " + thrown);
+                Assert.assertTrue(containsMessageInCauseChain(thrown, "Reading column "),
+                        "Expected column information in failure message chain, but was: " + thrown);
+
+                String elapsedTimeMessage = findFirstMessageInCauseChain(thrown, "time since last next call");
+                Assert.assertNotNull(elapsedTimeMessage,
+                        "Expected elapsed-time fragment in failure message chain, but was: " + thrown);
+
+                java.util.regex.Matcher matcher = Pattern.compile("time since last next call (\\d+)\\)")
+                        .matcher(elapsedTimeMessage);
+                Assert.assertTrue(matcher.find(),
+                        "Expected elapsed-time fragment in message: " + elapsedTimeMessage);
+                long elapsedSinceLastNext = Long.parseLong(matcher.group(1));
+                Assert.assertTrue(elapsedSinceLastNext > 0,
+                        "Expected positive elapsed time since last next call, but was " + elapsedSinceLastNext);
+            }
+        } finally {
+            mockServer.stop();
+        }
+    }
+
     @Test(groups = {"integration"}, dataProvider = "testHttpStatusErrorBodyDataProvider")
     public void testHttpStatusErrorsIncludeResponseBody(int httpStatus, String responseBody, String expectedBodyPart) throws Exception {
         if (isCloud()) {
@@ -1387,10 +1561,70 @@ public class HttpTransportTests extends BaseIntegrationTest {
         };
     }
 
+    private byte[] fetchBinaryPayload(String query, int networkBufferSize, int timeoutSec) throws Exception {
+        QuerySettings querySettings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
+        try (Client client = newClient()
+                .useHttpCompression(false)
+                .compressServerResponse(false)
+                .setOption(ClientConfigProperties.CLIENT_NETWORK_BUFFER_SIZE.getKey(), String.valueOf(networkBufferSize))
+                .build();
+             QueryResponse response = client.query(query, querySettings).get(timeoutSec, TimeUnit.SECONDS)) {
+            return readAllBytes(response.getInputStream());
+        }
+    }
+
+    private Throwable assertBinaryDecodeFails(WireMockServer mockServer, String query, Integer networkBufferSize,
+                                              int timeoutSec, String assertionMessage) throws Exception {
+        QuerySettings querySettings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
+        try (Client client = newMockServerClient(mockServer.port(), networkBufferSize).build()) {
+            Throwable thrown = Assert.expectThrows(Throwable.class, () -> {
+                try (QueryResponse response = client.query(query, querySettings).get(timeoutSec, TimeUnit.SECONDS);
+                     ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response)) {
+                    readAllRows(reader);
+                }
+            });
+            Assert.assertNotNull(thrown, assertionMessage);
+            return thrown;
+        }
+    }
+
+    private Client.Builder newMockServerClient(int port, Integer networkBufferSize) {
+        Client.Builder builder = new Client.Builder()
+                .addEndpoint(Protocol.HTTP, "localhost", port, false)
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
+                .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1")
+                .useHttpCompression(false)
+                .compressServerResponse(false);
+        if (networkBufferSize != null) {
+            builder.setOption(ClientConfigProperties.CLIENT_NETWORK_BUFFER_SIZE.getKey(), String.valueOf(networkBufferSize));
+        }
+        return builder;
+    }
+
+    private static void readAllRows(ClickHouseBinaryFormatReader reader) {
+        while (reader.next() != null) {
+            reader.getInteger(1);
+            reader.getLong(2);
+            reader.getString(3);
+        }
+    }
+
     private static byte[] gzip(String value) throws Exception {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         try (GZIPOutputStream gzipOutputStream = new GZIPOutputStream(out)) {
             gzipOutputStream.write(value.getBytes(StandardCharsets.UTF_8));
+        }
+        return out.toByteArray();
+    }
+
+    private static byte[] readAllBytes(java.io.InputStream inputStream) throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        byte[] buffer = new byte[8192];
+        int read;
+        while ((read = inputStream.read(buffer)) != -1) {
+            out.write(buffer, 0, read);
         }
         return out.toByteArray();
     }
@@ -1404,6 +1638,55 @@ public class HttpTransportTests extends BaseIntegrationTest {
             current = current.getCause();
         }
         return null;
+    }
+
+    private static <T extends Throwable> T findCause(Throwable throwable, Class<T> clazz) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (clazz.isInstance(current)) {
+                return clazz.cast(current);
+            }
+            current = current.getCause();
+        }
+        return null;
+    }
+
+    private static boolean containsMessageInCauseChain(Throwable throwable, String... parts) {
+        Throwable current = throwable;
+        while (current != null) {
+            String message = current.getMessage();
+            if (message != null) {
+                String lower = message.toLowerCase();
+                for (String part : parts) {
+                    if (lower.contains(part.toLowerCase())) {
+                        return true;
+                    }
+                }
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    private static String findFirstMessageInCauseChain(Throwable throwable, String part) {
+        Throwable current = throwable;
+        while (current != null) {
+            String message = current.getMessage();
+            if (message != null && message.contains(part)) {
+                return message;
+            }
+            current = current.getCause();
+        }
+        return null;
+    }
+
+    private static void assertBinaryReadFailureContainsColumnName(Throwable thrown) {
+        thrown.printStackTrace();
+        ClientException clientException = findCause(thrown, ClientException.class);
+        Assert.assertNotNull(clientException,
+                "Expected ClientException in cause chain, but was: " + thrown);
+        Assert.assertTrue(containsMessageInCauseChain(thrown, "Reading column "),
+                "Expected column information in failure message chain, but was: " + thrown);
     }
 
     protected Client.Builder newClient() {

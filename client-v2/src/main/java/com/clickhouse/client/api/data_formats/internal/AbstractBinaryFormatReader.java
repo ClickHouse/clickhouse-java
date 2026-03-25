@@ -2,6 +2,7 @@ package com.clickhouse.client.api.data_formats.internal;
 
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.DataTransferException;
 import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.internal.DataTypeConverter;
@@ -73,6 +74,8 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     private Map[] convertions;
     private boolean hasNext = true;
     private boolean initialState = true; // reader is in initial state, no records have been read yet
+    private long row = -1; // before first row
+    private long lastNextCallTs; // for exception to detect slow reader
 
     protected AbstractBinaryFormatReader(InputStream inputStream, QuerySettings querySettings, TableSchema schema,BinaryStreamReader.ByteBufferAllocator byteBufferAllocator, Map<ClickHouseDataType, Class<?>> defaultTypeHintMap) {
         this.input = inputStream;
@@ -92,6 +95,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
             setSchema(schema);
         }
         this.dataTypeConverter = DataTypeConverter.INSTANCE; // singleton while no need to customize conversion
+        this.lastNextCallTs = System.currentTimeMillis();
     }
 
     protected Object[] currentRecord;
@@ -181,6 +185,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
             return false;
         }
 
+        row++;
         boolean firstColumn = true;
         for (int i = 0; i < columns.length; i++) {
             try {
@@ -191,12 +196,12 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                     record[i] = null;
                 }
                 firstColumn = false;
-            } catch (EOFException e) {
-                if (firstColumn) {
+            } catch (IOException e) {
+                if (e instanceof EOFException && firstColumn) {
                     endReached();
                     return false;
                 }
-                throw e;
+                throw new IOException(recordReadExceptionMsg(columns[i].getColumnIndexAndName()), e);
             }
         }
         return true;
@@ -238,8 +243,21 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
             }
         } catch (IOException e) {
             endReached();
-            throw new ClientException("Failed to read next row", e);
+            throw new ClientException(recordReadExceptionMsg(), e);
         }
+    }
+
+    private long timeSinceLastNext() {
+        return System.currentTimeMillis() - lastNextCallTs;
+    }
+
+    private String recordReadExceptionMsg() {
+        return recordReadExceptionMsg(null);
+    }
+
+    private String recordReadExceptionMsg(String column) {
+        return "Reading " + (column != null ? "column " + column + " in " : "")
+                + " row " + row + " (time since last next call " + timeSinceLastNext() + ")";
     }
 
     @Override
@@ -248,25 +266,29 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
             return null;
         }
 
-        if (!nextRecordEmpty) {
-            Object[] tmp = currentRecord;
-            currentRecord = nextRecord;
-            nextRecord = tmp;
-            readNextRecord();
-            return new RecordWrapper(currentRecord, schema);
-        } else {
-            try {
-                if (readRecord(currentRecord)) {
-                    readNextRecord();
-                    return new RecordWrapper(currentRecord, schema);
-                } else {
-                    currentRecord = null;
-                    return null;
+        try {
+            if (!nextRecordEmpty) {
+                Object[] tmp = currentRecord;
+                currentRecord = nextRecord;
+                nextRecord = tmp;
+                readNextRecord();
+                return new RecordWrapper(currentRecord, schema);
+            } else {
+                try {
+                    if (readRecord(currentRecord)) {
+                        readNextRecord();
+                        return new RecordWrapper(currentRecord, schema);
+                    } else {
+                        currentRecord = null;
+                        return null;
+                    }
+                } catch (IOException e) {
+                    endReached();
+                    throw new ClientException(recordReadExceptionMsg(), e);
                 }
-            } catch (IOException e) {
-                endReached();
-                throw new ClientException("Failed to read row", e);
             }
+        } finally {
+            lastNextCallTs = System.currentTimeMillis();
         }
     }
 
