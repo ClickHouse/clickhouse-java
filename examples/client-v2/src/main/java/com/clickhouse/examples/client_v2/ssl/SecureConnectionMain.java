@@ -125,6 +125,7 @@ public class SecureConnectionMain implements Callable<Integer> {
                     "Root CA key file does not exist: " + rootCaKey);
         }
         if (host != null) {
+            printInfo("Running in external-server mode");
             runScenario(
                     host,
                     port,
@@ -135,6 +136,7 @@ public class SecureConnectionMain implements Callable<Integer> {
             return CommandLine.ExitCode.OK;
         }
 
+        printInfo("Running in local-container mode");
         runLocalContainerScenario();
         return CommandLine.ExitCode.OK;
     }
@@ -147,13 +149,18 @@ public class SecureConnectionMain implements Callable<Integer> {
         Path serverCert = certDir.resolve("server.crt");
         Path serverKey = certDir.resolve("server.key");
 
+        // Build server TLS material on the fly so this example is fully self-contained.
         if (rootCa != null) {
+            printInfo("Using provided root CA to sign local server certificate: " + rootCa.toAbsolutePath());
             generateServerCertificateFromProvidedCa(certDir, rootCa, rootCaKey);
         } else {
+            printInfo("Generating ephemeral root CA and local server certificate");
             generatePrivateCaAndServerCertificate(certDir);
         }
         writeClickHouseSslConfig(sslConfig, serverCert, serverKey);
+        printInfo("Generated TLS files at " + certDir.toAbsolutePath());
 
+        printInfo("Starting ClickHouse container from image: " + clickHouseImage);
         GenericContainer<?> container = new GenericContainer<>(clickHouseImage)
                 .withExposedPorts(HTTP_PORT, HTTPS_PORT)
                 .withEnv("CLICKHOUSE_USER", "ssl_demo")
@@ -172,8 +179,10 @@ public class SecureConnectionMain implements Callable<Integer> {
         try {
             container.start();
             int mappedHttpsPort = container.getMappedPort(HTTPS_PORT);
+            printInfo("ClickHouse container is ready on https://localhost:" + mappedHttpsPort);
             runScenario("localhost", mappedHttpsPort, "ssl_demo", "ssl_demo_password", caCert, "container");
         } finally {
+            printInfo("Stopping ClickHouse container and deleting temporary TLS artifacts");
             container.stop();
             deleteIfExists(certDir);
             deleteIfExists(confDir);
@@ -189,6 +198,8 @@ public class SecureConnectionMain implements Callable<Integer> {
             String mode) throws Exception {
         String endpoint = "https://" + host + ":" + httpsPort;
         String tableName = "ssl_private_ca_demo_" + UUID.randomUUID().toString().replace("-", "");
+        printInfo("Preparing secure client for " + endpoint + " (mode=" + mode + ")");
+        printInfo("Using root CA certificate: " + rootCaCert.toAbsolutePath());
 
         try (Client client = new Client.Builder()
                 .addEndpoint(endpoint)
@@ -199,18 +210,25 @@ public class SecureConnectionMain implements Callable<Integer> {
                 .setOption("sslmode", "strict")
                 .build()) {
             boolean tableCreated = false;
+            // Ping verifies both TLS handshake and basic connectivity.
+            printInfo("Pinging ClickHouse endpoint");
             if (!client.ping()) {
                 throw new IllegalStateException("Unable to ping ClickHouse over HTTPS at " + endpoint);
             }
+            printInfo("Ping succeeded");
 
+            printInfo("Creating demo table: " + tableName);
             client.query("CREATE TABLE " + tableName
                     + " (id UInt32, message String) ENGINE=MergeTree ORDER BY id")
                     .get(10, TimeUnit.SECONDS);
             tableCreated = true;
+
+            printInfo("Inserting a demo row");
             client.query("INSERT INTO " + tableName + " VALUES (1, 'private-ca-host-verification-ok')")
                     .get(10, TimeUnit.SECONDS);
 
             String loadedMessage = null;
+            printInfo("Reading inserted row back");
             try (Records records = client.queryRecords("SELECT message FROM " + tableName + " WHERE id = 1")
                     .get(10, TimeUnit.SECONDS)) {
                 for (GenericRecord record : records) {
@@ -228,6 +246,7 @@ public class SecureConnectionMain implements Callable<Integer> {
                     endpoint,
                     loadedMessage);
             if (tableCreated) {
+                printInfo("Dropping demo table: " + tableName);
                 client.query("DROP TABLE IF EXISTS " + tableName).get(10, TimeUnit.SECONDS);
             }
         } catch (Exception e) {
@@ -237,6 +256,7 @@ public class SecureConnectionMain implements Callable<Integer> {
 
     private static void generatePrivateCaAndServerCertificate(Path outputDir)
             throws Exception {
+        printInfo("Generating a temporary RSA key pair for root CA");
         KeyPair caKeys = generateRsaKeyPair();
         X500Name caSubject = new X500Name("CN=ExamplePrivateCA");
         X509Certificate caCertificate = generateCertificate(
@@ -248,6 +268,7 @@ public class SecureConnectionMain implements Callable<Integer> {
                 true,
                 null);
 
+        printInfo("Generating a temporary RSA key pair for server certificate");
         KeyPair serverKeys = generateRsaKeyPair();
         X500Name serverSubject = new X500Name("CN=localhost");
         GeneralNames serverSans = new GeneralNames(new GeneralName[] {
@@ -270,6 +291,7 @@ public class SecureConnectionMain implements Callable<Integer> {
 
     private static void generateServerCertificateFromProvidedCa(Path outputDir, Path caCertPath, Path caKeyPath)
             throws Exception {
+        printInfo("Loading provided CA certificate from " + caCertPath.toAbsolutePath());
         X509Certificate caCertificate = readCertificateFromPem(caCertPath);
         PrivateKey caPrivateKey = (caKeyPath == null)
                 ? readPrivateKeyFromPem(caCertPath)
@@ -280,6 +302,7 @@ public class SecureConnectionMain implements Callable<Integer> {
                     "Unable to read CA private key. Provide --root-ca-key or include unencrypted private key in --root-ca PEM.");
         }
 
+        printInfo("Generating server certificate signed by provided CA");
         KeyPair serverKeys = generateRsaKeyPair();
         X500Name serverSubject = new X500Name("CN=localhost");
         GeneralNames serverSans = new GeneralNames(new GeneralName[] {
@@ -392,6 +415,10 @@ public class SecureConnectionMain implements Callable<Integer> {
             }
         }
         return null;
+    }
+
+    private static void printInfo(String message) {
+        System.out.println("[secure-connection] " + message);
     }
 
     private static void writeClickHouseSslConfig(Path configPath, Path certificatePath, Path privateKeyPath)
