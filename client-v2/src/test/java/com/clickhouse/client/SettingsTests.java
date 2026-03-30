@@ -114,6 +114,17 @@ public class SettingsTests {
             settings.setNetworkTimeout(10, ChronoUnit.SECONDS);
             Assert.assertEquals(settings.getNetworkTimeout(), TimeUnit.SECONDS.toMillis(10));
         }
+
+        {
+            final QuerySettings settings = new QuerySettings();
+            settings.setSessionId("session-1");
+            settings.setSessionCheck(true);
+            settings.setSessionTimeout(30);
+            Assert.assertEquals(settings.getSessionId(), "session-1");
+            Assert.assertTrue(settings.getSessionCheck());
+            Assert.assertEquals(settings.getSessionTimeout().intValue(), 30);
+            Assert.assertThrows(IllegalArgumentException.class, () -> settings.setSessionTimeout(0));
+        }
     }
 
     @Test
@@ -174,6 +185,17 @@ public class SettingsTests {
                     (Integer) ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getDefObjVal());
             settings.setNetworkTimeout(10, ChronoUnit.SECONDS);
             Assert.assertEquals(settings.getNetworkTimeout(), TimeUnit.SECONDS.toMillis(10));
+        }
+
+        {
+            final InsertSettings settings = new InsertSettings();
+            settings.setSessionId("session-2");
+            settings.setSessionCheck(false);
+            settings.setSessionTimeout(45);
+            Assert.assertEquals(settings.getSessionId(), "session-2");
+            Assert.assertFalse(settings.getSessionCheck());
+            Assert.assertEquals(settings.getSessionTimeout().intValue(), 45);
+            Assert.assertThrows(IllegalArgumentException.class, () -> settings.setSessionTimeout(-1));
         }
     }
 }

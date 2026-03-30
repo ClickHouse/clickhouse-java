@@ -956,6 +956,29 @@ public class Client implements AutoCloseable {
         }
 
         /**
+         * Sets ClickHouse session id to be sent with each request.
+         */
+        public Builder setSessionId(String sessionId) {
+            ValidationUtils.checkNonBlank(sessionId, ClickHouseHttpProto.QPARAM_SESSION_ID);
+            return serverSetting(ClickHouseHttpProto.QPARAM_SESSION_ID, sessionId);
+        }
+
+        /**
+         * Sets ClickHouse session check flag to be sent with each request.
+         */
+        public Builder setSessionCheck(boolean sessionCheck) {
+            return serverSetting(ClickHouseHttpProto.QPARAM_SESSION_CHECK, sessionCheck ? "1" : "0");
+        }
+
+        /**
+         * Sets ClickHouse session timeout in seconds to be sent with each request.
+         */
+        public Builder setSessionTimeout(int timeoutInSeconds) {
+            ValidationUtils.checkPositive(timeoutInSeconds, ClickHouseHttpProto.QPARAM_SESSION_TIMEOUT);
+            return serverSetting(ClickHouseHttpProto.QPARAM_SESSION_TIMEOUT, String.valueOf(timeoutInSeconds));
+        }
+
+        /**
          * Sets column to method matching strategy. It is used while registering POJO serializers and deserializers.
          * Default is {@link DefaultColumnToMethodMatchingStrategy}.
          *
@@ -2136,6 +2159,31 @@ public class Client implements AutoCloseable {
 
     public void updateClientName(String name) {
         this.configuration.put(ClientConfigProperties.CLIENT_NAME.getKey(), name);
+    }
+
+    /**
+     * Updates ClickHouse session id for all subsequent requests created by this client.
+     */
+    public void updateSessionId(String sessionId) {
+        ValidationUtils.checkNonBlank(sessionId, ClickHouseHttpProto.QPARAM_SESSION_ID);
+        this.configuration.put(ClientConfigProperties.serverSetting(ClickHouseHttpProto.QPARAM_SESSION_ID), sessionId);
+    }
+
+    /**
+     * Updates ClickHouse session check flag for all subsequent requests created by this client.
+     */
+    public void updateSessionCheck(boolean sessionCheck) {
+        this.configuration.put(ClientConfigProperties.serverSetting(ClickHouseHttpProto.QPARAM_SESSION_CHECK),
+                sessionCheck ? "1" : "0");
+    }
+
+    /**
+     * Updates ClickHouse session timeout (seconds) for all subsequent requests created by this client.
+     */
+    public void updateSessionTimeout(int timeoutInSeconds) {
+        ValidationUtils.checkPositive(timeoutInSeconds, ClickHouseHttpProto.QPARAM_SESSION_TIMEOUT);
+        this.configuration.put(ClientConfigProperties.serverSetting(ClickHouseHttpProto.QPARAM_SESSION_TIMEOUT),
+                String.valueOf(timeoutInSeconds));
     }
 
     public static final String clientVersion =

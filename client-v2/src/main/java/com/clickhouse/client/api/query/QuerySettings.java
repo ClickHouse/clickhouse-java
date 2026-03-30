@@ -86,6 +86,42 @@ public class QuerySettings {
     }
 
     /**
+     * Sets ClickHouse session id for this operation.
+     */
+    public QuerySettings setSessionId(String sessionId) {
+        settings.setSessionId(sessionId);
+        return this;
+    }
+
+    public String getSessionId() {
+        return settings.getSessionId();
+    }
+
+    /**
+     * Sets ClickHouse session check flag for this operation.
+     */
+    public QuerySettings setSessionCheck(boolean sessionCheck) {
+        settings.setSessionCheck(sessionCheck);
+        return this;
+    }
+
+    public Boolean getSessionCheck() {
+        return settings.getSessionCheck();
+    }
+
+    /**
+     * Sets ClickHouse session timeout (seconds) for this operation.
+     */
+    public QuerySettings setSessionTimeout(int timeoutInSeconds) {
+        settings.setSessionTimeout(timeoutInSeconds);
+        return this;
+    }
+
+    public Integer getSessionTimeout() {
+        return settings.getSessionTimeout();
+    }
+
+    /**
      * Read buffer is used for reading data from a server. Size is in bytes.
      * Minimal value is {@value MINIMAL_READ_BUFFER_SIZE} bytes.
      */

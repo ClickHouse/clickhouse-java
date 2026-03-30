@@ -91,6 +91,42 @@ public class InsertSettings {
         return this;
     }
 
+    /**
+     * Sets ClickHouse session id for this operation.
+     */
+    public InsertSettings setSessionId(String sessionId) {
+        settings.setSessionId(sessionId);
+        return this;
+    }
+
+    public String getSessionId() {
+        return settings.getSessionId();
+    }
+
+    /**
+     * Sets ClickHouse session check flag for this operation.
+     */
+    public InsertSettings setSessionCheck(boolean sessionCheck) {
+        settings.setSessionCheck(sessionCheck);
+        return this;
+    }
+
+    public Boolean getSessionCheck() {
+        return settings.getSessionCheck();
+    }
+
+    /**
+     * Sets ClickHouse session timeout (seconds) for this operation.
+     */
+    public InsertSettings setSessionTimeout(int timeoutInSeconds) {
+        settings.setSessionTimeout(timeoutInSeconds);
+        return this;
+    }
+
+    public Integer getSessionTimeout() {
+        return settings.getSessionTimeout();
+    }
+
     public int getInputStreamCopyBufferSize() {
         return this.inputStreamCopyBufferSize;
     }

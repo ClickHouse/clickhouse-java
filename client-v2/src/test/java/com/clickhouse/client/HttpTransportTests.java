@@ -11,6 +11,7 @@ import com.clickhouse.client.api.command.CommandResponse;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.enums.ProxyType;
+import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.internal.DataTypeConverter;
 import com.clickhouse.client.api.internal.ServerSettings;
@@ -603,6 +604,83 @@ public class HttpTransportTests extends BaseIntegrationTest {
         }
     }
 
+    @Test(groups = { "integration" })
+    public void testSessionSettingsClientAndOperationLevels() {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
+        int serverPort = new Random().nextInt(1000) + 10000;
+        WireMockServer mockServer = new WireMockServer(WireMockConfiguration
+                .options().port(serverPort).notifier(new ConsoleNotifier(false)));
+        mockServer.start();
+
+        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .setSessionId("client-session")
+                .setSessionCheck(false)
+                .setSessionTimeout(60)
+                .compressClientRequest(false)
+                .build()) {
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .withQueryParam("session_id", WireMock.equalTo("query-session"))
+                    .withQueryParam("session_check", WireMock.equalTo("1"))
+                    .withQueryParam("session_timeout", WireMock.equalTo("15"))
+                    .willReturn(WireMock.aResponse()
+                            .withHeader("X-ClickHouse-Summary",
+                                    "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")).build());
+
+            QuerySettings querySettings = new QuerySettings()
+                    .setSessionId("query-session")
+                    .setSessionCheck(true)
+                    .setSessionTimeout(15);
+            try (QueryResponse response = client.query("SELECT 1", querySettings).get(1, TimeUnit.SECONDS)) {
+                Assert.assertEquals(response.getReadBytes(), 10);
+            }
+
+            mockServer.resetRequests();
+            mockServer.resetMappings();
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .withQueryParam("session_id", WireMock.equalTo("client-session"))
+                    .withQueryParam("session_check", WireMock.equalTo("0"))
+                    .withQueryParam("session_timeout", WireMock.equalTo("60"))
+                    .willReturn(WireMock.aResponse()
+                            .withHeader("X-ClickHouse-Summary",
+                                    "{ \"read_bytes\": \"11\", \"read_rows\": \"1\"}")).build());
+
+            try (CommandResponse response = client.execute("SELECT 1").get(1, TimeUnit.SECONDS)) {
+                Assert.assertEquals(response.getReadBytes(), 11);
+            }
+
+            mockServer.resetRequests();
+            mockServer.resetMappings();
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .withQueryParam("session_id", WireMock.equalTo("insert-session"))
+                    .withQueryParam("session_check", WireMock.equalTo("0"))
+                    .withQueryParam("session_timeout", WireMock.equalTo("90"))
+                    .willReturn(WireMock.aResponse()
+                            .withHeader("X-ClickHouse-Summary",
+                                    "{ \"read_bytes\": \"12\", \"read_rows\": \"1\"}")).build());
+
+            InsertSettings insertSettings = new InsertSettings()
+                    .setSessionId("insert-session")
+                    .setSessionCheck(false)
+                    .setSessionTimeout(90);
+            try (InsertResponse response = client.insert(
+                    "test_table",
+                    new ByteArrayInputStream("1\n".getBytes(StandardCharsets.UTF_8)),
+                    ClickHouseFormat.CSV,
+                    insertSettings).get(1, TimeUnit.SECONDS)) {
+                Assert.assertEquals(response.getReadBytes(), 12);
+            }
+        } catch (Exception e) {
+            Assert.fail("Unexpected exception", e);
+        } finally {
+            mockServer.stop();
+        }
+    }
+
     static {
         System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "DEBUG");
     }
@@ -997,6 +1075,59 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 client.updateBearerToken(jwtToken2);
 
                 client.execute("SELECT 1").get();
+            }
+        } finally {
+            mockServer.stop();
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testUpdateSessionSettingsAtRuntime() throws Exception {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
+        int serverPort = new Random().nextInt(1000) + 10000;
+        WireMockServer mockServer = new WireMockServer(WireMockConfiguration
+                .options().port(serverPort).notifier(new ConsoleNotifier(false)));
+        mockServer.start();
+
+        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .setSessionId("session-initial")
+                .setSessionCheck(false)
+                .setSessionTimeout(60)
+                .compressServerResponse(false)
+                .build()) {
+
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .withQueryParam("session_id", WireMock.equalTo("session-initial"))
+                    .withQueryParam("session_check", WireMock.equalTo("0"))
+                    .withQueryParam("session_timeout", WireMock.equalTo("60"))
+                    .willReturn(WireMock.aResponse()
+                            .withHeader("X-ClickHouse-Summary",
+                                    "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")).build());
+
+            try (CommandResponse response = client.execute("SELECT 1").get(1, TimeUnit.SECONDS)) {
+                Assert.assertEquals(response.getReadBytes(), 10);
+            }
+
+            mockServer.resetAll();
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .withQueryParam("session_id", WireMock.equalTo("session-updated"))
+                    .withQueryParam("session_check", WireMock.equalTo("1"))
+                    .withQueryParam("session_timeout", WireMock.equalTo("30"))
+                    .willReturn(WireMock.aResponse()
+                            .withHeader("X-ClickHouse-Summary",
+                                    "{ \"read_bytes\": \"11\", \"read_rows\": \"1\"}")).build());
+
+            client.updateSessionId("session-updated");
+            client.updateSessionCheck(true);
+            client.updateSessionTimeout(30);
+
+            try (CommandResponse response = client.execute("SELECT 1").get(1, TimeUnit.SECONDS)) {
+                Assert.assertEquals(response.getReadBytes(), 11);
             }
         } finally {
             mockServer.stop();
