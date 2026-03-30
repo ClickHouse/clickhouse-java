@@ -125,6 +125,10 @@ public enum ClientConfigProperties {
 
     CLIENT_NETWORK_BUFFER_SIZE("client_network_buffer_size", Integer.class, "300000"),
 
+    /**
+     * Preferred client setting for token-based authentication like JWT and Oauth.
+     * For Http it is translated to Authorization Bearer header.
+     */
     ACCESS_TOKEN("access_token", String.class),
 
     SSL_AUTH("ssl_authentication", Boolean.class, "false"),
@@ -157,6 +161,10 @@ public enum ClientConfigProperties {
     @Deprecated
     PRODUCT_NAME("product_name", String.class),
 
+    /**
+     * HTTP-specific alias for {@link ClientConfigProperties#ACCESS_TOKEN}.
+     * Prefer using {@link ClientConfigProperties#ACCESS_TOKEN}.
+     */
     BEARERTOKEN_AUTH ("bearer_token", String.class),
     /**
      * Indicates that data provided for write operation is compressed by application.

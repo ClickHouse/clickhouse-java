@@ -16,6 +16,7 @@ import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.internal.ClientStatisticsHolder;
+import com.clickhouse.client.api.internal.CredentialsManager;
 import com.clickhouse.client.api.internal.HttpAPIClientHelper;
 import com.clickhouse.client.api.internal.MapUtils;
 import com.clickhouse.client.api.internal.TableSchemaParser;
@@ -141,11 +142,13 @@ public class Client implements AutoCloseable {
     private final int retries;
     private LZ4Factory lz4Factory = null;
     private final Supplier<String> queryIdGenerator;
+    private final CredentialsManager credentialsManager;
 
     private Client(Collection<Endpoint> endpoints, Map<String,String> configuration,
                    ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy,
                    Object metricsRegistry, Supplier<String> queryIdGenerator) {
-        this.configuration = ClientConfigProperties.parseConfigMap(configuration);
+        this.configuration = new ConcurrentHashMap<>(ClientConfigProperties.parseConfigMap(configuration));
+        this.credentialsManager = new CredentialsManager(this.configuration);
         this.readOnlyConfig = Collections.unmodifiableMap(configuration);
         this.metricsRegistry = metricsRegistry;
         this.queryIdGenerator = queryIdGenerator;
@@ -364,8 +367,11 @@ public class Client implements AutoCloseable {
             if (key.equals(ClientConfigProperties.PRODUCT_NAME.getKey())) {
                 setClientName(value);
             }
+            if (key.equals(ClientConfigProperties.ACCESS_TOKEN.getKey())) {
+                setAccessToken(value);
+            }
             if (key.equals(ClientConfigProperties.BEARERTOKEN_AUTH.getKey())) {
-                useBearerTokenAuth(value);
+                setAccessToken(value);
             }
             return this;
         }
@@ -393,13 +399,17 @@ public class Client implements AutoCloseable {
         }
 
         /**
-         * Access token for authentication with server. Required for all operations.
+         * Preferred way to configure token-based authentication.
          * Same access token will be used for all endpoints.
+         * Internally it is sent as an HTTP Bearer token.
          *
          * @param accessToken - plain text access token
          */
+        @SuppressWarnings("deprecation")
         public Builder setAccessToken(String accessToken) {
             this.configuration.put(ClientConfigProperties.ACCESS_TOKEN.getKey(), accessToken);
+            this.configuration.remove(ClientConfigProperties.BEARERTOKEN_AUTH.getKey());
+            this.httpHeader(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken);
             return this;
         }
 
@@ -1007,16 +1017,16 @@ public class Client implements AutoCloseable {
         }
 
         /**
-         * Specifies whether to use Bearer Authentication and what token to use.
-         * The token will be sent as is, so it should be encoded before passing to this method.
+         * Legacy HTTP-specific alias for {@link Builder#setAccessToken(String)}.
+         * Prefer using {@link Builder#setAccessToken(String)}.
          *
          * @param bearerToken - token to use
          * @return same instance of the builder
          */
+        @Deprecated
         public Builder useBearerTokenAuth(String bearerToken) {
             // Most JWT libraries (https://jwt.io/libraries?language=Java) compact tokens in proper way
-            this.httpHeader(HttpHeaders.AUTHORIZATION, "Bearer " + bearerToken);
-            return this;
+            return setAccessToken(bearerToken);
         }
 
         /**
@@ -1099,28 +1109,10 @@ public class Client implements AutoCloseable {
             if (this.endpoints.isEmpty()) {
                 throw new IllegalArgumentException("At least one endpoint is required");
             }
-            // check if username and password are empty. so can not initiate client?
-            boolean useSslAuth = MapUtils.getFlag(this.configuration, ClientConfigProperties.SSL_AUTH.getKey());
-            boolean hasAccessToken = this.configuration.containsKey(ClientConfigProperties.ACCESS_TOKEN.getKey());
-            boolean hasUser = this.configuration.containsKey(ClientConfigProperties.USER.getKey());
-            boolean hasPassword = this.configuration.containsKey(ClientConfigProperties.PASSWORD.getKey());
-            boolean customHttpHeaders = this.configuration.containsKey(ClientConfigProperties.httpHeader(HttpHeaders.AUTHORIZATION));
 
-            if (!(useSslAuth || hasAccessToken || hasUser || hasPassword || customHttpHeaders)) {
-                throw new IllegalArgumentException("Username and password (or access token or SSL authentication or pre-define Authorization header) are required");
-            }
-
-            if (useSslAuth && (hasAccessToken || hasPassword)) {
-                throw new IllegalArgumentException("Only one of password, access token or SSL authentication can be used per client.");
-            }
-
-            if (useSslAuth && !this.configuration.containsKey(ClientConfigProperties.SSL_CERTIFICATE.getKey())) {
-                throw new IllegalArgumentException("SSL authentication requires a client certificate");
-            }
-
-            if (this.configuration.containsKey(ClientConfigProperties.SSL_TRUST_STORE.getKey()) &&
-                this.configuration.containsKey(ClientConfigProperties.SSL_CERTIFICATE.getKey())) {
-                throw new IllegalArgumentException("Trust store and certificates cannot be used together");
+            ClientMisconfigurationException authConfigException = CredentialsManager.validateAuthConfig(configuration);
+            if (authConfigException != null) {
+                throw authConfigException;
             }
 
             // Check timezone settings
@@ -2153,8 +2145,28 @@ public class Client implements AutoCloseable {
         return unmodifiableDbRolesView;
     }
 
+    public void setCredentials(String username, String password) {
+        this.credentialsManager.setCredentials(username, password);
+    }
+
+    /**
+     * Preferred runtime API to update token-based authentication.
+     * Internally it refreshes the HTTP Bearer token used by requests.
+     *
+     * @param accessToken - plain text access token
+     */
+    public void setAccessToken(String accessToken) {
+        this.credentialsManager.setAccessToken(accessToken);
+    }
+
+    /**
+     * Legacy HTTP-specific alias for {@link #setAccessToken(String)}.
+     * Prefer using {@link #setAccessToken(String)}.
+     *
+     * @param bearer - token to use
+     */
     public void updateBearerToken(String bearer) {
-        this.configuration.put(ClientConfigProperties.httpHeader(HttpHeaders.AUTHORIZATION), "Bearer " + bearer);
+        setAccessToken(bearer);
     }
 
     private Endpoint getNextAliveNode() {
@@ -2170,8 +2182,7 @@ public class Client implements AutoCloseable {
      * @return request settings - merged client and operation settings
      */
     private Map<String, Object> buildRequestSettings(Map<String, Object> opSettings) {
-        Map<String, Object> requestSettings = new HashMap<>();
-        requestSettings.putAll(configuration);
+        Map<String, Object> requestSettings = credentialsManager.snapshot();
         requestSettings.putAll(opSettings);
         return requestSettings;
     }
