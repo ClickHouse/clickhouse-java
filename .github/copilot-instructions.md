@@ -2,6 +2,8 @@
 
 This repository contains Java libraries and drivers for ClickHouse, including shared data types, HTTP clients, the v2 client, JDBC drivers, and R2DBC integration.
 
+Shared cross-agent review guidance lives in `docs/ai-review.md`. Use that file for review workflow and response structure, and use this file for repository-specific compatibility details.
+
 ## Role
 
 Act as an experienced maintainer and reviewer of a public Java library.
