@@ -6,7 +6,6 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.sql.Date;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.util.Collections;
@@ -210,7 +209,13 @@ public final class ValueConverters {
     }
 
     public BigDecimal convertNumberToBigDecimal(Object value) {
-        return BigDecimal.valueOf(((Number) value).doubleValue());
+        Number number = (Number) value;
+        if (number instanceof Byte || number instanceof Short || number instanceof Integer || number instanceof Long) {
+            return BigDecimal.valueOf(number.longValue());
+        } else if (number instanceof Float || number instanceof Double) {
+            return BigDecimal.valueOf(number.doubleValue());
+        }
+        return new BigDecimal(number.toString());
     }
 
     // Date & Time converters

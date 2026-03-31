@@ -84,6 +84,66 @@ public class ClickHouseBinaryFormatReaderTest {
     }
 
     @Test
+    public void testGetBigDecimalForIntegerWidths8To256() throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+        String[] names = new String[] {
+                "i8", "u8", "i16", "u16", "i32", "u32", "i64", "u64", "i128", "u128", "i256", "u256"
+        };
+        String[] types = new String[] {
+                "Int8", "UInt8", "Int16", "UInt16", "Int32", "UInt32", "Int64", "UInt64",
+                "Int128", "UInt128", "Int256", "UInt256"
+        };
+
+        BinaryStreamUtils.writeVarInt(out, names.length);
+        for (String name : names) {
+            BinaryStreamUtils.writeString(out, name);
+        }
+        for (String type : types) {
+            BinaryStreamUtils.writeString(out, type);
+        }
+
+        BigInteger u64 = new BigInteger("18446744073709551615");
+        BigInteger i128 = new BigInteger("-170141183460469231731687303715884105728");
+        BigInteger u128 = new BigInteger("340282366920938463463374607431768211455");
+        BigInteger i256 = new BigInteger("-57896044618658097711785492504343953926634992332820282019728792003956564819968");
+        BigInteger u256 = new BigInteger("115792089237316195423570985008687907853269984665640564039457584007913129639935");
+
+        BinaryStreamUtils.writeInt8(out, -128);
+        BinaryStreamUtils.writeUnsignedInt8(out, 255);
+        BinaryStreamUtils.writeInt16(out, -32768);
+        BinaryStreamUtils.writeUnsignedInt16(out, 65535);
+        BinaryStreamUtils.writeInt32(out, Integer.MIN_VALUE);
+        BinaryStreamUtils.writeUnsignedInt32(out, 4294967295L);
+        BinaryStreamUtils.writeInt64(out, Long.MAX_VALUE);
+        BinaryStreamUtils.writeUnsignedInt64(out, u64);
+        BinaryStreamUtils.writeInt128(out, i128);
+        BinaryStreamUtils.writeUnsignedInt128(out, u128);
+        BinaryStreamUtils.writeInt256(out, i256);
+        BinaryStreamUtils.writeUnsignedInt256(out, u256);
+
+        InputStream in = new ByteArrayInputStream(out.toByteArray());
+        QuerySettings querySettings = new QuerySettings().setUseTimeZone(TimeZone.getTimeZone("UTC").toZoneId().getId());
+        RowBinaryWithNamesAndTypesFormatReader reader =
+                new RowBinaryWithNamesAndTypesFormatReader(in, querySettings, new BinaryStreamReader.CachingByteBufferAllocator());
+
+        reader.next();
+
+        Assert.assertEquals(reader.getBigDecimal("i8"), BigDecimal.valueOf(-128));
+        Assert.assertEquals(reader.getBigDecimal("u8"), BigDecimal.valueOf(255));
+        Assert.assertEquals(reader.getBigDecimal("i16"), BigDecimal.valueOf(-32768));
+        Assert.assertEquals(reader.getBigDecimal("u16"), BigDecimal.valueOf(65535));
+        Assert.assertEquals(reader.getBigDecimal("i32"), BigDecimal.valueOf(Integer.MIN_VALUE));
+        Assert.assertEquals(reader.getBigDecimal("u32"), BigDecimal.valueOf(4294967295L));
+        Assert.assertEquals(reader.getBigDecimal("i64"), BigDecimal.valueOf(Long.MAX_VALUE));
+        Assert.assertEquals(reader.getBigDecimal("u64"), new BigDecimal(u64));
+        Assert.assertEquals(reader.getBigDecimal("i128"), new BigDecimal(i128));
+        Assert.assertEquals(reader.getBigDecimal("u128"), new BigDecimal(u128));
+        Assert.assertEquals(reader.getBigDecimal("i256"), new BigDecimal(i256));
+        Assert.assertEquals(reader.getBigDecimal("u256"), new BigDecimal(u256));
+    }
+
+    @Test
     public void testReadingNumbersWithOverflow() throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
 
