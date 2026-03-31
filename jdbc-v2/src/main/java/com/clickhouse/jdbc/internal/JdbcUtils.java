@@ -186,6 +186,9 @@ public class JdbcUtils {
                     case MultiPolygon:
                         map.put(e.getKey(), double[][][][].class);
                         break;
+                    case Geometry:
+                        map.put(e.getKey(), Object.class);
+                        break;
                     case UUID:
                         map.put(e.getKey(), UUID.class);
                         break;

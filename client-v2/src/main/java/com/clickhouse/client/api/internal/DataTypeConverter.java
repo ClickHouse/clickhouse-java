@@ -5,6 +5,10 @@ import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
+import com.clickhouse.data.value.ClickHouseGeoMultiPolygonValue;
+import com.clickhouse.data.value.ClickHouseGeoPointValue;
+import com.clickhouse.data.value.ClickHouseGeoPolygonValue;
+import com.clickhouse.data.value.ClickHouseGeoRingValue;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -58,6 +62,14 @@ public class DataTypeConverter {
             case Enum16:
             case Enum:
                 return enumToString(value, column);
+            case Point:
+            case Ring:
+            case LineString:
+            case Polygon:
+            case MultiLineString:
+            case MultiPolygon:
+            case Geometry:
+                return geoToString(value);
             case IPv4:
             case IPv6:
                 return ipvToString(value, column);
@@ -221,8 +233,81 @@ public class DataTypeConverter {
     public String variantOrDynamicToString(Object value, ClickHouseColumn column) {
         if (value instanceof BinaryStreamReader.ArrayValue) {
             return arrayToString(value, column);
+        } else if (isGeoValue(value)) {
+            return geoToString(value);
+        } else if (value.getClass().isArray() || value instanceof List<?>) {
+            return rawArrayLikeToString(value);
         }
         return value.toString();
+    }
+
+    private String geoToString(Object value) {
+        if (value instanceof ClickHouseGeoPointValue
+                || value instanceof ClickHouseGeoRingValue
+                || value instanceof ClickHouseGeoPolygonValue
+                || value instanceof ClickHouseGeoMultiPolygonValue) {
+            return ((com.clickhouse.data.ClickHouseValue) value).asString();
+        } else if (value instanceof double[]) {
+            return ClickHouseGeoPointValue.of((double[]) value).asString();
+        } else if (value instanceof double[][]) {
+            return ClickHouseGeoRingValue.of((double[][]) value).asString();
+        } else if (value instanceof double[][][]) {
+            return ClickHouseGeoPolygonValue.of((double[][][]) value).asString();
+        } else if (value instanceof double[][][][]) {
+            return ClickHouseGeoMultiPolygonValue.of((double[][][][]) value).asString();
+        }
+        return rawArrayLikeToString(value);
+    }
+
+    private boolean isGeoValue(Object value) {
+        return value instanceof ClickHouseGeoPointValue
+                || value instanceof ClickHouseGeoRingValue
+                || value instanceof ClickHouseGeoPolygonValue
+                || value instanceof ClickHouseGeoMultiPolygonValue
+                || value instanceof double[]
+                || value instanceof double[][]
+                || value instanceof double[][][]
+                || value instanceof double[][][][];
+    }
+
+    private String rawArrayLikeToString(Object value) {
+        if (value instanceof List<?>) {
+            List<?> list = (List<?>) value;
+            StringBuilder builder = new StringBuilder("[");
+            for (Object item : list) {
+                builder.append(rawArrayLikeItemToString(item)).append(", ");
+            }
+            if (!list.isEmpty()) {
+                builder.setLength(builder.length() - 2);
+            }
+            return builder.append(']').toString();
+        } else if (value != null && value.getClass().isArray()) {
+            int len = java.lang.reflect.Array.getLength(value);
+            StringBuilder builder = new StringBuilder("[");
+            for (int i = 0; i < len; i++) {
+                builder.append(rawArrayLikeItemToString(java.lang.reflect.Array.get(value, i))).append(", ");
+            }
+            if (len > 0) {
+                builder.setLength(builder.length() - 2);
+            }
+            return builder.append(']').toString();
+        }
+        return String.valueOf(value);
+    }
+
+    private String rawArrayLikeItemToString(Object item) {
+        if (item == null) {
+            return NULL;
+        } else if (item instanceof String || item instanceof Character) {
+            return new StringBuilder().append(QUOTE).append(item).append(QUOTE).toString();
+        } else if (item instanceof BinaryStreamReader.EnumValue) {
+            return ((BinaryStreamReader.EnumValue) item).name;
+        } else if (isGeoValue(item)) {
+            return geoToString(item);
+        } else if (item instanceof List<?> || item.getClass().isArray()) {
+            return rawArrayLikeToString(item);
+        }
+        return String.valueOf(item);
     }
 
     private static void appendEnquotedArrayElement(String value, ClickHouseColumn elementColumn, Appendable appendable) {

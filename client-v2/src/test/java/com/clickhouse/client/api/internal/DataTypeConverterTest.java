@@ -126,4 +126,27 @@ public class DataTypeConverterTest {
         assertEquals(converter.convertToString("1234567", column), "1234567");
         assertEquals(converter.convertToString(2, column), "2");
     }
+
+    @Test
+    public void testGeoToString() {
+        DataTypeConverter converter = new DataTypeConverter();
+
+        assertEquals(converter.convertToString(new double[] {1D, 2D}, ClickHouseColumn.of("field", "Point")), "(1.0,2.0)");
+        assertEquals(converter.convertToString(new double[][] {{1D, 2D}, {3D, 4D}}, ClickHouseColumn.of("field", "Ring")),
+                "[(1.0,2.0),(3.0,4.0)]");
+        assertEquals(converter.convertToString(new double[][][] {{{1D, 2D}, {3D, 4D}}}, ClickHouseColumn.of("field", "Polygon")),
+                "[[(1.0,2.0),(3.0,4.0)]]");
+        assertEquals(converter.convertToString(new double[] {1D, 2D}, ClickHouseColumn.of("field", "Geometry")), "(1.0,2.0)");
+    }
+
+    @Test
+    public void testVariantOrDynamicGeoToString() {
+        DataTypeConverter converter = new DataTypeConverter();
+
+        assertEquals(converter.convertToString(new double[] {1D, 2D}, ClickHouseColumn.of("field", "Variant(String, Point)")),
+                "(1.0,2.0)");
+        assertEquals(
+                converter.convertToString(new double[][] {{1D, 2D}, {3D, 4D}}, ClickHouseColumn.of("field", "Dynamic")),
+                "[(1.0,2.0),(3.0,4.0)]");
+    }
 }

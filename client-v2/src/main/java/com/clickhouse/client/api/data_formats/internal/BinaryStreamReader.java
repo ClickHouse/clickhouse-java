@@ -247,6 +247,8 @@ public class BinaryStreamReader {
                     return (T) readBitmap( actualColumn);
                 case Variant:
                     return (T) readVariant(actualColumn);
+                case Geometry:
+                    return (T) readVariant(actualColumn);
                 case Dynamic:
                     return (T) readValue(actualColumn, typeHint);
                 case Nested:
@@ -624,7 +626,10 @@ public class BinaryStreamReader {
 
     public ArrayValue readArrayItem(ClickHouseColumn itemTypeColumn, int len) throws IOException {
         ArrayValue array;
-        if (itemTypeColumn.isNullable() || itemTypeColumn.getDataType() == ClickHouseDataType.Variant) {
+        if (itemTypeColumn.isNullable()
+                || itemTypeColumn.getDataType() == ClickHouseDataType.Variant
+                || itemTypeColumn.getDataType() == ClickHouseDataType.Dynamic
+                || itemTypeColumn.getDataType() == ClickHouseDataType.Geometry) {
             array = new ArrayValue(Object.class, len);
             for (int i = 0; i < len; i++) {
                 array.set(i, readValue(itemTypeColumn));

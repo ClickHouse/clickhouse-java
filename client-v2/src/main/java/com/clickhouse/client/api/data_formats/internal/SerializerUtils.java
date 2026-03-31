@@ -77,6 +77,9 @@ public class SerializerUtils {
             case Variant:
                 serializerVariant(stream, column, value);
                 break;
+            case Geometry:
+                serializerVariant(stream, column, value);
+                break;
             case Point:
                 value = value instanceof ClickHouseGeoPointValue ? ((ClickHouseGeoPointValue)value).getValue() : value;
                 serializeTupleData(stream, value, GEO_POINT_TUPLE);
@@ -305,9 +308,12 @@ public class SerializerUtils {
         if (binTag == -1) {
             switch (dt) {
                 case Point:
+                case LineString:
+                case MultiLineString:
                 case Polygon:
                 case Ring:
                 case MultiPolygon:
+                case Geometry:
                     stream.write(ClickHouseDataType.CUSTOM_TYPE_BIN_TAG);
                     BinaryStreamUtils.writeString(stream, dt.name());
                     return;

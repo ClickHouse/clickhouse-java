@@ -45,4 +45,19 @@ public class ClickHouseDataTypeTest {
         Assert.assertEquals(matched.size(), 1);
         Assert.assertEquals(matched.get(0), "UInt32");
     }
+
+    @Test(groups = { "unit" })
+    public void testGeometryVariantMapping() {
+        ClickHouseColumn geometry = ClickHouseColumn.of("v", "Geometry");
+
+        Assert.assertNotEquals(geometry.getVariantOrdNum(new double[] { 1D, 2D }), -1);
+        Assert.assertNotEquals(geometry.getVariantOrdNum(new double[][] { new double[] { 1D, 2D } }), -1);
+        Assert.assertNotEquals(
+                geometry.getVariantOrdNum(new double[][][] { new double[][] { new double[] { 1D, 2D } } }),
+                -1);
+        Assert.assertNotEquals(
+                geometry.getVariantOrdNum(
+                        new double[][][][] { new double[][][] { new double[][] { new double[] { 1D, 2D } } } }),
+                -1);
+    }
 }

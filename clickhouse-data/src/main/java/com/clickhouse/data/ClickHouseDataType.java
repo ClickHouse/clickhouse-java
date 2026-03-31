@@ -214,8 +214,19 @@ public enum ClickHouseDataType implements SQLType {
 
         map.put(Point, setOf(double[].class, ClickHouseGeoPointValue.class));
         map.put(Ring, setOf(double[][].class, ClickHouseGeoRingValue.class));
+        map.put(LineString, setOf(double[][].class, ClickHouseGeoRingValue.class));
         map.put(Polygon, setOf(double[][][].class, ClickHouseGeoPolygonValue.class));
+        map.put(MultiLineString, setOf(double[][][].class, ClickHouseGeoPolygonValue.class));
         map.put(MultiPolygon, setOf(double[][][][].class, ClickHouseGeoMultiPolygonValue.class));
+        map.put(Geometry, setOf(
+                double[].class,
+                double[][].class,
+                double[][][].class,
+                double[][][][].class,
+                ClickHouseGeoPointValue.class,
+                ClickHouseGeoRingValue.class,
+                ClickHouseGeoPolygonValue.class,
+                ClickHouseGeoMultiPolygonValue.class));
 
         map.put(Date, setOf(LocalDateTime.class, LocalDate.class, ZonedDateTime.class));
         map.put(Date32, setOf(LocalDateTime.class, LocalDate.class, ZonedDateTime.class));

@@ -293,11 +293,26 @@ public final class ClickHouseColumn implements Serializable {
             case Ring:
                 column.template = ClickHouseGeoRingValue.ofEmpty();
                 break;
+            case LineString:
+                column.template = ClickHouseGeoRingValue.ofEmpty();
+                break;
             case Polygon:
+                column.template = ClickHouseGeoPolygonValue.ofEmpty();
+                break;
+            case MultiLineString:
                 column.template = ClickHouseGeoPolygonValue.ofEmpty();
                 break;
             case MultiPolygon:
                 column.template = ClickHouseGeoMultiPolygonValue.ofEmpty();
+                break;
+            case Geometry:
+                ClickHouseColumn geometryVariantHelper = getGeometryVariantHelper();
+                column.template = ClickHouseTupleValue.of();
+                column.nested = geometryVariantHelper.nested;
+                column.classToVariantOrdNumMap = geometryVariantHelper.classToVariantOrdNumMap;
+                column.arrayToVariantOrdNumMap = geometryVariantHelper.arrayToVariantOrdNumMap;
+                column.mapKeyToVariantOrdNumMap = geometryVariantHelper.mapKeyToVariantOrdNumMap;
+                column.mapValueToVariantOrdNumMap = geometryVariantHelper.mapValueToVariantOrdNumMap;
                 break;
             case Nested:
                 column.template = ClickHouseNestedValue.ofEmpty(column.nested);
@@ -826,16 +841,35 @@ public final class ClickHouseColumn implements Serializable {
             while (c.isArray()) {
                 c = c.getComponentType();
             }
-            return arrayToVariantOrdNumMap.getOrDefault(c, -1);
+            int ordNum = arrayToVariantOrdNumMap == null ? -1 : arrayToVariantOrdNumMap.getOrDefault(c, -1);
+            if (ordNum != -1) {
+                return ordNum;
+            }
+            return classToVariantOrdNumMap == null ? -1 : classToVariantOrdNumMap.getOrDefault(value.getClass(), -1);
         } else if (value != null && value instanceof List<?>) {
             // TODO: add cache by instance of the list
-            Object tmpV = ((List) value).get(0);
+            List<?> list = (List<?>) value;
+            if (list.isEmpty()) {
+                return -1;
+            }
+            Object tmpV = list.get(0);
+            if (tmpV == null) {
+                return -1;
+            }
             Class<?> valueClass = tmpV.getClass();
             while (tmpV instanceof List<?>) {
-                tmpV = ((List) tmpV).get(0);
+                List<?> nestedList = (List<?>) tmpV;
+                if (nestedList.isEmpty() || nestedList.get(0) == null) {
+                    return findGeoVariantOrdNum(value);
+                }
+                tmpV = nestedList.get(0);
                 valueClass = tmpV.getClass();
             }
-            return arrayToVariantOrdNumMap.getOrDefault(valueClass, -1);
+            int ordNum = arrayToVariantOrdNumMap == null ? -1 : arrayToVariantOrdNumMap.getOrDefault(valueClass, -1);
+            if (ordNum != -1) {
+                return ordNum;
+            }
+            return findGeoVariantOrdNum(value);
         } else if (value != null && value instanceof Map<?,?>) {
             // TODO: add cache by instance of map
             Map<?, ?> map = (Map<?, ?>) value;
@@ -862,6 +896,75 @@ public final class ClickHouseColumn implements Serializable {
             return -1;
         } else {
             return classToVariantOrdNumMap.getOrDefault(value.getClass(), -1);
+        }
+    }
+
+    private int findGeoVariantOrdNum(Object value) {
+        int depth = 0;
+        Object current = value;
+        while (current instanceof List<?>) {
+            List<?> list = (List<?>) current;
+            if (list.isEmpty()) {
+                return -1;
+            }
+            current = list.get(0);
+            depth++;
+        }
+
+        if (!(current instanceof Number)) {
+            return -1;
+        }
+
+        ClickHouseDataType preferredType;
+        switch (depth) {
+            case 1:
+                preferredType = ClickHouseDataType.Point;
+                break;
+            case 2:
+                preferredType = ClickHouseDataType.Ring;
+                break;
+            case 3:
+                preferredType = ClickHouseDataType.Polygon;
+                break;
+            case 4:
+                preferredType = ClickHouseDataType.MultiPolygon;
+                break;
+            default:
+                return -1;
+        }
+
+        return findGeoVariantOrdNum(preferredType);
+    }
+
+    private int findGeoVariantOrdNum(ClickHouseDataType preferredType) {
+        int fallback = -1;
+        int geometryOrdNum = -1;
+        for (int i = 0; i < nested.size(); i++) {
+            ClickHouseDataType nestedType = nested.get(i).getDataType();
+            if (nestedType == preferredType) {
+                return i;
+            }
+            if (preferredType == ClickHouseDataType.Ring && nestedType == ClickHouseDataType.LineString) {
+                fallback = i;
+            } else if (preferredType == ClickHouseDataType.Polygon && nestedType == ClickHouseDataType.MultiLineString) {
+                fallback = i;
+            } else if (nestedType == ClickHouseDataType.Geometry) {
+                geometryOrdNum = i;
+            }
+        }
+
+        return fallback != -1 ? fallback : geometryOrdNum;
+    }
+
+    private static ClickHouseColumn getGeometryVariantHelper() {
+        return GeometryVariantHolder.COLUMN;
+    }
+
+    private static final class GeometryVariantHolder {
+        private static final ClickHouseColumn COLUMN = ClickHouseColumn.of("v",
+                "Variant(Point, Ring, LineString, MultiLineString, Polygon, MultiPolygon)");
+
+        private GeometryVariantHolder() {
         }
     }
 
