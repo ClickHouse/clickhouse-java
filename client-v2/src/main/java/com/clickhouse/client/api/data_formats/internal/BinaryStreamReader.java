@@ -17,6 +17,8 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
@@ -33,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TimeZone;
 import java.util.UUID;
+import java.util.function.Function;
 
 /**
  * This class is not thread safe and should not be shared between multiple threads.
@@ -50,6 +53,8 @@ public class BinaryStreamReader {
     private final TimeZone timeZone;
 
     private final ByteBufferAllocator bufferAllocator;
+
+    private final StringBufferAllocator stringBufferAllocator;
 
     private final boolean jsonAsString;
 
@@ -69,11 +74,17 @@ public class BinaryStreamReader {
      * @param jsonAsString - use string to serialize/deserialize JSON columns
      * @param typeHintMapping - what type use as hint if hint is not set or may not be known.
      */
-    BinaryStreamReader(InputStream input, TimeZone timeZone, Logger log, ByteBufferAllocator bufferAllocator, boolean jsonAsString, Map<ClickHouseDataType, Class<?>> typeHintMapping) {
+    BinaryStreamReader(InputStream input, TimeZone timeZone, Logger log,
+                       ByteBufferAllocator bufferAllocator,
+                       boolean jsonAsString,
+                       Map<ClickHouseDataType,
+                       Class<?>> typeHintMapping,
+                       StringBufferAllocator stringBufferAllocator) {
         this.log = log == null ? NOPLogger.NOP_LOGGER : log;
         this.timeZone = timeZone;
         this.input = input;
         this.bufferAllocator = bufferAllocator;
+        this.stringBufferAllocator = stringBufferAllocator;
         this.jsonAsString = jsonAsString;
 
         this.arrayDefaultTypeHint = typeHintMapping == null ||
@@ -121,13 +132,11 @@ public class BinaryStreamReader {
             switch (dataType) {
                 // Primitives
                 case FixedString: {
-                    byte[] bytes = precision > STRING_BUFF.length ?
-                            new byte[precision] : STRING_BUFF;
-                    readNBytes(input, bytes, 0, precision);
-                    return (T) new String(bytes, 0, precision, StandardCharsets.UTF_8);
+                    return (T) readBytesToBuffer(precision, stringBufferAllocator::allocate);
                 }
                 case String: {
-                    return (T) readString();
+                    int len = readVarInt(input);
+                    return (T) readBytesToBuffer(len, stringBufferAllocator::allocate);
                 }
                 case Int8:
                     return (T) Byte.valueOf(readByte());
@@ -1111,6 +1120,28 @@ public class BinaryStreamReader {
         return new String(dest, 0, len, StandardCharsets.UTF_8);
     }
 
+    public BinaryString readBytesToBuffer(int len, Function<Integer, ByteBuffer> bufferAllocator) throws IOException {
+        ByteBuffer buffer = null;
+        if (len > 0) {
+            buffer = bufferAllocator.apply(len);
+            if (buffer == null) {
+                throw new IOException("bufferAllocator returned `null`");
+            }
+            if (buffer.hasArray()) {
+                readNBytes(input, buffer.array(), 0, len);
+            } else {
+                int left = len;
+                while (left > 0) {
+                    int chunkSize = Math.min(STRING_BUFF.length, left);
+                    readNBytes(input, STRING_BUFF, 0, chunkSize);
+                    buffer.put(STRING_BUFF, 0, chunkSize);
+                    left -= chunkSize;
+                }
+            }
+        }
+        return buffer == null ? null : new BinaryStringImpl(buffer);
+    }
+
     /**
      * Reads a decimal value from input stream.
      * @param input - source of bytes
@@ -1135,6 +1166,10 @@ public class BinaryStreamReader {
 
     public interface ByteBufferAllocator {
         byte[] allocate(int size);
+    }
+
+    public interface StringBufferAllocator {
+        ByteBuffer allocate(int size);
     }
 
     /**
@@ -1390,5 +1425,64 @@ public class BinaryStreamReader {
             obj.put(path, value);
         }
         return obj;
+    }
+
+    static final class BinaryStringImpl implements BinaryString {
+
+        private final ByteBuffer buffer;
+        private final int len;
+        private CharBuffer charBuffer = null;
+        private String strValue = null;
+
+        BinaryStringImpl(ByteBuffer buffer) {
+            this.buffer = buffer;
+            this.len = buffer.position();
+        }
+
+        @Override
+        public ByteBuffer rawBuffer() {
+            return buffer;
+        }
+
+        @Override
+        public String asString() {
+            if (strValue == null) {
+                if (buffer.hasArray()) {
+                    strValue = new String(buffer.array(), StandardCharsets.UTF_8);
+                } else {
+                    ensureCharBuffer();
+                    strValue = charBuffer.toString();
+                }
+            }
+            return strValue;
+        }
+
+        @Override
+        public int length() {
+            return len;
+        }
+
+        @Override
+        public char charAt(int index) {
+            ensureCharBuffer();
+            return charBuffer.charAt(index);
+        }
+
+        @Override
+        public CharSequence subSequence(int start, int end) {
+            ensureCharBuffer();
+            return charBuffer.subSequence(start, end);
+        }
+
+        private void ensureCharBuffer() {
+            if (charBuffer == null) {
+                charBuffer = buffer.asCharBuffer();
+            }
+        }
+
+        @Override
+        public int compareTo(String o) {
+            return asString().compareTo(o);
+        }
     }
 }

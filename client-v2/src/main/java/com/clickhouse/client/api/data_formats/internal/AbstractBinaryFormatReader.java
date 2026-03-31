@@ -32,6 +32,7 @@ import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
@@ -87,7 +88,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         boolean jsonAsString = MapUtils.getFlag(settings,
                 ClientConfigProperties.serverSetting(ServerSettings.OUTPUT_FORMAT_BINARY_WRITE_JSON_AS_STRING), false);
         this.binaryStreamReader = new BinaryStreamReader(inputStream, timeZone, LOG, byteBufferAllocator, jsonAsString,
-                defaultTypeHintMap);
+                defaultTypeHintMap, ByteBuffer::allocate);
         if (schema != null) {
             setSchema(schema);
         }
@@ -208,13 +209,18 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         if (colIndex < 1 || colIndex > getSchema().getColumns().size()) {
             throw new ClientException("Column index out of bounds: " + colIndex);
         }
-        return (T) currentRecord[colIndex - 1];
+
+        T value = (T) currentRecord[colIndex - 1];
+        if (value instanceof BinaryString) {
+            return (T) ((BinaryString) value).asString();
+        }
+        return value;
     }
 
     @SuppressWarnings("unchecked")
     @Override
     public <T> T readValue(String colName) {
-        return (T) currentRecord[getSchema().nameToIndex(colName)];
+        return readValue(getSchema().nameToColumnIndex(colName));
     }
 
     @Override
