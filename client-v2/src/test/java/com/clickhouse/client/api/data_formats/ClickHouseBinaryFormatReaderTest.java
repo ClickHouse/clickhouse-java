@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.TimeZone;
 import java.util.function.Consumer;
 
+@SuppressWarnings("deprecation")
 public class ClickHouseBinaryFormatReaderTest {
 
     @Test
