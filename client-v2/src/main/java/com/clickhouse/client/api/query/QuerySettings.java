@@ -122,6 +122,18 @@ public class QuerySettings {
     }
 
     /**
+     * Sets ClickHouse session timezone for this operation.
+     */
+    public QuerySettings setSessionTimezone(String timezone) {
+        settings.setSessionTimezone(timezone);
+        return this;
+    }
+
+    public String getSessionTimezone() {
+        return settings.getSessionTimezone();
+    }
+
+    /**
      * Read buffer is used for reading data from a server. Size is in bytes.
      * Minimal value is {@value MINIMAL_READ_BUFFER_SIZE} bytes.
      */

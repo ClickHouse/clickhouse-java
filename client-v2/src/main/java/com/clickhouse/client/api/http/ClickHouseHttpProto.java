@@ -72,6 +72,11 @@ public class ClickHouseHttpProto {
      */
     public static final String QPARAM_SESSION_TIMEOUT = "session_timeout";
 
+    /**
+     * Query parameter to specify session timezone.
+     */
+    public static final String QPARAM_SESSION_TIMEZONE = "session_timezone";
+
     public static final String QPARAM_ROLE = "role";
 
     /**

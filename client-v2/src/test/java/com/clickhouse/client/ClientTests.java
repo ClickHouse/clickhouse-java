@@ -7,6 +7,7 @@ import com.clickhouse.client.api.ClientFaultCause;
 import com.clickhouse.client.api.ClientMisconfigurationException;
 import com.clickhouse.client.api.ConnectionReuseStrategy;
 import com.clickhouse.client.api.ServerException;
+import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.internal.ClickHouseLZ4OutputStream;
@@ -141,6 +142,46 @@ public class ClientTests extends BaseIntegrationTest {
             } catch (Exception e) {
                 Assert.fail(e.getMessage());
             }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testTemporaryTablesAreBoundToSession() throws Exception {
+        if (isCloud()) {
+            return; // HTTP sessions require server affinity
+        }
+
+        String session1 = "session_1_" + UUID.randomUUID().toString().replace("-", "");
+        String session2 = "session_2_" + UUID.randomUUID().toString().replace("-", "");
+        String table1 = "tmp_session_1_" + UUID.randomUUID().toString().replace("-", "");
+        String table2 = "tmp_session_2_" + UUID.randomUUID().toString().replace("-", "");
+
+        CommandSettings session1CommandSettings = new CommandSettings()
+                .setSessionId(session1)
+                .setSessionTimeout(60);
+        CommandSettings session2CommandSettings = new CommandSettings()
+                .setSessionId(session2)
+                .setSessionTimeout(60);
+        QuerySettings session1QuerySettings = new QuerySettings()
+                .setSessionId(session1)
+                .setSessionTimeout(60);
+        QuerySettings session2QuerySettings = new QuerySettings()
+                .setSessionId(session2)
+                .setSessionTimeout(60);
+
+        try (Client client = newClient().build()) {
+            client.execute("CREATE TEMPORARY TABLE " + table1 + " (value UInt8)", session1CommandSettings).get().close();
+            client.execute("INSERT INTO " + table1 + " VALUES (1)", session1CommandSettings).get().close();
+            client.execute("CREATE TEMPORARY TABLE " + table2 + " (value UInt8)", session2CommandSettings).get().close();
+            client.execute("INSERT INTO " + table2 + " VALUES (2)", session2CommandSettings).get().close();
+
+            Assert.assertEquals(client.queryAll("SELECT value FROM " + table1, session1QuerySettings).get(0).getInteger(1),
+                    Integer.valueOf(1));
+            Assert.assertEquals(client.queryAll("SELECT value FROM " + table2, session2QuerySettings).get(0).getInteger(1),
+                    Integer.valueOf(2));
+
+            assertTableNotFoundInSession(client, table2, session1QuerySettings);
+            assertTableNotFoundInSession(client, table1, session2QuerySettings);
         }
     }
 
@@ -572,6 +613,16 @@ public class ClientTests extends BaseIntegrationTest {
     public boolean isVersionMatch(String versionExpression, Client client) {
         List<GenericRecord> serverVersion = client.queryAll("SELECT version()");
         return ClickHouseVersion.of(serverVersion.get(0).getString(1)).check(versionExpression);
+    }
+
+    private void assertTableNotFoundInSession(Client client, String tableName, QuerySettings settings) {
+        try {
+            client.queryAll("SELECT * FROM " + tableName, settings);
+            Assert.fail("Expected table to be unavailable in session: " + tableName);
+        } catch (ClientException e) {
+            Assert.assertTrue(e.getCause() instanceof ServerException, "Expected ServerException but got " + e.getCause());
+            Assert.assertEquals(((ServerException) e.getCause()).getCode(), ServerException.TABLE_NOT_FOUND);
+        }
     }
 
     protected Client.Builder newClient() {

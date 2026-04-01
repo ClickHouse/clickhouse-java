@@ -127,6 +127,18 @@ public class InsertSettings {
         return settings.getSessionTimeout();
     }
 
+    /**
+     * Sets ClickHouse session timezone for this operation.
+     */
+    public InsertSettings setSessionTimezone(String timezone) {
+        settings.setSessionTimezone(timezone);
+        return this;
+    }
+
+    public String getSessionTimezone() {
+        return settings.getSessionTimezone();
+    }
+
     public int getInputStreamCopyBufferSize() {
         return this.inputStreamCopyBufferSize;
     }

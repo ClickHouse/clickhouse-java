@@ -122,6 +122,16 @@ public class CommonSettings {
         return value == null ? null : Integer.valueOf(value);
     }
 
+    public CommonSettings setSessionTimezone(String timezone) {
+        ValidationUtils.checkNonBlank(timezone, ClickHouseHttpProto.QPARAM_SESSION_TIMEZONE);
+        serverSetting(ClickHouseHttpProto.QPARAM_SESSION_TIMEZONE, timezone);
+        return this;
+    }
+
+    public String getSessionTimezone() {
+        return (String) settings.get(ClientConfigProperties.serverSetting(ClickHouseHttpProto.QPARAM_SESSION_TIMEZONE));
+    }
+
     /**
      * Operation id. Used internally to register new operation.
      * Should not be called directly.

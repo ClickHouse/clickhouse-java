@@ -20,4 +20,10 @@ public class CommandSettings extends QuerySettings {
         super.setSessionTimeout(timeoutInSeconds);
         return this;
     }
+
+    @Override
+    public CommandSettings setSessionTimezone(String timezone) {
+        super.setSessionTimezone(timezone);
+        return this;
+    }
 }

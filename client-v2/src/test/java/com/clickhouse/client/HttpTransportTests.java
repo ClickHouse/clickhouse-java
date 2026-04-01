@@ -610,9 +610,8 @@ public class HttpTransportTests extends BaseIntegrationTest {
             return; // mocked server
         }
 
-        int serverPort = new Random().nextInt(1000) + 10000;
         WireMockServer mockServer = new WireMockServer(WireMockConfiguration
-                .options().port(serverPort).notifier(new ConsoleNotifier(false)));
+                .options().dynamicPort().notifier(new ConsoleNotifier(false)));
         mockServer.start();
 
         try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
@@ -621,12 +620,14 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 .setSessionId("client-session")
                 .setSessionCheck(false)
                 .setSessionTimeout(60)
+                .setSessionTimezone("Europe/London")
                 .compressClientRequest(false)
                 .build()) {
             mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
                     .withQueryParam("session_id", WireMock.equalTo("query-session"))
                     .withQueryParam("session_check", WireMock.equalTo("1"))
                     .withQueryParam("session_timeout", WireMock.equalTo("15"))
+                    .withQueryParam("session_timezone", WireMock.equalTo("Asia/Tokyo"))
                     .willReturn(WireMock.aResponse()
                             .withHeader("X-ClickHouse-Summary",
                                     "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")).build());
@@ -634,7 +635,8 @@ public class HttpTransportTests extends BaseIntegrationTest {
             QuerySettings querySettings = new QuerySettings()
                     .setSessionId("query-session")
                     .setSessionCheck(true)
-                    .setSessionTimeout(15);
+                    .setSessionTimeout(15)
+                    .setSessionTimezone("Asia/Tokyo");
             try (QueryResponse response = client.query("SELECT 1", querySettings).get(1, TimeUnit.SECONDS)) {
                 Assert.assertEquals(response.getReadBytes(), 10);
             }
@@ -645,6 +647,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
                     .withQueryParam("session_id", WireMock.equalTo("client-session"))
                     .withQueryParam("session_check", WireMock.equalTo("0"))
                     .withQueryParam("session_timeout", WireMock.equalTo("60"))
+                    .withQueryParam("session_timezone", WireMock.equalTo("Europe/London"))
                     .willReturn(WireMock.aResponse()
                             .withHeader("X-ClickHouse-Summary",
                                     "{ \"read_bytes\": \"11\", \"read_rows\": \"1\"}")).build());
@@ -659,6 +662,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
                     .withQueryParam("session_id", WireMock.equalTo("insert-session"))
                     .withQueryParam("session_check", WireMock.equalTo("0"))
                     .withQueryParam("session_timeout", WireMock.equalTo("90"))
+                    .withQueryParam("session_timezone", WireMock.equalTo("America/Denver"))
                     .willReturn(WireMock.aResponse()
                             .withHeader("X-ClickHouse-Summary",
                                     "{ \"read_bytes\": \"12\", \"read_rows\": \"1\"}")).build());
@@ -666,7 +670,8 @@ public class HttpTransportTests extends BaseIntegrationTest {
             InsertSettings insertSettings = new InsertSettings()
                     .setSessionId("insert-session")
                     .setSessionCheck(false)
-                    .setSessionTimeout(90);
+                    .setSessionTimeout(90)
+                    .setSessionTimezone("America/Denver");
             try (InsertResponse response = client.insert(
                     "test_table",
                     new ByteArrayInputStream("1\n".getBytes(StandardCharsets.UTF_8)),
@@ -1087,9 +1092,8 @@ public class HttpTransportTests extends BaseIntegrationTest {
             return; // mocked server
         }
 
-        int serverPort = new Random().nextInt(1000) + 10000;
         WireMockServer mockServer = new WireMockServer(WireMockConfiguration
-                .options().port(serverPort).notifier(new ConsoleNotifier(false)));
+                .options().dynamicPort().notifier(new ConsoleNotifier(false)));
         mockServer.start();
 
         try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
@@ -1098,6 +1102,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 .setSessionId("session-initial")
                 .setSessionCheck(false)
                 .setSessionTimeout(60)
+                .setSessionTimezone("UTC")
                 .compressServerResponse(false)
                 .build()) {
 
@@ -1105,6 +1110,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
                     .withQueryParam("session_id", WireMock.equalTo("session-initial"))
                     .withQueryParam("session_check", WireMock.equalTo("0"))
                     .withQueryParam("session_timeout", WireMock.equalTo("60"))
+                    .withQueryParam("session_timezone", WireMock.equalTo("UTC"))
                     .willReturn(WireMock.aResponse()
                             .withHeader("X-ClickHouse-Summary",
                                     "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")).build());
@@ -1118,6 +1124,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
                     .withQueryParam("session_id", WireMock.equalTo("session-updated"))
                     .withQueryParam("session_check", WireMock.equalTo("1"))
                     .withQueryParam("session_timeout", WireMock.equalTo("30"))
+                    .withQueryParam("session_timezone", WireMock.equalTo("Asia/Novosibirsk"))
                     .willReturn(WireMock.aResponse()
                             .withHeader("X-ClickHouse-Summary",
                                     "{ \"read_bytes\": \"11\", \"read_rows\": \"1\"}")).build());
@@ -1125,6 +1132,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
             client.updateSessionId("session-updated");
             client.updateSessionCheck(true);
             client.updateSessionTimeout(30);
+            client.updateSessionTimezone("Asia/Novosibirsk");
 
             try (CommandResponse response = client.execute("SELECT 1").get(1, TimeUnit.SECONDS)) {
                 Assert.assertEquals(response.getReadBytes(), 11);

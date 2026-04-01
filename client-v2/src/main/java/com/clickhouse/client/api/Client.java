@@ -145,7 +145,7 @@ public class Client implements AutoCloseable {
     private Client(Collection<Endpoint> endpoints, Map<String,String> configuration,
                    ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy,
                    Object metricsRegistry, Supplier<String> queryIdGenerator) {
-        this.configuration = ClientConfigProperties.parseConfigMap(configuration);
+        this.configuration = Collections.synchronizedMap(ClientConfigProperties.parseConfigMap(configuration));
         this.readOnlyConfig = Collections.unmodifiableMap(configuration);
         this.metricsRegistry = metricsRegistry;
         this.queryIdGenerator = queryIdGenerator;
@@ -976,6 +976,14 @@ public class Client implements AutoCloseable {
         public Builder setSessionTimeout(int timeoutInSeconds) {
             ValidationUtils.checkPositive(timeoutInSeconds, ClickHouseHttpProto.QPARAM_SESSION_TIMEOUT);
             return serverSetting(ClickHouseHttpProto.QPARAM_SESSION_TIMEOUT, String.valueOf(timeoutInSeconds));
+        }
+
+        /**
+         * Sets ClickHouse session timezone to be sent with each request.
+         */
+        public Builder setSessionTimezone(String timezone) {
+            ValidationUtils.checkNonBlank(timezone, ClickHouseHttpProto.QPARAM_SESSION_TIMEZONE);
+            return serverSetting(ClickHouseHttpProto.QPARAM_SESSION_TIMEZONE, timezone);
         }
 
         /**
@@ -2186,6 +2194,15 @@ public class Client implements AutoCloseable {
                 String.valueOf(timeoutInSeconds));
     }
 
+    /**
+     * Updates ClickHouse session timezone for all subsequent requests created by this client.
+     */
+    public void updateSessionTimezone(String timezone) {
+        ValidationUtils.checkNonBlank(timezone, ClickHouseHttpProto.QPARAM_SESSION_TIMEZONE);
+        this.configuration.put(ClientConfigProperties.serverSetting(ClickHouseHttpProto.QPARAM_SESSION_TIMEZONE),
+                timezone);
+    }
+
     public static final String clientVersion =
             ClickHouseClientOption.readVersionFromResource("client-v2-version.properties");
     public static final String CLIENT_USER_AGENT = "clickhouse-java-v2/";
@@ -2219,7 +2236,9 @@ public class Client implements AutoCloseable {
      */
     private Map<String, Object> buildRequestSettings(Map<String, Object> opSettings) {
         Map<String, Object> requestSettings = new HashMap<>();
-        requestSettings.putAll(configuration);
+        synchronized (configuration) {
+            requestSettings.putAll(configuration);
+        }
         requestSettings.putAll(opSettings);
         return requestSettings;
     }

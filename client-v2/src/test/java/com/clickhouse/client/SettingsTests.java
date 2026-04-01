@@ -120,10 +120,13 @@ public class SettingsTests {
             settings.setSessionId("session-1");
             settings.setSessionCheck(true);
             settings.setSessionTimeout(30);
+            settings.setSessionTimezone("Asia/Tokyo");
             Assert.assertEquals(settings.getSessionId(), "session-1");
             Assert.assertTrue(settings.getSessionCheck());
             Assert.assertEquals(settings.getSessionTimeout().intValue(), 30);
+            Assert.assertEquals(settings.getSessionTimezone(), "Asia/Tokyo");
             Assert.assertThrows(IllegalArgumentException.class, () -> settings.setSessionTimeout(0));
+            Assert.assertThrows(IllegalArgumentException.class, () -> settings.setSessionTimezone(""));
         }
     }
 
@@ -192,10 +195,13 @@ public class SettingsTests {
             settings.setSessionId("session-2");
             settings.setSessionCheck(false);
             settings.setSessionTimeout(45);
+            settings.setSessionTimezone("Europe/Paris");
             Assert.assertEquals(settings.getSessionId(), "session-2");
             Assert.assertFalse(settings.getSessionCheck());
             Assert.assertEquals(settings.getSessionTimeout().intValue(), 45);
+            Assert.assertEquals(settings.getSessionTimezone(), "Europe/Paris");
             Assert.assertThrows(IllegalArgumentException.class, () -> settings.setSessionTimeout(-1));
+            Assert.assertThrows(IllegalArgumentException.class, () -> settings.setSessionTimezone(""));
         }
     }
 }
