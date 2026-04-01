@@ -626,41 +626,6 @@ public final class ClickHouseColumn implements Serializable {
         return i;
     }
 
-    private static void updateVariantMaps(ClickHouseColumn column) {
-        List<ClickHouseColumn> nestedColumns = column.getNestedColumns();
-        for (int ordNum = 0; ordNum < nestedColumns.size(); ordNum++) {
-            ClickHouseColumn nestedColumn = nestedColumns.get(ordNum);
-            if (nestedColumn.getDataType() == ClickHouseDataType.Array) {
-                Set<Class<?>> classSet = ClickHouseDataType.DATA_TYPE_TO_CLASS.get(nestedColumn.arrayBaseColumn.dataType);
-                if (classSet != null) {
-                    if (column.arrayToVariantOrdNumMap == null) {
-                        column.arrayToVariantOrdNumMap = new HashMap<>();
-                    }
-                    for (Class<?> c : classSet) {
-                        column.arrayToVariantOrdNumMap.put(c, ordNum);
-                    }
-                }
-            } else if (nestedColumn.getDataType() == ClickHouseDataType.Map) {
-                Set<Class<?>> keyClassSet = ClickHouseDataType.DATA_TYPE_TO_CLASS.get(nestedColumn.getKeyInfo().getDataType());
-                Set<Class<?>> valueClassSet = ClickHouseDataType.DATA_TYPE_TO_CLASS.get(nestedColumn.getValueInfo().getDataType());
-                if (keyClassSet != null && valueClassSet != null) {
-                    if (column.mapKeyToVariantOrdNumMap == null) {
-                        column.mapKeyToVariantOrdNumMap = new HashMap<>();
-                    }
-                    if (column.mapValueToVariantOrdNumMap == null) {
-                        column.mapValueToVariantOrdNumMap = new HashMap<>();
-                    }
-                    for (Class<?> c : keyClassSet) {
-                        column.mapKeyToVariantOrdNumMap.put(c, ordNum);
-                    }
-                    for (Class<?> c : valueClassSet) {
-                        column.mapValueToVariantOrdNumMap.put(c, ordNum);
-                    }
-                }
-            }
-        }
-    }
-
     public static ClickHouseColumn of(String columnName, ClickHouseDataType dataType, boolean nullable, int precision,
             int scale) {
         ClickHouseColumn column = new ClickHouseColumn(dataType, columnName, null, nullable, false, null, null);
