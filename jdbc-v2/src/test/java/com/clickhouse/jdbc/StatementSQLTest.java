@@ -20,6 +20,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 /**
  * Integration test for prepared statement. Testing SQL with prepared statement is main focus of this test.
@@ -139,10 +140,13 @@ public class StatementSQLTest extends BaseSQLTests {
 
         Set<String> missingFromAllowed = new TreeSet<>(nonReservedSystemKeywords);
         missingFromAllowed.removeAll(allowedAliases);
+        String missingFromAllowedQuoted = missingFromAllowed.stream()
+                .map(keyword -> "\"" + keyword + "\"")
+                .collect(Collectors.joining(", ", "[", "]"));
 
         Assert.assertTrue(missingFromAllowed.isEmpty(),
                 "New keywords found in system.keywords (non-reserved) that must be added to "
-                        + "ALLOWED_KEYWORD_ALIASES or reserved_keywords.txt: " + missingFromAllowed);
+                        + "ALLOWED_KEYWORD_ALIASES or reserved_keywords.txt: " + missingFromAllowedQuoted);
     }
 
     private List<String> loadKeywordsFromResource(String resourceName) throws Exception {
