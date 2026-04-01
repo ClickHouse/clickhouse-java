@@ -15,25 +15,8 @@ Main modules:
 
 ## How to work in this repo
 
-- Preserve backward compatibility by default.
-- Treat public API changes as high risk.
-- Keep formatted output stable unless a task explicitly requires a change.
-- Prefer the smallest safe change over broad refactors.
-- Reuse existing patterns in the touched module.
-
-Before changing behavior, explicitly check:
-
-- public classes, methods, constructors, constants, and configuration properties
-- SQL rendering, escaping, string formatting, and serialized output
-- JDBC and R2DBC semantics
-- null handling, timezone behavior, numeric precision, and type conversions
-
-## Compatibility guidance
-
-- When touching `client-v2` or `jdbc-v2`, review `docs/features.md` as a compatibility contract.
-- If a change affects a documented feature, confirm the behavior is still supported.
-- Add or update focused tests for compatibility-sensitive behavior.
-- Update `docs/features.md` when user-visible behavior changes intentionally.
+- Minimal supported Java version is 8.
+- Follow `docs/ai-review.md` for compatibility, breaking-change, and review instructions.
 
 ## Setup and test commands
 
@@ -51,21 +34,12 @@ Avoid broad dependency, formatting, or unrelated cleanup churn unless required b
 ## Editing expectations
 
 - Identify the affected module before editing.
-- Check whether the task changes public API or user-visible behavior.
 - Read nearby code and follow existing local patterns before introducing new abstractions.
-- Make focused changes and keep diffs narrow.
 - Prefer focused tests near the affected module over repo-wide runs.
 
 ## Review expectations
 
 For review requests, follow `docs/ai-review.md` as the shared review standard across AI agents.
-
-In final summaries, state:
-
-- what changed
-- whether compatibility risk exists
-- what tests were run, or why they were not run
-- whether docs should change
 
 ## Optional nested AGENTS.md
 

@@ -2,12 +2,6 @@
 
 This document lists stable, user-visible behavior in `client-v2` and `jdbc-v2` that should be considered during review and regression testing.
 
-Use it as a compact checklist:
-
-- Confirm the change does not remove or alter any listed feature unintentionally.
-- Add or update tests when a change touches a listed feature in a compatibility-sensitive way.
-- Update this document when a new user-visible feature is added or when supported behavior changes intentionally.
-
 ## `client-v2`
 
 - HTTP and HTTPS connectivity: Connects to ClickHouse over HTTP(S), supports endpoint paths, and exposes a basic `ping` health check.
