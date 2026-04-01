@@ -246,7 +246,6 @@ public class BinaryStreamReader {
                 case AggregateFunction:
                     return (T) readBitmap( actualColumn);
                 case Variant:
-                    return (T) readVariant(actualColumn);
                 case Geometry:
                     return (T) readVariant(actualColumn);
                 case Dynamic:

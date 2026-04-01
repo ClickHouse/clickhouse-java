@@ -106,6 +106,7 @@ public enum ClickHouseDataType implements SQLType {
     Ring(Object.class, false, true, true, 0, 0, 0, 0, 0, true), // same as Array(Point)
     LineString( Object.class, false, true, true, 0, 0, 0, 0, 0, true), // same as Array(Point)
     MultiLineString(Object.class, false, true, true, 0, 0, 0, 0, 0, true), // same as Array(Ring)
+    Geometry(Object.class, false, true, true, 0, 0, 0, 0, 0, true), // same as Variant(Point, ...)
     JSON(Object.class, false, false, false, 0, 0, 0, 0, 0, true, 0x30),
     @Deprecated // (since = "CH 25.11")
     Object(Object.class, true, true, false, 0, 0, 0, 0, 0, true),
@@ -130,7 +131,6 @@ public enum ClickHouseDataType implements SQLType {
     Time(LocalDateTime.class, true, false, false, 4, 9, 0, 0, 9, false, 0x32), // 0x33 for Time(Timezone)
     Time64(LocalDateTime.class, true, false, false, 8, 9, 0, 0, 0, false, 0x34), // 0x35 for Time64(P, Timezone)
     QBit(Double.class, true, true, false, 0, 0, 0, 0, 0, false, 0x36),
-    Geometry(Object.class, false, false, false, 0, 0, 0, 0, 0, true),
     ;
 
     public static final List<ClickHouseDataType> ORDERED_BY_RANGE_INT_TYPES =

@@ -186,14 +186,12 @@ public class JdbcUtils {
                     case MultiPolygon:
                         map.put(e.getKey(), double[][][][].class);
                         break;
-                    case Geometry:
-                        map.put(e.getKey(), Object.class);
-                        break;
                     case UUID:
                         map.put(e.getKey(), UUID.class);
                         break;
                     case IPv4:
                     case IPv6:
+                    case Geometry:
                         // should be mapped to Object because require conversion.
                     default:
                         map.put(e.getKey(), Object.class);
