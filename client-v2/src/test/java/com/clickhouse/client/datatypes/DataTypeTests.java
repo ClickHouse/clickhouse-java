@@ -32,7 +32,6 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.sql.Connection;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -1062,6 +1061,55 @@ public class DataTypeTests extends BaseIntegrationTest {
     }
 
     @Test(groups = {"integration"})
+    public void testGeometryReadFromTable() throws Exception {
+        if (isVersionMatch("(,25.10]")) {
+            return;
+        }
+
+        final String table = "test_geometry_read";
+        final CommandSettings geometrySettings = (CommandSettings) new CommandSettings()
+                .serverSetting("allow_suspicious_variant_types", "1");
+        final Object[] expectedValues = new Object[] {
+                new double[] {1D, 2D},
+                new double[][] {{1D, 2D}, {3D, 4D}, {1D, 2D}},
+                new double[][][] {{{1D, 2D}, {3D, 4D}, {1D, 2D}}},
+                new double[][][][] {
+                        {{{1D, 2D}, {3D, 4D}, {1D, 2D}}},
+                        {{{5D, 6D}, {7D, 8D}, {5D, 6D}}}
+                }
+        };
+
+        client.execute("DROP TABLE IF EXISTS " + table).get().close();
+        client.execute(tableDefinition(table, "rowId Int32", "geom Geometry"), geometrySettings).get().close();
+        client.execute("INSERT INTO " + table + " VALUES "
+                + "(0, (1, 2)), "
+                + "(1, [(1, 2), (3, 4), (1, 2)]), "
+                + "(2, [[(1, 2), (3, 4), (1, 2)]]), "
+                + "(3, [[[(1, 2), (3, 4), (1, 2)]], [[(5, 6), (7, 8), (5, 6)]]])").get().close();
+
+        List<GenericRecord> records = client.queryAll("SELECT * FROM " + table + " ORDER BY rowId");
+        Assert.assertEquals(records.size(), expectedValues.length);
+        for (GenericRecord record : records) {
+            int rowId = record.getInteger("rowId");
+            Object actual = record.getObject("geom");
+            Assert.assertNotNull(record.getString("geom"));
+            assertGeometryValue(actual, expectedValues[rowId]);
+        }
+
+        try (QueryResponse response = client.query("SELECT * FROM " + table + " ORDER BY rowId").get()) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+            int rowId = 0;
+            while (reader.next() != null) {
+                Object actual = reader.readValue("geom");
+                Assert.assertNotNull(reader.getString("geom"));
+                assertGeometryValue(actual, expectedValues[rowId]);
+                rowId++;
+            }
+            Assert.assertEquals(rowId, expectedValues.length);
+        }
+    }
+
+    @Test(groups = {"integration"})
     public void testDates() throws Exception {
         LocalDate date = LocalDate.of(2024, 1, 15);
 
@@ -1641,6 +1689,23 @@ public class DataTypeTests extends BaseIntegrationTest {
         sb.setLength(sb.length() - 2);
         sb.append(") Engine = MergeTree ORDER BY ()");
         return sb.toString();
+    }
+
+    private static void assertGeometryValue(Object actual, Object expected) {
+        Assert.assertNotNull(actual);
+        Assert.assertEquals(actual.getClass(), expected.getClass());
+
+        if (expected instanceof double[]) {
+            Assert.assertEquals((double[]) actual, (double[]) expected);
+        } else if (expected instanceof double[][]) {
+            Assert.assertTrue(Arrays.deepEquals((double[][]) actual, (double[][]) expected));
+        } else if (expected instanceof double[][][]) {
+            Assert.assertTrue(Arrays.deepEquals((double[][][]) actual, (double[][][]) expected));
+        } else if (expected instanceof double[][][][]) {
+            Assert.assertTrue(Arrays.deepEquals((double[][][][]) actual, (double[][][][]) expected));
+        } else {
+            Assert.fail("Unexpected geometry type: " + expected.getClass());
+        }
     }
 
     private boolean isVersionMatch(String versionExpression) {
