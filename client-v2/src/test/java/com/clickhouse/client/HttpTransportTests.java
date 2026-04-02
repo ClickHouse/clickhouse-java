@@ -1004,6 +1004,40 @@ public class HttpTransportTests extends BaseIntegrationTest {
     }
 
     @Test(groups = { "integration" })
+    public void testBasicAuthWithNoPassword() throws Exception {
+        WireMockServer mockServer = new WireMockServer(WireMockConfiguration
+                .options().port(9090).notifier(new ConsoleNotifier(false)));
+        mockServer.start();
+
+        try {
+            // Expected: "default:" with empty password, not "default:null"
+            String expectedAuth = "Basic " + Base64.getEncoder()
+                    .encodeToString("default:".getBytes(StandardCharsets.UTF_8));
+
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .withHeader("Authorization", WireMock.equalTo(expectedAuth))
+                    .willReturn(WireMock.aResponse()
+                            .withHeader("X-ClickHouse-Summary",
+                                    "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")).build());
+
+            try (Client client = new Client.Builder()
+                    .addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
+                    .compressServerResponse(false)
+                    // no setPassword() call — password should default to empty, not "null"
+                    .build()) {
+
+                try (QueryResponse response = client.query("SELECT 1").get(1, TimeUnit.SECONDS)) {
+                    Assert.assertEquals(response.getReadBytes(), 10);
+                } catch (Exception e) {
+                    Assert.fail("Basic auth with no password should send empty password, not 'null'", e);
+                }
+            }
+        } finally {
+            mockServer.stop();
+        }
+    }
+
+    @Test(groups = { "integration" })
     public void testJWTWithCloud() throws Exception {
         if (!isCloud()) {
             return; // only for cloud
