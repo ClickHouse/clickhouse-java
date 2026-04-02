@@ -629,6 +629,9 @@ public class HttpAPIClientHelper {
         } else if (ClientConfigProperties.HTTP_USE_BASIC_AUTH.<Boolean>getOrDefault(requestConfig).booleanValue()) {
             String user = ClientConfigProperties.USER.getOrDefault(requestConfig);
             String password = ClientConfigProperties.PASSWORD.getOrDefault(requestConfig);
+            if (password == null) {
+                password = "";
+            }
             // Use as-is, no encoding allowed
             req.addHeader(
                 HttpHeaders.AUTHORIZATION,
