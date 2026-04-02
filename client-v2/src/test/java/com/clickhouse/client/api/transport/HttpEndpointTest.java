@@ -167,4 +167,18 @@ public class HttpEndpointTest {
         Assert.assertEquals(endpoint.getHost(), "host_with_underscore", "Original host should be preserved");
         Assert.assertEquals(endpoint.getURI().toString(), "http://host_with_underscore:8123/");
     }
+
+    @Test
+    public void testUrlEndpointPreservesUnderscoreHost() {
+        HttpEndpoint endpoint = new HttpEndpoint("http://host_with_underscore:8123/");
+        Assert.assertEquals(endpoint.getHost(), "host_with_underscore", "Original host should be preserved");
+        Assert.assertEquals(endpoint.getURI().toString(), "http://host_with_underscore:8123/");
+    }
+
+    @Test
+    public void testUrlEndpointIgnoresQueryAndFragment() {
+        HttpEndpoint endpoint = new HttpEndpoint("http://localhost:8123/sales%20db?ignored=value#fragment");
+        Assert.assertEquals(endpoint.getPath(), "/sales db", "Path should be decoded before URI creation");
+        Assert.assertEquals(endpoint.getURI().toString(), "http://localhost:8123/sales%20db");
+    }
 }

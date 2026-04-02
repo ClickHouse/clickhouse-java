@@ -53,7 +53,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.InvocationTargetException;
-import java.net.URI;
 import java.time.Duration;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
@@ -294,34 +293,7 @@ public class Client implements AutoCloseable {
          */
         public Builder addEndpoint(String endpoint) {
             try {
-                URI endpointUri = URI.create(endpoint);
-                String protocolStr = endpointUri.getScheme();
-                if (protocolStr == null) {
-                    throw new IllegalArgumentException("Protocol should be set in endpoint");
-                }
-                if (!protocolStr.equalsIgnoreCase("https") &&
-                    !protocolStr.equalsIgnoreCase("http")) {
-                    throw new IllegalArgumentException("Only HTTP and HTTPS protocols are supported");
-                }
-
-                boolean secure = protocolStr.equalsIgnoreCase("https");
-                ParsedAuthority authority = parseAuthority(endpointUri.getRawAuthority(), endpoint);
-                String host = authority.host;
-                if (host == null || host.isEmpty()) {
-                    throw new IllegalArgumentException("Host cannot be empty in endpoint: " + endpoint);
-                }
-
-                int port = authority.port;
-                if (port <= 0) {
-                    throw new ValidationUtils.SettingsValidationException("port", "Valid port must be specified");
-                }
-
-                String path = endpointUri.getPath();
-                if (path == null || path.isEmpty()) {
-                    path = "/";
-                }
-
-                return addEndpoint(Protocol.HTTP, host, port, secure, path);
+                return addEndpoint(new HttpEndpoint(endpoint));
             } catch (ValidationUtils.SettingsValidationException e) {
                 throw e;
             } catch (IllegalArgumentException e) {
@@ -342,19 +314,14 @@ public class Client implements AutoCloseable {
         }
 
         public Builder addEndpoint(Protocol protocol, String host, int port, boolean secure, String basePath) {
-            ValidationUtils.checkNonBlank(host, "host");
             ValidationUtils.checkNotNull(protocol, "protocol");
-            ValidationUtils.checkRange(port, 1, ValidationUtils.TCP_PORT_NUMBER_MAX, "port");
             ValidationUtils.checkNotNull(basePath, "basePath");
 
             if (protocol == Protocol.HTTP) {
-                HttpEndpoint httpEndpoint = new HttpEndpoint(host, port, secure, basePath);
-                this.endpoints.add(httpEndpoint);
+                return addEndpoint(new HttpEndpoint(host, port, secure, basePath));
             } else {
                 throw new IllegalArgumentException("Unsupported protocol: " + protocol);
             }
-            return this;
-
         }
 
         /**
@@ -371,62 +338,9 @@ public class Client implements AutoCloseable {
             return this;
         }
 
-        private static ParsedAuthority parseAuthority(String rawAuthority, String endpoint) {
-            if (rawAuthority == null || rawAuthority.trim().isEmpty()) {
-                throw new IllegalArgumentException("Host cannot be empty in endpoint: " + endpoint);
-            }
-
-            String authority = rawAuthority;
-            int userInfoSeparator = authority.lastIndexOf('@');
-            if (userInfoSeparator >= 0) {
-                authority = authority.substring(userInfoSeparator + 1);
-            }
-
-            if (authority.startsWith("[")) {
-                int ipv6End = authority.indexOf(']');
-                if (ipv6End < 0) {
-                    throw new IllegalArgumentException("Invalid endpoint authority: " + rawAuthority);
-                }
-
-                String host = authority.substring(0, ipv6End + 1);
-                if (ipv6End + 1 >= authority.length() || authority.charAt(ipv6End + 1) != ':') {
-                    throw new ValidationUtils.SettingsValidationException("port", "Valid port must be specified");
-                }
-
-                String portPart = authority.substring(ipv6End + 2);
-                return new ParsedAuthority(host, parsePort(portPart));
-            }
-
-            int portSeparator = authority.lastIndexOf(':');
-            if (portSeparator <= 0 || portSeparator == authority.length() - 1) {
-                throw new ValidationUtils.SettingsValidationException("port", "Valid port must be specified");
-            }
-
-            if (authority.indexOf(':') != portSeparator) {
-                throw new IllegalArgumentException("Invalid endpoint authority: " + rawAuthority);
-            }
-
-            String host = authority.substring(0, portSeparator);
-            String portPart = authority.substring(portSeparator + 1);
-            return new ParsedAuthority(host, parsePort(portPart));
-        }
-
-        private static int parsePort(String portPart) {
-            try {
-                return Integer.parseInt(portPart);
-            } catch (NumberFormatException e) {
-                throw new ValidationUtils.SettingsValidationException("port", "Valid port must be specified");
-            }
-        }
-
-        private static final class ParsedAuthority {
-            private final String host;
-            private final int port;
-
-            private ParsedAuthority(String host, int port) {
-                this.host = host;
-                this.port = port;
-            }
+        private Builder addEndpoint(Endpoint endpoint) {
+            this.endpoints.add(endpoint);
+            return this;
         }
 
 
