@@ -22,7 +22,6 @@ import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.entity.mime.MultipartEntityBuilder;
-import org.apache.hc.client5.http.entity.mime.MultipartPartBuilder;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.io.BasicHttpClientConnectionManager;
@@ -84,21 +83,18 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLEncoder;
 import java.net.UnknownHostException;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Properties;
-import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
@@ -344,9 +340,7 @@ public class HttpAPIClientHelper {
         return clientBuilder.build();
     }
 
-//    private static final String ERROR_CODE_PREFIX_PATTERN = "Code: %d. DB::Exception:";
     private static final String ERROR_CODE_PREFIX_PATTERN = "%d. DB::Exception:";
-
 
     /**
      * Reads status line and if error tries to parse response body to get server error message.
@@ -361,8 +355,6 @@ public class HttpAPIClientHelper {
         final String queryId = queryHeader == null ? "" : queryHeader.getValue();
         int serverCode = getHeaderInt(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE), 0);
         try {
-
-
             return serverCode > 0 ? readClickHouseError(httpResponse.getEntity(), serverCode, queryId, httpResponse.getCode()) :
                     readNotClickHouseError(httpResponse.getEntity(), queryId, httpResponse.getCode());
         } catch (Exception e) {
@@ -377,12 +369,32 @@ public class HttpAPIClientHelper {
         byte[] buffer = new byte[ERROR_BODY_BUFFER_SIZE];
 
         String msg = null;
-        try {
-            InputStream body = httpEntity.getContent();
-            int msgLen = body.read(buffer, 0, buffer.length - 2);
-            msg = new String(buffer, 0, msgLen, StandardCharsets.UTF_8);
-        } catch (Exception e) {
-            LOG.warn("Failed to read error message (queryId = " + queryId + ")", e);
+        InputStream body = null;
+        for (int i = 0; i < 2; i++) {
+            try {
+                if (body == null) {
+                    body = httpEntity.getContent();
+                }
+                int msgLen = body.read(buffer, 0, buffer.length - 2);
+                if (msgLen > 0) {
+                    msg = new String(buffer, 0, msgLen, StandardCharsets.UTF_8).trim();
+                    if (msg.isEmpty()) {
+                        msg = "<empty body response>";
+                    }
+                }
+                break;
+            } catch (ClientException e) {
+                // Invalid LZ4 Magic
+                if (body instanceof ClickHouseLZ4InputStream) {
+                    ClickHouseLZ4InputStream stream = (ClickHouseLZ4InputStream) body;
+                    body = stream.getInputStream();
+                    continue;
+                }
+                throw e;
+            } catch (Exception e) {
+                LOG.warn("Failed to read error message (queryId = " + queryId + ")", e);
+                break;
+            }
         }
 
         String errormsg = msg == null ? "unknown server error" : msg;

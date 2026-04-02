@@ -491,7 +491,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
             } catch (ServerException e) {
                 e.printStackTrace();
                 Assert.assertEquals(e.getCode(), code);
-                Assert.assertTrue(e.getMessage().startsWith(expectedMessage));
+                Assert.assertTrue(e.getMessage().startsWith(expectedMessage), "but started with " + e.getMessage());
             } catch (Exception e) {
                 e.printStackTrace();
                 Assert.fail("Unexpected exception", e);
@@ -1715,7 +1715,6 @@ public class HttpTransportTests extends BaseIntegrationTest {
     }
 
     private static void assertBinaryReadFailureContainsColumnName(Throwable thrown) {
-        thrown.printStackTrace();
         ClientException clientException = findCause(thrown, ClientException.class);
         Assert.assertNotNull(clientException,
                 "Expected ClientException in cause chain, but was: " + thrown);

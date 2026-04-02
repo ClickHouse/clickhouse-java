@@ -2,7 +2,6 @@ package com.clickhouse.client.api.data_formats.internal;
 
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
-import com.clickhouse.client.api.DataTransferException;
 import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.internal.DataTypeConverter;
@@ -257,7 +256,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     private String recordReadExceptionMsg(String column) {
         return "Reading " + (column != null ? "column " + column + " in " : "")
-                + " row " + row + " (time since last next call " + timeSinceLastNext() + ")";
+                + " row " + (row + 1) + " (time since last next call " + timeSinceLastNext() + ")";
     }
 
     @Override
