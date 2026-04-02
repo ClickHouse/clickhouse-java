@@ -142,7 +142,7 @@ public class Client implements AutoCloseable {
 
     private Client(Collection<Endpoint> endpoints, Map<String,String> configuration,
                    ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy,
-                   Object metricsRegistry, Supplier<String> queryIdGenerator, HostResolver hostResolver) {
+                   Object metricsRegistry, Supplier<String> queryIdGenerator) {
         this.configuration = ClientConfigProperties.parseConfigMap(configuration);
         this.readOnlyConfig = Collections.unmodifiableMap(configuration);
         this.metricsRegistry = metricsRegistry;
@@ -189,7 +189,7 @@ public class Client implements AutoCloseable {
             this.lz4Factory = LZ4Factory.fastestJavaInstance();
         }
 
-        this.httpClientHelper = new HttpAPIClientHelper(this.configuration, metricsRegistry, initSslContext, lz4Factory, hostResolver);
+        this.httpClientHelper = new HttpAPIClientHelper(this.configuration, metricsRegistry, initSslContext, lz4Factory);
         this.serverVersion = configuration.getOrDefault(ClientConfigProperties.SERVER_VERSION.getKey(), "unknown");
         this.dbUser = configuration.getOrDefault(ClientConfigProperties.USER.getKey(), ClientConfigProperties.USER.getDefObjVal());
         this.typeHintMapping = (Map<ClickHouseDataType, Class<?>>) this.configuration.get(ClientConfigProperties.TYPE_HINT_MAPPING.getKey());
@@ -262,7 +262,6 @@ public class Client implements AutoCloseable {
         private ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy;
         private Object metricRegistry = null;
         private Supplier<String> queryIdGenerator;
-        private HostResolver hostResolver;
 
         public Builder() {
             this.endpoints = new HashSet<>();
@@ -276,7 +275,6 @@ public class Client implements AutoCloseable {
 
             allowBinaryReaderToReuseBuffers(false);
             columnToMethodMatchingStrategy = DefaultColumnToMethodMatchingStrategy.INSTANCE;
-            hostResolver = HostResolver.DEFAULT;
         }
 
         /**
@@ -322,20 +320,6 @@ public class Client implements AutoCloseable {
             } else {
                 throw new IllegalArgumentException("Unsupported protocol: " + protocol);
             }
-        }
-
-        /**
-         * Sets custom host resolver to resolve endpoint hostnames.
-         * This is useful in custom DNS environments such as Kubernetes or service mesh deployments.
-         * By default, {@link java.net.InetAddress#getByName(String)} is used.
-         *
-         * @param hostResolver resolver implementation
-         * @return this builder instance
-         */
-        public Builder setHostResolver(HostResolver hostResolver) {
-            ValidationUtils.checkNotNull(hostResolver, "hostResolver");
-            this.hostResolver = hostResolver;
-            return this;
         }
 
         private Builder addEndpoint(Endpoint endpoint) {
@@ -1144,7 +1128,7 @@ public class Client implements AutoCloseable {
             }
 
             return new Client(this.endpoints, this.configuration, this.sharedOperationExecutor,
-                this.columnToMethodMatchingStrategy, this.metricRegistry, this.queryIdGenerator, this.hostResolver);
+                this.columnToMethodMatchingStrategy, this.metricRegistry, this.queryIdGenerator);
         }
     }
 

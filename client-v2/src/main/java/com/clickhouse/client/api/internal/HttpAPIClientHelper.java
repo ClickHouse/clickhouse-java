@@ -9,13 +9,11 @@ import com.clickhouse.client.api.ClientFaultCause;
 import com.clickhouse.client.api.ClientMisconfigurationException;
 import com.clickhouse.client.api.ConnectionInitiationException;
 import com.clickhouse.client.api.ConnectionReuseStrategy;
-import com.clickhouse.client.api.HostResolver;
 import com.clickhouse.client.api.DataTransferException;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.transport.Endpoint;
-import org.apache.hc.client5.http.DnsResolver;
 import com.clickhouse.data.ClickHouseFormat;
 import net.jpountz.lz4.LZ4Factory;
 import org.apache.commons.compress.compressors.CompressorStreamFactory;
@@ -78,7 +76,6 @@ import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Method;
 import java.net.ConnectException;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.NoRouteToHostException;
 import java.net.Socket;
@@ -132,11 +129,9 @@ public class HttpAPIClientHelper {
     ConnPoolControl<?> poolControl;
 
     LZ4Factory lz4Factory;
-    private final HostResolver hostResolver;
 
-    public HttpAPIClientHelper(Map<String, Object> configuration, Object metricsRegistry, boolean initSslContext, LZ4Factory lz4Factory, HostResolver hostResolver) {
+    public HttpAPIClientHelper(Map<String, Object> configuration, Object metricsRegistry, boolean initSslContext, LZ4Factory lz4Factory) {
         this.metricsRegistry = metricsRegistry;
-        this.hostResolver = Objects.requireNonNull(hostResolver, "hostResolver");
         this.httpClient = createHttpClient(initSslContext, configuration);
         this.lz4Factory = lz4Factory;
         assert this.lz4Factory != null;
@@ -215,7 +210,7 @@ public class HttpAPIClientHelper {
                 .build();
 
         BasicHttpClientConnectionManager connManager = BasicHttpClientConnectionManager.create(
-                null, createDnsResolverAdapter(), tlsSocketStrategyLookup, null);
+                null, null, tlsSocketStrategyLookup, null);
         connManager.setConnectionConfig(createConnectionConfig(configuration));
         connManager.setSocketConfig(socketConfig);
 
@@ -254,7 +249,6 @@ public class HttpAPIClientHelper {
         connMgrBuilder.setConnectionFactory(connectionFactory);
         connMgrBuilder.setSSLSocketFactory(sslConnectionSocketFactory);
         connMgrBuilder.setDefaultSocketConfig(socketConfig);
-        connMgrBuilder.setDnsResolver(createDnsResolverAdapter());
         PoolingHttpClientConnectionManager phccm = connMgrBuilder.build();
         poolControl = phccm;
         if (metricsRegistry != null) {
@@ -271,20 +265,6 @@ public class HttpAPIClientHelper {
             }
         }
         return phccm;
-    }
-
-    private DnsResolver createDnsResolverAdapter() {
-        return new DnsResolver() {
-            @Override
-            public InetAddress[] resolve(String host) throws UnknownHostException {
-                return new InetAddress[]{hostResolver.resolve(host)};
-            }
-
-            @Override
-            public String resolveCanonicalHostname(String host) throws UnknownHostException {
-                return hostResolver.resolve(host).getCanonicalHostName();
-            }
-        };
     }
 
     public CloseableHttpClient createHttpClient(boolean initSslContext, Map<String, Object> configuration) {

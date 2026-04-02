@@ -11,7 +11,6 @@ public class ClientBuilderTest {
     @Test
     public void testAddEndpointToleratesUnderscoreHostname() throws Exception {
         try (Client client = new Client.Builder()
-                .setHostResolver(HostResolver.DEFAULT)
                 .addEndpoint("http://host_with_underscore:8123")
                 .setUsername("default")
                 .setPassword("")
@@ -21,12 +20,6 @@ public class ClientBuilderTest {
             Assert.assertEquals(firstEndpoint, "http://host_with_underscore:8123/",
                     "Endpoint URI should preserve original hostname");
         }
-    }
-
-    @Test
-    public void testSetHostResolverRejectsNull() {
-        Assert.assertThrows(IllegalArgumentException.class,
-                () -> new Client.Builder().setHostResolver(null));
     }
 
     private static String extractFirstEndpointUri(Client client) throws Exception {
