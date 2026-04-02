@@ -370,12 +370,13 @@ public class HttpAPIClientHelper {
 
         String msg = null;
         InputStream body = null;
+        int offset = 0;
         for (int i = 0; i < 2; i++) {
             try {
                 if (body == null) {
                     body = httpEntity.getContent();
                 }
-                int msgLen = body.read(buffer, 0, buffer.length - 2);
+                int msgLen = body.read(buffer, offset, buffer.length - offset);
                 if (msgLen > 0) {
                     msg = new String(buffer, 0, msgLen, StandardCharsets.UTF_8).trim();
                     if (msg.isEmpty()) {
@@ -388,6 +389,9 @@ public class HttpAPIClientHelper {
                 if (body instanceof ClickHouseLZ4InputStream) {
                     ClickHouseLZ4InputStream stream = (ClickHouseLZ4InputStream) body;
                     body = stream.getInputStream();
+                    byte[] lzHeader = stream.getHeaderBuffer(); // Here is read part of original body
+                    offset = Math.min(lzHeader.length, buffer.length);
+                    System.arraycopy(lzHeader, 0, buffer, 0, offset);
                     continue;
                 }
                 throw e;
@@ -785,7 +789,7 @@ public class HttpAPIClientHelper {
         }
 
         // data compression
-        if (serverCompression && !(httpStatus == HttpStatus.SC_FORBIDDEN || httpStatus == HttpStatus.SC_UNAUTHORIZED || httpStatus == HttpStatus.SC_NOT_FOUND)) {
+        if (serverCompression && !(httpStatus == HttpStatus.SC_FORBIDDEN || httpStatus == HttpStatus.SC_UNAUTHORIZED)) {
             int buffSize = ClientConfigProperties.COMPRESSION_LZ4_UNCOMPRESSED_BUF_SIZE.getOrDefault(requestConfig);
             return new LZ4Entity(httpEntity, useHttpCompression, true, false, buffSize, true, lz4Factory);
         }

@@ -404,6 +404,24 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 Assert.fail("Unexpected exception", e);
             }
         }
+
+        if (!isCloud()) {
+            Client.Builder clientBuilder = new Client.Builder()
+                    .addEndpoint("http://" + server.getHost() + ":" + server.getPort() + "/some-path")
+                    .setUsername("default")
+                    .setPassword(ClickHouseServerForTest.getPassword())
+                    .compressServerResponse(serverCompression)
+                    .useHttpCompression(useHttpCompression)
+                    .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
+                    .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1");
+
+            try (Client client = clientBuilder.build()) {
+                client.queryAll("select 1");
+                fail("Exception expected");
+            } catch (ClientException e) {
+                Assert.assertTrue(e.getCause().getMessage().contains("no handle /some-path?"));
+            }
+        }
     }
 
     @DataProvider(name = "testServerErrorHandlingDataProvider")
@@ -1264,30 +1282,6 @@ public class HttpTransportTests extends BaseIntegrationTest {
             Assert.assertEquals(records.get(0).getString("name"), "COLLATIONS");
             Assert.assertEquals(records.get(1).getString("name"), "ENGINES");
         }
-    }
-
-    @Test(groups = {"integration"})
-    public void testNotFoundError() {
-        if (isCloud()) {
-            return; // not needed
-        }
-        ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
-
-        Client.Builder clientBuilder = new Client.Builder()
-                .addEndpoint("http://" + node.getHost() + ":" + node.getPort() + "/some-path")
-                .setUsername("default")
-                .setPassword(ClickHouseServerForTest.getPassword())
-                .compressClientRequest(false)
-                .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
-                .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1");
-
-        try (Client client = clientBuilder.build()) {
-            client.queryAll("select 1");
-            fail("Exception expected");
-        } catch (ClientException e) {
-            Assert.assertTrue(e.getCause().getMessage().startsWith("There is no handle /some-path?"));
-        }
-
     }
 
     @Test(groups = {"integration"})
