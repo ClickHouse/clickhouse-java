@@ -3,6 +3,7 @@ package com.clickhouse.client.api.query;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.Session;
 import com.clickhouse.client.api.internal.CommonSettings;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.internal.ValidationUtils;
@@ -131,6 +132,11 @@ public class QuerySettings {
 
     public String getSessionTimezone() {
         return settings.getSessionTimezone();
+    }
+
+    public QuerySettings use(Session session) {
+        settings.use(session);
+        return this;
     }
 
     /**

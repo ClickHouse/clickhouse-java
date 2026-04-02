@@ -1,6 +1,7 @@
 package com.clickhouse.client;
 
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.Session;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.query.QuerySettings;
@@ -125,8 +126,22 @@ public class SettingsTests {
             Assert.assertTrue(settings.getSessionCheck());
             Assert.assertEquals(settings.getSessionTimeout().intValue(), 30);
             Assert.assertEquals(settings.getSessionTimezone(), "Asia/Tokyo");
+            Assert.assertThrows(IllegalArgumentException.class, () -> settings.setSessionId(""));
             Assert.assertThrows(IllegalArgumentException.class, () -> settings.setSessionTimeout(0));
             Assert.assertThrows(IllegalArgumentException.class, () -> settings.setSessionTimezone(""));
+        }
+
+        {
+            final Session session = new Session()
+                    .setSessionId("session-use-1")
+                    .setSessionCheck(true)
+                    .setSessionTimeout(45)
+                    .setSessionTimezone("Europe/Berlin");
+            final QuerySettings settings = new QuerySettings().use(session);
+            Assert.assertEquals(settings.getSessionId(), "session-use-1");
+            Assert.assertTrue(settings.getSessionCheck());
+            Assert.assertEquals(settings.getSessionTimeout().intValue(), 45);
+            Assert.assertEquals(settings.getSessionTimezone(), "Europe/Berlin");
         }
     }
 
@@ -200,8 +215,22 @@ public class SettingsTests {
             Assert.assertFalse(settings.getSessionCheck());
             Assert.assertEquals(settings.getSessionTimeout().intValue(), 45);
             Assert.assertEquals(settings.getSessionTimezone(), "Europe/Paris");
+            Assert.assertThrows(IllegalArgumentException.class, () -> settings.setSessionId(""));
             Assert.assertThrows(IllegalArgumentException.class, () -> settings.setSessionTimeout(-1));
             Assert.assertThrows(IllegalArgumentException.class, () -> settings.setSessionTimezone(""));
+        }
+
+        {
+            final Session session = new Session()
+                    .setSessionId("session-use-2")
+                    .setSessionCheck(false)
+                    .setSessionTimeout(50)
+                    .setSessionTimezone("Europe/Paris");
+            final InsertSettings settings = new InsertSettings().use(session);
+            Assert.assertEquals(settings.getSessionId(), "session-use-2");
+            Assert.assertFalse(settings.getSessionCheck());
+            Assert.assertEquals(settings.getSessionTimeout().intValue(), 50);
+            Assert.assertEquals(settings.getSessionTimezone(), "Europe/Paris");
         }
     }
 }

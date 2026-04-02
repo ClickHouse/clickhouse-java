@@ -2,6 +2,7 @@ package com.clickhouse.client.api.insert;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.Session;
 import com.clickhouse.client.api.internal.CommonSettings;
 import org.apache.hc.core5.http.HttpHeaders;
 
@@ -137,6 +138,11 @@ public class InsertSettings {
 
     public String getSessionTimezone() {
         return settings.getSessionTimezone();
+    }
+
+    public InsertSettings use(Session session) {
+        settings.use(session);
+        return this;
     }
 
     public int getInputStreamCopyBufferSize() {

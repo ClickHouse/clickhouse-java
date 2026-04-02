@@ -3,6 +3,7 @@ package com.clickhouse.client;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.Session;
 import com.clickhouse.client.api.ClientFaultCause;
 import com.clickhouse.client.api.ConnectionInitiationException;
 import com.clickhouse.client.api.ConnectionReuseStrategy;
@@ -632,11 +633,12 @@ public class HttpTransportTests extends BaseIntegrationTest {
                             .withHeader("X-ClickHouse-Summary",
                                     "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")).build());
 
-            QuerySettings querySettings = new QuerySettings()
+            Session querySession = new Session()
                     .setSessionId("query-session")
                     .setSessionCheck(true)
                     .setSessionTimeout(15)
                     .setSessionTimezone("Asia/Tokyo");
+            QuerySettings querySettings = new QuerySettings().use(querySession);
             try (QueryResponse response = client.query("SELECT 1", querySettings).get(1, TimeUnit.SECONDS)) {
                 Assert.assertEquals(response.getReadBytes(), 10);
             }
@@ -667,11 +669,12 @@ public class HttpTransportTests extends BaseIntegrationTest {
                             .withHeader("X-ClickHouse-Summary",
                                     "{ \"read_bytes\": \"12\", \"read_rows\": \"1\"}")).build());
 
-            InsertSettings insertSettings = new InsertSettings()
+            Session insertSession = new Session()
                     .setSessionId("insert-session")
                     .setSessionCheck(false)
                     .setSessionTimeout(90)
                     .setSessionTimezone("America/Denver");
+            InsertSettings insertSettings = new InsertSettings().use(insertSession);
             try (InsertResponse response = client.insert(
                     "test_table",
                     new ByteArrayInputStream("1\n".getBytes(StandardCharsets.UTF_8)),
@@ -1087,7 +1090,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
     }
 
     @Test(groups = { "integration" })
-    public void testUpdateSessionSettingsAtRuntime() throws Exception {
+    public void testUpdateSessionIdAtRuntime() throws Exception {
         if (isCloud()) {
             return; // mocked server
         }
@@ -1122,23 +1125,30 @@ public class HttpTransportTests extends BaseIntegrationTest {
             mockServer.resetAll();
             mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
                     .withQueryParam("session_id", WireMock.equalTo("session-updated"))
-                    .withQueryParam("session_check", WireMock.equalTo("1"))
-                    .withQueryParam("session_timeout", WireMock.equalTo("30"))
-                    .withQueryParam("session_timezone", WireMock.equalTo("Asia/Novosibirsk"))
+                    .withQueryParam("session_check", WireMock.equalTo("0"))
+                    .withQueryParam("session_timeout", WireMock.equalTo("60"))
+                    .withQueryParam("session_timezone", WireMock.equalTo("UTC"))
                     .willReturn(WireMock.aResponse()
                             .withHeader("X-ClickHouse-Summary",
                                     "{ \"read_bytes\": \"11\", \"read_rows\": \"1\"}")).build());
 
             client.updateSessionId("session-updated");
-            client.updateSessionCheck(true);
-            client.updateSessionTimeout(30);
-            client.updateSessionTimezone("Asia/Novosibirsk");
 
             try (CommandResponse response = client.execute("SELECT 1").get(1, TimeUnit.SECONDS)) {
                 Assert.assertEquals(response.getReadBytes(), 11);
             }
         } finally {
             mockServer.stop();
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testUpdateSessionIdRejectInvalidValues() {
+        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", 8123, false)
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .build()) {
+            Assert.assertThrows(IllegalArgumentException.class, () -> client.updateSessionId(""));
         }
     }
 

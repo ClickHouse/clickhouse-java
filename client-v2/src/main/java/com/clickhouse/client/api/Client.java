@@ -117,6 +117,7 @@ public class Client implements AutoCloseable {
 
     private final List<Endpoint> endpoints;
     private final Map<String, Object> configuration;
+    private final Session session;
 
     private final Map<String, String> readOnlyConfig;
 
@@ -145,7 +146,9 @@ public class Client implements AutoCloseable {
     private Client(Collection<Endpoint> endpoints, Map<String,String> configuration,
                    ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy,
                    Object metricsRegistry, Supplier<String> queryIdGenerator) {
-        this.configuration = Collections.synchronizedMap(ClientConfigProperties.parseConfigMap(configuration));
+        Map<String, Object> parsedConfiguration = ClientConfigProperties.parseConfigMap(configuration);
+        this.session = Session.extractFrom(parsedConfiguration);
+        this.configuration = new ConcurrentHashMap<>(parsedConfiguration);
         this.readOnlyConfig = Collections.unmodifiableMap(configuration);
         this.metricsRegistry = metricsRegistry;
         this.queryIdGenerator = queryIdGenerator;
@@ -2174,33 +2177,7 @@ public class Client implements AutoCloseable {
      */
     public void updateSessionId(String sessionId) {
         ValidationUtils.checkNonBlank(sessionId, ClickHouseHttpProto.QPARAM_SESSION_ID);
-        this.configuration.put(ClientConfigProperties.serverSetting(ClickHouseHttpProto.QPARAM_SESSION_ID), sessionId);
-    }
-
-    /**
-     * Updates ClickHouse session check flag for all subsequent requests created by this client.
-     */
-    public void updateSessionCheck(boolean sessionCheck) {
-        this.configuration.put(ClientConfigProperties.serverSetting(ClickHouseHttpProto.QPARAM_SESSION_CHECK),
-                sessionCheck ? "1" : "0");
-    }
-
-    /**
-     * Updates ClickHouse session timeout (seconds) for all subsequent requests created by this client.
-     */
-    public void updateSessionTimeout(int timeoutInSeconds) {
-        ValidationUtils.checkPositive(timeoutInSeconds, ClickHouseHttpProto.QPARAM_SESSION_TIMEOUT);
-        this.configuration.put(ClientConfigProperties.serverSetting(ClickHouseHttpProto.QPARAM_SESSION_TIMEOUT),
-                String.valueOf(timeoutInSeconds));
-    }
-
-    /**
-     * Updates ClickHouse session timezone for all subsequent requests created by this client.
-     */
-    public void updateSessionTimezone(String timezone) {
-        ValidationUtils.checkNonBlank(timezone, ClickHouseHttpProto.QPARAM_SESSION_TIMEZONE);
-        this.configuration.put(ClientConfigProperties.serverSetting(ClickHouseHttpProto.QPARAM_SESSION_TIMEZONE),
-                timezone);
+        this.session.updateSessionId(sessionId);
     }
 
     public static final String clientVersion =
@@ -2235,10 +2212,8 @@ public class Client implements AutoCloseable {
      * @return request settings - merged client and operation settings
      */
     private Map<String, Object> buildRequestSettings(Map<String, Object> opSettings) {
-        Map<String, Object> requestSettings = new HashMap<>();
-        synchronized (configuration) {
-            requestSettings.putAll(configuration);
-        }
+        Map<String, Object> requestSettings = new HashMap<>(configuration);
+        session.applyTo(requestSettings);
         requestSettings.putAll(opSettings);
         return requestSettings;
     }

@@ -2,6 +2,7 @@ package com.clickhouse.client.api.internal;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.Session;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
 
 import java.time.Duration;
@@ -130,6 +131,12 @@ public class CommonSettings {
 
     public String getSessionTimezone() {
         return (String) settings.get(ClientConfigProperties.serverSetting(ClickHouseHttpProto.QPARAM_SESSION_TIMEZONE));
+    }
+
+    public CommonSettings use(Session session) {
+        ValidationUtils.checkNotNull(session, "session");
+        session.applyTo(settings);
+        return this;
     }
 
     /**
