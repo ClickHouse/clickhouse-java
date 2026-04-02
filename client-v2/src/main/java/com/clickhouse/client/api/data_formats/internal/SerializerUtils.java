@@ -521,7 +521,7 @@ public class SerializerUtils {
                 BinaryStreamUtils.writeUnsignedInt32(stream, convertToLong(value));
                 break;
             case UInt64:
-                BinaryStreamUtils.writeUnsignedInt64(stream, convertToLong(value));
+                BinaryStreamUtils.writeUnsignedInt64(stream, NumberConverter.toBigInteger(value));
                 break;
             case UInt128:
                 BinaryStreamUtils.writeUnsignedInt128(stream, NumberConverter.toBigInteger(value));

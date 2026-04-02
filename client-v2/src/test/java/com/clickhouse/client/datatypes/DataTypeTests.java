@@ -314,6 +314,24 @@ public class DataTypeTests extends BaseIntegrationTest {
     }
 
     @Test(groups = {"integration"})
+    public void testGetBigDecimalDoesNotTruncateLargeIntegers() throws Exception {
+        BigDecimal expectedInt64 = BigDecimal.valueOf(Long.MAX_VALUE);
+        BigDecimal expectedUInt64 = new BigDecimal("18446744073709551615");
+
+        String sql = "SELECT toInt64(" + Long.MAX_VALUE + ") AS i64, "
+                + "toUInt64('" + expectedUInt64.toPlainString() + "') AS u64";
+
+        try (QueryResponse response = client.query(sql).get(3, TimeUnit.SECONDS)) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+
+            Assert.assertNotNull(reader.next());
+            Assert.assertEquals(reader.getBigDecimal("i64"), expectedInt64);
+            Assert.assertEquals(reader.getBigDecimal("u64"), expectedUInt64);
+            Assert.assertFalse(reader.hasNext());
+        }
+    }
+
+    @Test(groups = {"integration"})
     public void testVariantWithArrays() throws Exception {
         testVariantWith("arrays", new String[]{"field Variant(String, Array(String))"},
                 new Object[]{
