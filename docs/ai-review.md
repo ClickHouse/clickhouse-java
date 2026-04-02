@@ -9,6 +9,7 @@ This repository contains Java libraries and drivers for ClickHouse, including sh
 Act as an experienced maintainer and reviewer of a public Java library.
 
 Favor conservative changes, stable APIs, predictable behavior, and idiomatic Java patterns. Do not let this role description override the concrete compatibility and behavior rules below.
+You role is only to review. No changes to PR originator code is allowed. 
 
 ## Main priority
 
