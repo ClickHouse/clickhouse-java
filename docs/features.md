@@ -10,7 +10,7 @@ This document lists stable, user-visible behavior in `client-v2` and `jdbc-v2` t
 - Proxy support: Can send requests through configured HTTP proxies, including proxy credentials.
 - Connection and socket tuning: Exposes pool sizing, keep-alive, reuse strategy, connect/request/socket timeouts, and low-level socket options.
 - Query execution: Executes SQL asynchronously and returns streaming query responses with response metadata and metrics.
-- Query settings: Supports per-query database selection, output format, execution limits, roles, log comments, headers, session settings, server settings, and network timeout overrides.
+- Query settings: Supports per-query database selection, output format, execution limits, roles, log comments, headers, reusable `Session` objects, session settings, server settings, and network timeout overrides.
 - Parameterized SQL: Accepts named query parameters and can send them through supported HTTP request encodings.
 - Result materialization helpers: Provides streaming `Records`, generic row access, and convenience APIs that materialize all rows into generic records or typed POJOs.
 - Binary format readers: Reads ClickHouse binary result formats including `Native`, `RowBinary`, `RowBinaryWithNames`, and `RowBinaryWithNamesAndTypes`.
@@ -18,6 +18,7 @@ This document lists stable, user-visible behavior in `client-v2` and `jdbc-v2` t
 - Insert APIs: Supports inserting registered POJOs, raw streams, and callback-driven writers, with optional column lists and format selection.
 - Insert controls: Supports insert-specific settings such as deduplication token, query id, compression behavior, and request headers.
 - Command execution: Executes DDL or other non-result commands and exposes response summaries and operation metrics.
+- Session handling: Supports client-wide and per-operation HTTP sessions, operation-level session overrides, runtime updates of client `session_id`, and server-side session validation through `session_check`.
 - Metadata discovery: Loads table schemas from table names or queries and allows schema registration for typed read/write operations.
 - Server information loading: Can refresh server version, current user, and server time zone information.
 - Compression support: Supports response compression, ClickHouse LZ4 request/response compression, HTTP content compression, and caller-supplied precompressed insert bodies.
@@ -34,6 +35,7 @@ Compatibility-sensitive traits:
 - Identifier quoting behavior is stable API for helper callers: identifiers are double-quoted, embedded double quotes are doubled, and optional quoting keeps simple identifiers unchanged.
 - Instant formatting is type-sensitive and should not drift: `Date` formatting depends on an explicit timezone, `DateTime` is serialized as epoch seconds, and higher-precision timestamps preserve up to 9 fractional digits.
 - Timezone conversion helpers preserve nanoseconds and can intentionally shift local date or time when interpreted in a different timezone; this behavior is covered by tests and should not be normalized away.
+- Session precedence is part of the contract: client session defaults apply to each request, operation settings may override them, and only the client `session_id` is mutable at runtime while other client session properties remain fixed for the lifetime of the client.
 
 
 ## `jdbc-v2`

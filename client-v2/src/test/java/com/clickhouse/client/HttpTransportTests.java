@@ -615,13 +615,16 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 .options().dynamicPort().notifier(new ConsoleNotifier(false)));
         mockServer.start();
 
-        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
-                .setUsername("default")
-                .setPassword(ClickHouseServerForTest.getPassword())
+        Session clientSession = new Session()
                 .setSessionId("client-session")
                 .setSessionCheck(false)
                 .setSessionTimeout(60)
-                .setSessionTimezone("Europe/London")
+                .setSessionTimezone("Europe/London");
+
+        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .use(clientSession)
                 .compressClientRequest(false)
                 .build()) {
             mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())

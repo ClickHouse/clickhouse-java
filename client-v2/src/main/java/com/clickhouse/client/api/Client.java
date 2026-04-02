@@ -989,6 +989,23 @@ public class Client implements AutoCloseable {
             return serverSetting(ClickHouseHttpProto.QPARAM_SESSION_TIMEZONE, timezone);
         }
 
+        public Builder use(Session session) {
+            ValidationUtils.checkNotNull(session, "session");
+            if (session.getSessionId() != null) {
+                setSessionId(session.getSessionId());
+            }
+            if (session.getSessionCheck() != null) {
+                setSessionCheck(session.getSessionCheck());
+            }
+            if (session.getSessionTimeout() != null) {
+                setSessionTimeout(session.getSessionTimeout());
+            }
+            if (session.getSessionTimezone() != null) {
+                setSessionTimezone(session.getSessionTimezone());
+            }
+            return this;
+        }
+
         /**
          * Sets column to method matching strategy. It is used while registering POJO serializers and deserializers.
          * Default is {@link DefaultColumnToMethodMatchingStrategy}.
