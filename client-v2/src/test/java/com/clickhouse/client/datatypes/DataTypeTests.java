@@ -1109,6 +1109,60 @@ public class DataTypeTests extends BaseIntegrationTest {
         }
     }
 
+    @Data
+    @AllArgsConstructor
+    public static class DTOForGeometryTests {
+        private int rowId;
+        private Object geom;
+    }
+
+    @Test(groups = {"integration"})
+    public void testGeometryWriteToTable() throws Exception {
+        if (isVersionMatch("(,25.10]")) {
+            return;
+        }
+
+        final String table = "test_geometry_write";
+        final CommandSettings geometrySettings = (CommandSettings) new CommandSettings()
+                .serverSetting("allow_suspicious_variant_types", "1");
+        final Object[] valuesToInsert = new Object[] {
+                new Double[] {1D, 2D},
+                new Double[][] {{1D, 2D}, {3D, 4D}, {1D, 2D}},
+                new Double[][][] {{{1D, 2D}, {3D, 4D}, {1D, 2D}}},
+                new Double[][][][] {
+                        {{{1D, 2D}, {3D, 4D}, {1D, 2D}}},
+                        {{{5D, 6D}, {7D, 8D}, {5D, 6D}}}
+                }
+        };
+        final Object[] expectedValues = new Object[] {
+                new double[] {1D, 2D},
+                new double[][] {{1D, 2D}, {3D, 4D}, {1D, 2D}},
+                new double[][][] {{{1D, 2D}, {3D, 4D}, {1D, 2D}}},
+                new double[][][][] {
+                        {{{1D, 2D}, {3D, 4D}, {1D, 2D}}},
+                        {{{5D, 6D}, {7D, 8D}, {5D, 6D}}}
+                }
+        };
+
+        client.execute("DROP TABLE IF EXISTS " + table).get().close();
+        client.execute(tableDefinition(table, "rowId Int32", "geom Geometry"), geometrySettings).get().close();
+        client.register(DTOForGeometryTests.class, client.getTableSchema(table));
+
+        List<DTOForGeometryTests> data = new ArrayList<>();
+        for (int i = 0; i < valuesToInsert.length; i++) {
+            data.add(new DTOForGeometryTests(i, valuesToInsert[i]));
+        }
+        client.insert(table, data).get().close();
+
+        List<GenericRecord> records = client.queryAll("SELECT * FROM " + table + " ORDER BY rowId");
+        Assert.assertEquals(records.size(), expectedValues.length);
+        for (GenericRecord record : records) {
+            int rowId = record.getInteger("rowId");
+            Assert.assertNotNull(record.getString("geom"));
+            assertGeometryValue(record.getObject("geom"), expectedValues[rowId]);
+        }
+    }
+
     @Test(groups = {"integration"})
     public void testDates() throws Exception {
         LocalDate date = LocalDate.of(2024, 1, 15);

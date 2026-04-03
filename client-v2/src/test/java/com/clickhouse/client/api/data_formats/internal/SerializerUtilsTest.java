@@ -31,15 +31,23 @@ public class SerializerUtilsTest {
     }
 
     @Test
-    public void testVariantWithGeometryRoundTrip() throws Exception {
-        ClickHouseColumn variant = ClickHouseColumn.of("v", "Variant(String, Geometry)");
-        double[][] ring = new double[][] {{1D, 2D}, {3D, 4D}};
+    public void testGeometryRoundTripWithBoxedArray() throws Exception {
+        ClickHouseColumn geometry = ClickHouseColumn.of("v", "Geometry");
+        Double[][] ring = new Double[][] {{1D, 2D}, {3D, 4D}};
 
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        SerializerUtils.serializeData(out, ring, variant);
+        SerializerUtils.serializeData(out, ring, geometry);
 
-        Object value = newReader(out.toByteArray()).readValue(variant);
-        Assert.assertTrue(Arrays.deepEquals((double[][]) value, ring));
+        Object value = newReader(out.toByteArray()).readValue(geometry);
+        Assert.assertTrue(Arrays.deepEquals((double[][]) value, new double[][] {{1D, 2D}, {3D, 4D}}));
+    }
+
+    @Test
+    public void testGeometryArrayDimensions() {
+        Assert.assertEquals(SerializerUtils.getArrayDimensions(new Double[] {1D, 2D}), 1);
+        Assert.assertEquals(SerializerUtils.getArrayDimensions(new Double[][] {{1D, 2D}}), 2);
+        Assert.assertEquals(SerializerUtils.getArrayDimensions(new Double[][][] {{{1D, 2D}}}), 3);
+        Assert.assertEquals(SerializerUtils.getArrayDimensions(new Object[] {new Double[] {1D, 2D}}), 2);
     }
 
     @Test

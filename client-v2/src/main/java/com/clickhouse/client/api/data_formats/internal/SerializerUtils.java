@@ -78,7 +78,7 @@ public class SerializerUtils {
                 serializerVariant(stream, column, value);
                 break;
             case Geometry:
-                serializerVariant(stream, column, value);
+                serializerGeometry(stream, column, value);
                 break;
             case Point:
                 value = value instanceof ClickHouseGeoPointValue ? ((ClickHouseGeoPointValue)value).getValue() : value;
@@ -722,6 +722,65 @@ public class SerializerUtils {
         } else {
             throw new IllegalArgumentException("Cannot write value of class " + value.getClass() + " into column with variant type " + column.getOriginalTypeName());
         }
+    }
+
+    public static void serializerGeometry(OutputStream out, ClickHouseColumn column, Object value) throws IOException {
+        int typeOrdNum = column.getGeometryVariantOrdNum(value);
+        if (typeOrdNum == -1 && value != null && value.getClass().isArray()) {
+            typeOrdNum = column.getGeometryVariantOrdNum(getArrayDimensions(value));
+        }
+        if (typeOrdNum != -1) {
+            BinaryStreamUtils.writeUnsignedInt8(out, typeOrdNum);
+            serializeData(out, value, column.getNestedColumns().get(typeOrdNum));
+        } else {
+            throw new IllegalArgumentException(
+                    "Cannot write value of class " + value.getClass() + " into column with geometry type "
+                            + column.getOriginalTypeName());
+        }
+    }
+
+    static int getArrayDimensions(Object value) {
+        if (value instanceof double[] || value instanceof Double[]) {
+            return 1;
+        } else if (value instanceof double[][] || value instanceof Double[][]) {
+            return 2;
+        } else if (value instanceof double[][][] || value instanceof Double[][][]) {
+            return 3;
+        } else if (value instanceof double[][][][] || value instanceof Double[][][][]) {
+            return 4;
+        } else if (value == null || !value.getClass().isArray()) {
+            return -1;
+        }
+
+        Class<?> componentType = value.getClass();
+        int dimensions = 0;
+        while (componentType.isArray()) {
+            dimensions++;
+            componentType = componentType.getComponentType();
+        }
+
+        if (componentType != Object.class) {
+            return dimensions;
+        }
+
+        Object nestedValue = firstNonNullArrayElement(value);
+        if (nestedValue == null) {
+            return dimensions;
+        }
+
+        int nestedDimensions = getArrayDimensions(nestedValue);
+        return nestedDimensions > 0 ? dimensions + nestedDimensions : dimensions;
+    }
+
+    private static Object firstNonNullArrayElement(Object value) {
+        for (int i = 0, len = Array.getLength(value); i < len; i++) {
+            Object item = Array.get(value, i);
+            if (item != null) {
+                return item;
+            }
+        }
+
+        return null;
     }
 
     private static final ClickHouseColumn GEO_POINT_TUPLE = ClickHouseColumn.parse("geopoint Tuple(Float64, Float64)").get(0);
