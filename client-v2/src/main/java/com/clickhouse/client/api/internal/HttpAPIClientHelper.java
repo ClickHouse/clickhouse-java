@@ -31,10 +31,9 @@ import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuil
 import org.apache.hc.client5.http.io.HttpClientConnectionManager;
 import org.apache.hc.client5.http.io.ManagedHttpClientConnection;
 import org.apache.hc.client5.http.protocol.HttpClientContext;
-import org.apache.hc.client5.http.socket.ConnectionSocketFactory;
 import org.apache.hc.client5.http.socket.LayeredConnectionSocketFactory;
-import org.apache.hc.client5.http.socket.PlainConnectionSocketFactory;
 import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
+import org.apache.hc.client5.http.ssl.TlsSocketStrategy;
 import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.ConnectionRequestTimeoutException;
 import org.apache.hc.core5.http.ContentType;
@@ -45,8 +44,10 @@ import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.HttpRequest;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.NoHttpResponseException;
+import org.apache.hc.core5.http.URIScheme;
 import org.apache.hc.core5.http.config.CharCodingConfig;
 import org.apache.hc.core5.http.config.Http1Config;
+import org.apache.hc.core5.http.config.Lookup;
 import org.apache.hc.core5.http.config.RegistryBuilder;
 import org.apache.hc.core5.http.impl.io.DefaultHttpResponseParserFactory;
 import org.apache.hc.core5.http.io.SocketConfig;
@@ -204,11 +205,13 @@ public class HttpAPIClientHelper {
     }
 
     private HttpClientConnectionManager basicConnectionManager(LayeredConnectionSocketFactory sslConnectionSocketFactory, SocketConfig socketConfig, Map<String, Object> configuration) {
-        RegistryBuilder<ConnectionSocketFactory> registryBuilder = RegistryBuilder.create();
-        registryBuilder.register("http", PlainConnectionSocketFactory.getSocketFactory());
-        registryBuilder.register("https", sslConnectionSocketFactory);
+        Lookup<TlsSocketStrategy> tlsSocketStrategyLookup = RegistryBuilder.<TlsSocketStrategy>create()
+                .register(URIScheme.HTTPS.id, (socket, target, port, attachment, context) ->
+                        (SSLSocket) sslConnectionSocketFactory.createLayeredSocket(socket, target, port, context))
+                .build();
 
-        BasicHttpClientConnectionManager connManager = new BasicHttpClientConnectionManager(registryBuilder.build());
+        BasicHttpClientConnectionManager connManager = BasicHttpClientConnectionManager.create(
+                null, null, tlsSocketStrategyLookup, null);
         connManager.setConnectionConfig(createConnectionConfig(configuration));
         connManager.setSocketConfig(socketConfig);
 
