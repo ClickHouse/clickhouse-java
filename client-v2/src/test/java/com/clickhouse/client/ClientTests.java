@@ -145,16 +145,20 @@ public class ClientTests extends BaseIntegrationTest {
         }
     }
 
+    private String generateSessionId(String prefix) {
+        return prefix + UUID.randomUUID().toString().replace("-", "");
+    }
+
     @Test(groups = {"integration"})
     public void testTemporaryTablesAreBoundToSession() throws Exception {
         if (isCloud()) {
             return; // HTTP sessions require server affinity
         }
 
-        String session1 = "session_1_" + UUID.randomUUID().toString().replace("-", "");
-        String session2 = "session_2_" + UUID.randomUUID().toString().replace("-", "");
-        String table1 = "tmp_session_1_" + UUID.randomUUID().toString().replace("-", "");
-        String table2 = "tmp_session_2_" + UUID.randomUUID().toString().replace("-", "");
+        String session1 = generateSessionId("session_1_");
+        String session2 = generateSessionId("session_2_");
+        String table1 = generateSessionId("tmp_session_1_");
+        String table2 = generateSessionId("tmp_session_2_");
 
         CommandSettings session1CommandSettings = new CommandSettings()
                 .setSessionId(session1)

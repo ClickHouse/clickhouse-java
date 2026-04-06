@@ -17,22 +17,22 @@ public class Session {
     static Session extractFrom(Map<String, Object> configuration) {
         Session session = new Session();
 
-        String sessionId = (String) configuration.remove(ClientConfigProperties.serverSetting(ClickHouseHttpProto.QPARAM_SESSION_ID));
+        String sessionId = (String) configuration.get(ClientConfigProperties.serverSetting(ClickHouseHttpProto.QPARAM_SESSION_ID));
         if (sessionId != null) {
             session.setSessionId(sessionId);
         }
 
-        String sessionCheck = (String) configuration.remove(ClientConfigProperties.serverSetting(ClickHouseHttpProto.QPARAM_SESSION_CHECK));
+        String sessionCheck = (String) configuration.get(ClientConfigProperties.serverSetting(ClickHouseHttpProto.QPARAM_SESSION_CHECK));
         if (sessionCheck != null) {
             session.setSessionCheck("1".equals(sessionCheck) || Boolean.parseBoolean(sessionCheck));
         }
 
-        String sessionTimeout = (String) configuration.remove(ClientConfigProperties.serverSetting(ClickHouseHttpProto.QPARAM_SESSION_TIMEOUT));
+        String sessionTimeout = (String) configuration.get(ClientConfigProperties.serverSetting(ClickHouseHttpProto.QPARAM_SESSION_TIMEOUT));
         if (sessionTimeout != null) {
             session.setSessionTimeout(Integer.parseInt(sessionTimeout));
         }
 
-        String sessionTimezone = (String) configuration.remove(ClientConfigProperties.serverSetting(ClickHouseHttpProto.QPARAM_SESSION_TIMEZONE));
+        String sessionTimezone = (String) configuration.get(ClientConfigProperties.serverSetting(ClickHouseHttpProto.QPARAM_SESSION_TIMEZONE));
         if (sessionTimezone != null) {
             session.setSessionTimezone(sessionTimezone);
         }
