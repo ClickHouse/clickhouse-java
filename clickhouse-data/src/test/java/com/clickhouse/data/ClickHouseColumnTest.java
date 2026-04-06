@@ -11,6 +11,7 @@ import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import com.clickhouse.data.value.ClickHouseArrayValue;
+import com.clickhouse.data.value.ClickHouseGeoMultiPolygonValue;
 import com.clickhouse.data.value.ClickHouseGeoPointValue;
 import com.clickhouse.data.value.ClickHouseGeoPolygonValue;
 import com.clickhouse.data.value.ClickHouseGeoRingValue;
@@ -420,7 +421,7 @@ public class ClickHouseColumnTest {
                 return true;
             };
         };
-        for (ClickHouseDataType type : ClickHouseDataType.values()) {
+        for (ClickHouseDataType type : java.util.EnumSet.allOf(ClickHouseDataType.class)) {
             // skip advanced types
             if (type.isNested() || type == ClickHouseDataType.AggregateFunction
                     || type == ClickHouseDataType.SimpleAggregateFunction || type == ClickHouseDataType.Enum
@@ -454,6 +455,13 @@ public class ClickHouseColumnTest {
                 getVariantOrdNum(geometry, ClickHouseDataType.Point));
         Assert.assertEquals(geometry.getGeometryVariantOrdNum(2),
                 getVariantOrdNum(geometry, ClickHouseDataType.Ring));
+        Assert.assertEquals(geometry.getGeometryVariantOrdNum(3),
+                getVariantOrdNum(geometry, ClickHouseDataType.Polygon));
+        Assert.assertEquals(geometry.getGeometryVariantOrdNum(4),
+                getVariantOrdNum(geometry, ClickHouseDataType.MultiPolygon));
+        Assert.assertEquals(geometry.getGeometryVariantOrdNum(0), -1);
+        Assert.assertEquals(geometry.getGeometryVariantOrdNum(5), -1);
+        Assert.assertEquals(geometry.getGeometryVariantOrdNum((Object) null), -1);
         Assert.assertEquals(geometry.getGeometryVariantOrdNum(
                         ClickHouseGeoPointValue.of(new double[] { 1D, 2D })),
                 getVariantOrdNum(geometry, ClickHouseDataType.Point));
@@ -463,6 +471,10 @@ public class ClickHouseColumnTest {
         Assert.assertEquals(geometry.getGeometryVariantOrdNum(
                         ClickHouseGeoPolygonValue.of(new double[][][] { { { 1D, 2D }, { 3D, 4D } } })),
                 getVariantOrdNum(geometry, ClickHouseDataType.Polygon));
+        Assert.assertEquals(geometry.getGeometryVariantOrdNum(
+                        ClickHouseGeoMultiPolygonValue.of(new double[][][][] { { { { 1D, 2D }, { 3D, 4D } } } })),
+                getVariantOrdNum(geometry, ClickHouseDataType.MultiPolygon));
+        Assert.assertEquals(geometry.getGeometryVariantOrdNum(new Object()), -1);
     }
 
     private static int getVariantOrdNum(ClickHouseColumn column, ClickHouseDataType dataType) {

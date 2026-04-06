@@ -43,11 +43,28 @@ public class SerializerUtilsTest {
     }
 
     @Test
+    public void testGeometryRoundTripWithMultiPolygonArray() throws Exception {
+        ClickHouseColumn geometry = ClickHouseColumn.of("v", "Geometry");
+        double[][][][] multiPolygon = new double[][][][] {{{{1D, 2D}, {3D, 4D}}}};
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        SerializerUtils.serializeData(out, multiPolygon, geometry);
+
+        Object value = newReader(out.toByteArray()).readValue(geometry);
+        Assert.assertTrue(Arrays.deepEquals((double[][][][]) value, multiPolygon));
+    }
+
+    @Test
     public void testGeometryArrayDimensions() {
         Assert.assertEquals(SerializerUtils.getArrayDimensions(new Double[] {1D, 2D}), 1);
         Assert.assertEquals(SerializerUtils.getArrayDimensions(new Double[][] {{1D, 2D}}), 2);
         Assert.assertEquals(SerializerUtils.getArrayDimensions(new Double[][][] {{{1D, 2D}}}), 3);
+        Assert.assertEquals(SerializerUtils.getArrayDimensions(new Double[][][][] {{{{1D, 2D}}}}), 4);
         Assert.assertEquals(SerializerUtils.getArrayDimensions(new Object[] {new Double[] {1D, 2D}}), 2);
+        Assert.assertEquals(SerializerUtils.getArrayDimensions(new Object[] {null, new Object[] {new Double[] {1D, 2D}}}), 3);
+        Assert.assertEquals(SerializerUtils.getArrayDimensions(new Object[] {null, null}), 1);
+        Assert.assertEquals(SerializerUtils.getArrayDimensions("not an array"), -1);
+        Assert.assertEquals(SerializerUtils.getArrayDimensions(null), -1);
     }
 
     @Test
@@ -67,6 +84,13 @@ public class SerializerUtilsTest {
         assertCustomGeoTypeTag("LineString");
         assertCustomGeoTypeTag("MultiLineString");
         assertCustomGeoTypeTag("Geometry");
+    }
+
+    @Test
+    public void testGeometrySerializationRejectsUnsupportedValue() {
+        Assert.assertThrows(IllegalArgumentException.class,
+                () -> SerializerUtils.serializeData(new ByteArrayOutputStream(), "not-geometry",
+                        ClickHouseColumn.of("v", "Geometry")));
     }
 
     private void assertCustomGeoTypeTag(String typeName) throws Exception {

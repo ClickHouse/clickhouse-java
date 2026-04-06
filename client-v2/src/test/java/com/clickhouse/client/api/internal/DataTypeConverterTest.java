@@ -136,6 +136,9 @@ public class DataTypeConverterTest {
                 "[(1.0,2.0),(3.0,4.0)]");
         assertEquals(converter.convertToString(new double[][][] {{{1D, 2D}, {3D, 4D}}}, ClickHouseColumn.of("field", "Polygon")),
                 "[[(1.0,2.0),(3.0,4.0)]]");
+        assertEquals(
+                converter.convertToString(new double[][][][] {{{{1D, 2D}, {3D, 4D}}}}, ClickHouseColumn.of("field", "MultiPolygon")),
+                "[[[(1.0,2.0),(3.0,4.0)]]]");
         assertEquals(converter.convertToString(new double[] {1D, 2D}, ClickHouseColumn.of("field", "Geometry")), "(1.0,2.0)");
     }
 
@@ -148,5 +151,17 @@ public class DataTypeConverterTest {
         assertEquals(
                 converter.convertToString(new double[][] {{1D, 2D}, {3D, 4D}}, ClickHouseColumn.of("field", "Dynamic")),
                 "[(1.0,2.0),(3.0,4.0)]");
+        assertEquals(
+                converter.convertToString(new double[][][] {{{1D, 2D}, {3D, 4D}}}, ClickHouseColumn.of("field", "Variant(String, Polygon)")),
+                "[[(1.0,2.0),(3.0,4.0)]]");
+        assertEquals(
+                converter.convertToString(new double[][][][] {{{{1D, 2D}, {3D, 4D}}}}, ClickHouseColumn.of("field", "Dynamic")),
+                "[[[(1.0,2.0),(3.0,4.0)]]]");
+        assertEquals(
+                converter.convertToString(new int[] {1, 2, 3}, ClickHouseColumn.of("field", "Variant(String, Array(Int32))")),
+                "[1, 2, 3]");
+        assertEquals(
+                converter.convertToString(new double[][] {{1D, 2D, 3D}}, ClickHouseColumn.of("field", "Dynamic")),
+                "[[1.0, 2.0, 3.0]]");
     }
 }

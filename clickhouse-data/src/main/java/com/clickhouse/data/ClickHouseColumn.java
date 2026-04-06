@@ -415,7 +415,7 @@ public final class ClickHouseColumn implements Serializable {
                     nestedColumns.add(ClickHouseColumn.of("", p));
                 }
             }
-            column = new ClickHouseColumn(ClickHouseDataType.valueOf(matchedKeyword), name,
+            column = new ClickHouseColumn(ClickHouseDataType.of(matchedKeyword), name,
                     args.substring(startIndex, i), nullable, lowCardinality, params, nestedColumns);
             column.aggFuncType = aggFunc;
             if (!nestedColumns.isEmpty()) {
@@ -509,7 +509,7 @@ public final class ClickHouseColumn implements Serializable {
                     variantDataTypes.add(c.dataType);
                 });
             }
-            column = new ClickHouseColumn(ClickHouseDataType.valueOf(matchedKeyword), name,
+            column = new ClickHouseColumn(ClickHouseDataType.of(matchedKeyword), name,
                     args.substring(startIndex, endIndex + 1), nullable, lowCardinality, null, nestedColumns);
             for (ClickHouseColumn n : nestedColumns) {
                 estimatedLength += n.estimatedByteLength;
