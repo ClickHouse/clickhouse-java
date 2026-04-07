@@ -4,6 +4,7 @@ import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.ClientFaultCause;
+import com.clickhouse.client.api.ClientMisconfigurationException;
 import com.clickhouse.client.api.ConnectionInitiationException;
 import com.clickhouse.client.api.ConnectionReuseStrategy;
 import com.clickhouse.client.api.ServerException;
@@ -777,9 +778,9 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 .compressServerResponse(false)
                 .build()) {
             fail("Expected exception");
-        } catch (IllegalArgumentException e) {
+        } catch (ClientMisconfigurationException e) {
             e.printStackTrace();
-                Assert.assertTrue(e.getMessage().startsWith("Only one of password, access token or SSL authentication"));
+            Assert.assertTrue(e.getMessage().startsWith("Only one of password, access token or SSL authentication"));
         }
     }
 
