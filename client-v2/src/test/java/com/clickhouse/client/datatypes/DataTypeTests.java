@@ -379,7 +379,7 @@ public class DataTypeTests extends BaseIntegrationTest {
         String sql = "SELECT toInt64(" + Long.MAX_VALUE + ") AS i64, "
                 + "toUInt64('" + expectedUInt64.toPlainString() + "') AS u64";
 
-        try (QueryResponse response = client.query(sql).get(3, TimeUnit.SECONDS)) {
+        try (QueryResponse response = client.query(sql).get()) {
             ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
 
             Assert.assertNotNull(reader.next());

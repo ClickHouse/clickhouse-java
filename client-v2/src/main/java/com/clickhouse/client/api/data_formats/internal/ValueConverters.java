@@ -12,6 +12,10 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.function.Function;
 
+/**
+ * This class should be used to convert non-null value with known type.
+ * All methods should be kept minimal without null or instanceOf checks.
+ */
 public final class ValueConverters {
 
 
@@ -209,13 +213,12 @@ public final class ValueConverters {
     }
 
     public BigDecimal convertNumberToBigDecimal(Object value) {
-        Number number = (Number) value;
-        if (number instanceof Byte || number instanceof Short || number instanceof Integer || number instanceof Long) {
-            return BigDecimal.valueOf(number.longValue());
-        } else if (number instanceof Float || number instanceof Double) {
-            return BigDecimal.valueOf(number.doubleValue());
+        if (value instanceof Byte || value instanceof Short || value instanceof Integer || value instanceof Long) {
+            return BigDecimal.valueOf(((Number)value).longValue());
+        } else if (value instanceof Float || value instanceof Double) {
+            return BigDecimal.valueOf(((Number)value).doubleValue());
         }
-        return new BigDecimal(number.toString());
+        return new BigDecimal(value.toString());
     }
 
     // Date & Time converters

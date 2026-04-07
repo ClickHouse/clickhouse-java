@@ -4,13 +4,10 @@ import com.clickhouse.client.api.data_formats.RowBinaryFormatSerializer;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatReader;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.data_formats.internal.SerializerUtils;
-import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.format.BinaryStreamUtils;
 import org.testng.annotations.Test;
-
-import java.io.ByteArrayOutputStream;
 
 import org.testng.Assert;
 

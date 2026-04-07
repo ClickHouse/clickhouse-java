@@ -643,6 +643,83 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
     }
 
     @Test(groups = { "integration" })
+    public void testDecimalTypesTruncateOnWriteAndRead() throws SQLException {
+        final String tableName = "test_decimal_truncate";
+        runQuery("DROP TABLE IF EXISTS " + tableName);
+        runQuery("CREATE TABLE " + tableName + " (order Int8, "
+                + "dec Decimal(9, 2), dec32 Decimal32(4), dec64 Decimal64(8), dec128 Decimal128(18), dec256 Decimal256(18)"
+                + ") ENGINE = MergeTree ORDER BY ()");
+
+        BigDecimal[] positiveWritten = new BigDecimal[] {
+                new BigDecimal("1234567.899"),
+                new BigDecimal("12345.67891"),
+                new BigDecimal("1234567890.123456789"),
+                new BigDecimal("12345678901234567890.1234567890123456789"),
+                new BigDecimal("1234567890123456789012345678901234567890.1234567890123456789")
+        };
+        BigDecimal[] positiveExpected = new BigDecimal[] {
+                new BigDecimal("1234567.89"),
+                new BigDecimal("12345.6789"),
+                new BigDecimal("1234567890.12345678"),
+                new BigDecimal("12345678901234567890.123456789012345678"),
+                new BigDecimal("1234567890123456789012345678901234567890.123456789012345678")
+        };
+        BigDecimal[] negativeWritten = new BigDecimal[] {
+                new BigDecimal("-1234567.899"),
+                new BigDecimal("-12345.67891"),
+                new BigDecimal("-1234567890.123456789"),
+                new BigDecimal("-12345678901234567890.1234567890123456789"),
+                new BigDecimal("-1234567890123456789012345678901234567890.1234567890123456789")
+        };
+        BigDecimal[] negativeExpected = new BigDecimal[] {
+                new BigDecimal("-1234567.89"),
+                new BigDecimal("-12345.6789"),
+                new BigDecimal("-1234567890.12345678"),
+                new BigDecimal("-12345678901234567890.123456789012345678"),
+                new BigDecimal("-1234567890123456789012345678901234567890.123456789012345678")
+        };
+
+        try (Connection conn = getJdbcConnection();
+             PreparedStatement stmt = conn.prepareStatement("INSERT INTO " + tableName + " VALUES (?, ?, ?, ?, ?, ?)")) {
+            stmt.setInt(1, 1);
+            for (int i = 0; i < positiveWritten.length; i++) {
+                stmt.setBigDecimal(i + 2, positiveWritten[i]);
+            }
+            stmt.executeUpdate();
+
+            stmt.setInt(1, 2);
+            for (int i = 0; i < negativeWritten.length; i++) {
+                stmt.setBigDecimal(i + 2, negativeWritten[i]);
+            }
+            stmt.executeUpdate();
+        }
+
+        try (Connection conn = getJdbcConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT * FROM " + tableName + " ORDER BY order")) {
+            assertDecimalTruncationRow(rs, 1, positiveExpected);
+            assertDecimalTruncationRow(rs, 2, negativeExpected);
+            assertFalse(rs.next());
+        }
+    }
+
+    private void assertDecimalTruncationRow(ResultSet rs, int order, BigDecimal[] expectedValues) throws SQLException {
+        String[] columns = { "dec", "dec32", "dec64", "dec128", "dec256" };
+
+        assertTrue(rs.next());
+        assertEquals(rs.getInt("order"), order);
+        for (int i = 0; i < columns.length; i++) {
+            String column = columns[i];
+            BigDecimal expected = expectedValues[i];
+
+            assertEquals(rs.getString(column), expected.toPlainString());
+            assertEquals(rs.getBigDecimal(column), expected);
+            assertEquals(rs.getObject(column), expected);
+            assertEquals(rs.getObject(column, BigDecimal.class), expected);
+        }
+    }
+
+    @Test(groups = { "integration" })
     public void testDateTimeTypes() throws SQLException {
         runQuery("CREATE TABLE test_datetimes (order Int8, " +
                 "dateTime DateTime, dateTime32 DateTime32, " +
