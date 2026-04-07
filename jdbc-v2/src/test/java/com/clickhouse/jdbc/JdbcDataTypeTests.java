@@ -720,6 +720,84 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
     }
 
     @Test(groups = { "integration" })
+    public void testDecimalTypesWithFractionalFloatParameters() throws SQLException {
+        final String tableName = "test_decimal_fractional_floats";
+        float[] values = new float[] {
+                0.0001f,   // mantissa 1
+                0.0127f,   // mantissa 127
+                0.0128f,   // mantissa 128
+                0.0255f,   // mantissa 255
+                0.0256f,   // mantissa 256
+                6.5535f,   // mantissa 65535
+                6.5536f,   // mantissa 65536
+                838.8607f, // mantissa 8388607
+                838.8608f  // mantissa 8388608
+        };
+        String[] expectedScale4 = new String[] {
+                "0.0001",
+                "0.0127",
+                "0.0128",
+                "0.0255",
+                "0.0256",
+                "6.5535",
+                "6.5536",
+                "838.8607",
+                "838.8608"
+        };
+        String[] expectedScale8 = new String[] {
+                "0.00010000",
+                "0.01270000",
+                "0.01280000",
+                "0.02550000",
+                "0.02560000",
+                "6.55350000",
+                "6.55360000",
+                "838.86070000",
+                "838.86080000"
+        };
+        runQuery("DROP TABLE IF EXISTS " + tableName);
+        runQuery("CREATE TABLE " + tableName + " (order Int8, "
+                + "dec Decimal(9, 4), dec32 Decimal32(4), dec64 Decimal64(8)"
+                + ") ENGINE = MergeTree ORDER BY ()");
+
+        try (Connection conn = getJdbcConnection();
+             PreparedStatement stmt = conn.prepareStatement("INSERT INTO " + tableName + " VALUES (?, ?, ?, ?)")) {
+            for (int i = 0; i < values.length; i++) {
+                stmt.setInt(1, i + 1);
+                stmt.setFloat(2, values[i]);
+                stmt.setFloat(3, values[i]);
+                stmt.setFloat(4, values[i]);
+                stmt.executeUpdate();
+            }
+        }
+
+        try (Connection conn = getJdbcConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT * FROM " + tableName + " ORDER BY order")) {
+            for (int i = 0; i < expectedScale4.length; i++) {
+                assertTrue(rs.next());
+                assertEquals(rs.getInt("order"), i + 1);
+
+                assertEquals(rs.getString("dec"), expectedScale4[i]);
+                assertEquals(rs.getBigDecimal("dec"), new BigDecimal(expectedScale4[i]));
+                assertEquals(rs.getObject("dec"), new BigDecimal(expectedScale4[i]));
+                assertEquals(rs.getObject("dec", BigDecimal.class), new BigDecimal(expectedScale4[i]));
+
+                assertEquals(rs.getString("dec32"), expectedScale4[i]);
+                assertEquals(rs.getBigDecimal("dec32"), new BigDecimal(expectedScale4[i]));
+                assertEquals(rs.getObject("dec32"), new BigDecimal(expectedScale4[i]));
+                assertEquals(rs.getObject("dec32", BigDecimal.class), new BigDecimal(expectedScale4[i]));
+
+                assertEquals(rs.getString("dec64"), expectedScale8[i]);
+                assertEquals(rs.getBigDecimal("dec64"), new BigDecimal(expectedScale8[i]));
+                assertEquals(rs.getObject("dec64"), new BigDecimal(expectedScale8[i]));
+                assertEquals(rs.getObject("dec64", BigDecimal.class), new BigDecimal(expectedScale8[i]));
+            }
+            assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = { "integration" })
     public void testDateTimeTypes() throws SQLException {
         runQuery("CREATE TABLE test_datetimes (order Int8, " +
                 "dateTime DateTime, dateTime32 DateTime32, " +

@@ -390,6 +390,53 @@ public class DataTypeTests extends BaseIntegrationTest {
     }
 
     @Test(groups = {"integration"})
+    public void testDecimalColumnWithFractionalFloatValues() throws Exception {
+        final String table = "test_decimal_fractional_floats";
+        float[] values = new float[]{
+                0.0001f,   // mantissa 1
+                0.0127f,   // mantissa 127
+                0.0128f,   // mantissa 128
+                0.0255f,   // mantissa 255
+                0.0256f,   // mantissa 256
+                6.5535f,   // mantissa 65535
+                6.5536f,   // mantissa 65536
+                838.8607f, // mantissa 8388607
+                838.8608f  // mantissa 8388608
+        };
+        String[] expected = new String[]{
+                "0.0001",
+                "0.0127",
+                "0.0128",
+                "0.0255",
+                "0.0256",
+                "6.5535",
+                "6.5536",
+                "838.8607",
+                "838.8608"
+        };
+
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        client.execute(tableDefinition(table, "rowId Int32", "field Decimal32(4)")).get();
+
+        TableSchema tableSchema = client.getTableSchema(table);
+        client.register(DTOForDynamicPrimitivesTests.class, tableSchema);
+
+        List<DTOForDynamicPrimitivesTests> data = new ArrayList<>();
+        for (int i = 0; i < values.length; i++) {
+            data.add(new DTOForDynamicPrimitivesTests(i, values[i]));
+        }
+        client.insert(table, data).get().close();
+
+        List<GenericRecord> rows = client.queryAll("SELECT * FROM " + table + " ORDER BY rowId");
+        Assert.assertEquals(rows.size(), expected.length);
+
+        for (int i = 0; i < expected.length; i++) {
+            Assert.assertEquals(rows.get(i).getString("field"), expected[i]);
+            Assert.assertEquals(rows.get(i).getBigDecimal("field"), new BigDecimal(expected[i]));
+        }
+    }
+
+    @Test(groups = {"integration"})
     public void testVariantWithArrays() throws Exception {
         testVariantWith("arrays", new String[]{"field Variant(String, Array(String))"},
                 new Object[]{

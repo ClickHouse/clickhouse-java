@@ -144,8 +144,6 @@ public class NumberConverter {
             return new BigDecimal((BigInteger) value);
         } else if (value instanceof Byte || value instanceof Short || value instanceof Integer || value instanceof Long) {
             return BigDecimal.valueOf(((Number) value).longValue());
-        } else if (value instanceof Float || value instanceof Double) {
-            return BigDecimal.valueOf(((Number) value).doubleValue());
         } else if (value instanceof Number) {
             return new BigDecimal(value.toString());
         } else if (value instanceof String) {

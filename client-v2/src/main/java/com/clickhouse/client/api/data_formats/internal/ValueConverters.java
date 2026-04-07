@@ -215,8 +215,6 @@ public final class ValueConverters {
     public BigDecimal convertNumberToBigDecimal(Object value) {
         if (value instanceof Byte || value instanceof Short || value instanceof Integer || value instanceof Long) {
             return BigDecimal.valueOf(((Number)value).longValue());
-        } else if (value instanceof Float || value instanceof Double) {
-            return BigDecimal.valueOf(((Number)value).doubleValue());
         }
         return new BigDecimal(value.toString());
     }

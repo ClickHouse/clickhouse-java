@@ -30,6 +30,14 @@ public class ValueConvertersTests {
     }
 
     @Test
+    public void testConvertNumberToBigDecimalPreservesFractionalFloatBoundaries() {
+        Assert.assertEquals(converters.convertNumberToBigDecimal(0.0001f).compareTo(new BigDecimal("0.0001")), 0);
+        Assert.assertEquals(converters.convertNumberToBigDecimal(0.0256f).compareTo(new BigDecimal("0.0256")), 0);
+        Assert.assertEquals(converters.convertNumberToBigDecimal(6.5536f).compareTo(new BigDecimal("6.5536")), 0);
+        Assert.assertEquals(converters.convertNumberToBigDecimal(838.8608f).compareTo(new BigDecimal("838.8608")), 0);
+    }
+
+    @Test
     public void testNumberToBigDecimalConverterIsRegisteredForNumericSourceTypes() {
         Map<Class<?>, Function<Object, Object>> longConverters = converters.getConvertersForType(Long.class);
         Map<Class<?>, Function<Object, Object>> doubleConverters = converters.getConvertersForType(Double.class);

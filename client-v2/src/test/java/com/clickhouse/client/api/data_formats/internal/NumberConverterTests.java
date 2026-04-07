@@ -18,6 +18,14 @@ public class NumberConverterTests {
         Assert.assertEquals(NumberConverter.toBigDecimal("98765.4321"), new BigDecimal("98765.4321"));
     }
 
+    @Test
+    public void testToBigDecimalPreservesFractionalFloatBoundaries() {
+        Assert.assertEquals(NumberConverter.toBigDecimal(0.0001f).compareTo(new BigDecimal("0.0001")), 0);
+        Assert.assertEquals(NumberConverter.toBigDecimal(0.0256f).compareTo(new BigDecimal("0.0256")), 0);
+        Assert.assertEquals(NumberConverter.toBigDecimal(6.5536f).compareTo(new BigDecimal("6.5536")), 0);
+        Assert.assertEquals(NumberConverter.toBigDecimal(838.8608f).compareTo(new BigDecimal("838.8608")), 0);
+    }
+
     private static final class CustomNumber extends Number {
         private final BigDecimal value;
 
