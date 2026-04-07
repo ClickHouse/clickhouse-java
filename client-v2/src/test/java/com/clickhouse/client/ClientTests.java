@@ -5,6 +5,7 @@ import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.ClientFaultCause;
 import com.clickhouse.client.api.ClientMisconfigurationException;
+import com.clickhouse.client.api.ConnectionInitiationException;
 import com.clickhouse.client.api.ConnectionReuseStrategy;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.enums.Protocol;
@@ -30,6 +31,7 @@ import org.testng.util.Strings;
 
 import java.io.ByteArrayInputStream;
 import java.net.ConnectException;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -567,6 +569,21 @@ public class ClientTests extends BaseIntegrationTest {
 
         Assert.assertEquals(queryIds.size(), requests);
         Assert.assertEquals(actualIds, new ArrayList<>(queryIds));
+    }
+
+    @Test(groups = {"integration"})
+    public void testHostnameWithUnderscore() throws Exception {
+
+        try (Client client = new Client.Builder().addEndpoint("http://localhost_db:8123")
+                .setUsername("default")
+                .build()) {
+            client.queryAll("SELECT 1");
+            fail("Exception expected");
+        } catch (ClientException e) {
+            Assert.assertTrue(e.getCause() instanceof ConnectionInitiationException);
+            ConnectionInitiationException ce = (ConnectionInitiationException) e.getCause();
+            Assert.assertTrue(ce.getCause() instanceof UnknownHostException);
+        }
     }
 
     public boolean isVersionMatch(String versionExpression, Client client) {

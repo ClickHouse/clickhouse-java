@@ -53,8 +53,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.InvocationTargetException;
-import java.net.MalformedURLException;
-import java.net.URL;
 import java.time.Duration;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
@@ -293,32 +291,10 @@ public class Client implements AutoCloseable {
          */
         public Builder addEndpoint(String endpoint) {
             try {
-                URL endpointURL = new URL(endpoint);
-
-                String protocolStr = endpointURL.getProtocol();
-                if (!protocolStr.equalsIgnoreCase("https") &&
-                    !protocolStr.equalsIgnoreCase("http")) {
-                    throw new IllegalArgumentException("Only HTTP and HTTPS protocols are supported");
-                }
-
-                boolean secure = protocolStr.equalsIgnoreCase("https");
-                String host = endpointURL.getHost();
-                if (host == null || host.isEmpty()) {
-                    throw new IllegalArgumentException("Host cannot be empty in endpoint: " + endpoint);
-                }
-
-                int port = endpointURL.getPort();
-                if (port <= 0) {
-                    throw new ValidationUtils.SettingsValidationException("port", "Valid port must be specified");
-                }
-
-                String path = endpointURL.getPath();
-                if (path == null || path.isEmpty()) {
-                    path = "/";
-                }
-
-                return addEndpoint(Protocol.HTTP, host, port, secure, path);
-            } catch (MalformedURLException e) {
+                return addEndpoint(new HttpEndpoint(endpoint));
+            } catch (ValidationUtils.SettingsValidationException e) {
+                throw e;
+            } catch (IllegalArgumentException e) {
                 throw new IllegalArgumentException("Endpoint should be a valid URL string, but was " + endpoint, e);
             }
         }
@@ -336,19 +312,19 @@ public class Client implements AutoCloseable {
         }
 
         public Builder addEndpoint(Protocol protocol, String host, int port, boolean secure, String basePath) {
-            ValidationUtils.checkNonBlank(host, "host");
             ValidationUtils.checkNotNull(protocol, "protocol");
-            ValidationUtils.checkRange(port, 1, ValidationUtils.TCP_PORT_NUMBER_MAX, "port");
             ValidationUtils.checkNotNull(basePath, "basePath");
 
             if (protocol == Protocol.HTTP) {
-                HttpEndpoint httpEndpoint = new HttpEndpoint(host, port, secure, basePath);
-                this.endpoints.add(httpEndpoint);
+                return addEndpoint(new HttpEndpoint(host, port, secure, basePath));
             } else {
                 throw new IllegalArgumentException("Unsupported protocol: " + protocol);
             }
-            return this;
+        }
 
+        private Builder addEndpoint(Endpoint endpoint) {
+            this.endpoints.add(endpoint);
+            return this;
         }
 
 
