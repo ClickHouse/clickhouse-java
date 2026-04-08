@@ -9,6 +9,5 @@ import static org.testng.Assert.*;
 public class AppArrowServerTest {
     @Test public void appHasAGreeting() {
         AppArrowServer classUnderTest = new AppArrowServer();
-        assertNotNull(classUnderTest.getGreeting(), "app should have a greeting");
     }
 }

@@ -13,21 +13,22 @@ plugins {
 repositories {
     // Use Maven Central for resolving dependencies.
     mavenCentral()
+    mavenLocal()
 }
 
 dependencies {
     // Use TestNG framework, also requires calling test.useTestNG() below
     testImplementation(libs.testng)
 
-    // This dependency is used by the application.
-    // Source: https://mvnrepository.com/artifact/org.apache.arrow/arrow-bom
+    implementation(libs.clickhouseClient)
+
     implementation(platform(libs.arrowBom))
     implementation(libs.arrowVector)
     implementation(libs.arrowMemory)
+    implementation(libs.arrowCompression)
     implementation(libs.flightCore)
     implementation(libs.slf4jSimple)
     implementation(libs.slf4jApi)
-    implementation(libs.adbcCore)
 
     implementation(libs.guava)
 }
