@@ -7,7 +7,6 @@ import com.clickhouse.data.ClickHouseFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -17,6 +16,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.TimeZone;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -138,14 +138,7 @@ public enum ClientConfigProperties {
             ClientFaultCause.ConnectionRequestTimeout.name(), ClientFaultCause.ServerRetryable.name())) {
         @Override
         public Object parseValue(String value) {
-            List<String> strValues = (List<String>) super.parseValue(value);
-            List<ClientFaultCause> failures = new ArrayList<ClientFaultCause>();
-            if (strValues != null) {
-                for (String strValue : strValues) {
-                    failures.add(ClientFaultCause.valueOf(strValue));
-                }
-            }
-            return failures;
+            return parseStringAsList(value, ClientFaultCause::valueOf);
         }
     },
 
@@ -169,6 +162,20 @@ public enum ClientConfigProperties {
     METRICS_GROUP_NAME("metrics_name", String.class, "ch-http-pool"),
 
     HTTP_SAVE_COOKIES("client.http.cookies_enabled",  Boolean.class, "false"),
+
+    /**
+     * Allowed HTTP redirect response codes for Apache HTTP Client redirect strategy.
+     * Empty by default (redirects disabled).
+     * <p>
+     * Security note: following redirects may send credentials and request payload to another endpoint
+     * if server/proxy returns a cross-host redirect.
+     */
+    HTTP_ALLOWED_REDIRECT_CODES("client.http.allowed_redirect_codes", List.class, "") {
+        @Override
+        public Object parseValue(String value) {
+            return parseStringAsList(value, ClientConfigProperties::parseAndValidateRedirectStatusCode);
+        }
+    },
 
     BINARY_READER_USE_PREALLOCATED_BUFFERS("client_allow_binary_reader_to_reuse_buffers", Boolean.class, "false"),
 
@@ -236,6 +243,9 @@ public enum ClientConfigProperties {
 
     public static final String SERVER_SETTING_PREFIX = "clickhouse_setting_";
 
+    public static final Set<Integer> SUPPORTED_HTTP_REDIRECT_STATUS_CODES = Collections.unmodifiableSet(
+            new HashSet<Integer>(Arrays.asList(301, 302, 303, 307, 308)));
+
     // Key used to identify default value in configuration map
     public static final String DEFAULT_KEY = "_default_";
 
@@ -247,6 +257,10 @@ public enum ClientConfigProperties {
 
     public static String httpHeader(String key) {
         return HTTP_HEADER_PREFIX + key.toUpperCase(Locale.US);
+    }
+
+    public static boolean isSupportedHttpRedirectStatus(int statusCode) {
+        return SUPPORTED_HTTP_REDIRECT_STATUS_CODES.contains(statusCode);
     }
 
     public static String commaSeparated(Collection<?> values) {
@@ -262,11 +276,16 @@ public enum ClientConfigProperties {
     }
 
     public static List<String> valuesFromCommaSeparated(String value) {
+        return parseStringAsList(value, Function.identity());
+    }
+
+    public static <T> List<T> parseStringAsList(String value, Function<String, T> transformation) {
         if (value == null || value.isEmpty()) {
             return Collections.emptyList();
         }
-
-        return Arrays.stream(value.split("(?<!\\\\),")).map(s -> s.replaceAll("\\\\,", ","))
+        return Arrays.stream(value.split("(?<!\\\\),"))
+                .map(s -> s.replaceAll("\\\\,", ","))
+                .map(transformation)
                 .collect(Collectors.toList());
     }
 
@@ -294,7 +313,7 @@ public enum ClientConfigProperties {
         }
 
         if (valueType.equals(List.class)) {
-            return valuesFromCommaSeparated(value);
+            return parseStringAsList(value, Function.identity());
         }
 
         if (valueType.isEnum()) {
@@ -460,5 +479,19 @@ public enum ClientConfigProperties {
             throw new ClientMisconfigurationException("Failed to translate type-hint mapping", e);
         }
         return hintMapping;
+    }
+
+    private static Integer parseAndValidateRedirectStatusCode(String strValue) {
+        int statusCode;
+        try {
+            statusCode = Integer.parseInt(strValue);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("HTTP redirect status code must be integer, but was: " + strValue, e);
+        }
+        if (!isSupportedHttpRedirectStatus(statusCode)) {
+            throw new IllegalArgumentException("Unsupported HTTP redirect status code: " + statusCode
+                    + ". Supported values are: " + SUPPORTED_HTTP_REDIRECT_STATUS_CODES);
+        }
+        return statusCode;
     }
 }
