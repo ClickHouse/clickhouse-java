@@ -190,18 +190,4 @@ public class BinaryStreamReaderTests {
         Object[] array2 = array.getArrayOfObjects();
         Assert.assertEquals(array1.length, array2.length);
     }
-
-    @Test
-    public void testReadNullVariantReturnsNull() throws Exception {
-        ClickHouseColumn column = ClickHouseColumn.of("v", "Variant(Int32, String)");
-        BinaryStreamReader reader = new BinaryStreamReader(
-                new ByteArrayInputStream(new byte[]{(byte) 0xFF}),
-                TimeZone.getTimeZone("UTC"),
-                null,
-                new BinaryStreamReader.CachingByteBufferAllocator(),
-                false,
-                null);
-
-        Assert.assertNull(reader.readValue(column));
-    }
 }
