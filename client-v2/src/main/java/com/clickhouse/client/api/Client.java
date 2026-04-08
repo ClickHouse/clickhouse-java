@@ -53,8 +53,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.InvocationTargetException;
-import java.net.MalformedURLException;
-import java.net.URL;
 import java.time.Duration;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
@@ -117,6 +115,7 @@ public class Client implements AutoCloseable {
 
     private final List<Endpoint> endpoints;
     private final Map<String, Object> configuration;
+    private final Session session;
 
     private final Map<String, String> readOnlyConfig;
 
@@ -145,7 +144,9 @@ public class Client implements AutoCloseable {
     private Client(Collection<Endpoint> endpoints, Map<String,String> configuration,
                    ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy,
                    Object metricsRegistry, Supplier<String> queryIdGenerator) {
-        this.configuration = ClientConfigProperties.parseConfigMap(configuration);
+        Map<String, Object> parsedConfiguration = ClientConfigProperties.parseConfigMap(configuration);
+        this.session = Session.extractFrom(parsedConfiguration);
+        this.configuration = new ConcurrentHashMap<>(parsedConfiguration);
         this.readOnlyConfig = Collections.unmodifiableMap(configuration);
         this.metricsRegistry = metricsRegistry;
         this.queryIdGenerator = queryIdGenerator;
@@ -293,32 +294,10 @@ public class Client implements AutoCloseable {
          */
         public Builder addEndpoint(String endpoint) {
             try {
-                URL endpointURL = new URL(endpoint);
-
-                String protocolStr = endpointURL.getProtocol();
-                if (!protocolStr.equalsIgnoreCase("https") &&
-                    !protocolStr.equalsIgnoreCase("http")) {
-                    throw new IllegalArgumentException("Only HTTP and HTTPS protocols are supported");
-                }
-
-                boolean secure = protocolStr.equalsIgnoreCase("https");
-                String host = endpointURL.getHost();
-                if (host == null || host.isEmpty()) {
-                    throw new IllegalArgumentException("Host cannot be empty in endpoint: " + endpoint);
-                }
-
-                int port = endpointURL.getPort();
-                if (port <= 0) {
-                    throw new ValidationUtils.SettingsValidationException("port", "Valid port must be specified");
-                }
-
-                String path = endpointURL.getPath();
-                if (path == null || path.isEmpty()) {
-                    path = "/";
-                }
-
-                return addEndpoint(Protocol.HTTP, host, port, secure, path);
-            } catch (MalformedURLException e) {
+                return addEndpoint(new HttpEndpoint(endpoint));
+            } catch (ValidationUtils.SettingsValidationException e) {
+                throw e;
+            } catch (IllegalArgumentException e) {
                 throw new IllegalArgumentException("Endpoint should be a valid URL string, but was " + endpoint, e);
             }
         }
@@ -336,19 +315,19 @@ public class Client implements AutoCloseable {
         }
 
         public Builder addEndpoint(Protocol protocol, String host, int port, boolean secure, String basePath) {
-            ValidationUtils.checkNonBlank(host, "host");
             ValidationUtils.checkNotNull(protocol, "protocol");
-            ValidationUtils.checkRange(port, 1, ValidationUtils.TCP_PORT_NUMBER_MAX, "port");
             ValidationUtils.checkNotNull(basePath, "basePath");
 
             if (protocol == Protocol.HTTP) {
-                HttpEndpoint httpEndpoint = new HttpEndpoint(host, port, secure, basePath);
-                this.endpoints.add(httpEndpoint);
+                return addEndpoint(new HttpEndpoint(host, port, secure, basePath));
             } else {
                 throw new IllegalArgumentException("Unsupported protocol: " + protocol);
             }
-            return this;
+        }
 
+        private Builder addEndpoint(Endpoint endpoint) {
+            this.endpoints.add(endpoint);
+            return this;
         }
 
 
@@ -952,6 +931,54 @@ public class Client implements AutoCloseable {
          */
         public Builder serverSetting(String name,  Collection<String> values) {
             this.configuration.put(ClientConfigProperties.SERVER_SETTING_PREFIX + name, ClientConfigProperties.commaSeparated(values));
+            return this;
+        }
+
+        /**
+         * Sets ClickHouse session id to be sent with each request.
+         */
+        public Builder setSessionId(String sessionId) {
+            ValidationUtils.checkNonBlank(sessionId, ClickHouseHttpProto.QPARAM_SESSION_ID);
+            return serverSetting(ClickHouseHttpProto.QPARAM_SESSION_ID, sessionId);
+        }
+
+        /**
+         * Sets ClickHouse session check flag to be sent with each request.
+         */
+        public Builder setSessionCheck(boolean sessionCheck) {
+            return serverSetting(ClickHouseHttpProto.QPARAM_SESSION_CHECK, sessionCheck ? "1" : "0");
+        }
+
+        /**
+         * Sets ClickHouse session timeout in seconds to be sent with each request.
+         */
+        public Builder setSessionTimeout(int timeoutInSeconds) {
+            ValidationUtils.checkPositive(timeoutInSeconds, ClickHouseHttpProto.QPARAM_SESSION_TIMEOUT);
+            return serverSetting(ClickHouseHttpProto.QPARAM_SESSION_TIMEOUT, String.valueOf(timeoutInSeconds));
+        }
+
+        /**
+         * Sets ClickHouse session timezone to be sent with each request.
+         */
+        public Builder setSessionTimezone(String timezone) {
+            ValidationUtils.checkNonBlank(timezone, ClickHouseHttpProto.QPARAM_SESSION_TIMEZONE);
+            return serverSetting(ClickHouseHttpProto.QPARAM_SESSION_TIMEZONE, timezone);
+        }
+
+        public Builder use(Session session) {
+            ValidationUtils.checkNotNull(session, "session");
+            if (session.getSessionId() != null) {
+                setSessionId(session.getSessionId());
+            }
+            if (session.getSessionCheck() != null) {
+                setSessionCheck(session.getSessionCheck());
+            }
+            if (session.getSessionTimeout() != null) {
+                setSessionTimeout(session.getSessionTimeout());
+            }
+            if (session.getSessionTimezone() != null) {
+                setSessionTimezone(session.getSessionTimezone());
+            }
             return this;
         }
 
@@ -2138,6 +2165,14 @@ public class Client implements AutoCloseable {
         this.configuration.put(ClientConfigProperties.CLIENT_NAME.getKey(), name);
     }
 
+    /**
+     * Updates ClickHouse session id for all subsequent requests created by this client.
+     */
+    public void updateSessionId(String sessionId) {
+        ValidationUtils.checkNonBlank(sessionId, ClickHouseHttpProto.QPARAM_SESSION_ID);
+        this.session.updateSessionId(sessionId);
+    }
+
     public static final String clientVersion =
             ClickHouseClientOption.readVersionFromResource("client-v2-version.properties");
     public static final String CLIENT_USER_AGENT = "clickhouse-java-v2/";
@@ -2170,8 +2205,8 @@ public class Client implements AutoCloseable {
      * @return request settings - merged client and operation settings
      */
     private Map<String, Object> buildRequestSettings(Map<String, Object> opSettings) {
-        Map<String, Object> requestSettings = new HashMap<>();
-        requestSettings.putAll(configuration);
+        Map<String, Object> requestSettings = new HashMap<>(configuration);
+        session.applyTo(requestSettings);
         requestSettings.putAll(opSettings);
         return requestSettings;
     }

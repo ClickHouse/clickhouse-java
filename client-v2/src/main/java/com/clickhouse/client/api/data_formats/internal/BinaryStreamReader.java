@@ -895,7 +895,10 @@ public class BinaryStreamReader {
     }
 
     public Object readVariant(ClickHouseColumn column) throws IOException {
-        int ordNum = readByte();
+        int ordNum = readByte() & 0xFF;
+        if (ordNum == 0xFF) {
+            return null;
+        }
         return readValue(column.getNestedColumns().get(ordNum));
     }
 

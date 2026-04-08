@@ -2,6 +2,8 @@ package com.clickhouse.client.api.internal;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.Session;
+import com.clickhouse.client.api.http.ClickHouseHttpProto;
 
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
@@ -87,6 +89,53 @@ public class CommonSettings {
      */
     public CommonSettings setQueryId(String queryId) {
         settings.put(ClientConfigProperties.QUERY_ID.getKey(), queryId);
+        return this;
+    }
+
+    public CommonSettings setSessionId(String sessionId) {
+        ValidationUtils.checkNonBlank(sessionId, ClickHouseHttpProto.QPARAM_SESSION_ID);
+        serverSetting(ClickHouseHttpProto.QPARAM_SESSION_ID, sessionId);
+        return this;
+    }
+
+    public String getSessionId() {
+        return (String) settings.get(ClientConfigProperties.serverSetting(ClickHouseHttpProto.QPARAM_SESSION_ID));
+    }
+
+    public CommonSettings setSessionCheck(boolean sessionCheck) {
+        serverSetting(ClickHouseHttpProto.QPARAM_SESSION_CHECK, sessionCheck ? "1" : "0");
+        return this;
+    }
+
+    public Boolean getSessionCheck() {
+        String value = (String) settings.get(ClientConfigProperties.serverSetting(ClickHouseHttpProto.QPARAM_SESSION_CHECK));
+        return value == null ? null : ("1".equals(value) || Boolean.parseBoolean(value));
+    }
+
+    public CommonSettings setSessionTimeout(int timeoutInSeconds) {
+        ValidationUtils.checkPositive(timeoutInSeconds, ClickHouseHttpProto.QPARAM_SESSION_TIMEOUT);
+        serverSetting(ClickHouseHttpProto.QPARAM_SESSION_TIMEOUT, String.valueOf(timeoutInSeconds));
+        return this;
+    }
+
+    public Integer getSessionTimeout() {
+        String value = (String) settings.get(ClientConfigProperties.serverSetting(ClickHouseHttpProto.QPARAM_SESSION_TIMEOUT));
+        return value == null ? null : Integer.valueOf(value);
+    }
+
+    public CommonSettings setSessionTimezone(String timezone) {
+        ValidationUtils.checkNonBlank(timezone, ClickHouseHttpProto.QPARAM_SESSION_TIMEZONE);
+        serverSetting(ClickHouseHttpProto.QPARAM_SESSION_TIMEZONE, timezone);
+        return this;
+    }
+
+    public String getSessionTimezone() {
+        return (String) settings.get(ClientConfigProperties.serverSetting(ClickHouseHttpProto.QPARAM_SESSION_TIMEZONE));
+    }
+
+    public CommonSettings use(Session session) {
+        ValidationUtils.checkNotNull(session, "session");
+        session.applyTo(settings);
         return this;
     }
 
