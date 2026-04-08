@@ -1,4 +1,4 @@
-package com.clickhouse.example.arrow_server;
+package com.clickhouse.examples.arrow_server;
 
 import org.apache.arrow.flight.Action;
 import org.apache.arrow.flight.ActionType;
