@@ -4,7 +4,6 @@ import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.command.CommandResponse;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
-import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.data.ClickHouseFormat;
 import org.apache.arrow.memory.RootAllocator;
@@ -17,19 +16,25 @@ import org.apache.arrow.vector.ipc.ArrowReader;
 import org.apache.arrow.vector.ipc.ArrowStreamReader;
 import org.apache.arrow.vector.ipc.ArrowStreamWriter;
 import org.apache.arrow.vector.ipc.ArrowWriter;
-import org.apache.commons.io.output.ByteArrayOutputStream;
-import org.apache.hc.core5.http.ContentType;
-import org.apache.hc.core5.http.HttpHeaders;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.nio.channels.Channels;
 import java.util.Random;
 import java.util.stream.IntStream;
 
+/**
+ *
+ * Arrow requires access to direct memory and "unsafe" JDK API. Next JVM parameters should be set to allow this.
+ * For more info read Apache Arrow manual.
+ * {@code
+ * --add-opens=java.base/java.nio=ALL-UNNAMED
+ * --add-opens=java.base/sun.nio.ch=ALL-UNNAMED
+ * --add-opens=java.base/jdk.internal.misc=ALL-UNNAMED
+ * }
+ *
+ */
 public class ReadWriteArrow {
 
     private static final Logger LOG = LoggerFactory.getLogger(ReadWriteArrow.class);
@@ -50,7 +55,7 @@ public class ReadWriteArrow {
 
         // Create value holders. Each column is Vector. In current example we want to send measures along with timestamps
         // We allocate all needed space just for simplicity.
-        final int numValuesInBatch = 1;
+        final int numValuesInBatch = 10_000;
         TimeStampVector  tsVector = new TimeStampMilliVector("ts", rootAllocator);
 
         Decimal256Vector val1Vector = new Decimal256Vector("val1", rootAllocator, 76, 39);
@@ -58,7 +63,8 @@ public class ReadWriteArrow {
         VectorSchemaRoot vectorSchemaRoot = VectorSchemaRoot.of(tsVector, val1Vector);
 
         final String table = "arrow_example";
-        executeUpdate("CREATE TABLE IF NOT EXISTS " + table + "(val1 Decimal) Engine = MergeTree Order By()", client);
+        executeUpdate("CREATE TABLE IF NOT EXISTS " + table + "(ts DateTime64, val1 Decimal(76,39)) Engine = MergeTree Order By()", client);
+        executeUpdate("TRUNCATE " + table, client);
 
         LOG.info("Generating data");
         final long startTimestamp = System.currentTimeMillis();
@@ -78,33 +84,28 @@ public class ReadWriteArrow {
         tsVector.setValueCount(numValuesInBatch);
         val1Vector.setValueCount(numValuesInBatch);
 
-        try (ByteArrayOutputStream out = new ByteArrayOutputStream();
-             ArrowWriter arrowWriter = new ArrowStreamWriter(vectorSchemaRoot, /* provider = */ null, Channels.newChannel(out))) {
+        // If you see Because of Code: 33. DB::Exception: Error while reading batch of Arrow data: IOError: Array length did not match record batch length: While executing ArrowBlockInputFormat.
+        // May be missing `vectorSchemaRoot.setRowCount`
+        vectorSchemaRoot.setRowCount(numValuesInBatch);
 
+        InsertSettings insertSettings = new InsertSettings();
+        insertSettings.compressClientRequest(true);
+        try (InsertResponse response = client.insert(table, out -> {
+            // use DataWriter to avoid tmp storage.
+            try (ArrowWriter arrowWriter = new ArrowStreamWriter(vectorSchemaRoot, /* provider = */ null, out)) {
+                arrowWriter.start();
+                arrowWriter.writeBatch();
+                arrowWriter.end();
 
-
-            arrowWriter.start();
-
-            arrowWriter.writeBatch();
-
-
-            LOG.info("ArrowWriter.bytesWritten {}, ByteArray.bytes {}", arrowWriter.bytesWritten(), out.size());
-            InsertSettings insertSettings = new InsertSettings();
-            insertSettings.serverSetting(ServerSettings.WAIT_ASYNC_INSERT, "1");
-            insertSettings.serverSetting(ServerSettings.ASYNC_INSERT, "0");
-            insertSettings.compressClientRequest(false);
-            insertSettings.useHttpCompression(false);
-            insertSettings.httpHeader(HttpHeaders.CONTENT_TYPE, ContentType.APPLICATION_OCTET_STREAM.getMimeType());
-            insertSettings.compressClientRequest(false);
-            try (InsertResponse response = client.insert(table, out.toInputStream(), ClickHouseFormat.ArrowStream, insertSettings).get()) {
-                LOG.info("Data inserted {}", response.getWrittenRows());
+            } catch (Exception e) {
+                LOG.info("Failed writing data to output stream", e);
             }
-
+        }, ClickHouseFormat.ArrowStream, insertSettings).get()) {
+            LOG.info("Data inserted {}", response.getWrittenRows());
         } catch (Exception e) {
             LOG.info("Failed to write data to DB", e);
         }
     }
-
 
     private void readData(Client client) {
 
@@ -137,11 +138,6 @@ public class ReadWriteArrow {
 
         // Init Arrow Vectors
         // memory allocator to store values on local machine. Read more https://arrow.apache.org/java/current/memory.html
-
-//        TimeStampVector  tsVector = new TimeStampMilliVector("ts", rootAllocator);
-//        Decimal256Vector val1Vector = new Decimal256Vector("val1", rootAllocator, 76, 39);
-//        VectorSchemaRoot vectorSchemaRoot = VectorSchemaRoot.of(tsVector, val1Vector);
-
         try (QueryResponse resp = client.query("SELECT * FROM " + table + " LIMIT "  +nRows +" FORMAT ArrowStream").get()) {
 
             try (ArrowReader arrowReader = new ArrowStreamReader(resp.getInputStream(), rootAllocator)) {
@@ -171,11 +167,9 @@ public class ReadWriteArrow {
         } catch (Exception e) {
             LOG.error("Failed to query", e);
         }
-
     }
 
     private static final Random RND = new Random();
-
 
     private static void executeUpdate(String sql, Client client) {
         try (CommandResponse r = client.execute(sql).get()) {} catch (
@@ -205,8 +199,6 @@ public class ReadWriteArrow {
         final String password = System.getProperty("chPassword", "");
         final String database = System.getProperty("chDatabase", "default");
 
-
-
         ReadWriteArrow app = new ReadWriteArrow();
         try (Client client = new Client.Builder()
                 .addEndpoint(endpoint)
@@ -215,9 +207,8 @@ public class ReadWriteArrow {
                 .setDefaultDatabase(database)
                 .build()) {
 
-//            app.loadData(client);
+            app.loadData(client);
             app.readData(client);
-
         }
     }
 }
