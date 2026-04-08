@@ -144,9 +144,9 @@ public class Client implements AutoCloseable {
 
     private Client(Collection<Endpoint> endpoints, Map<String,String> configuration,
                    ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy,
-                   Object metricsRegistry, Supplier<String> queryIdGenerator) {
+                   Object metricsRegistry, Supplier<String> queryIdGenerator, CredentialsManager cManager) {
         this.configuration = new ConcurrentHashMap<>(ClientConfigProperties.parseConfigMap(configuration));
-        this.credentialsManager = new CredentialsManager(this.configuration);
+        this.credentialsManager = cManager;
         this.readOnlyConfig = Collections.unmodifiableMap(configuration);
         this.metricsRegistry = metricsRegistry;
         this.queryIdGenerator = queryIdGenerator;
@@ -194,7 +194,7 @@ public class Client implements AutoCloseable {
 
         this.httpClientHelper = new HttpAPIClientHelper(this.configuration, metricsRegistry, initSslContext, lz4Factory);
         this.serverVersion = configuration.getOrDefault(ClientConfigProperties.SERVER_VERSION.getKey(), "unknown");
-        this.dbUser = configuration.getOrDefault(ClientConfigProperties.USER.getKey(), ClientConfigProperties.USER.getDefObjVal());
+        this.dbUser = credentialsManager.getUsername();
         this.typeHintMapping = (Map<ClickHouseDataType, Class<?>>) this.configuration.get(ClientConfigProperties.TYPE_HINT_MAPPING.getKey());
     }
 
@@ -1086,10 +1086,7 @@ public class Client implements AutoCloseable {
                 throw new IllegalArgumentException("At least one endpoint is required");
             }
 
-            ClientMisconfigurationException authConfigException = CredentialsManager.validateAuthConfig(configuration);
-            if (authConfigException != null) {
-                throw authConfigException;
-            }
+            CredentialsManager cManager = new CredentialsManager(this.configuration);
 
             // Check timezone settings
             String useTimeZoneValue = this.configuration.get(ClientConfigProperties.USE_TIMEZONE.getKey());
@@ -1120,7 +1117,7 @@ public class Client implements AutoCloseable {
             }
 
             return new Client(this.endpoints, this.configuration, this.sharedOperationExecutor,
-                this.columnToMethodMatchingStrategy, this.metricRegistry, this.queryIdGenerator);
+                this.columnToMethodMatchingStrategy, this.metricRegistry, this.queryIdGenerator, cManager);
         }
     }
 
@@ -2121,6 +2118,16 @@ public class Client implements AutoCloseable {
         return unmodifiableDbRolesView;
     }
 
+    /**
+     * Updates the credentials used for subsequent requests.
+     *
+     * <p>This method is not thread-safe with respect to other credential updates
+     * or concurrent request execution. Applications must coordinate access if
+     * they require stronger consistency.
+     *
+     * @param username username to use for subsequent requests
+     * @param password password to use for subsequent requests
+     */
     public void setCredentials(String username, String password) {
         this.credentialsManager.setCredentials(username, password);
     }
@@ -2128,6 +2135,10 @@ public class Client implements AutoCloseable {
     /**
      * Preferred runtime API to update token-based authentication.
      * Internally it refreshes the HTTP Bearer token used by requests.
+     *
+     * <p>This method is not thread-safe with respect to other credential updates
+     * or concurrent request execution. Applications must coordinate access if
+     * they require stronger consistency.
      *
      * @param accessToken - plain text access token
      */
@@ -2138,6 +2149,10 @@ public class Client implements AutoCloseable {
     /**
      * Legacy HTTP-specific alias for {@link #setAccessToken(String)}.
      * Prefer using {@link #setAccessToken(String)}.
+     *
+     * <p>This method is not thread-safe with respect to other credential updates
+     * or concurrent request execution. Applications must coordinate access if
+     * they require stronger consistency.
      *
      * @param bearer - token to use
      */
@@ -2158,7 +2173,8 @@ public class Client implements AutoCloseable {
      * @return request settings - merged client and operation settings
      */
     private Map<String, Object> buildRequestSettings(Map<String, Object> opSettings) {
-        Map<String, Object> requestSettings = credentialsManager.snapshot();
+        Map<String, Object> requestSettings = new HashMap<>(configuration);
+        credentialsManager.applyCredentials(requestSettings);
         requestSettings.putAll(opSettings);
         return requestSettings;
     }
