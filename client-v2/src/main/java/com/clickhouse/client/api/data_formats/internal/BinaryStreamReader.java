@@ -132,11 +132,19 @@ public class BinaryStreamReader {
             switch (dataType) {
                 // Primitives
                 case FixedString: {
-                    return (T) readBytesToBuffer(precision, stringBufferAllocator::allocate);
+                    if (typeHint == BinaryString.class) {
+                        return (T) readBinaryString(precision, stringBufferAllocator::allocate);
+                    } else {
+                        return (T) readString(input, precision);
+                    }
                 }
                 case String: {
-                    int len = readVarInt(input);
-                    return (T) readBytesToBuffer(len, stringBufferAllocator::allocate);
+                    if (typeHint == BinaryString.class) {
+                        int len = readVarInt(input);
+                        return (T) readBinaryString(len, stringBufferAllocator::allocate);
+                    } else {
+                        return (T) readString(input);
+                    }
                 }
                 case Int8:
                     return (T) Byte.valueOf(readByte());
@@ -636,10 +644,10 @@ public class BinaryStreamReader {
         if (itemTypeColumn.isNullable() || itemTypeColumn.getDataType() == ClickHouseDataType.Variant) {
             array = new ArrayValue(Object.class, len);
             for (int i = 0; i < len; i++) {
-                array.set(i, readValue(itemTypeColumn));
+                array.set(i, readArrayItemValue(itemTypeColumn));
             }
         } else {
-            Object firstValue = readValue(itemTypeColumn);
+            Object firstValue = readArrayItemValue(itemTypeColumn);
             Class<?> itemClass = firstValue.getClass();
             if (firstValue instanceof Byte) {
                 itemClass = byte.class;
@@ -666,10 +674,15 @@ public class BinaryStreamReader {
             array = new ArrayValue(itemClass, len);
             array.set(0, firstValue);
             for (int i = 1; i < len; i++) {
-                array.set(i, readValue(itemTypeColumn));
+                array.set(i, readArrayItemValue(itemTypeColumn));
             }
         }
         return array;
+    }
+
+    private Object readArrayItemValue(ClickHouseColumn itemTypeColumn) throws IOException {
+        Class<?> typeHint = itemTypeColumn.getDataType() == ClickHouseDataType.String ? String.class : null;
+        return readValue(itemTypeColumn, typeHint);
     }
 
     public void skipValue(ClickHouseColumn column) throws IOException {
@@ -844,11 +857,16 @@ public class BinaryStreamReader {
         ClickHouseColumn valueType = column.getValueInfo();
         LinkedHashMap<Object, Object> map = new LinkedHashMap<>(len);
         for (int i = 0; i < len; i++) {
-            Object key = readValue(keyType);
-            Object value = readValue(valueType);
+            Object key = readMapKeyOrValue(keyType);
+            Object value = readMapKeyOrValue(valueType);
             map.put(key, value);
         }
         return map;
+    }
+
+    private Object readMapKeyOrValue(ClickHouseColumn c) throws IOException {
+        Class<?> typeHint = c.getDataType() == ClickHouseDataType.String ? String.class : null;
+        return readValue(c, typeHint);
     }
 
     /**
@@ -1123,7 +1141,7 @@ public class BinaryStreamReader {
         return new String(dest, 0, len, StandardCharsets.UTF_8);
     }
 
-    public BinaryString readBytesToBuffer(int len, Function<Integer, ByteBuffer> bufferAllocator) throws IOException {
+    public BinaryString readBinaryString(int len, Function<Integer, ByteBuffer> bufferAllocator) throws IOException {
         ByteBuffer buffer = null;
         if (len > 0) {
             buffer = bufferAllocator.apply(len);
@@ -1153,6 +1171,10 @@ public class BinaryStreamReader {
      */
     public static String readString(InputStream input) throws IOException {
         int len = readVarInt(input);
+        return readString(input, len);
+    }
+
+    public static String readString(InputStream input, int len) throws IOException {
         if (len == 0) {
             return "";
         }
@@ -1439,12 +1461,7 @@ public class BinaryStreamReader {
 
         BinaryStringImpl(ByteBuffer buffer) {
             this.buffer = buffer;
-            this.len = buffer.position();
-        }
-
-        @Override
-        public ByteBuffer rawBuffer() {
-            return buffer;
+            this.len = buffer.limit();
         }
 
         @Override
@@ -1461,25 +1478,23 @@ public class BinaryStreamReader {
         }
 
         @Override
+        public byte[] asBytes() {
+            if (buffer.hasArray()) {
+                return buffer.array();
+            }
+
+            throw new UnsupportedOperationException("String is stored out of the heap and has no byte buffer easily accessible");
+        }
+
+        @Override
         public int length() {
             return len;
         }
 
-        @Override
-        public char charAt(int index) {
-            ensureCharBuffer();
-            return charBuffer.charAt(index);
-        }
-
-        @Override
-        public CharSequence subSequence(int start, int end) {
-            ensureCharBuffer();
-            return charBuffer.subSequence(start, end);
-        }
-
         private void ensureCharBuffer() {
             if (charBuffer == null) {
-                charBuffer = buffer.asCharBuffer();
+                buffer.rewind();
+                charBuffer = StandardCharsets.UTF_8.decode(buffer);
             }
         }
 

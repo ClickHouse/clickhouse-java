@@ -1,6 +1,7 @@
 package com.clickhouse.client.api;
 
 import com.clickhouse.client.api.data_formats.internal.AbstractBinaryFormatReader;
+import com.clickhouse.client.api.data_formats.internal.BinaryString;
 import com.clickhouse.client.api.internal.ClickHouseLZ4OutputStream;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
@@ -176,7 +177,10 @@ public enum ClientConfigProperties {
      * Defines mapping between ClickHouse data type and target Java type
      * Used by binary readers to convert values into desired Java type.
      */
-    TYPE_HINT_MAPPING("type_hint_mapping", Map.class),
+    TYPE_HINT_MAPPING("type_hint_mapping", Map.class,
+            "String=" + BinaryString.class.getName()
+
+    ),
 
     /**
      * SNI SSL parameter that will be set for each outbound SSL socket.

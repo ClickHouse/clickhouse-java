@@ -71,14 +71,19 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     private TableSchema schema;
     private ClickHouseColumn[] columns;
+    private Class<?>[] columnTypeHints;
     private Map[] convertions;
+    private Map<ClickHouseDataType, Class<?>> defaultTypeHintMap;
     private boolean hasNext = true;
     private boolean initialState = true; // reader is in initial state, no records have been read yet
     private long row = -1; // before first row
     private long lastNextCallTs; // for exception to detect slow reader
 
-    protected AbstractBinaryFormatReader(InputStream inputStream, QuerySettings querySettings, TableSchema schema,BinaryStreamReader.ByteBufferAllocator byteBufferAllocator, Map<ClickHouseDataType, Class<?>> defaultTypeHintMap) {
+    protected AbstractBinaryFormatReader(InputStream inputStream, QuerySettings querySettings, TableSchema schema,
+                                         BinaryStreamReader.ByteBufferAllocator byteBufferAllocator,
+                                         Map<ClickHouseDataType, Class<?>> defaultTypeHintMap) {
         this.input = inputStream;
+        this.defaultTypeHintMap = defaultTypeHintMap;
         Map<String, Object> settings = querySettings == null ? Collections.emptyMap() : querySettings.getAllSettings();
         Boolean useServerTimeZone = (Boolean) settings.get(ClientConfigProperties.USE_SERVER_TIMEZONE.getKey());
         TimeZone timeZone = (useServerTimeZone == Boolean.TRUE && querySettings != null) ?
@@ -189,7 +194,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         boolean firstColumn = true;
         for (int i = 0; i < columns.length; i++) {
             try {
-                Object val = binaryStreamReader.readValue(columns[i]);
+                Object val = binaryStreamReader.readValue(columns[i], columnTypeHints[i]);
                 if (val != null) {
                     record[i] = val;
                 } else {
@@ -306,15 +311,20 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         this.schema = schema;
         this.columns = schema.getColumns().toArray(ClickHouseColumn.EMPTY_ARRAY);
         this.convertions = new Map[columns.length];
-
+        this.columnTypeHints = new Class[columns.length];
         this.currentRecord = new Object[columns.length];
         this.nextRecord = new Object[columns.length];
+
+        Class<?> stringTypeHint = defaultTypeHintMap.get(ClickHouseDataType.String);
 
         for (int i = 0; i < columns.length; i++) {
             ClickHouseColumn column = columns[i];
             ClickHouseDataType columnDataType = column.getDataType();
             if (columnDataType.equals(ClickHouseDataType.SimpleAggregateFunction)){
                 columnDataType = column.getNestedColumns().get(0).getDataType();
+            }
+            if (columnDataType.equals(ClickHouseDataType.String)) {
+                columnTypeHints[i] = stringTypeHint;
             }
             switch (columnDataType) {
                 case Int8:
@@ -536,9 +546,11 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                 for (int i = 0; i < list.size(); i++) {
                     Array.set(array, i, list.get(i));
                 }
-                return (T)array;
+                return (T) array;
             } else if (componentType == byte.class) {
-                if (value instanceof String) {
+                if (value instanceof BinaryString) {
+                    return (T) ((BinaryString)value).asBytes();
+                } else if(value instanceof String) {
                     return (T) ((String) value).getBytes(StandardCharsets.UTF_8);
                 } else if (value instanceof InetAddress) {
                     return (T) ((InetAddress) value).getAddress();

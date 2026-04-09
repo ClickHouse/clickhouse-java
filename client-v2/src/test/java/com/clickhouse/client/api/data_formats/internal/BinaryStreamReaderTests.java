@@ -1,19 +1,19 @@
 package com.clickhouse.client.api.data_formats.internal;
 
-import com.clickhouse.data.ClickHouseColumn;
-
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
-import java.time.temporal.ChronoUnit;
-import java.util.TimeZone;
-
 import org.testng.Assert;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.temporal.ChronoUnit;
+import java.util.TimeZone;
 
 public class BinaryStreamReaderTests {
 
@@ -189,5 +189,38 @@ public class BinaryStreamReaderTests {
         int[] array1 = (int[]) array.getArray();
         Object[] array2 = array.getArrayOfObjects();
         Assert.assertEquals(array1.length, array2.length);
+    }
+
+    @Test(dataProvider = "testBinaryStringDP")
+    public void testBinaryString(String type, String originalString, byte[] originalStrBytes, ByteBuffer buffer) throws Exception {
+        BinaryString binaryString = new BinaryStreamReader.BinaryStringImpl(buffer);
+
+        String firstStringAttempt = binaryString.asString();
+        Assert.assertEquals(firstStringAttempt, originalString);
+        // Binary caches string
+        Assert.assertSame(binaryString.asString(), firstStringAttempt);
+
+        Assert.assertTrue(binaryString.compareTo(originalString) == 0);
+
+        // String length is less because of unicode bytes
+        Assert.assertEquals(binaryString.length(), originalString.getBytes(StandardCharsets.UTF_8).length);
+
+        if (type.equalsIgnoreCase("heap")) {
+            Assert.assertEquals(binaryString.asBytes(), firstStringAttempt.getBytes());
+        } else {
+            Assert.assertThrows(UnsupportedOperationException.class, binaryString::asBytes);
+        }
+    }
+
+    @DataProvider
+    public static Object[][] testBinaryStringDP() {
+        final String originalString = "This should be Hello in different languages: 'こんにちは', 'Hej', 'Γεια σας'";
+        final byte[] originalStrBytes = originalString.getBytes();
+        ByteBuffer directBuffer = ByteBuffer.allocateDirect(originalStrBytes.length);
+        directBuffer.put(originalStrBytes,0, originalStrBytes.length);
+        return new Object[][] {
+                {"heap", originalString, originalStrBytes, ByteBuffer.wrap(originalStrBytes)},
+                {"direct", originalString, originalStrBytes, directBuffer},
+        };
     }
 }
