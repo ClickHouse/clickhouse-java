@@ -10,8 +10,10 @@ import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
+import com.clickhouse.client.api.data_formats.internal.BinaryString;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertSettings;
+import com.clickhouse.client.api.internal.MapUtils;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
@@ -1741,13 +1743,17 @@ public class DataTypeTests extends BaseIntegrationTest {
         };
     }
 
-    @Test(groups = {"integration"})
-    public void testReadingStrings() throws Exception {
+    @Test(groups = {"integration"}, dataProvider = "testStringsOptions")
+    public void testReadingStrings(String strType) throws Exception {
         int smallStrLen = 1_000_000;
         int tinyStrLen = 100_000;
         final String sql = "SELECT repeat('A', " + smallStrLen + ") as smallStr, repeat('B', " + tinyStrLen +") as tinyStr, NULL::Nullable(String) as nullStr FROM numbers(100)";
+        Assert.assertTrue(strType.equals("binaryStrings") || strType.equals("normalStrings"));
+        Map<ClickHouseDataType, Class<?>> typeMapping = strType.equalsIgnoreCase("binaryStrings") ? Collections.emptyMap()
+                : Collections.singletonMap(ClickHouseDataType.String, BinaryString.class);
+
         try (QueryResponse response = client.query(sql).get();
-             ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response)) {
+             ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response, null, typeMapping)) {
 
 
             while (reader.next() != null) {
@@ -1781,11 +1787,15 @@ public class DataTypeTests extends BaseIntegrationTest {
         }
     }
 
-    @Test(groups = {"integration"})
-    public void testStringsInNestedTypes() throws Exception {
+    @Test(groups = {"integration"}, dataProvider = "testStringsOptions")
+    public void testStringsInNestedTypes(String strType) throws Exception {
         final String sqlArray = "SELECT ['a', 'b', 'c'] as strArr, [['item1', null, 'item3'], ['item1', 'item2']]::Array(Array(Nullable(String))) as arr";
+        Assert.assertTrue(strType.equals("binaryStrings") || strType.equals("normalStrings"));
+        Map<ClickHouseDataType, Class<?>> typeMapping = strType.equalsIgnoreCase("binaryStrings") ? Collections.emptyMap()
+                : Collections.singletonMap(ClickHouseDataType.String, BinaryString.class);
+
         try (QueryResponse response = client.query(sqlArray).get();
-             ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response)) {
+             ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response, null, typeMapping)) {
 
             while (reader.next() != null) {
 
@@ -1809,6 +1819,14 @@ public class DataTypeTests extends BaseIntegrationTest {
                 Assert.assertEquals(map, expectedMap);
             }
         }
+    }
+
+    @DataProvider
+    public static Object[][] testStringsOptions() {
+        return new Object[][] {
+                {"binaryStrings"},
+                {"normalStrings"}
+        };
     }
 
     public static String tableDefinition(String table, String... columns) {

@@ -2051,11 +2051,13 @@ public class Client implements AutoCloseable {
      * <p>Create an instance of {@link ClickHouseBinaryFormatReader} based on response. Table schema is option and only
      *  required for {@link ClickHouseFormat#RowBinaryWithNames}, {@link ClickHouseFormat#RowBinary}.
      *  Format {@link ClickHouseFormat#RowBinaryWithDefaults} is not supported for output (read operations).</p>
-     * @param response
-     * @param schema
-     * @return
+     * @param response - not closed query response object
+     * @param schema - schema of the response. Can be null.
+     * @param customTypeMapping - type hint map
+     * @return Reader object for the format
+     * @throws IllegalArgumentException if there is no supported reader for the type
      */
-    public ClickHouseBinaryFormatReader newBinaryFormatReader(QueryResponse response, TableSchema schema) {
+    public ClickHouseBinaryFormatReader newBinaryFormatReader(QueryResponse response, TableSchema schema, Map<ClickHouseDataType, Class<?>> customTypeMapping) {
         ClickHouseBinaryFormatReader reader = null;
         // Using caching buffer allocator is risky so this parameter is not exposed to the user
         boolean useCachingBufferAllocator = MapUtils.getFlag(configuration, "client_allow_binary_reader_to_reuse_buffers", false);
@@ -2065,17 +2067,17 @@ public class Client implements AutoCloseable {
         switch (response.getFormat()) {
             case Native:
                 reader = new NativeFormatReader(response.getInputStream(), response.getSettings(),
-                        byteBufferPool, typeHintMapping);
+                        byteBufferPool, customTypeMapping);
                 break;
             case RowBinaryWithNamesAndTypes:
-                reader = new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings(), byteBufferPool, typeHintMapping);
+                reader = new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings(), byteBufferPool, customTypeMapping);
                 break;
             case RowBinaryWithNames:
-                reader = new RowBinaryWithNamesFormatReader(response.getInputStream(), response.getSettings(), schema, byteBufferPool, typeHintMapping);
+                reader = new RowBinaryWithNamesFormatReader(response.getInputStream(), response.getSettings(), schema, byteBufferPool, customTypeMapping);
                 break;
             case RowBinary:
                 reader = new RowBinaryFormatReader(response.getInputStream(), response.getSettings(), schema,
-                        byteBufferPool, typeHintMapping);
+                        byteBufferPool, customTypeMapping);
                 break;
             default:
                 throw new IllegalArgumentException("Binary readers doesn't support format: " + response.getFormat());
@@ -2083,6 +2085,23 @@ public class Client implements AutoCloseable {
         return reader;
     }
 
+    /**
+     * See {@link Client#newBinaryFormatReader(QueryResponse, TableSchema, Map)}
+     * @param response - not closed query response object
+     * @param schema - schema of the response. Can be null.
+     * @return Reader object for the format
+     * @throws IllegalArgumentException if there is no supported reader for the type
+     */
+    public ClickHouseBinaryFormatReader newBinaryFormatReader(QueryResponse response, TableSchema schema) {
+        return  newBinaryFormatReader(response, schema, typeHintMapping);
+    }
+
+    /**
+     * See {@link Client#newBinaryFormatReader(QueryResponse, TableSchema, Map)}
+     * @param response - not closed query response object
+     * @return Reader object for the format
+     * @throws IllegalArgumentException if there is no supported reader for the type
+     */
     public ClickHouseBinaryFormatReader newBinaryFormatReader(QueryResponse response) {
         return  newBinaryFormatReader(response, null);
     }

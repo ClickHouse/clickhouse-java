@@ -1,7 +1,6 @@
 package com.clickhouse.client.api;
 
 import com.clickhouse.client.api.data_formats.internal.AbstractBinaryFormatReader;
-import com.clickhouse.client.api.data_formats.internal.BinaryString;
 import com.clickhouse.client.api.internal.ClickHouseLZ4OutputStream;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
