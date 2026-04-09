@@ -177,10 +177,7 @@ public enum ClientConfigProperties {
      * Defines mapping between ClickHouse data type and target Java type
      * Used by binary readers to convert values into desired Java type.
      */
-    TYPE_HINT_MAPPING("type_hint_mapping", Map.class,
-            "String=" + BinaryString.class.getName()
-
-    ),
+    TYPE_HINT_MAPPING("type_hint_mapping", Map.class),
 
     /**
      * SNI SSL parameter that will be set for each outbound SSL socket.

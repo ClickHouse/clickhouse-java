@@ -83,7 +83,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                                          BinaryStreamReader.ByteBufferAllocator byteBufferAllocator,
                                          Map<ClickHouseDataType, Class<?>> defaultTypeHintMap) {
         this.input = inputStream;
-        this.defaultTypeHintMap = defaultTypeHintMap;
+        this.defaultTypeHintMap = defaultTypeHintMap == null ? Collections.emptyMap() : defaultTypeHintMap;
         Map<String, Object> settings = querySettings == null ? Collections.emptyMap() : querySettings.getAllSettings();
         Boolean useServerTimeZone = (Boolean) settings.get(ClientConfigProperties.USE_SERVER_TIMEZONE.getKey());
         TimeZone timeZone = (useServerTimeZone == Boolean.TRUE && querySettings != null) ?
