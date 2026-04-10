@@ -33,7 +33,7 @@ public class GenericJDBCTest extends JdbcIntegrationTest {
         properties.setProperty("user", "default");
         properties.setProperty("password", "FAKE123456FAKE");
 
-        assertThrows(SQLException.class, () -> getConnection(properties));
+        assertThrows(SQLException.class, () -> getConnection(properties).isValid(10));
     }
 
     @Test
