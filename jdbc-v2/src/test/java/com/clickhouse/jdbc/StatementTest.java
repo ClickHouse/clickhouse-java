@@ -619,6 +619,38 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
+    @Test(groups = {"integration"})
+    public void testJSONEachRowFormat() throws Exception {
+        Properties properties = new Properties();
+        properties.setProperty(DriverProperties.JSON_PROCESSOR.getKey(), "JACKSON");
+        try (Connection conn = getJdbcConnection(properties)) {
+            try (Statement stmt = conn.createStatement()) {
+                try (ResultSet rs = stmt.executeQuery("SELECT 1 AS num, 'test' AS str FORMAT JSONEachRow")) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getInt("num"), 1);
+                    assertEquals(rs.getString("str"), "test");
+                    assertFalse(rs.next());
+                }
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testJSONEachRowFormatGson() throws Exception {
+        Properties properties = new Properties();
+        properties.setProperty(DriverProperties.JSON_PROCESSOR.getKey(), "GSON");
+        try (Connection conn = getJdbcConnection(properties)) {
+            try (Statement stmt = conn.createStatement()) {
+                try (ResultSet rs = stmt.executeQuery("SELECT 2 AS num, 'gson' AS str FORMAT JSONEachRow")) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getInt("num"), 2);
+                    assertEquals(rs.getString("str"), "gson");
+                    assertFalse(rs.next());
+                }
+            }
+        }
+    }
+
     @Test(groups = "integration")
     void testWithClause() throws Exception {
         int count = 0;

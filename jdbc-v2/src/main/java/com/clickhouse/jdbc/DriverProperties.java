@@ -79,8 +79,16 @@ public enum DriverProperties {
     QUERY_ID_GENERATOR("jdbc_query_id_generator", null),
 
     /**
+     * Configures what JSON processor will be used for JSON formats. Choices:
+     * <ul>
+     *     <li>JACKSON - uses Jackson library.</li>
+     *     <li>GSON - uses Gson library.</li>
+     * </ul>
+     */
+    JSON_PROCESSOR("json_processor", "JACKSON", Arrays.asList("JACKSON", "GSON")),
+
+    /**
      * Controls logic of saving roles that were set using {@code SET <role>} statement.
-     * Default: true - save roles
      */
     REMEMBER_LAST_SET_ROLES("remember_last_set_roles", String.valueOf(Boolean.TRUE)),
 

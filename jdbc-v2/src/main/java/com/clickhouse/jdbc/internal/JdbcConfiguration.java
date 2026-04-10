@@ -303,6 +303,8 @@ public class JdbcConfiguration {
                     prop.getKey().equalsIgnoreCase(DriverProperties.CUSTOM_SETTINGS.getKey())) {
                     ClientConfigProperties.toKeyValuePairs(prop.getValue())
                             .forEach((k, v) -> clientProperties.put(ClientConfigProperties.serverSetting(k), v));
+                } else if (prop.getKey().equalsIgnoreCase(DriverProperties.JSON_PROCESSOR.getKey())) {
+                    clientProperties.put(prop.getKey(), prop.getValue());
                 }
                 driverProperties.put(prop.getKey(), prop.getValue());
             } else {

@@ -196,6 +196,15 @@ public enum ClientConfigProperties {
      *  See <a href="https://clickhouse.com/docs/operations/settings/query-level#custom_settings">ClickHouse Docs</a>
      */
     CUSTOM_SETTINGS_PREFIX("custom_settings_prefix", String.class, "custom_"),
+
+    /**
+     * Configures what JSON processor will be used for JSON formats. Choices:
+     * <ul>
+     *     <li>JACKSON - uses Jackson library.</li>
+     *     <li>GSON - uses Gson library.</li>
+     * </ul>
+     */
+    JSON_PROCESSOR("json_processor", String.class, "JACKSON"),
     ;
 
     private static final Logger LOG = LoggerFactory.getLogger(ClientConfigProperties.class);

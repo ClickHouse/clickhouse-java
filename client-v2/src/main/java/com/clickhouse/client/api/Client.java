@@ -3,11 +3,14 @@ package com.clickhouse.client.api;
 import com.clickhouse.client.api.command.CommandResponse;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
+import com.clickhouse.client.api.data_formats.JSONEachRowFormatReader;
 import com.clickhouse.client.api.data_formats.NativeFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesFormatReader;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
+import com.clickhouse.client.api.data_formats.internal.JsonParser;
+import com.clickhouse.client.api.data_formats.internal.JsonParserFactory;
 import com.clickhouse.client.api.data_formats.internal.MapBackedRecord;
 import com.clickhouse.client.api.data_formats.internal.ProcessParser;
 import com.clickhouse.client.api.enums.Protocol;
@@ -2076,6 +2079,11 @@ public class Client implements AutoCloseable {
             case RowBinary:
                 reader = new RowBinaryFormatReader(response.getInputStream(), response.getSettings(), schema,
                         byteBufferPool, typeHintMapping);
+                break;
+            case JSONEachRow:
+                String jsonProcessor = ClientConfigProperties.JSON_PROCESSOR.getOrDefault(configuration);
+                JsonParser parser = JsonParserFactory.createParser(jsonProcessor, response.getInputStream());
+                reader = new JSONEachRowFormatReader(parser);
                 break;
             default:
                 throw new IllegalArgumentException("Binary readers doesn't support format: " + response.getFormat());
