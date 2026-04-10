@@ -19,6 +19,8 @@ Review for correctness, regressions, and compatibility risk before suggesting re
 
 When proposing or making any change, first search for possible breaking changes before suggesting refactors, cleanups, or new abstractions.
 
+use "docs/changes_checklist.md" as additional guidance for every change in a PR.
+
 ## Breaking change review first
 
 Before editing, recommending, or approving a change:
