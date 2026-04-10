@@ -226,7 +226,7 @@ public class JdbcConfiguration {
                 // Example: "mydb" -> httpPath="", database="mydb"
                 pathToDecode = pathWithoutLeadingSlash;
             }
-// requires 10+ java               database = URLDecoder.decode(pathWithoutLeadingSlash.substring(lastSlashIndex + 1), StandardCharsets.UTF_8);
+            // requires 10+ java               database = URLDecoder.decode(pathWithoutLeadingSlash.substring(lastSlashIndex + 1), StandardCharsets.UTF_8);
             database = URLDecoder.decode(pathToDecode);
         }
 
