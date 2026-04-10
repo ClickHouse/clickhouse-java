@@ -1142,25 +1142,23 @@ public class BinaryStreamReader {
     }
 
     public BinaryString readBinaryString(int len, Function<Integer, ByteBuffer> bufferAllocator) throws IOException {
-        ByteBuffer buffer = null;
-        if (len > 0) {
-            buffer = bufferAllocator.apply(len);
-            if (buffer == null) {
-                throw new IOException("bufferAllocator returned `null`");
-            }
-            if (buffer.hasArray()) {
-                readNBytes(input, buffer.array(), 0, len);
-            } else {
-                int left = len;
-                while (left > 0) {
-                    int chunkSize = Math.min(STRING_BUFF.length, left);
-                    readNBytes(input, STRING_BUFF, 0, chunkSize);
-                    buffer.put(STRING_BUFF, 0, chunkSize);
-                    left -= chunkSize;
-                }
+        ByteBuffer buffer = bufferAllocator.apply(len);
+        if (buffer == null) {
+            throw new IOException("bufferAllocator returned `null`");
+        }
+        if (buffer.hasArray()) {
+            readNBytes(input, buffer.array(), 0, len);
+        } else {
+            int left = len;
+            while (left > 0) {
+                int chunkSize = Math.min(STRING_BUFF.length, left);
+                readNBytes(input, STRING_BUFF, 0, chunkSize);
+                buffer.put(STRING_BUFF, 0, chunkSize);
+                left -= chunkSize;
             }
         }
-        return buffer == null ? null : new BinaryStringImpl(buffer);
+
+        return new BinaryStringImpl(buffer);
     }
 
     /**
