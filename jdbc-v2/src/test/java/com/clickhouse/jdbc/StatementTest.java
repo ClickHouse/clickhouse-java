@@ -268,8 +268,8 @@ public class StatementTest extends JdbcIntegrationTest {
     public static Object[][] asyncInsertSettingsDP() {
         return new Object[][]{
                 // asyncInsert, waitEndOfQuery, expectedUpdateCount, expectedSelectCount
-                {ServerSettings.OFF, ServerSettings.OFF, 10000},
-                {ServerSettings.OFF, ServerSettings.ON, 10000},
+                {ServerSettings.OFF, ServerSettings.OFF, 10000, 10000},
+                {ServerSettings.OFF, ServerSettings.ON, 10000, 10000},
                 {ServerSettings.ON, ServerSettings.OFF, 0, -1},
                 {ServerSettings.ON, ServerSettings.ON, 0, 10000}
         };
