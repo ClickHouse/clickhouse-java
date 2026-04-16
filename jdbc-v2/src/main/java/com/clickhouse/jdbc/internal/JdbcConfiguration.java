@@ -3,6 +3,7 @@ package com.clickhouse.jdbc.internal;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
+import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.Driver;
 import com.clickhouse.jdbc.DriverProperties;
@@ -89,7 +90,7 @@ public class JdbcConfiguration {
 
         Map<String, String> urlProperties = parseUrl(url);
         String tmpConnectionUrl = urlProperties.remove(PARSE_URL_CONN_URL_PROP);
-        initProperties(urlProperties, props);
+        buildFinalProperties(urlProperties, props);
 
         // after initializing all properties - set final connection URL
         boolean useSSLInfo = Boolean.parseBoolean(props.getProperty(DriverProperties.SECURE_CONNECTION.getKey(), "false"));
@@ -266,10 +267,31 @@ public class JdbcConfiguration {
         return properties;
     }
 
-    private void initProperties(Map<String, String> urlProperties, Properties providedProperties) {
+    /**
+     * Creates initial properties with defaults.
+     * @return mutable HashMap with default values.
+     */
+    Map<String, String> createProperties() {
+        Map<String, String> props = new HashMap<>();
+
+        // Requires to wait result on insert
+        props.put(DriverProperties.serverSetting(ServerSettings.ASYNC_INSERT), ServerSettings.OFF);
+
+        // Requires to wait result of query (manly insert)
+        props.put(DriverProperties.serverSetting(ServerSettings.WAIT_END_OF_QUERY), ServerSettings.ON);
+
+        return props;
+    }
+
+    /**
+     * Combines url properties and provided ones via {@link java.sql.Driver#connect(String, Properties)}
+     * @param urlProperties - properties parsed from URL
+     * @param providedProperties - properties object provided by application
+     */
+    private void buildFinalProperties(Map<String, String> urlProperties, Properties providedProperties) {
 
         // Copy provided properties
-        Map<String, String> props = new HashMap<>();
+        Map<String, String> props = createProperties();
         // Set driver properties defaults (client will do the same)
         for (DriverProperties prop : DriverProperties.values()) {
             if (prop.getDefaultValue() != null) {

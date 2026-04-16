@@ -264,6 +264,54 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
+    @DataProvider(name = "asyncInsertSettingsDP")
+    public static Object[][] asyncInsertSettingsDP() {
+        return new Object[][]{
+                // asyncInsert, waitEndOfQuery, expectedUpdateCount, expectedSelectCount
+                {ServerSettings.OFF, ServerSettings.OFF, 10000},
+                {ServerSettings.OFF, ServerSettings.ON, 10000},
+                {ServerSettings.ON, ServerSettings.OFF, 0, -1},
+                {ServerSettings.ON, ServerSettings.ON, 0, 10000}
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "asyncInsertSettingsDP")
+    public void testInsertWithAsyncInsert(String asyncInsert, String waitAsyncInsert, int expectedUpdateCount, int expectedSelectCount) throws Exception {
+        String tableName = "test_async_insert_param_" + asyncInsert + "_" + waitAsyncInsert;
+        
+        Properties props = new Properties();
+        props.setProperty(ClientConfigProperties.serverSetting(ServerSettings.ASYNC_INSERT), asyncInsert);
+        props.setProperty(ClientConfigProperties.serverSetting(ServerSettings.WAIT_ASYNC_INSERT), waitAsyncInsert);
+        // Wait end of query off for isolation of this logic
+        props.setProperty(ClientConfigProperties.serverSetting(ServerSettings.WAIT_END_OF_QUERY), ServerSettings.OFF);
+
+        try (Connection conn = getJdbcConnection(props)) {
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("CREATE TABLE IF NOT EXISTS " + getDatabase() + "." + tableName + " (id UInt32) ENGINE = MergeTree ORDER BY id");
+                stmt.execute("TRUNCATE TABLE " + getDatabase() + "." + tableName);
+                
+                StringBuilder sb = new StringBuilder("INSERT INTO " + getDatabase() + "." + tableName + " VALUES ");
+                for (int i = 0; i < 10000; i++) {
+                    if (i > 0) sb.append(", ");
+                    sb.append("(").append(i).append(")");
+                }
+                
+                int updateCount = stmt.executeUpdate(sb.toString());
+                assertEquals(updateCount, expectedUpdateCount);
+
+                try (ResultSet rs = stmt.executeQuery("SELECT count() FROM " + getDatabase() + "." + tableName)) {
+                    assertTrue(rs.next());
+                    int count = rs.getInt(1);
+                    if (expectedSelectCount == -1) {
+                        assertTrue(count < 10000, "Expected count to be < 10000, but was: " + count);
+                    } else {
+                        assertEquals(count, expectedSelectCount);
+                    }
+                }
+            }
+        }
+    }
+
 
     @Test(groups = {"integration"})
     public void testExecuteUpdateBatch() throws Exception {
