@@ -264,14 +264,16 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
+    private static final int ASYNC_INSERT_SETTINGS_DP_ROWS = 1000_000;
+
     @DataProvider(name = "asyncInsertSettingsDP")
     public static Object[][] asyncInsertSettingsDP() {
         return new Object[][]{
                 // asyncInsert, waitEndOfQuery, expectedUpdateCount, expectedSelectCount
-                {ServerSettings.OFF, ServerSettings.OFF, 10000, 10000},
-                {ServerSettings.OFF, ServerSettings.ON, 10000, 10000},
+                {ServerSettings.OFF, ServerSettings.OFF, ASYNC_INSERT_SETTINGS_DP_ROWS, ASYNC_INSERT_SETTINGS_DP_ROWS},
+                {ServerSettings.OFF, ServerSettings.ON, ASYNC_INSERT_SETTINGS_DP_ROWS, ASYNC_INSERT_SETTINGS_DP_ROWS},
                 {ServerSettings.ON, ServerSettings.OFF, 0, -1},
-                {ServerSettings.ON, ServerSettings.ON, 0, 10000}
+                {ServerSettings.ON, ServerSettings.ON, 0, ASYNC_INSERT_SETTINGS_DP_ROWS}
         };
     }
 
@@ -291,7 +293,7 @@ public class StatementTest extends JdbcIntegrationTest {
                 stmt.execute("TRUNCATE TABLE " + getDatabase() + "." + tableName);
                 
                 StringBuilder sb = new StringBuilder("INSERT INTO " + getDatabase() + "." + tableName + " VALUES ");
-                for (int i = 0; i < 10000; i++) {
+                for (int i = 0; i < ASYNC_INSERT_SETTINGS_DP_ROWS; i++) {
                     if (i > 0) sb.append(", ");
                     sb.append("(").append(i).append(")");
                 }
@@ -303,7 +305,7 @@ public class StatementTest extends JdbcIntegrationTest {
                     assertTrue(rs.next());
                     int count = rs.getInt(1);
                     if (expectedSelectCount == -1) {
-                        assertTrue(count < 10000, "Expected count to be < 10000, but was: " + count);
+                        assertTrue(count < ASYNC_INSERT_SETTINGS_DP_ROWS, "Expected count to be < " + ASYNC_INSERT_SETTINGS_DP_ROWS + ", but was: " + count);
                     } else {
                         assertEquals(count, expectedSelectCount);
                     }
