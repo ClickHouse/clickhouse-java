@@ -286,6 +286,7 @@ public class StatementTest extends JdbcIntegrationTest {
         props.setProperty(ClientConfigProperties.serverSetting(ServerSettings.WAIT_ASYNC_INSERT), waitAsyncInsert);
         // Wait end of query off for isolation of this logic
         props.setProperty(ClientConfigProperties.serverSetting(ServerSettings.WAIT_END_OF_QUERY), ServerSettings.OFF);
+        props.setProperty(ClientConfigProperties.serverSetting("insert_deduplicate"), ServerSettings.OFF);
 
         try (Connection conn = getJdbcConnection(props)) {
             try (Statement stmt = conn.createStatement()) {
