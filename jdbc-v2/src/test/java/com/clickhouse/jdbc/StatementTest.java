@@ -264,7 +264,7 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
-    private static final int ASYNC_INSERT_SETTINGS_DP_ROWS = 1000_000;
+    private static final int ASYNC_INSERT_SETTINGS_DP_ROWS = 100_000;
 
     @DataProvider(name = "asyncInsertSettingsDP")
     public static Object[][] asyncInsertSettingsDP() {
@@ -289,13 +289,16 @@ public class StatementTest extends JdbcIntegrationTest {
 
         try (Connection conn = getJdbcConnection(props)) {
             try (Statement stmt = conn.createStatement()) {
-                stmt.execute("CREATE TABLE IF NOT EXISTS " + getDatabase() + "." + tableName + " (id UInt32) ENGINE = MergeTree ORDER BY id");
+                stmt.execute("CREATE TABLE IF NOT EXISTS " + getDatabase() + "." + tableName + " (id UInt32, name String, value Float64, status Int8, timestamp DateTime) ENGINE = MergeTree ORDER BY id");
                 stmt.execute("TRUNCATE TABLE " + getDatabase() + "." + tableName);
                 
-                StringBuilder sb = new StringBuilder("INSERT INTO " + getDatabase() + "." + tableName + " VALUES ");
+                StringBuilder sb = new StringBuilder("INSERT INTO " + getDatabase() + "." + tableName + " FORMAT TSV\n");
                 for (int i = 0; i < ASYNC_INSERT_SETTINGS_DP_ROWS; i++) {
-                    if (i > 0) sb.append(", ");
-                    sb.append("(").append(i).append(")");
+                    sb.append(i).append("\t")
+                      .append("name_").append(i).append("\t")
+                      .append(i * 1.1).append("\t")
+                      .append(i % 2).append("\t")
+                      .append("2023-01-01 10:11:12").append("\n");
                 }
                 
                 int updateCount = stmt.executeUpdate(sb.toString());
