@@ -1,3 +1,9 @@
+## 0.9.9
+
+
+### Bug Fixes
+- **[jdbc-v2]** Fixed issues with hardcoded `async_insert` settings in `ConnectionImpl`. Now it let override them. (https://github.com/ClickHouse/clickhouse-java/issues/2652, https://github.com/ClickHouse/clickhouse-java/issues/2825)
+
 ## 0.9.8
 
 ### Improvements 
