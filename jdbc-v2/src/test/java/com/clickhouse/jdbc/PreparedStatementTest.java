@@ -1,6 +1,7 @@
 package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.DataTypeUtils;
+import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseVersion;
@@ -956,7 +957,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         String table = "test_batch_text";
         long seed = System.currentTimeMillis();
         Random rnd = new Random(seed);
-        try (Connection conn = getJdbcConnection()) {
+        try (Connection conn = getJdbcConnection(Map.of(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF))) {
 
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("CREATE TABLE IF NOT EXISTS " + table +
@@ -1007,7 +1008,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         String sql = "INSERT INTO %s (v1, v2) VALUES (?, ?)";
         long seed = System.currentTimeMillis();
         Random rnd = new Random(seed);
-        try (Connection conn = getJdbcConnection()) {
+        try (Connection conn = getJdbcConnection(Map.of(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF))) {
 
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("CREATE TABLE IF NOT EXISTS " + table +
@@ -1062,7 +1063,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         String sql = "INSERT INTO %s (v1, v2) VALUES (1, ?)";
         long seed = System.currentTimeMillis();
         Random rnd = new Random(seed);
-        try (Connection conn = getJdbcConnection()) {
+        try (Connection conn = getJdbcConnection(Map.of(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF))) {
 
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("CREATE TABLE IF NOT EXISTS " + table +
@@ -1266,7 +1267,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
 
     @Test(groups = {"integration "})
     public void testStatementsWithDatabaseInTableIdentifier() throws Exception {
-        try (Connection conn = getJdbcConnection()) {
+        try (Connection conn = getJdbcConnection(Map.of(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF))) {
             final String db1Name = conn.getSchema() + "_db1";
             final String table1Name = "table1";
             try (Statement stmt = conn.createStatement()) {
@@ -1296,7 +1297,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
 
     @Test(groups = {"integration "})
     public void testNullValues() throws Exception {
-        try (Connection conn = getJdbcConnection()) {
+        try (Connection conn = getJdbcConnection(Map.of(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF))) {
             final String table = "test_null_values";
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("DROP TABLE IF EXISTS " + table);

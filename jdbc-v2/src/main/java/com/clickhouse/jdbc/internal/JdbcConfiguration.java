@@ -3,7 +3,6 @@ package com.clickhouse.jdbc.internal;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
-import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.Driver;
 import com.clickhouse.jdbc.DriverProperties;
@@ -75,7 +74,7 @@ public class JdbcConfiguration {
 
     /**
      * Parses URL to get property and target host.
-     * Properties that are passed in the {@code info} parameter will override that are set in the {@code url}.
+     * Properties that are passed in the {@code url} will override the {@code info} ones.
      * @param url - JDBC url
      * @param info - Driver and Client properties.
      */
@@ -268,22 +267,6 @@ public class JdbcConfiguration {
     }
 
     /**
-     * Creates initial properties with defaults.
-     * @return mutable HashMap with default values.
-     */
-    Map<String, String> createProperties() {
-        Map<String, String> props = new HashMap<>();
-
-        // Requires to wait result on insert
-        props.put(DriverProperties.serverSetting(ServerSettings.ASYNC_INSERT), ServerSettings.OFF);
-
-        // Requires to wait result of query (manly insert)
-        props.put(DriverProperties.serverSetting(ServerSettings.WAIT_END_OF_QUERY), ServerSettings.ON);
-
-        return props;
-    }
-
-    /**
      * Combines url properties and provided ones via {@link java.sql.Driver#connect(String, Properties)}
      * @param urlProperties - properties parsed from URL
      * @param providedProperties - properties object provided by application
@@ -291,7 +274,7 @@ public class JdbcConfiguration {
     private void buildFinalProperties(Map<String, String> urlProperties, Properties providedProperties) {
 
         // Copy provided properties
-        Map<String, String> props = createProperties();
+        Map<String, String> props = new HashMap<>();
         // Set driver properties defaults (client will do the same)
         for (DriverProperties prop : DriverProperties.values()) {
             if (prop.getDefaultValue() != null) {

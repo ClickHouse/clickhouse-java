@@ -4,6 +4,7 @@ import com.clickhouse.client.BaseIntegrationTest;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.data.ClickHouseVersion;
 import com.clickhouse.logging.Logger;
@@ -13,10 +14,15 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 
 public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
     private static final Logger LOGGER = LoggerFactory.getLogger(JdbcIntegrationTest.class);
+
+    public static final String WAIT_ASYNC_SETTING_KEY = DriverProperties.serverSetting(ServerSettings.WAIT_ASYNC_INSERT);
+    public static final String WAIT_QUERY_SETTING_KEY = DriverProperties.serverSetting(ServerSettings.WAIT_END_OF_QUERY);
+    public static final String ASYNC_INSERT_SETTING_KEY = DriverProperties.serverSetting(ServerSettings.ASYNC_INSERT);
 
     public String getEndpointString() {
         return getEndpointString(isCloud());
@@ -28,7 +34,13 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
     }
 
     public Connection getJdbcConnection() throws SQLException {
-        return getJdbcConnection(null);
+        return getJdbcConnection((Properties) null);
+    }
+
+    public Connection getJdbcConnection(Map<String, Object> propertiesMap) throws SQLException {
+        Properties config = new Properties();
+        config.putAll(propertiesMap);
+        return getJdbcConnection(config);
     }
 
     public Connection getJdbcConnection(Properties properties) throws SQLException {

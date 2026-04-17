@@ -121,11 +121,8 @@ public class JdbcConfigurationTest {
             throws Exception
     {
         JdbcConfiguration configuration = new JdbcConfiguration(jdbcURL, properties);
-        // We need to copy defaults to expected.
-        Map<String, String> expectedWithDefaults = configuration.createProperties();
-        expectedWithDefaults.putAll(expectedClientProps);
         assertEquals(configuration.getConnectionUrl(), connectionURL, "URL: " + jdbcURL);
-        assertEquals(configuration.clientProperties, expectedWithDefaults, "URL: " + jdbcURL);
+        assertEquals(configuration.clientProperties, expectedClientProps, "URL: " + jdbcURL);
         Client.Builder bob = new Client.Builder();
         configuration.applyClientProperties(bob);
         Client client = bob.build();
