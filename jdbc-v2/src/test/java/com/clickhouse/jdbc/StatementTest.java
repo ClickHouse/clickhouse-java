@@ -26,6 +26,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 
 import static org.testng.Assert.assertEquals;
@@ -273,20 +274,24 @@ public class StatementTest extends JdbcIntegrationTest {
                 {ServerSettings.OFF, ServerSettings.OFF, ASYNC_INSERT_SETTINGS_DP_ROWS, ASYNC_INSERT_SETTINGS_DP_ROWS},
                 {ServerSettings.OFF, ServerSettings.ON, ASYNC_INSERT_SETTINGS_DP_ROWS, ASYNC_INSERT_SETTINGS_DP_ROWS},
                 {ServerSettings.ON, ServerSettings.OFF, 0, -1},
-                {ServerSettings.ON, ServerSettings.ON, 0, ASYNC_INSERT_SETTINGS_DP_ROWS}
+                {ServerSettings.ON, ServerSettings.ON, ASYNC_INSERT_SETTINGS_DP_ROWS, ASYNC_INSERT_SETTINGS_DP_ROWS}
         };
     }
 
     @Test(groups = {"integration"}, dataProvider = "asyncInsertSettingsDP")
     public void testInsertWithAsyncInsert(String asyncInsert, String waitAsyncInsert, int expectedUpdateCount, int expectedSelectCount) throws Exception {
-        String tableName = "test_async_insert_param_" + asyncInsert + "_" + waitAsyncInsert;
+        String tableName = "test_async_insert_param_" + asyncInsert + "_" + waitAsyncInsert + "_" + UUID.randomUUID().toString().replace("-", "_");
         
         Properties props = new Properties();
         props.setProperty(ClientConfigProperties.serverSetting(ServerSettings.ASYNC_INSERT), asyncInsert);
         props.setProperty(ClientConfigProperties.serverSetting(ServerSettings.WAIT_ASYNC_INSERT), waitAsyncInsert);
         // Wait end of query off for isolation of this logic
         props.setProperty(ClientConfigProperties.serverSetting(ServerSettings.WAIT_END_OF_QUERY), ServerSettings.OFF);
-        props.setProperty(ClientConfigProperties.serverSetting("insert_deduplicate"), ServerSettings.OFF);
+
+        if (waitAsyncInsert.equals(ServerSettings.ON)) {
+            // make it flash to disk to check that we get result. If buffer is bigger server may wait flashing to disk.
+            props.setProperty(ClientConfigProperties.serverSetting("async_insert_max_data_size"), "3488890");
+        }
 
         try (Connection conn = getJdbcConnection(props)) {
             try (Statement stmt = conn.createStatement()) {
