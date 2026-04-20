@@ -346,7 +346,6 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         // Clear session settings to prevent KILL QUERY from using the locked session
         killQuerySettings.setSessionId(null);
         killQuerySettings.setSessionCheck(false);
-        killQuerySettings.setSessionTimeout(0);
 
         try (QueryResponse response = connection.getClient().query(sql, killQuerySettings).get()){
             LOG.debug("Query {} was killed by {}", lastQueryId, response.getQueryId());
