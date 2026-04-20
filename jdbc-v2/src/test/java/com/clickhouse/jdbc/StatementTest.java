@@ -622,9 +622,13 @@ public class StatementTest extends JdbcIntegrationTest {
              StatementImpl stmt = (StatementImpl) conn.createStatement()) {
 
             // Verify session is applied from connection settings by checking system.query_log
-            // Execute a simple query first to ensure session is used
-            try (ResultSet rs = stmt.executeQuery("SELECT 1")) {
-                assertTrue(rs.next());
+            stmt.executeQuery("SELECT 1").close();
+            String queryId = stmt.getLastQueryId();
+            stmt.execute("SYSTEM FLUSH LOGS");
+
+            try (ResultSet rs = stmt.executeQuery("SELECT session_id FROM system.query_log WHERE query_id = '" + queryId + "'")) {
+                assertTrue("Query should be in query_log", rs.next());
+                assertEquals("Session ID should match", sessionId, rs.getString("session_id"));
             }
 
             final CountDownLatch queryStarted = new CountDownLatch(1);
