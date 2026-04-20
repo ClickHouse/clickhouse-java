@@ -612,6 +612,43 @@ public class StatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = {"integration"})
+    public void testCancelWithSessionId() throws Exception {
+        // Test for issue #2690 - Cancel statement should work with active session
+        Properties props = new Properties();
+        props.put("clickhouse_setting_session_id", java.util.UUID.randomUUID().toString());
+
+        try (Connection conn = getJdbcConnection(props)) {
+            try (StatementImpl stmt = (StatementImpl) conn.createStatement()) {
+                // Start a long-running query in a separate thread
+                Thread queryThread = new Thread(() -> {
+                    try {
+                        stmt.executeQuery("SELECT sleep(10), number FROM system.numbers LIMIT 1000000");
+                    } catch (SQLException e) {
+                        // Expected to be cancelled
+                        log.debug("Query was cancelled as expected", e);
+                    }
+                });
+                queryThread.start();
+
+                // Give the query time to start
+                Thread.sleep(500);
+
+                // This should not throw "Session is locked by a concurrent client" error
+                stmt.cancel();
+
+                // Wait for the thread to finish
+                queryThread.join(5000);
+
+                // Verify statement is still usable after cancel
+                try (ResultSet rs = stmt.executeQuery("SELECT 1")) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getInt(1), 1);
+                }
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
     public void testTextFormatInResponse() throws Exception {
         try (Connection conn = getJdbcConnection();
              Statement stmt = conn.createStatement()) {
