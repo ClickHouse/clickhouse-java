@@ -333,10 +333,19 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             return;
         }
 
-        final String sql =  "KILL QUERY%sWHERE query_id = '" + lastQueryId +"'"
-            + (connection.onCluster ? " ON CLUSTER " + connection.cluster: "");
+        final String sql = "KILL QUERY "
+            + (connection.onCluster ? "ON CLUSTER " + connection.cluster + " " : "")
+            + "WHERE query_id = '" + lastQueryId + "'";
 
-        try (QueryResponse response = connection.getClient().query(sql, connection.getDefaultQuerySettings()).get()){
+        // Create query settings without session to avoid "Session is locked by a concurrent client" error
+        QuerySettings killQuerySettings = new QuerySettings();
+        if (connection.getDefaultQuerySettings() != null) {
+            killQuerySettings.getAllSettings().putAll(connection.getDefaultQuerySettings().getAllSettings());
+        }
+        killQuerySettings.setSessionId(null);
+        killQuerySettings.setSessionCheck(false);
+
+        try (QueryResponse response = connection.getClient().query(sql, killQuerySettings).get()){
             LOG.debug("Query {} was killed by {}", lastQueryId, response.getQueryId());
         } catch (Exception e) {
             throw new SQLException(e);
