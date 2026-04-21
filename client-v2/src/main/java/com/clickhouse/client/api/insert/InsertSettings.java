@@ -140,6 +140,11 @@ public class InsertSettings {
         return settings.getSessionTimezone();
     }
 
+    public InsertSettings clearSession() {
+        settings.clearSession();
+        return this;
+    }
+
     public InsertSettings use(Session session) {
         settings.use(session);
         return this;

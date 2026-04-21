@@ -28,6 +28,11 @@ public class CommandSettings extends QuerySettings {
         return this;
     }
 
+    public CommandSettings clearSession() {
+        super.clearSession();
+        return this;
+    }
+
     @Override
     public CommandSettings use(Session session) {
         super.use(session);

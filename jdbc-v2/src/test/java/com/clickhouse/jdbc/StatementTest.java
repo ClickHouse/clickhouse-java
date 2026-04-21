@@ -1,6 +1,7 @@
 package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.data.ClickHouseVersion;
@@ -26,7 +27,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
@@ -607,6 +610,47 @@ public class StatementTest extends JdbcIntegrationTest {
                     latch.await();
                     stmt.cancel();
                 }
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testCancelWithSessionId() throws Exception {
+        // Test for issue #2690 - Cancel statement should work with active session
+        String sessionId = java.util.UUID.randomUUID().toString();
+        Properties props = new Properties();
+        props.put(DriverProperties.serverSetting(ServerSettings.SESSION_ID), sessionId);
+
+        try (Connection conn = getJdbcConnection(props);
+             StatementImpl stmt = (StatementImpl) conn.createStatement()) {
+            // There is no way to check current session_id
+
+            final CompletableFuture<Boolean> queryComplete = new CompletableFuture<>();
+            final CountDownLatch startLatch = new CountDownLatch(1);
+            Thread queryThread = new Thread(() -> {
+                try {
+                    startLatch.countDown();
+                    stmt.executeQuery("SELECT sum(reinterpretAsUInt64(MD5(toString(number)))) FROM system.numbers LIMIT 1000000");
+                    queryComplete.complete(true);
+                } catch (SQLException e) {
+                    queryComplete.completeExceptionally(e);
+                }
+            });
+            queryThread.start();
+            startLatch.await();
+            Thread.sleep(500);
+            stmt.cancel();
+
+            try {
+                queryComplete.get();
+            } catch (ExecutionException e) {
+                assertEquals(((ServerException)e.getCause().getCause()).getCode(), ServerException.QUERY_CANCELLED);
+            }
+
+            // Verify statement is still usable after cancel
+            try (ResultSet rs = stmt.executeQuery("SELECT 1")) {
+                assertTrue(rs.next());
+                assertEquals(rs.getInt(1), 1);
             }
         }
     }

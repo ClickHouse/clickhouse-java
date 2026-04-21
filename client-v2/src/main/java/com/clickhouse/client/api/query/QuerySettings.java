@@ -11,6 +11,7 @@ import com.clickhouse.data.ClickHouseFormat;
 
 import java.time.temporal.ChronoUnit;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 import java.util.TimeZone;
 
@@ -24,7 +25,7 @@ public class QuerySettings {
     private final CommonSettings settings;
 
     public QuerySettings(Map<String, Object> settings) {
-        this.settings = new CommonSettings();
+        this();
         for (Map.Entry<String, Object> entry : settings.entrySet()) {
             this.settings.setOption(entry.getKey(), entry.getValue());
         }
@@ -32,6 +33,10 @@ public class QuerySettings {
 
     public QuerySettings() {
         this.settings = new CommonSettings();
+    }
+
+    public QuerySettings(QuerySettings settings) {
+        this(settings == null ? Collections.emptyMap() : settings.getAllSettings());
     }
 
     private QuerySettings(CommonSettings settings) {
@@ -136,6 +141,11 @@ public class QuerySettings {
 
     public QuerySettings use(Session session) {
         settings.use(session);
+        return this;
+    }
+
+    public QuerySettings clearSession() {
+        settings.clearSession();
         return this;
     }
 

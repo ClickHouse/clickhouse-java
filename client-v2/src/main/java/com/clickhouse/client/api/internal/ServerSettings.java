@@ -46,4 +46,12 @@ public final class ServerSettings {
     public static final String ASYNC_INSERT = "async_insert";
 
     public static final String WAIT_ASYNC_INSERT = "wait_for_async_insert";
+
+    public static final String SESSION_ID = "session_id";
+
+    public static final String SESSION_CHECK = "session_check";
+
+    public static final String SESSION_TIMEOUT = "session_timeout";
+
+    public static final String SESSION_TIMEZONE = "session_timezone";
 }
