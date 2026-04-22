@@ -76,7 +76,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
             this.config = new JdbcConfiguration(url, info);
             final String tmpClusterName = config.getDriverProperty(DriverProperties.CLUSTER_NAME.getKey(), DriverProperties.CLUSTER_NAME.getDefaultValue());
             this.cluster = tmpClusterName == null ? null : tmpClusterName.trim();
-            this.onCluster = this.cluster != null && !this.cluster.trim().isEmpty();
+            this.onCluster = this.cluster != null && !this.cluster.isEmpty();
             this.appName = "";
             this.readOnly = false;
             this.holdability = ResultSet.HOLD_CURSORS_OVER_COMMIT;
