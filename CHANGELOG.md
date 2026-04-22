@@ -1,3 +1,9 @@
+## 0.9.9
+
+### Bug Fixes
+
+- **[client-v2]** Fixed inconsistent use of `executionTimeout` parameter in `Client` component. The timeout was previously set in milliseconds but mistakenly retrieved and used in seconds in some places. Now it correctly uses milliseconds consistently. (https://github.com/ClickHouse/clickhouse-java/issues/2358)
+
 ## 0.9.8
 
 ### Improvements 
