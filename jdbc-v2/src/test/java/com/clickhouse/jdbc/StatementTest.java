@@ -580,6 +580,24 @@ public class StatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = {"integration"})
+    public void testCancelOnCluster() throws Exception {
+        String testCluster = "test_cluster_" + RandomStringUtils.randomAlphanumeric(10);
+        Properties p = new Properties();
+        p.setProperty(DriverProperties.CLUSTER_NAME.getKey(), testCluster);
+        try (Connection conn = getJdbcConnection(p)) {
+            try (StatementImpl stmt = (StatementImpl) conn.createStatement()) {
+                stmt.executeQuery("SELECT number FROM system.numbers LIMIT 1000000");
+                try {
+                    stmt.cancel();
+                    fail("Should have thrown an exception for missing cluster");
+                } catch (SQLException e) {
+                    assertTrue(e.getMessage().contains(testCluster), "Exception should mention the missing cluster");
+                }
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
     public void testConcurrentCancel() throws Exception {
         int maxNumConnections = 3;
         Properties p = new Properties();
