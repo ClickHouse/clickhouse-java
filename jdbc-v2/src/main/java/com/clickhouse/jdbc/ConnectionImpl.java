@@ -74,7 +74,8 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
         try {
             this.url = url;//Raw URL
             this.config = new JdbcConfiguration(url, info);
-            this.cluster = config.getDriverProperty(DriverProperties.CLUSTER_NAME.getKey(), DriverProperties.CLUSTER_NAME.getDefaultValue());
+            final String tmpClusterName = config.getDriverProperty(DriverProperties.CLUSTER_NAME.getKey(), DriverProperties.CLUSTER_NAME.getDefaultValue());
+            this.cluster = tmpClusterName == null ? null : tmpClusterName.trim();
             this.onCluster = this.cluster != null && !this.cluster.trim().isEmpty();
             this.appName = "";
             this.readOnly = false;

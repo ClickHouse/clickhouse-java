@@ -9,6 +9,7 @@ import org.apache.commons.lang3.RandomStringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
+import org.testng.SkipException;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
@@ -581,18 +582,27 @@ public class StatementTest extends JdbcIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testCancelOnCluster() throws Exception {
+        // Generate non-existing cluster name to cause error
         String testCluster = "test_cluster_" + RandomStringUtils.randomAlphanumeric(10);
         Properties p = new Properties();
         p.setProperty(DriverProperties.CLUSTER_NAME.getKey(), testCluster);
         try (Connection conn = getJdbcConnection(p)) {
-            try (StatementImpl stmt = (StatementImpl) conn.createStatement()) {
-                stmt.executeQuery("SELECT number FROM system.numbers LIMIT 1000000");
+            try (StatementImpl stmt = (StatementImpl) conn.createStatement();
+                    ResultSet rs = stmt.executeQuery("SELECT 1")) { // to fill queryId
                 try {
                     stmt.cancel();
                     fail("Should have thrown an exception for missing cluster");
                 } catch (SQLException e) {
                     assertTrue(e.getMessage().contains(testCluster), "Exception should mention the missing cluster");
                 }
+            }
+        }
+
+        // no cluster set - check no exception. actual cancelation is tested elsewhere
+        try (Connection conn = getJdbcConnection()) {
+            try (StatementImpl stmt = (StatementImpl) conn.createStatement();
+                 ResultSet rs = stmt.executeQuery("SELECT 1")) { // to fill queryId
+                stmt.cancel();
             }
         }
     }
