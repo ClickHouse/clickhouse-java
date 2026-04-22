@@ -174,7 +174,10 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             if (queryTimeout == 0) {
                 response = connection.getClient().query(lastStatementSql, mergedSettings).get();
             } else {
-                response = connection.getClient().query(lastStatementSql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS);
+                // we need to perform async operation to support timeout.
+                response = connection.getClient().query(lastStatementSql, mergedSettings
+                                .setOption(ClientConfigProperties.ASYNC_OPERATIONS.getKey(), true))
+                        .get(queryTimeout, TimeUnit.SECONDS);
             }
 
             if (response.getFormat().isText()) {

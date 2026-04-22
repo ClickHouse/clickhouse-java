@@ -570,9 +570,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
     @Test(groups = {"integration"})
     void testExecuteQueryTimeout() throws Exception {
         final String sql = "SELECT sum(reinterpretAsUInt64(MD5(toString(number)))) FROM system.numbers LIMIT 1000000";
-        Properties config = new Properties();
-        config.setProperty(ClientConfigProperties.ASYNC_OPERATIONS.getKey(), "true");
-        try (Connection conn = getJdbcConnection(config);
+        try (Connection conn = getJdbcConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setQueryTimeout(1);
             assertThrows(SQLException.class, stmt::executeQuery);
