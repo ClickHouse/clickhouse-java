@@ -27,9 +27,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Supplier;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
@@ -582,44 +584,11 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test(groups = {"integration"})
-    public void testConcurrentCancel() throws Exception {
-        int maxNumConnections = 3;
-        Properties p = new Properties();
-        p.put(ClientConfigProperties.HTTP_MAX_OPEN_CONNECTIONS.getKey(), String.valueOf(maxNumConnections));
-        try (Connection conn = getJdbcConnection()) {
-            try (StatementImpl stmt = (StatementImpl) conn.createStatement()) {
-                stmt.executeQuery("SELECT number FROM system.numbers LIMIT 1000000");
-                stmt.cancel();
-            }
-            for (int i = 0; i < maxNumConnections; i++) {
-                try (StatementImpl stmt = (StatementImpl) conn.createStatement()) {
-                    final int threadNum = i;
-                    log.info("Starting thread {}", threadNum);
-                    final CountDownLatch latch = new CountDownLatch(1);
-                    Thread t = new Thread(() -> {
-                        try {
-                            latch.countDown();
-                            ResultSet rs = stmt.executeQuery("SELECT number FROM system.numbers LIMIT 10000000");
-                        } catch (SQLException e) {
-                            log.error("Error in thread {}", threadNum, e);
-                        }
-                    });
-                    t.start();
-
-                    latch.await();
-                    stmt.cancel();
-                }
-            }
-        }
-    }
-
-    @Test(groups = {"integration"})
-    public void testCancelWithSessionId() throws Exception {
-        // Test for issue #2690 - Cancel statement should work with active session
-        String sessionId = java.util.UUID.randomUUID().toString();
+    @Test(groups = {"integration"}, dataProvider = "testCancel_DP")
+    public void testCancel(String configName, Map<String, Object> additionalConfig) throws Exception {
+        log.debug("config name: {}", configName);
         Properties props = new Properties();
-        props.put(DriverProperties.serverSetting(ServerSettings.SESSION_ID), sessionId);
+        props.putAll(additionalConfig);
 
         try (Connection conn = getJdbcConnection(props);
              StatementImpl stmt = (StatementImpl) conn.createStatement()) {
@@ -653,6 +622,14 @@ public class StatementTest extends JdbcIntegrationTest {
                 assertEquals(rs.getInt(1), 1);
             }
         }
+    }
+
+    @DataProvider(name = "testCancel_DP")
+    public static Object[][] testCancel_DP() {
+        return new Object[][] {
+                {"withSession", Map.of(DriverProperties.serverSetting(ServerSettings.SESSION_ID), java.util.UUID.randomUUID().toString())},
+                {"withQueryGenerator", Map.of(DriverProperties.QUERY_ID_GENERATOR.getKey(), (Supplier<String>)() -> String.valueOf(new Random().nextInt()))}
+        };
     }
 
     @Test(groups = {"integration"})

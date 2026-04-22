@@ -4,7 +4,7 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 
 public class InsertSettingsTest {
-    @Test
+    @Test(groups = {"integration"})
     public void testClearSession() {
         InsertSettings settings = new InsertSettings();
         settings.setSessionId("test-session");
