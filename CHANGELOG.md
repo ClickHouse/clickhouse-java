@@ -1,3 +1,15 @@
+## 0.9.9
+
+### Breaking Changes
+
+- **[jdbc-v2]** Hardcoded server setting `async_insert=0` is removed as well as others. This is done to 
+fix issue with overriding these settings and using client with read-only profiles. The change, first of all, makes 
+driver behavior to follow default what is set on server side (note: starting ClickHouse 26.3 `async_insert` is on by default).
+In second, this fix changes what number of affected rows returned by method like `java.sql.Statement.executeUpdate(java.lang.String)`. 
+Previously they return more accurate values because insert was synchronous, but in case of asynchronous insert it is not 
+guaranteed anymore (see also https://github.com/ClickHouse/ClickHouse/issues/57768). Read more about asynchronous insert https://clickhouse.com/docs/optimize/asynchronous-inserts.
+(https://github.com/ClickHouse/clickhouse-java/issues/2652, https://github.com/ClickHouse/clickhouse-java/issues/2825)
+
 ## 0.9.8
 
 ### Improvements 

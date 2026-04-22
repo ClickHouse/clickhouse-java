@@ -74,7 +74,7 @@ public class JdbcConfiguration {
 
     /**
      * Parses URL to get property and target host.
-     * Properties that are passed in the {@code info} parameter will override that are set in the {@code url}.
+     * Properties that are passed in the {@code url} will override the {@code info} ones.
      * @param url - JDBC url
      * @param info - Driver and Client properties.
      */
@@ -89,7 +89,7 @@ public class JdbcConfiguration {
 
         Map<String, String> urlProperties = parseUrl(url);
         String tmpConnectionUrl = urlProperties.remove(PARSE_URL_CONN_URL_PROP);
-        initProperties(urlProperties, props);
+        buildFinalProperties(urlProperties, props);
 
         // after initializing all properties - set final connection URL
         boolean useSSLInfo = Boolean.parseBoolean(props.getProperty(DriverProperties.SECURE_CONNECTION.getKey(), "false"));
@@ -266,7 +266,12 @@ public class JdbcConfiguration {
         return properties;
     }
 
-    private void initProperties(Map<String, String> urlProperties, Properties providedProperties) {
+    /**
+     * Combines url properties and provided ones via {@link java.sql.Driver#connect(String, Properties)}
+     * @param urlProperties - properties parsed from URL
+     * @param providedProperties - properties object provided by application
+     */
+    private void buildFinalProperties(Map<String, String> urlProperties, Properties providedProperties) {
 
         // Copy provided properties
         Map<String, String> props = new HashMap<>();

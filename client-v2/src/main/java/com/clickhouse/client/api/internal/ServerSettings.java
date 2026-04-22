@@ -46,4 +46,9 @@ public final class ServerSettings {
     public static final String ASYNC_INSERT = "async_insert";
 
     public static final String WAIT_ASYNC_INSERT = "wait_for_async_insert";
+
+    // Misc
+    public static final String ON = "1";
+
+    public static final String OFF = "0";
 }
