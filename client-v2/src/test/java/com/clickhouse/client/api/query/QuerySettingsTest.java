@@ -4,7 +4,7 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 
 public class QuerySettingsTest {
-    @Test
+    @Test(groups = {"integration"})
     public void testClearSession() {
         QuerySettings settings = new QuerySettings();
         settings.setSessionId("test-session");
@@ -18,8 +18,8 @@ public class QuerySettingsTest {
         Assert.assertNull(settings.getSessionId());
         Assert.assertEquals(settings.getSessionCheck(), Boolean.FALSE);
     }
-    
-    @Test
+
+    @Test(groups = {"integration"})
     public void testCopyConstructor() {
         QuerySettings settings = new QuerySettings();
         settings.setSessionId("test-session");

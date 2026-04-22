@@ -4,7 +4,7 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 
 public class CommonSettingsTest {
-    @Test
+    @Test(groups = {"integration"})
     public void testClearSession() {
         CommonSettings settings = new CommonSettings();
         settings.setSessionId("test-session");
