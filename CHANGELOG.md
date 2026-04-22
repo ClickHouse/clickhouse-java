@@ -1,3 +1,9 @@
+## 0.9.9
+
+### New Features
+
+- **[jdbc-v2]** Added `cluster_name` configuration property to specify a target cluster for statements like `KILL QUERY` that require an `ON CLUSTER` clause to execute across all nodes. (https://github.com/ClickHouse/clickhouse-java/issues/2837)
+
 ## 0.9.8
 
 ### Improvements 
