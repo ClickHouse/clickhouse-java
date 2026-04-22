@@ -333,9 +333,14 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             return;
         }
 
-        try (QueryResponse response = connection.getClient().query(String.format("KILL QUERY%sWHERE query_id = '%s'",
-                connection.onCluster ? " ON CLUSTER " + connection.cluster + " " : " ",
-                lastQueryId), connection.getDefaultQuerySettings()).get()){
+        final String sql = "KILL QUERY "
+            + (connection.onCluster ? "ON CLUSTER " + connection.cluster + " " : "")
+            + "WHERE query_id = '" + lastQueryId + "'";
+
+        String queryId = queryIdGenerator == null ? UUID.randomUUID().toString() : queryIdGenerator.get();
+        // Clear session settings to prevent KILL QUERY from using the locked session
+        try (QueryResponse response = connection.getClient().query(sql,
+                new QuerySettings(connection.getDefaultQuerySettings()).setQueryId(queryId).clearSession()).get()){
             LOG.debug("Query {} was killed by {}", lastQueryId, response.getQueryId());
         } catch (Exception e) {
             throw new SQLException(e);

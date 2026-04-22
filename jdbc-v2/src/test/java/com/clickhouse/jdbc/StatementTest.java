@@ -1,6 +1,7 @@
 package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.data.ClickHouseVersion;
@@ -26,7 +27,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Random;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.function.Supplier;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
@@ -579,36 +584,52 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test(groups = {"integration"})
-    public void testConcurrentCancel() throws Exception {
-        int maxNumConnections = 3;
-        Properties p = new Properties();
-        p.put(ClientConfigProperties.HTTP_MAX_OPEN_CONNECTIONS.getKey(), String.valueOf(maxNumConnections));
-        try (Connection conn = getJdbcConnection()) {
-            try (StatementImpl stmt = (StatementImpl) conn.createStatement()) {
-                stmt.executeQuery("SELECT number FROM system.numbers LIMIT 1000000");
-                stmt.cancel();
-            }
-            for (int i = 0; i < maxNumConnections; i++) {
-                try (StatementImpl stmt = (StatementImpl) conn.createStatement()) {
-                    final int threadNum = i;
-                    log.info("Starting thread {}", threadNum);
-                    final CountDownLatch latch = new CountDownLatch(1);
-                    Thread t = new Thread(() -> {
-                        try {
-                            latch.countDown();
-                            ResultSet rs = stmt.executeQuery("SELECT number FROM system.numbers LIMIT 10000000");
-                        } catch (SQLException e) {
-                            log.error("Error in thread {}", threadNum, e);
-                        }
-                    });
-                    t.start();
+    @Test(groups = {"integration"}, dataProvider = "testCancel_DP")
+    public void testCancel(String configName, Map<String, Object> additionalConfig) throws Exception {
+        log.debug("config name: {}", configName);
+        Properties props = new Properties();
+        props.putAll(additionalConfig);
 
-                    latch.await();
-                    stmt.cancel();
+        try (Connection conn = getJdbcConnection(props);
+             StatementImpl stmt = (StatementImpl) conn.createStatement()) {
+            // There is no way to check current session_id
+
+            final CompletableFuture<Boolean> queryComplete = new CompletableFuture<>();
+            final CountDownLatch startLatch = new CountDownLatch(1);
+            Thread queryThread = new Thread(() -> {
+                try {
+                    startLatch.countDown();
+                    stmt.executeQuery("SELECT sum(reinterpretAsUInt64(MD5(toString(number)))) FROM system.numbers LIMIT 1000000");
+                    queryComplete.complete(true);
+                } catch (SQLException e) {
+                    queryComplete.completeExceptionally(e);
                 }
+            });
+            queryThread.start();
+            startLatch.await();
+            Thread.sleep(500);
+            stmt.cancel();
+
+            try {
+                queryComplete.get();
+            } catch (ExecutionException e) {
+                assertEquals(((ServerException)e.getCause().getCause()).getCode(), ServerException.QUERY_CANCELLED);
+            }
+
+            // Verify statement is still usable after cancel
+            try (ResultSet rs = stmt.executeQuery("SELECT 1")) {
+                assertTrue(rs.next());
+                assertEquals(rs.getInt(1), 1);
             }
         }
+    }
+
+    @DataProvider(name = "testCancel_DP")
+    public static Object[][] testCancel_DP() {
+        return new Object[][] {
+                {"withSession", Map.of(DriverProperties.serverSetting(ServerSettings.SESSION_ID), java.util.UUID.randomUUID().toString())},
+                {"withQueryGenerator", Map.of(DriverProperties.QUERY_ID_GENERATOR.getKey(), (Supplier<String>)() -> String.valueOf(new Random().nextInt()))}
+        };
     }
 
     @Test(groups = {"integration"})

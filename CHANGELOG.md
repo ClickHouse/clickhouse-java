@@ -1,3 +1,32 @@
+## 0.9.9
+
+### New Features
+
+- **[client-v2]** Added ClickHouse session APIs to `Client.Builder`, `QuerySettings`, `InsertSettings`, and `CommandSettings`: `setSessionId()`, `setSessionCheck()`, `setSessionTimeout()`, `setSessionTimezone()`, and `use(Session)`, plus `getSessionId()`, `getSessionCheck()`, `getSessionTimeout()`, `getSessionTimezone()`, and `clearSession()` on operation settings. `clearSession()` clears session-related request settings. (https://github.com/ClickHouse/clickhouse-java/pull/2810, https://github.com/ClickHouse/clickhouse-java/pull/2836)
+
+### Improvements
+
+- **[client-v2]** Improved HTTP transport error handling: unwrap compressed error responses, read server error bodies reliably, handle common HTTP status 
+failures (for example 401, 403, 404), and include more context when an `IOException` occurs while reading result data. (https://github.com/ClickHouse/
+clickhouse-java/pull/2804)
+
+- **[client-v2]** Refined `HttpEndpoint` construction and validation so hostnames containing underscores are handled consistently with JVM name resolution 
+behavior. (https://github.com/ClickHouse/clickhouse-java/issues/2792, https://github.com/ClickHouse/clickhouse-java/issues/2753)
+
+- **[jdbc-v2]** Extended the JavaCC SQL utilities keyword list with CENTURY, DECADE, DOW, DOY, EPOCH, ISODOW, ISOYEAR, MILLENNIUM, NATURAL, SOME, ZONE. (https://github.com/ClickHouse/clickhouse-java/pull/2818)
+
+### Bug Fixes
+
+- **[client-v2, jdbc-v2]** Fixed `Statement#cancel()` when the connection uses a ClickHouse server session (`session_id`): the internal `KILL QUERY` is executed with settings copied from the connection defaults but **without** the session id, so the cancel request is not blocked by the same session. (https://github.com/ClickHouse/clickhouse-java/issues/2690)
+
+- **[client-v2]** Fixed decoding of SQL `NULL` values inside `Variant` and `Dynamic` columns in the binary row protocol reader. (https://github.com/ClickHouse/clickhouse-java/issues/2789, https://github.com/ClickHouse/clickhouse-java/issues/2791)
+
+- **[client-v2, jdbc-v2]** Fixed decimal-related conversion and rounding when values pass through `ValueConverters` / serialization helpers (including 
+integer-to-decimal paths and floating-point edge cases), with expanded regression tests. (https://github.com/ClickHouse/clickhouse-java/issues/2748)
+
+- **[client-v2]** Fixed Basic authentication when no password is configured: the literal `"null"` string is no longer sent as the password value. (https://
+github.com/ClickHouse/clickhouse-java/pull/2809)
+
 ## 0.9.8
 
 ### Improvements 
