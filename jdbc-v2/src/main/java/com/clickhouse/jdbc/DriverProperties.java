@@ -127,7 +127,7 @@ public enum DriverProperties {
     /**
      * Define cluster name for statement executions like KILL
      */
-    CLUSTER_NAME("cluster_name", null),
+    CLUSTER_NAME("jdbc_cluster_name", null),
 
     ;
 
