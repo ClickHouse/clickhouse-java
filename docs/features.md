@@ -49,7 +49,7 @@ Compatibility-sensitive traits:
 - Schema and database context: Supports database selection through URL, `setSchema`, `USE`, and statement-level settings.
 - Non-transactional operation: Exposes ClickHouse-appropriate transaction behavior with auto-commit semantics and unsupported transactional features.
 - Statement execution: Supports `execute`, `executeQuery`, `executeUpdate`, large update counts, and forward-only/read-only statements.
-- Query cancellation and timeout: Supports JDBC query timeout handling and query cancellation through server-side `KILL QUERY`.
+- Query cancellation and timeout: Supports JDBC query timeout handling and query cancellation through server-side `KILL QUERY`, with optional JDBC `cluster_name` property support to add `ON CLUSTER '<name>'` for cluster-wide cancellation.
 - Batch execution: Supports batched statements and prepared-statement batches, including multi-row rewrite for eligible `INSERT ... VALUES` statements.
 - Prepared statements: Supports `?` parameters through client-side SQL rendering and validates that all parameters are bound before execution.
 - SQL parsing and classification: Classifies SQL to distinguish queries, updates, inserts, `USE`, and role-changing statements, with selectable parser backends.
@@ -67,6 +67,7 @@ Compatibility-sensitive traits:
 Compatibility-sensitive traits:
 
 - Prepared statements are client-side SQL rendering, not server-side prepared statements. Changes to literal encoding or placeholder parsing are externally visible behavior.
+- JDBC `cluster_name` is compatibility-sensitive for cancellation behavior: when configured, `Statement.cancel()` issues `KILL QUERY ON CLUSTER '<name>'`, and when omitted it falls back to a local `KILL QUERY`.
 - String parameters are escaped with backslash-based escaping: backslashes are doubled and single quotes are backslash-escaped before values are wrapped in single quotes.
 - `?` placeholder detection is SQL-aware and should not treat question marks inside quoted strings, quoted identifiers, comments, casts, or similar syntax as bind parameters.
 - String-like ClickHouse values have stable JDBC expectations: `String`, `FixedString`, and `Enum` values are returned as strings, while `UUID` is available both as `getString()` and `getObject(..., UUID.class)`.

@@ -4,6 +4,8 @@ Use this guide across Cursor, Claude, Copilot, and other AI assistants when revi
 
 This repository contains Java libraries and drivers for ClickHouse, including shared data types, HTTP clients, the v2 client, JDBC drivers, and R2DBC integration.
 
+For a reusable review write-up format, use `docs/review-template.md`.
+
 ## Role
 
 Act as an experienced maintainer and reviewer of a public Java library.
@@ -169,6 +171,8 @@ When responding to a review request:
 3. Use file or symbol references where helpful.
 4. Keep any change summary brief and secondary.
 5. If no issues are found, say so explicitly and mention residual risk or testing gaps.
+6. Use `docs/review-template.md` when a structured review summary is helpful.
+7. End with exactly one verdict: `ready to merge`, `ready for human review`, or `need changes`.
 
 In the final summary, state:
 
