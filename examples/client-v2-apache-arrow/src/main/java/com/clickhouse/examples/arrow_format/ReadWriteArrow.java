@@ -35,7 +35,7 @@ import java.util.stream.IntStream;
  * }
  *
  */
-public class ReadWriteArrow {
+public class ReadWriteArrow implements AutoCloseable {
 
     private static final Logger LOG = LoggerFactory.getLogger(ReadWriteArrow.class);
 
@@ -98,12 +98,14 @@ public class ReadWriteArrow {
                 arrowWriter.end();
 
             } catch (Exception e) {
-                LOG.info("Failed writing data to output stream", e);
+                LOG.error("Failed writing data to output stream", e);
             }
         }, ClickHouseFormat.ArrowStream, insertSettings).get()) {
             LOG.info("Data inserted {}", response.getWrittenRows());
         } catch (Exception e) {
-            LOG.info("Failed to write data to DB", e);
+            LOG.error("Failed to write data to DB", e);
+        } finally {
+            vectorSchemaRoot.close(); // free memory
         }
     }
 
@@ -140,6 +142,8 @@ public class ReadWriteArrow {
         // memory allocator to store values on local machine. Read more https://arrow.apache.org/java/current/memory.html
         try (QueryResponse resp = client.query("SELECT * FROM " + table + " LIMIT "  +nRows +" FORMAT ArrowStream").get()) {
 
+            // It is important to close reader to release memory.
+            // The vectorSchemaRoot and rootAllocator should be closed when it is not used anymore, too
             try (ArrowReader arrowReader = new ArrowStreamReader(resp.getInputStream(), rootAllocator)) {
                 VectorSchemaRoot vectorSchemaRoot = arrowReader.getVectorSchemaRoot();
                 FieldVector tsVector = vectorSchemaRoot.getVector("ts");
@@ -199,16 +203,24 @@ public class ReadWriteArrow {
         final String password = System.getProperty("chPassword", "");
         final String database = System.getProperty("chDatabase", "default");
 
-        ReadWriteArrow app = new ReadWriteArrow();
-        try (Client client = new Client.Builder()
+
+        try (ReadWriteArrow app = new ReadWriteArrow();
+             Client chClient = new Client.Builder()
                 .addEndpoint(endpoint)
                 .setUsername(user)
                 .setPassword(password)
                 .setDefaultDatabase(database)
                 .build()) {
 
-            app.loadData(client);
-            app.readData(client);
+            app.loadData(chClient);
+            app.readData(chClient);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
+    }
+
+    @Override
+    public void close() throws Exception {
+        rootAllocator.close();
     }
 }
