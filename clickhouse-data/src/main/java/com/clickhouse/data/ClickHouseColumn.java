@@ -908,12 +908,12 @@ public final class ClickHouseColumn implements Serializable {
             }
             return -1;
         } else {
-            return classToVariantOrdNumMap.getOrDefault(value.getClass(), -1);
+            return getGeometryVariantOrdNum(value);
         }
     }
 
     public int getGeometryVariantOrdNum(Object value) {
-        if (value == null) {
+        if (value == null || classToVariantOrdNumMap == null) {
             return -1;
         }
 

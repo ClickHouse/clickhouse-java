@@ -721,7 +721,8 @@ public class SerializerUtils {
             BinaryStreamUtils.writeUnsignedInt8(out, typeOrdNum);
             serializeData(out, value, column.getNestedColumns().get(typeOrdNum));
         } else {
-            throw new IllegalArgumentException("Cannot write value of class " + value.getClass() + " into column with variant type " + column.getOriginalTypeName());
+            throw new IllegalArgumentException("Cannot write value of class " + (value == null ? "<null value>" : value.getClass())
+                    + " into column with variant type " + column.getOriginalTypeName());
         }
     }
 
@@ -735,7 +736,8 @@ public class SerializerUtils {
             serializeData(out, value, column.getNestedColumns().get(typeOrdNum));
         } else {
             throw new IllegalArgumentException(
-                    "Cannot write value of class " + value.getClass() + " into column with geometry type "
+                    "Cannot write value of class " + (value == null ? "<null value>" : value.getClass())
+                            + " into column with geometry type "
                             + column.getOriginalTypeName());
         }
     }
