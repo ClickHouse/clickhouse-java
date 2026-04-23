@@ -90,8 +90,6 @@ public class ReadWriteArrow implements AutoCloseable {
             InsertSettings insertSettings = new InsertSettings();
             insertSettings.compressClientRequest(true);
             try (InsertResponse response = client.insert(table, out -> {
-                // use DataWriter to avoid tmp storage.
-                //
                 // DON'T: swallow exceptions thrown by the Arrow writer here. If the writer fails
                 // mid-stream (I/O error, allocator failure, etc.), only a partial Arrow stream
                 // reaches the server. The request may still complete and `getWrittenRows()` would
@@ -101,9 +99,6 @@ public class ReadWriteArrow implements AutoCloseable {
                     arrowWriter.start();
                     arrowWriter.writeBatch();
                     arrowWriter.end();
-                } catch (Exception e) {
-                    LOG.error("Failed writing data to output stream", e);
-                    throw new RuntimeException("Failed writing Arrow data to output stream", e);
                 }
             }, ClickHouseFormat.ArrowStream, // Use Arrow Stream Format
                     insertSettings).get()) {
