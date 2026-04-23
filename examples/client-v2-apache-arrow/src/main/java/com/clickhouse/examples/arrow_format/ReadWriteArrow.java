@@ -5,6 +5,7 @@ import com.clickhouse.client.api.command.CommandResponse;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.query.QueryResponse;
+import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseFormat;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.Decimal256Vector;
@@ -56,56 +57,54 @@ public class ReadWriteArrow implements AutoCloseable {
         // Create value holders. Each column is Vector. In current example we want to send measures along with timestamps
         // We allocate all needed space just for simplicity.
         final int numValuesInBatch = 10_000;
-        TimeStampVector  tsVector = new TimeStampMilliVector("ts", rootAllocator);
+        try (TimeStampVector  tsVector = new TimeStampMilliVector("ts", rootAllocator);
+             Decimal256Vector val1Vector = new Decimal256Vector("val1", rootAllocator, 76, 39);
+             VectorSchemaRoot vectorSchemaRoot = VectorSchemaRoot.of(tsVector, val1Vector)) {
 
-        Decimal256Vector val1Vector = new Decimal256Vector("val1", rootAllocator, 76, 39);
+            final String table = "arrow_example";
+            executeUpdate("CREATE TABLE IF NOT EXISTS " + table + "(ts DateTime64, val1 Decimal(76,39)) Engine = MergeTree Order By()", client);
+            executeUpdate("TRUNCATE " + table, client);
 
-        VectorSchemaRoot vectorSchemaRoot = VectorSchemaRoot.of(tsVector, val1Vector);
-
-        final String table = "arrow_example";
-        executeUpdate("CREATE TABLE IF NOT EXISTS " + table + "(ts DateTime64, val1 Decimal(76,39)) Engine = MergeTree Order By()", client);
-        executeUpdate("TRUNCATE " + table, client);
-
-        LOG.info("Generating data");
-        final long startTimestamp = System.currentTimeMillis();
+            LOG.info("Generating data");
+            final long startTimestamp = System.currentTimeMillis();
 
 
-        IntStream.range(0, numValuesInBatch)
-                .forEachOrdered(index -> {
-                    try {
-                        tsVector.setSafe(index, startTimestamp + index);
-                        val1Vector.setSafe(index, randomBigDecimal(76, 39));
-                    } catch (Exception e) {
-                        LOG.error("Failed at " + index, e);
-                        throw new RuntimeException(e);
-                    }
-                });
+            IntStream.range(0, numValuesInBatch)
+                    .forEachOrdered(index -> {
+                        try {
+                            tsVector.setSafe(index, startTimestamp + index);
+                            val1Vector.setSafe(index, randomBigDecimal(76, 39));
+                        } catch (Exception e) {
+                            LOG.error("Failed at " + index, e);
+                            throw new RuntimeException(e);
+                        }
+                    });
 
-        tsVector.setValueCount(numValuesInBatch);
-        val1Vector.setValueCount(numValuesInBatch);
+            tsVector.setValueCount(numValuesInBatch);
+            val1Vector.setValueCount(numValuesInBatch);
 
-        // If you see Because of Code: 33. DB::Exception: Error while reading batch of Arrow data: IOError: Array length did not match record batch length: While executing ArrowBlockInputFormat.
-        // May be missing `vectorSchemaRoot.setRowCount`
-        vectorSchemaRoot.setRowCount(numValuesInBatch);
+            // If you see Because of Code: 33. DB::Exception: Error while reading batch of Arrow data: IOError: Array length did not match record batch length: While executing ArrowBlockInputFormat.
+            // May be missing `vectorSchemaRoot.setRowCount`
+            vectorSchemaRoot.setRowCount(numValuesInBatch);
 
-        InsertSettings insertSettings = new InsertSettings();
-        insertSettings.compressClientRequest(true);
-        try (InsertResponse response = client.insert(table, out -> {
-            // use DataWriter to avoid tmp storage.
-            try (ArrowWriter arrowWriter = new ArrowStreamWriter(vectorSchemaRoot, /* provider = */ null, out)) {
-                arrowWriter.start();
-                arrowWriter.writeBatch();
-                arrowWriter.end();
+            InsertSettings insertSettings = new InsertSettings();
+            insertSettings.compressClientRequest(true);
+            try (InsertResponse response = client.insert(table, out -> {
+                // use DataWriter to avoid tmp storage.
+                try (ArrowWriter arrowWriter = new ArrowStreamWriter(vectorSchemaRoot, /* provider = */ null, out)) {
+                    arrowWriter.start();
+                    arrowWriter.writeBatch();
+                    arrowWriter.end();
 
+                } catch (Exception e) {
+                    LOG.error("Failed writing data to output stream", e);
+                }
+            }, ClickHouseFormat.ArrowStream, // Use Arrow Stream Format
+                    insertSettings).get()) {
+                LOG.info("Data inserted {}", response.getWrittenRows());
             } catch (Exception e) {
-                LOG.error("Failed writing data to output stream", e);
+                LOG.error("Failed to write data to DB", e);
             }
-        }, ClickHouseFormat.ArrowStream, insertSettings).get()) {
-            LOG.info("Data inserted {}", response.getWrittenRows());
-        } catch (Exception e) {
-            LOG.error("Failed to write data to DB", e);
-        } finally {
-            vectorSchemaRoot.close(); // free memory
         }
     }
 
@@ -140,7 +139,9 @@ public class ReadWriteArrow implements AutoCloseable {
 
         // Init Arrow Vectors
         // memory allocator to store values on local machine. Read more https://arrow.apache.org/java/current/memory.html
-        try (QueryResponse resp = client.query("SELECT * FROM " + table + " LIMIT "  +nRows +" FORMAT ArrowStream").get()) {
+        try (QueryResponse resp = client.query("SELECT * FROM " + table + " LIMIT "  +nRows,
+                new QuerySettings().setFormat(ClickHouseFormat.ArrowStream)) // set format to Arrow Stream
+                .get()) {
 
             // It is important to close reader to release memory.
             // The vectorSchemaRoot and rootAllocator should be closed when it is not used anymore, too

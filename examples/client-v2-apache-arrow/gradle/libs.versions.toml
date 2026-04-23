@@ -2,7 +2,6 @@
 # https://docs.gradle.org/current/userguide/platforms.html#sub::toml-dependencies-format
 
 [versions]
-guava = "33.4.6-jre"
 testng = "7.5.1"
 arrowBom = "19.0.0"
 slf4j = "2.0.17"
