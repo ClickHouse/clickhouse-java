@@ -1022,6 +1022,10 @@ public final class ClickHouseColumn implements Serializable {
         return columnName;
     }
 
+    public String getColumnIndexAndName() {
+        return (columnIndex + 1) + " (`" + columnName + "`)";
+    }
+
     public String getOriginalTypeName() {
         return originalTypeName;
     }

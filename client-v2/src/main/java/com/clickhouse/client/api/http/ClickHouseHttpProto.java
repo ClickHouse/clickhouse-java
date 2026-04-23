@@ -57,6 +57,26 @@ public class ClickHouseHttpProto {
      */
     public static final String QPARAM_QUERY_ID = "query_id";
 
+    /**
+     * Query parameter to specify a session id.
+     */
+    public static final String QPARAM_SESSION_ID = "session_id";
+
+    /**
+     * Query parameter to check session status (1/0).
+     */
+    public static final String QPARAM_SESSION_CHECK = "session_check";
+
+    /**
+     * Query parameter to specify session timeout in seconds.
+     */
+    public static final String QPARAM_SESSION_TIMEOUT = "session_timeout";
+
+    /**
+     * Query parameter to specify session timezone.
+     */
+    public static final String QPARAM_SESSION_TIMEZONE = "session_timezone";
+
     public static final String QPARAM_ROLE = "role";
 
     /**

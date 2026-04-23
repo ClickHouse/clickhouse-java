@@ -290,6 +290,14 @@ public class DataTypeTests extends BaseIntegrationTest {
         private Object field;
     }
 
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class DTOForVariantNullPojoTests {
+        private int rowId;
+        private Object value;
+    }
+
     @Test(groups = {"integration"})
     public void testVariantWithDecimals() throws Exception {
         testVariantWith("decimals", new String[]{"field Variant(String, Decimal(4, 4))"},
@@ -310,6 +318,121 @@ public class DataTypeTests extends BaseIntegrationTest {
                         "10.202",
                         "10.1233",
                 });
+    }
+
+    @Test(groups = {"integration"})
+    public void testVariantNullLiteral() throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
+        List<GenericRecord> records = client.queryAll(
+                "SELECT NULL::Variant(Int32, String) AS val",
+                new QuerySettings().serverSetting("allow_experimental_variant_type", "1"));
+
+        Assert.assertEquals(records.size(), 1);
+        Assert.assertNull(records.get(0).getObject("val"));
+    }
+
+    @Test(groups = {"integration"})
+    public void testVariantNullLiteralWithPojo() throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
+        final String table = "test_variant_null_literal_pojo";
+        CommandSettings createTableSettings = (CommandSettings) new CommandSettings()
+                .serverSetting("allow_experimental_variant_type", "1");
+        QuerySettings querySettings = new QuerySettings().serverSetting("allow_experimental_variant_type", "1");
+
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        client.execute(tableDefinition(table,
+                "rowId Int32",
+                "value Variant(Int32, String)"), createTableSettings).get();
+
+        try (QueryResponse ignored = client.query(
+                "INSERT INTO " + table
+                        + " SELECT 1 AS rowId, NULL::Variant(Int32, String) AS value"
+                        + " UNION ALL SELECT 2, 42::Variant(Int32, String)"
+                        + " UNION ALL SELECT 3, 'hello'::Variant(Int32, String)",
+                querySettings).get()) {
+        }
+
+        TableSchema tableSchema = client.getTableSchema(table);
+        client.register(DTOForVariantNullPojoTests.class, tableSchema);
+
+        List<DTOForVariantNullPojoTests> items =
+                client.queryAll("SELECT * FROM " + table + " ORDER BY rowId", DTOForVariantNullPojoTests.class, tableSchema);
+
+        Assert.assertEquals(items, Arrays.asList(
+                new DTOForVariantNullPojoTests(1, null),
+                new DTOForVariantNullPojoTests(2, 42),
+                new DTOForVariantNullPojoTests(3, "hello")));
+    }
+
+    @Test(groups = {"integration"})
+    public void testGetBigDecimalDoesNotTruncateLargeIntegers() throws Exception {
+        BigDecimal expectedInt64 = BigDecimal.valueOf(Long.MAX_VALUE);
+        BigDecimal expectedUInt64 = new BigDecimal("18446744073709551615");
+
+        String sql = "SELECT toInt64(" + Long.MAX_VALUE + ") AS i64, "
+                + "toUInt64('" + expectedUInt64.toPlainString() + "') AS u64";
+
+        try (QueryResponse response = client.query(sql).get()) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+
+            Assert.assertNotNull(reader.next());
+            Assert.assertEquals(reader.getBigDecimal("i64"), expectedInt64);
+            Assert.assertEquals(reader.getBigDecimal("u64"), expectedUInt64);
+            Assert.assertFalse(reader.hasNext());
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testDecimalColumnWithFractionalFloatValues() throws Exception {
+        final String table = "test_decimal_fractional_floats";
+        float[] values = new float[]{
+                0.0001f,   // mantissa 1
+                0.0127f,   // mantissa 127
+                0.0128f,   // mantissa 128
+                0.0255f,   // mantissa 255
+                0.0256f,   // mantissa 256
+                6.5535f,   // mantissa 65535
+                6.5536f,   // mantissa 65536
+                838.8607f, // mantissa 8388607
+                838.8608f  // mantissa 8388608
+        };
+        String[] expected = new String[]{
+                "0.0001",
+                "0.0127",
+                "0.0128",
+                "0.0255",
+                "0.0256",
+                "6.5535",
+                "6.5536",
+                "838.8607",
+                "838.8608"
+        };
+
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        client.execute(tableDefinition(table, "rowId Int32", "field Decimal32(4)")).get();
+
+        TableSchema tableSchema = client.getTableSchema(table);
+        client.register(DTOForDynamicPrimitivesTests.class, tableSchema);
+
+        List<DTOForDynamicPrimitivesTests> data = new ArrayList<>();
+        for (int i = 0; i < values.length; i++) {
+            data.add(new DTOForDynamicPrimitivesTests(i, values[i]));
+        }
+        client.insert(table, data).get().close();
+
+        List<GenericRecord> rows = client.queryAll("SELECT * FROM " + table + " ORDER BY rowId");
+        Assert.assertEquals(rows.size(), expected.length);
+
+        for (int i = 0; i < expected.length; i++) {
+            Assert.assertEquals(rows.get(i).getString("field"), expected[i]);
+            Assert.assertEquals(rows.get(i).getBigDecimal("field"), new BigDecimal(expected[i]));
+        }
     }
 
     @Test(groups = {"integration"})
@@ -810,11 +933,59 @@ public class DataTypeTests extends BaseIntegrationTest {
         Assert.assertEquals(val, 3);
     }
 
+    @Test(groups = {"integration"})
+    public void testDynamicNullWithDefaultsColumn() throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
+        final String table = "test_dynamic_null_defaults";
+        CommandSettings createTableSettings = (CommandSettings) new CommandSettings()
+                .serverSetting("allow_experimental_dynamic_type", "1");
+
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        client.execute(tableDefinition(table,
+                "rowId Int32",
+                "dyn Dynamic",
+                "extra String DEFAULT 'default_val'"), createTableSettings).get();
+
+        client.register(DTOForDynamicDefaultsTests.class, client.getTableSchema(table));
+
+        List<DTOForDynamicDefaultsTests> data = Arrays.asList(
+                new DTOForDynamicDefaultsTests(1, "hello", "explicit"),
+                new DTOForDynamicDefaultsTests(2, null, "after_null"),
+                new DTOForDynamicDefaultsTests(3, 42L, "last"));
+        client.insert(table, data).get().close();
+
+        List<GenericRecord> records = client.queryAll("SELECT rowId, dyn, extra FROM " + table + " ORDER BY rowId");
+        Assert.assertEquals(records.size(), data.size());
+
+        Assert.assertEquals(records.get(0).getInteger("rowId"), 1);
+        Assert.assertEquals(records.get(0).getString("dyn"), "hello");
+        Assert.assertEquals(records.get(0).getString("extra"), "explicit");
+
+        Assert.assertEquals(records.get(1).getInteger("rowId"), 2);
+        Assert.assertNull(records.get(1).getObject("dyn"));
+        Assert.assertEquals(records.get(1).getString("extra"), "after_null");
+
+        Assert.assertEquals(records.get(2).getInteger("rowId"), 3);
+        Assert.assertEquals(records.get(2).getString("dyn"), "42");
+        Assert.assertEquals(records.get(2).getString("extra"), "last");
+    }
+
     @Data
     @AllArgsConstructor
     public static class DTOForDynamicPrimitivesTests {
         private int rowId;
         private Object field;
+    }
+
+    @Data
+    @AllArgsConstructor
+    public static class DTOForDynamicDefaultsTests {
+        private int rowId;
+        private Object dyn;
+        private String extra;
     }
 
     @Test(groups = {"integration"})
