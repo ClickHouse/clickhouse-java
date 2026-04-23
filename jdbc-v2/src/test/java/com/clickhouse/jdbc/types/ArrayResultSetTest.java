@@ -185,7 +185,7 @@ public class ArrayResultSetTest {
                 assertEquals(rs.getLong(valueColumn), number.longValue());
                 assertEquals(rs.getFloat(valueColumn), number.floatValue());
                 assertEquals(rs.getDouble(valueColumn), number.doubleValue());
-                assertEquals(rs.getBigDecimal(valueColumn), BigDecimal.valueOf(number.doubleValue()));
+                assertEquals(rs.getBigDecimal(valueColumn), expectedBigDecimal(number));
             } else if (itemClass == Boolean.class || itemClass == boolean.class) {
                 Number number = ((Boolean) value) ? 1 : 0;
                 assertEquals(rs.getBoolean(valueColumn), ((Boolean) value));
@@ -205,6 +205,16 @@ public class ArrayResultSetTest {
             assertEquals(rs.getFloat(indexColumn), i + 1);
             assertEquals(rs.getDouble(indexColumn), i + 1);
         }
+    }
+
+    private static BigDecimal expectedBigDecimal(Number number) {
+        if (number instanceof Byte || number instanceof Short || number instanceof Integer || number instanceof Long) {
+            return BigDecimal.valueOf(number.longValue());
+        } else if (number instanceof Float || number instanceof Double) {
+            return BigDecimal.valueOf(number.doubleValue());
+        }
+
+        return new BigDecimal(number.toString());
     }
 
     @DataProvider

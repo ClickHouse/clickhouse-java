@@ -1,6 +1,7 @@
 package com.clickhouse.client;
 
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.Session;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.query.QuerySettings;
@@ -114,6 +115,34 @@ public class SettingsTests {
             settings.setNetworkTimeout(10, ChronoUnit.SECONDS);
             Assert.assertEquals(settings.getNetworkTimeout(), TimeUnit.SECONDS.toMillis(10));
         }
+
+        {
+            final QuerySettings settings = new QuerySettings();
+            settings.setSessionId("session-1");
+            settings.setSessionCheck(true);
+            settings.setSessionTimeout(30);
+            settings.setSessionTimezone("Asia/Tokyo");
+            Assert.assertEquals(settings.getSessionId(), "session-1");
+            Assert.assertTrue(settings.getSessionCheck());
+            Assert.assertEquals(settings.getSessionTimeout().intValue(), 30);
+            Assert.assertEquals(settings.getSessionTimezone(), "Asia/Tokyo");
+            Assert.assertThrows(IllegalArgumentException.class, () -> settings.setSessionId(""));
+            Assert.assertThrows(IllegalArgumentException.class, () -> settings.setSessionTimeout(0));
+            Assert.assertThrows(IllegalArgumentException.class, () -> settings.setSessionTimezone(""));
+        }
+
+        {
+            final Session session = new Session()
+                    .setSessionId("session-use-1")
+                    .setSessionCheck(true)
+                    .setSessionTimeout(45)
+                    .setSessionTimezone("Europe/Berlin");
+            final QuerySettings settings = new QuerySettings().use(session);
+            Assert.assertEquals(settings.getSessionId(), "session-use-1");
+            Assert.assertTrue(settings.getSessionCheck());
+            Assert.assertEquals(settings.getSessionTimeout().intValue(), 45);
+            Assert.assertEquals(settings.getSessionTimezone(), "Europe/Berlin");
+        }
     }
 
     @Test
@@ -174,6 +203,34 @@ public class SettingsTests {
                     (Integer) ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getDefObjVal());
             settings.setNetworkTimeout(10, ChronoUnit.SECONDS);
             Assert.assertEquals(settings.getNetworkTimeout(), TimeUnit.SECONDS.toMillis(10));
+        }
+
+        {
+            final InsertSettings settings = new InsertSettings();
+            settings.setSessionId("session-2");
+            settings.setSessionCheck(false);
+            settings.setSessionTimeout(45);
+            settings.setSessionTimezone("Europe/Paris");
+            Assert.assertEquals(settings.getSessionId(), "session-2");
+            Assert.assertFalse(settings.getSessionCheck());
+            Assert.assertEquals(settings.getSessionTimeout().intValue(), 45);
+            Assert.assertEquals(settings.getSessionTimezone(), "Europe/Paris");
+            Assert.assertThrows(IllegalArgumentException.class, () -> settings.setSessionId(""));
+            Assert.assertThrows(IllegalArgumentException.class, () -> settings.setSessionTimeout(-1));
+            Assert.assertThrows(IllegalArgumentException.class, () -> settings.setSessionTimezone(""));
+        }
+
+        {
+            final Session session = new Session()
+                    .setSessionId("session-use-2")
+                    .setSessionCheck(false)
+                    .setSessionTimeout(50)
+                    .setSessionTimezone("Europe/Paris");
+            final InsertSettings settings = new InsertSettings().use(session);
+            Assert.assertEquals(settings.getSessionId(), "session-use-2");
+            Assert.assertFalse(settings.getSessionCheck());
+            Assert.assertEquals(settings.getSessionTimeout().intValue(), 50);
+            Assert.assertEquals(settings.getSessionTimezone(), "Europe/Paris");
         }
     }
 }

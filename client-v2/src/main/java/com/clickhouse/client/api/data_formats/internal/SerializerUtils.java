@@ -57,6 +57,7 @@ import static org.objectweb.asm.Opcodes.INVOKESTATIC;
 import static org.objectweb.asm.Opcodes.INVOKEVIRTUAL;
 import static org.objectweb.asm.Opcodes.RETURN;
 
+@SuppressWarnings("deprecation")
 public class SerializerUtils {
 
     public static void serializeData(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
@@ -505,10 +506,10 @@ public class SerializerUtils {
                 BinaryStreamUtils.writeInt64(stream, convertToLong(value));
                 break;
             case Int128:
-                BinaryStreamUtils.writeInt128(stream, convertToBigInteger(value));
+                BinaryStreamUtils.writeInt128(stream, NumberConverter.toBigInteger(value));
                 break;
             case Int256:
-                BinaryStreamUtils.writeInt256(stream, convertToBigInteger(value));
+                BinaryStreamUtils.writeInt256(stream, NumberConverter.toBigInteger(value));
                 break;
             case UInt8:
                 BinaryStreamUtils.writeUnsignedInt8(stream, convertToInteger(value));
@@ -520,13 +521,13 @@ public class SerializerUtils {
                 BinaryStreamUtils.writeUnsignedInt32(stream, convertToLong(value));
                 break;
             case UInt64:
-                BinaryStreamUtils.writeUnsignedInt64(stream, convertToLong(value));
+                BinaryStreamUtils.writeUnsignedInt64(stream, NumberConverter.toBigInteger(value));
                 break;
             case UInt128:
-                BinaryStreamUtils.writeUnsignedInt128(stream, convertToBigInteger(value));
+                BinaryStreamUtils.writeUnsignedInt128(stream, NumberConverter.toBigInteger(value));
                 break;
             case UInt256:
-                BinaryStreamUtils.writeUnsignedInt256(stream, convertToBigInteger(value));
+                BinaryStreamUtils.writeUnsignedInt256(stream, NumberConverter.toBigInteger(value));
                 break;
             case Float32:
                 BinaryStreamUtils.writeFloat32(stream, (float) value);
@@ -539,7 +540,7 @@ public class SerializerUtils {
             case Decimal64:
             case Decimal128:
             case Decimal256:
-                BinaryStreamUtils.writeDecimal(stream, convertToBigDecimal(value), column.getPrecision(), column.getScale());
+                BinaryStreamUtils.writeDecimal(stream, NumberConverter.toBigDecimal(value), column.getPrecision(), column.getScale());
                 break;
             case Bool:
                 BinaryStreamUtils.writeBoolean(stream, (Boolean) value);
@@ -762,32 +763,6 @@ public class SerializerUtils {
             return ((Boolean) value) ? 1L : 0L;
         } else {
             throw new IllegalArgumentException("Cannot convert " + value + " to Long");
-        }
-    }
-
-    public static BigInteger convertToBigInteger(Object value) {
-        if (value instanceof BigInteger) {
-            return (BigInteger) value;
-        } else if (value instanceof Number) {
-            return BigInteger.valueOf(((Number) value).longValue());
-        } else if (value instanceof String) {
-            return new BigInteger((String) value);
-        } else {
-            throw new IllegalArgumentException("Cannot convert " + value + " to BigInteger");
-        }
-    }
-
-    public static BigDecimal convertToBigDecimal(Object value) {
-        if (value instanceof BigDecimal) {
-            return (BigDecimal) value;
-        } else if (value instanceof BigInteger) {
-            return new BigDecimal((BigInteger) value);
-        } else if (value instanceof Number) {
-            return BigDecimal.valueOf(((Number) value).doubleValue());
-        } else if (value instanceof String) {
-            return new BigDecimal((String) value);
-        } else {
-            throw new IllegalArgumentException("Cannot convert " + value + " to BigDecimal");
         }
     }
 

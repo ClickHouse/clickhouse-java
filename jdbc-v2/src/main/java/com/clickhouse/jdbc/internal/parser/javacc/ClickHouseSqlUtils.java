@@ -61,9 +61,11 @@ public final class ClickHouseSqlUtils {
                 "USER", "VALID", "VALUES", "VARYING", "VIEW", "VISIBLE", "VOLUME", "WATCH", "WATERMARK", "WEEK",
                 "WEEKS", "WHEN", "WITH_ITEMINDEX", "WK", "WORKER", "WORKLOAD", "WRITABLE", "WRITE", "WW",
                 "YEAR", "YEARS", "YY", "YYYY", "ZKPATH",
-                // Append 04/01/2026.
+                // Appended 04/01/2026.
                 "CENTURY", "DECADE", "DOW", "DOY", "EPOCH", "ISODOW", "ISOYEAR", "MILLENNIUM", "NATURAL", "SOME",
-                "ZONE"
+                "ZONE",
+                // Appended 04/10/2026
+                "PATH", "PLACING"
             );
     }
 

@@ -3,6 +3,7 @@ package com.clickhouse.client.api.query;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.Session;
 import com.clickhouse.client.api.internal.CommonSettings;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.internal.ValidationUtils;
@@ -83,6 +84,59 @@ public class QuerySettings {
 
     public String getQueryId() {
         return settings.getQueryId();
+    }
+
+    /**
+     * Sets ClickHouse session id for this operation.
+     */
+    public QuerySettings setSessionId(String sessionId) {
+        settings.setSessionId(sessionId);
+        return this;
+    }
+
+    public String getSessionId() {
+        return settings.getSessionId();
+    }
+
+    /**
+     * Sets ClickHouse session check flag for this operation.
+     */
+    public QuerySettings setSessionCheck(boolean sessionCheck) {
+        settings.setSessionCheck(sessionCheck);
+        return this;
+    }
+
+    public Boolean getSessionCheck() {
+        return settings.getSessionCheck();
+    }
+
+    /**
+     * Sets ClickHouse session timeout (seconds) for this operation.
+     */
+    public QuerySettings setSessionTimeout(int timeoutInSeconds) {
+        settings.setSessionTimeout(timeoutInSeconds);
+        return this;
+    }
+
+    public Integer getSessionTimeout() {
+        return settings.getSessionTimeout();
+    }
+
+    /**
+     * Sets ClickHouse session timezone for this operation.
+     */
+    public QuerySettings setSessionTimezone(String timezone) {
+        settings.setSessionTimezone(timezone);
+        return this;
+    }
+
+    public String getSessionTimezone() {
+        return settings.getSessionTimezone();
+    }
+
+    public QuerySettings use(Session session) {
+        settings.use(session);
+        return this;
     }
 
     /**
