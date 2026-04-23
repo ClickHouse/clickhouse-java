@@ -143,8 +143,10 @@ public class ReadWriteArrow implements AutoCloseable {
                 new QuerySettings().setFormat(ClickHouseFormat.ArrowStream)) // set format to Arrow Stream
                 .get()) {
 
-            // It is important to close reader to release memory.
-            // The vectorSchemaRoot and rootAllocator should be closed when it is not used anymore, too
+            // It is important to close the reader to release memory.
+            // The VectorSchemaRoot returned by arrowReader.getVectorSchemaRoot() is owned by the reader
+            // and is released by reader.close(); do not close it from user code.
+            // The rootAllocator should be closed when it is no longer used (see close() below).
             try (ArrowReader arrowReader = new ArrowStreamReader(resp.getInputStream(), rootAllocator)) {
                 VectorSchemaRoot vectorSchemaRoot = arrowReader.getVectorSchemaRoot();
                 FieldVector tsVector = vectorSchemaRoot.getVector("ts");
