@@ -91,19 +91,26 @@ public class ReadWriteArrow implements AutoCloseable {
             insertSettings.compressClientRequest(true);
             try (InsertResponse response = client.insert(table, out -> {
                 // use DataWriter to avoid tmp storage.
+                //
+                // DON'T: swallow exceptions thrown by the Arrow writer here. If the writer fails
+                // mid-stream (I/O error, allocator failure, etc.), only a partial Arrow stream
+                // reaches the server. The request may still complete and `getWrittenRows()` would
+                // then misreport success. Always let the exception propagate so the surrounding
+                // `client.insert(...).get()` fails and the caller sees the real error.
                 try (ArrowWriter arrowWriter = new ArrowStreamWriter(vectorSchemaRoot, /* provider = */ null, out)) {
                     arrowWriter.start();
                     arrowWriter.writeBatch();
                     arrowWriter.end();
-
                 } catch (Exception e) {
                     LOG.error("Failed writing data to output stream", e);
+                    throw new RuntimeException("Failed writing Arrow data to output stream", e);
                 }
             }, ClickHouseFormat.ArrowStream, // Use Arrow Stream Format
                     insertSettings).get()) {
                 LOG.info("Data inserted {}", response.getWrittenRows());
             } catch (Exception e) {
                 LOG.error("Failed to write data to DB", e);
+                throw new RuntimeException("Failed to insert Arrow data", e);
             }
         }
     }
@@ -171,8 +178,13 @@ public class ReadWriteArrow implements AutoCloseable {
                 }
 
             }
+            // DON'T: the inner ArrowStreamWriter above intentionally has no catch block.
+            // Letting exceptions propagate out of the insert callback ensures
+            // `client.insert(...).get()` fails loudly instead of completing with
+            // partial/empty Arrow data and a misleading row count.
         } catch (Exception e) {
             LOG.error("Failed to query", e);
+            throw new RuntimeException("Failed to read/copy Arrow data", e);
         }
     }
 
