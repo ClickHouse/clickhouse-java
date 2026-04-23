@@ -728,8 +728,11 @@ public class SerializerUtils {
 
     public static void serializerGeometry(OutputStream out, ClickHouseColumn column, Object value) throws IOException {
         int typeOrdNum = column.getGeometryVariantOrdNum(value);
-        if (typeOrdNum == -1 && value != null && value.getClass().isArray()) {
-            typeOrdNum = column.getGeometryVariantOrdNum(getArrayDimensions(value));
+        if (typeOrdNum == -1) {
+            int dimensions = getArrayDimensions(value);
+            if (isValidGeometryShape(value, dimensions)) {
+                typeOrdNum = column.getGeometryVariantOrdNum(dimensions);
+            }
         }
         if (typeOrdNum != -1) {
             BinaryStreamUtils.writeUnsignedInt8(out, typeOrdNum);
@@ -751,7 +754,19 @@ public class SerializerUtils {
             return 3;
         } else if (value instanceof double[][][][] || value instanceof Double[][][][]) {
             return 4;
-        } else if (value == null || !value.getClass().isArray()) {
+        } else if (value == null) {
+            return -1;
+        }
+
+        if (value instanceof List<?>) {
+            Object nestedValue = firstNonNullListElement((List<?>) value);
+            if (nestedValue == null) {
+                return 1;
+            }
+
+            int nestedDimensions = getArrayDimensions(nestedValue);
+            return nestedDimensions > 0 ? nestedDimensions + 1 : 1;
+        } else if (!value.getClass().isArray()) {
             return -1;
         }
 
@@ -773,6 +788,66 @@ public class SerializerUtils {
 
         int nestedDimensions = getArrayDimensions(nestedValue);
         return nestedDimensions > 0 ? dimensions + nestedDimensions : dimensions;
+    }
+
+    private static Object firstNonNullListElement(List<?> value) {
+        for (Object item : value) {
+            if (item != null) {
+                return item;
+            }
+        }
+
+        return null;
+    }
+
+    private static boolean isValidGeometryShape(Object value, int dimensions) {
+        if (value == null || dimensions < 1) {
+            return false;
+        }
+
+        if (dimensions == 1) {
+            return getGeometryLength(value) == 2
+                    && getGeometryElement(value, 0) instanceof Number
+                    && getGeometryElement(value, 1) instanceof Number;
+        }
+
+        int len = getGeometryLength(value);
+        if (len < 0) {
+            return false;
+        }
+
+        for (int i = 0; i < len; i++) {
+            Object element = getGeometryElement(value, i);
+            if (element == null || !isArrayOrList(element) || !isValidGeometryShape(element, dimensions - 1)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static boolean isArrayOrList(Object value) {
+        return value instanceof List<?> || value.getClass().isArray();
+    }
+
+    private static int getGeometryLength(Object value) {
+        if (value instanceof List<?>) {
+            return ((List<?>) value).size();
+        } else if (value != null && value.getClass().isArray()) {
+            return Array.getLength(value);
+        }
+
+        return -1;
+    }
+
+    private static Object getGeometryElement(Object value, int index) {
+        if (value instanceof List<?>) {
+            return ((List<?>) value).get(index);
+        } else if (value != null && value.getClass().isArray()) {
+            return Array.get(value, index);
+        }
+
+        return null;
     }
 
     private static Object firstNonNullArrayElement(Object value) {
