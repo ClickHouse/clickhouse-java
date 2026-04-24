@@ -18,12 +18,7 @@ import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.sql.DriverPropertyInfo;
 import java.sql.SQLException;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -306,8 +301,6 @@ public class JdbcConfiguration {
                     prop.getKey().equalsIgnoreCase(DriverProperties.CUSTOM_SETTINGS.getKey())) {
                     ClientConfigProperties.toKeyValuePairs(prop.getValue())
                             .forEach((k, v) -> clientProperties.put(ClientConfigProperties.serverSetting(k), v));
-                } else if (prop.getKey().equalsIgnoreCase(DriverProperties.JSON_PROCESSOR.getKey())) {
-                    clientProperties.put(prop.getKey(), prop.getValue());
                 }
                 driverProperties.put(prop.getKey(), prop.getValue());
             } else {

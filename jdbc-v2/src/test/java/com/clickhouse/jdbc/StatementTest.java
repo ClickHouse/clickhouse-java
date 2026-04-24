@@ -650,7 +650,7 @@ public class StatementTest extends JdbcIntegrationTest {
     @Test(groups = {"integration"})
     public void testJSONEachRowFormat() throws Exception {
         Properties properties = new Properties();
-        properties.setProperty(DriverProperties.JSON_PROCESSOR.getKey(), "JACKSON");
+        properties.setProperty(ClientConfigProperties.JSON_PROCESSOR.getKey(), "JACKSON");
         try (Connection conn = getJdbcConnection(properties)) {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT 1 AS num, 'test' AS str FORMAT JSONEachRow")) {
@@ -666,7 +666,7 @@ public class StatementTest extends JdbcIntegrationTest {
     @Test(groups = {"integration"})
     public void testJSONEachRowFormatGson() throws Exception {
         Properties properties = new Properties();
-        properties.setProperty(DriverProperties.JSON_PROCESSOR.getKey(), "GSON");
+        properties.setProperty(ClientConfigProperties.JSON_PROCESSOR.getKey(), "GSON");
         try (Connection conn = getJdbcConnection(properties)) {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT 2 AS num, 'gson' AS str FORMAT JSONEachRow")) {
