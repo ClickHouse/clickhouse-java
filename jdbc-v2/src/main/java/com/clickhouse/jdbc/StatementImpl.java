@@ -181,7 +181,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
                 throw new SQLException("Only RowBinaryWithNameAndTypes is supported for output format. Please check your query.",
                         ExceptionUtils.SQL_STATE_CLIENT_ERROR);
             }
-            ClickHouseBinaryFormatReader reader = connection.getClient().newBinaryFormatReader(response);
+            ClickHouseBinaryFormatReader reader = createReader(response);
             if (reader.getSchema() == null) {
                 long writtenRows = 0L;
                 try {
@@ -217,6 +217,10 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             onResultSetClosed(null);
             throw ExceptionUtils.toSqlState(e);
         }
+    }
+
+    protected ClickHouseBinaryFormatReader createReader(QueryResponse response) throws SQLException {
+        return connection.getClient().newBinaryFormatReader(response, null, connection.getTypeMappingHint());
     }
 
     protected void handleSocketTimeoutException(Exception e) {

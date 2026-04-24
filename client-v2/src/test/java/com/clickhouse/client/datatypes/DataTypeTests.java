@@ -8,9 +8,12 @@ import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
+import com.clickhouse.client.api.data_formats.RowBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
+import com.clickhouse.client.api.data_formats.internal.BinaryString;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertSettings;
+import com.clickhouse.client.api.internal.MapUtils;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
@@ -32,6 +35,7 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.time.Duration;
 import java.time.Instant;
@@ -52,6 +56,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 public class DataTypeTests extends BaseIntegrationTest {
 
@@ -1803,9 +1808,95 @@ public class DataTypeTests extends BaseIntegrationTest {
         };
     }
 
+    @Test(groups = {"integration"}, dataProvider = "testStringsOptions")
+    public void testReadingStrings(String strType) throws Exception {
+        int smallStrLen = 1_000_000;
+        int tinyStrLen = 100_000;
+        final String sql = "SELECT repeat('A', " + smallStrLen + ") as smallStr, repeat('B', " + tinyStrLen +") as tinyStr, NULL::Nullable(String) as nullStr FROM numbers(100)";
+        Assert.assertTrue(strType.equals("binaryStrings") || strType.equals("normalStrings"));
+        Map<ClickHouseDataType, Class<?>> typeMapping = strType.equalsIgnoreCase("binaryStrings") ? Collections.emptyMap()
+                : Collections.singletonMap(ClickHouseDataType.String, BinaryString.class);
+
+        try (QueryResponse response = client.query(sql).get();
+             ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response, null, typeMapping)) {
+
+
+            while (reader.next() != null) {
+                byte[] smallStrBytes = reader.getByteArray("smallStr");
+                Assert.assertEquals(smallStrBytes.length, smallStrLen);
+
+                String smallStrFromBytes = new String(smallStrBytes, StandardCharsets.UTF_8);
+                String smallStr = reader.readValue("smallStr");
+                Assert.assertEquals(smallStr, smallStrFromBytes);
+                // We should not create new objects
+                Assert.assertSame(reader.readValue("smallStr"), smallStr);
+                Assert.assertSame(reader.getString("smallStr"), smallStr);
+
+
+                byte[] tinyStrBytes = reader.getByteArray("tinyStr");
+                Assert.assertEquals(tinyStrBytes.length, tinyStrLen);
+
+                String tinyStrFromBytes = new String(tinyStrBytes, StandardCharsets.UTF_8);
+                String tinyStr = reader.readValue("tinyStr");
+                Assert.assertEquals(tinyStr, tinyStrFromBytes);
+
+                // We should not create new objects
+                Assert.assertSame(reader.readValue("tinyStr"), tinyStr);
+                Assert.assertSame(reader.getString("tinyStr"), tinyStr);
+
+                // check null values
+                Assert.assertNull(reader.getByteArray("nullStr"));
+                Assert.assertNull(reader.readValue("nullStr"));
+                Assert.assertNull(reader.getString("nullStr"));
+            }
+        }
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "testStringsOptions")
+    public void testStringsInNestedTypes(String strType) throws Exception {
+        final String sqlArray = "SELECT ['a', 'b', 'c'] as strArr, [['item1', null, 'item3'], ['item1', 'item2']]::Array(Array(Nullable(String))) as arr";
+        Assert.assertTrue(strType.equals("binaryStrings") || strType.equals("normalStrings"));
+        Map<ClickHouseDataType, Class<?>> typeMapping = strType.equalsIgnoreCase("binaryStrings") ? Collections.emptyMap()
+                : Collections.singletonMap(ClickHouseDataType.String, BinaryString.class);
+
+        try (QueryResponse response = client.query(sqlArray).get();
+             ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response, null, typeMapping)) {
+
+            while (reader.next() != null) {
+
+                List<String> strArr = reader.getList("strArr");
+                Assert.assertEquals(strArr, Arrays.asList("a", "b", "c"));
+                List<List<String>> arr = reader.getList("arr");
+                Assert.assertEquals(arr, Arrays.asList(Arrays.asList("item1", null, "item3"), Arrays.asList("item1", "item2")));
+
+            }
+        }
+
+        final String sqlMap = "SELECT map('k1', NULL, 'k2', 'test string') as map1";
+        final Map<String, String> expectedMap = new HashMap<>();
+        expectedMap.put("k1", null);
+        expectedMap.put("k2", "test string");
+        try (QueryResponse response = client.query(sqlMap).get();
+             ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response)) {
+
+            while (reader.next() != null) {
+                Map<String, String> map = reader.readValue("map1");
+                Assert.assertEquals(map, expectedMap);
+            }
+        }
+    }
+
+    @DataProvider
+    public static Object[][] testStringsOptions() {
+        return new Object[][] {
+                {"binaryStrings"},
+                {"normalStrings"}
+        };
+    }
+
     public static String tableDefinition(String table, String... columns) {
         StringBuilder sb = new StringBuilder();
-        sb.append("CREATE TABLE " + table + " ( ");
+        sb.append("CREATE TABLE ").append(table).append(" ( ");
         Arrays.stream(columns).forEach(s -> {
             sb.append(s).append(", ");
         });

@@ -1700,7 +1700,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testMapTypesWithArrayValues() throws SQLException {
-        runQuery("DROP TABLE test_maps;");
+        runQuery("DROP TABLE IF EXISTS test_maps");
         runQuery("CREATE TABLE test_maps (order Int8, "
                 + "map Map(String, Array(Int32)), "
                 + "map2 Map(String, Array(Int32))"
