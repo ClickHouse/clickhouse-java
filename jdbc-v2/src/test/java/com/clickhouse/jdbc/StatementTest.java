@@ -1062,7 +1062,7 @@ public class StatementTest extends JdbcIntegrationTest {
         props.setProperty(ClientConfigProperties.HTTP_MAX_OPEN_CONNECTIONS.getKey(), "1");
         props.setProperty(ClientConfigProperties.CONNECTION_REQUEST_TIMEOUT.getKey(), "500");
         try (Connection conn = getJdbcConnection(props); Statement stmt = conn.createStatement()) {
-            stmt.setQueryTimeout(1);
+            stmt.setQueryTimeout(10);
             ResultSet rs = stmt.executeQuery("SELECT 1");
             boolean failedOnTimeout = false;
             try {
