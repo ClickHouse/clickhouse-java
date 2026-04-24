@@ -670,10 +670,12 @@ public class Client implements AutoCloseable {
         }
 
         /**
-         * Sets the maximum time for operation to complete. By default, it is set to 3 hours.
-         * @param timeout
-         * @param timeUnit
-         * @return
+         * Sets the maximum time for operation to complete. By default, it is unlimited.
+         * Value is saved in milliseconds always.
+         *
+         * @param timeout value of the timeout
+         * @param timeUnit time unit of the timeout value
+         * @return this instance
          */
         public Builder setExecutionTimeout(long timeout, ChronoUnit timeUnit) {
             this.configuration.put(ClientConfigProperties.MAX_EXECUTION_TIME.getKey(), String.valueOf(Duration.of(timeout, timeUnit).toMillis()));
@@ -1961,10 +1963,10 @@ public class Client implements AutoCloseable {
         QuerySettings settings = new QuerySettings().setDatabase(database);
         try (QueryResponse response = operationTimeout == 0
                 ? query(describeQuery, queryParams, settings).get()
-                : query(describeQuery, queryParams, settings).get(getOperationTimeout(), TimeUnit.SECONDS)) {
+                : query(describeQuery, queryParams, settings).get(operationTimeout, TimeUnit.MILLISECONDS)) {
             return TableSchemaParser.readTSKV(response.getInputStream(), name, originalQuery, database);
         } catch (TimeoutException e) {
-            throw new ClientException("Operation has likely timed out after " + getOperationTimeout() + " seconds.", e);
+            throw new ClientException("Operation has likely timed out after " + getOperationTimeout() + " milliseconds.", e);
         } catch (ExecutionException e) {
             throw new ClientException("Failed to get table schema", e.getCause());
         } catch (ServerException e) {
@@ -2126,7 +2128,10 @@ public class Client implements AutoCloseable {
         return readOnlyConfig;
     }
 
-    /** Returns operation timeout in seconds */
+    /**
+     * Returns operation ({@link ClientConfigProperties#MAX_EXECUTION_TIME}) timeout value in milliseconds.
+     * @return timeout value in milliseconds.
+     */
     protected int getOperationTimeout() {
         return ClientConfigProperties.MAX_EXECUTION_TIME.getOrDefault(configuration);
     }
