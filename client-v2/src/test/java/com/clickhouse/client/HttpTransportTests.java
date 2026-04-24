@@ -902,6 +902,35 @@ public class HttpTransportTests extends BaseIntegrationTest {
         }
     }
 
+    @Test(groups = { "integration" })
+    public void testInvalidSqlAfterHeadersSent() throws Exception {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
+        ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
+        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", server.getPort(), false)
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .build()) {
+
+            // Force delayed server-side failure after the query starts producing progress/headers.
+            QuerySettings settings = new QuerySettings()
+                    .serverSetting("send_progress_in_http_headers", "1")
+                    .serverSetting("max_result_rows", "1000000")
+                    .serverSetting("result_overflow_mode", "throw")
+                    .serverSetting("max_block_size", "1");
+
+            try (QueryResponse ignored = client.query("SELECT number FROM system.numbers", settings).get()) {
+                Assert.fail("Expected exception");
+            } catch (ServerException e) {
+                Assert.assertEquals(e.getCode(), 396);
+                Assert.assertTrue(e.getMessage().contains("Limit for rows or bytes exceeded"),
+                        "Unexpected error message: " + e.getMessage());
+            }
+        }
+    }
+
 
     @Test(groups = { "integration" }, dataProvider = "testUserAgentHasCompleteProductName_dataProvider", dataProviderClass = HttpTransportTests.class)
     public void testUserAgentHasCompleteProductName(String clientName, Pattern userAgentPattern) throws Exception {

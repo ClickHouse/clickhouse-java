@@ -1,5 +1,9 @@
 package com.clickhouse.client.api.http;
 
+import com.google.common.collect.ImmutableSet;
+
+import java.util.Set;
+
 public class ClickHouseHttpProto {
 
 
@@ -51,6 +55,22 @@ public class ClickHouseHttpProto {
     public static final String HEADER_DB_PASSWORD = "X-ClickHouse-Key";
 
     public static final String HEADER_SSL_CERT_AUTH = "x-clickhouse-ssl-certificate-auth";
+
+    /** Server error tag header */
+    public static final String HEADER_ERROR_TAG = "X-ClickHouse-Exception-Tag";
+
+    public static final Set<String> RESPONSE_HEADER_WHITELIST;
+
+    static {
+        RESPONSE_HEADER_WHITELIST = ImmutableSet.<String>builder()
+                .add(ClickHouseHttpProto.HEADER_QUERY_ID)
+                .add(ClickHouseHttpProto.HEADER_SRV_SUMMARY)
+                .add(ClickHouseHttpProto.HEADER_SRV_DISPLAY_NAME)
+                .add(ClickHouseHttpProto.HEADER_DATABASE)
+                .add(ClickHouseHttpProto.HEADER_DB_USER)
+                .add(ClickHouseHttpProto.HEADER_ERROR_TAG)
+                .build();
+    }
 
     /**
      * Query parameter to specify the query ID.
