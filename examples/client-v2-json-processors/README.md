@@ -47,7 +47,7 @@ gradle run \
 - Runs the following steps in order:
   1. defines table `client_v2_json_processors_example` with primitive columns
      and one `payload JSON` column;
-  2. loads one fixed dataset into that table;
+  2. loads sample rows from `src/main/resources/sample_data.csv` into that table;
   3. reads the same rows with `runGsonExample(...)`;
   4. reads the same rows again with `runJacksonExample(...)`.
 - Reads rows back through `client.newBinaryFormatReader(response)` and logs the
