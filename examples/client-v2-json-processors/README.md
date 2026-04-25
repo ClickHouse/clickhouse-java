@@ -3,7 +3,8 @@
 ## Overview
 
 This standalone example shows how to configure `client-v2` to read `JSONEachRow`
-responses with either supported JSON processor:
+responses with both supported JSON processors using one shared table and one
+shared dataset:
 
 - `JACKSON`
 - `GSON`
@@ -22,19 +23,12 @@ From this directory:
 gradle run
 ```
 
-The example runs both processors by default. To run only one of them:
-
-```shell
-gradle run -DjsonProcessor=GSON
-```
-
 Connection properties can be supplied as system properties:
 
 - `-DchEndpoint` - Endpoint to connect to (default: `http://localhost:8123`)
 - `-DchUser` - ClickHouse user name (default: `default`)
 - `-DchPassword` - ClickHouse user password (default: empty)
 - `-DchDatabase` - ClickHouse database name (default: `default`)
-- `-DjsonProcessor` - One processor to run: `JACKSON` or `GSON`
 
 Example with custom connection properties:
 
@@ -43,19 +37,21 @@ gradle run \
   -DchEndpoint=http://localhost:8123 \
   -DchUser=default \
   -DchPassword= \
-  -DchDatabase=default \
-  -DjsonProcessor=JACKSON
+  -DchDatabase=default
 ```
 
 ## Executable Example
 
 `com.clickhouse.examples.client_v2.json_processors.ClientV2JsonProcessorsExample`
 
-- Creates a `client-v2` instance with `json_processor` set to `JACKSON` or
-  `GSON`.
-- Executes a simple `SELECT ... FROM numbers(3)` query in `JSONEachRow` format.
+- Runs the following steps in order:
+  1. defines table `client_v2_json_processors_example` with primitive columns
+     and one `payload JSON` column;
+  2. loads one fixed dataset into that table;
+  3. reads the same rows with `runGsonExample(...)`;
+  4. reads the same rows again with `runJacksonExample(...)`.
 - Reads rows back through `client.newBinaryFormatReader(response)` and logs the
-  parsed values.
+  primitive columns together with the parsed JSON object from `payload`.
 
 The build keeps both `jackson-databind` and `gson` on the classpath so the
 example can switch between processors at runtime. Production applications only
