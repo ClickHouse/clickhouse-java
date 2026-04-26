@@ -42,13 +42,17 @@ public abstract class AbstractJSONEachRowFormatReaderTests extends BaseIntegrati
         }
     }
 
+    private QuerySettings newJsonEachRowSettings() {
+        return new QuerySettings()
+                .setFormat(ClickHouseFormat.JSONEachRow);
+    }
+
     @Test(groups = {"integration"})
     public void testBasicParsing() throws Exception {
         String sql = "SELECT 1 as id, 'test' as name, true as active " +
-                     "UNION ALL SELECT 2, 'clickhouse', false " +
-                     "FORMAT JSONEachRow";
-        
-        try (QueryResponse response = client.query(sql).get()) {
+                     "UNION ALL SELECT 2, 'clickhouse', false";
+
+        try (QueryResponse response = client.query(sql, newJsonEachRowSettings()).get()) {
             ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
             
             // First row
@@ -75,10 +79,9 @@ public abstract class AbstractJSONEachRowFormatReaderTests extends BaseIntegrati
     @Test(groups = {"integration"})
     public void testSchemaInference() throws Exception {
         String sql = "SELECT toInt64(42) as col_int, toFloat64(3.14) as col_float, " +
-                     "true as col_bool, 'val' as col_str " +
-                     "FORMAT JSONEachRow";
-        
-        try (QueryResponse response = client.query(sql).get()) {
+                     "true as col_bool, 'val' as col_str";
+
+        try (QueryResponse response = client.query(sql, newJsonEachRowSettings()).get()) {
             ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
             
             Assert.assertNotNull(reader.getSchema());
@@ -95,10 +98,9 @@ public abstract class AbstractJSONEachRowFormatReaderTests extends BaseIntegrati
     public void testDataTypes() throws Exception {
         String sql = "SELECT toInt8(120) as b, toInt16(30000) as s, toInt32(1000000) as i, " +
                      "toInt64(10000000000) as l, toFloat32(1.23) as f, toFloat64(1.23456789) as d, " +
-                     "true as bool, 'hello' as str " +
-                     "FORMAT JSONEachRow";
-        
-        try (QueryResponse response = client.query(sql).get()) {
+                     "true as bool, 'hello' as str";
+
+        try (QueryResponse response = client.query(sql, newJsonEachRowSettings()).get()) {
             ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
             
             reader.next();
@@ -115,9 +117,9 @@ public abstract class AbstractJSONEachRowFormatReaderTests extends BaseIntegrati
 
     @Test(groups = {"integration"})
     public void testEmptyData() throws Exception {
-        String sql = "SELECT * FROM remote('127.0.0.1', system.one) WHERE dummy > 1 FORMAT JSONEachRow";
-        
-        try (QueryResponse response = client.query(sql).get()) {
+        String sql = "SELECT * FROM remote('127.0.0.1', system.one) WHERE dummy > 1";
+
+        try (QueryResponse response = client.query(sql, newJsonEachRowSettings()).get()) {
             ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
             
             Assert.assertFalse(reader.hasNext());
