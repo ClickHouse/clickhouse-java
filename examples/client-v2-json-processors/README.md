@@ -50,7 +50,7 @@ gradle run \
   2. loads sample rows from `src/main/resources/sample_data.csv` into that table;
   3. reads the same rows with `runGsonExample(...)`;
   4. reads the same rows again with `runJacksonExample(...)`.
-- Reads rows back through `client.newBinaryFormatReader(response)` and logs the
+- Reads rows back through `client.newTextFormatReader(response)` and logs the
   primitive columns together with the parsed JSON object from `payload`.
 
 The build keeps both `jackson-databind` and `gson` on the classpath so the

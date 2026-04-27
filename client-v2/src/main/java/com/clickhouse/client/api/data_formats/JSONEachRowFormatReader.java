@@ -27,7 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-public class JSONEachRowFormatReader implements ClickHouseBinaryFormatReader {
+public class JSONEachRowFormatReader implements ClickHouseTextFormatReader {
     private final JsonParser parser;
     private TableSchema schema;
     private Map<String, Object> currentRow;

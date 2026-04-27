@@ -1,7 +1,7 @@
 package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.ClientConfigProperties;
-import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
+import com.clickhouse.client.api.data_formats.ClickHouseFormatReader;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
@@ -178,8 +178,10 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
                 response = connection.getClient().query(lastStatementSql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS);
             }
 
-            ClickHouseBinaryFormatReader reader;
-            if (response.getFormat() == ClickHouseFormat.JSONEachRow || !response.getFormat().isText()) {
+            ClickHouseFormatReader reader;
+            if (response.getFormat() == ClickHouseFormat.JSONEachRow) {
+                reader = connection.getClient().newTextFormatReader(response);
+            } else if (!response.getFormat().isText()) {
                 reader = connection.getClient().newBinaryFormatReader(response);
             } else {
                 throw new SQLException("Only RowBinaryWithNameAndTypes and JSONEachRow are supported for output format. Please check your query.",

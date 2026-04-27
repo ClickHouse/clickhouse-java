@@ -49,11 +49,23 @@ provides additional advantages beyond what the format alone delivers:
 
 `client-v2`:
 
+- Introduces a common `com.clickhouse.client.api.data_formats.ClickHouseFormatReader`
+  interface that declares all row navigation, schema access, and typed
+  accessors. The pre-existing `ClickHouseBinaryFormatReader` becomes a
+  format-family sub-interface for binary output formats and inherits its
+  full method set unchanged from `ClickHouseFormatReader`.
+- Adds `com.clickhouse.client.api.data_formats.ClickHouseTextFormatReader`,
+  a sibling sub-interface for text output formats.
 - Adds `com.clickhouse.client.api.data_formats.JSONEachRowFormatReader`,
-  which implements `ClickHouseBinaryFormatReader` over a streaming JSON
+  which implements `ClickHouseTextFormatReader` over a streaming JSON
   parser.
-- Extends `Client.newBinaryFormatReader(...)` to construct the reader when
-  `QuerySettings.getFormat() == ClickHouseFormat.JSONEachRow`.
+- Adds `Client.newTextFormatReader(QueryResponse)` as the dedicated factory
+  for text output formats. Currently it accepts
+  `ClickHouseFormat.JSONEachRow` and returns a `ClickHouseTextFormatReader`.
+  `Client.newBinaryFormatReader(...)` continues to construct the binary
+  readers (`Native`, `RowBinary`, `RowBinaryWithNames`,
+  `RowBinaryWithNamesAndTypes`) and rejects text formats with
+  `IllegalArgumentException`.
 - Introduces an internal JSON parser SPI under
   `com.clickhouse.client.api.data_formats.internal`, consisting of
   `JsonParser`, `JsonParserFactory`, `JacksonJsonParser`, and
@@ -81,25 +93,44 @@ Two runnable examples are included in the repository:
 
 ## Public API
 
+### `ClickHouseFormatReader`, `ClickHouseBinaryFormatReader`, `ClickHouseTextFormatReader`
+
+```java
+package com.clickhouse.client.api.data_formats;
+
+public interface ClickHouseFormatReader extends AutoCloseable { ... }
+
+public interface ClickHouseBinaryFormatReader extends ClickHouseFormatReader { }
+
+public interface ClickHouseTextFormatReader extends ClickHouseFormatReader { }
+```
+
+`ClickHouseFormatReader` is the common contract for row-by-row format
+readers regardless of the underlying wire encoding. The two sub-interfaces
+specialize that contract by output-format family: callers receive a
+`ClickHouseBinaryFormatReader` when the response is in a binary format and a
+`ClickHouseTextFormatReader` when it is in a text format. All accessor
+methods declared today live on the common parent; future format-specific
+extensions are expected to be added on the corresponding sub-interface
+without changing the shared surface, so code written against
+`ClickHouseBinaryFormatReader` continues to compile against the same
+inherited methods.
+
 ### `JSONEachRowFormatReader`
 
 ```java
 package com.clickhouse.client.api.data_formats;
 
-public class JSONEachRowFormatReader implements ClickHouseBinaryFormatReader { ... }
+public class JSONEachRowFormatReader implements ClickHouseTextFormatReader { ... }
 ```
 
-The reader is normally instantiated by `Client.newBinaryFormatReader(...)`.
+The reader is normally instantiated by `Client.newTextFormatReader(...)`.
 The class is public so that callers can construct it from any
 `InputStream`-backed `JsonParser`.
 
-`JSONEachRow` is a text format, but the reader currently implements
-`ClickHouseBinaryFormatReader` so that existing call sites — including
-`Client.newBinaryFormatReader(...)` — accept JSON output without changes.
-The interface name is therefore not a precise fit for this format; a
-dedicated reader interface for non-binary formats is intended to replace
-this arrangement in a future release. Callers should treat the class itself
-as the stable API and avoid relying on the "binary" label of the interface.
+`JSONEachRow` is a text format, so the reader implements
+`ClickHouseTextFormatReader`. Callers that need to handle both binary and
+text readers uniformly can program against `ClickHouseFormatReader`.
 
 ### `JsonParser` SPI
 
@@ -194,7 +225,7 @@ try (QueryResponse response = client.query(
         "SELECT id, name, active, score, payload FROM events ORDER BY id",
         settings).get()) {
 
-    ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+    ClickHouseTextFormatReader reader = client.newTextFormatReader(response);
     while (reader.next() != null) {
         int id              = reader.getInteger("id");
         String name         = reader.getString("name");
@@ -211,9 +242,12 @@ Notes:
 - The reader is constructed only when the request format is `JSONEachRow`.
   The default request format remains `RowBinaryWithNamesAndTypes`, and
   callers that do not explicitly opt in are not affected.
-- `client.newBinaryFormatReader(response)` returns a reader matching
-  `response.getFormat()`; the same call site applies to both binary and JSON
-  output.
+- `client.newTextFormatReader(response)` returns a `ClickHouseTextFormatReader`
+  for text output formats. `client.newBinaryFormatReader(response)` continues
+  to return a `ClickHouseBinaryFormatReader` for binary output formats and
+  rejects text formats (such as `JSONEachRow`) with
+  `IllegalArgumentException`. Callers that need to handle both can program
+  against the shared `ClickHouseFormatReader` parent interface.
 - `Map<String, Object>` is the canonical materialization for JSON columns
   and for the row itself, as produced by the selected library. JSON arrays
   are returned as `List<Object>`; nested JSON objects are returned as nested
@@ -387,6 +421,16 @@ For these types, callers should obtain the parsed value through
 - The default request format is unchanged. The existing binary readers
   (`Native`, `RowBinary`, `RowBinaryWithNames`, `RowBinaryWithNamesAndTypes`)
   retain their previous behavior.
+- The reader hierarchy now distinguishes binary and text formats:
+  `ClickHouseBinaryFormatReader` and `ClickHouseTextFormatReader` are sibling
+  sub-interfaces of the new `ClickHouseFormatReader`. The accessor surface is
+  unchanged; callers that hold a `ClickHouseBinaryFormatReader` reference for
+  binary formats are unaffected. Callers that previously obtained a
+  `ClickHouseBinaryFormatReader` for `JSONEachRow` from
+  `Client.newBinaryFormatReader(...)` must switch to
+  `Client.newTextFormatReader(...)`, which returns a
+  `ClickHouseTextFormatReader`. `Client.newBinaryFormatReader(...)` now
+  rejects `JSONEachRow` with `IllegalArgumentException`.
 - Jackson and Gson are now declared with `provided` scope in `client-v2` and
   `jdbc-v2`. Applications that previously inherited Jackson transitively from
   these modules in `test` scope must declare the chosen processor explicitly

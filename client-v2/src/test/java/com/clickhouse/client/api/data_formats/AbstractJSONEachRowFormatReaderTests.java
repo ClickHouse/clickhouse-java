@@ -53,8 +53,8 @@ public abstract class AbstractJSONEachRowFormatReaderTests extends BaseIntegrati
                      "UNION ALL SELECT 2, 'clickhouse', false";
 
         try (QueryResponse response = client.query(sql, newJsonEachRowSettings()).get()) {
-            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
-            
+            ClickHouseTextFormatReader reader = client.newTextFormatReader(response);
+
             // First row
             Assert.assertTrue(reader.hasNext());
             Map<String, Object> row1 = reader.next();
@@ -62,7 +62,7 @@ public abstract class AbstractJSONEachRowFormatReaderTests extends BaseIntegrati
             Assert.assertEquals(reader.getInteger("id"), 1);
             Assert.assertEquals(reader.getString("name"), "test");
             Assert.assertEquals(reader.getBoolean("active"), true);
-            
+
             // Second row
             Assert.assertTrue(reader.hasNext());
             Map<String, Object> row2 = reader.next();
@@ -70,7 +70,7 @@ public abstract class AbstractJSONEachRowFormatReaderTests extends BaseIntegrati
             Assert.assertEquals(reader.getInteger("id"), 2);
             Assert.assertEquals(reader.getString("name"), "clickhouse");
             Assert.assertEquals(reader.getBoolean("active"), false);
-            
+
             // No more rows
             Assert.assertNull(reader.next());
         }
@@ -82,11 +82,11 @@ public abstract class AbstractJSONEachRowFormatReaderTests extends BaseIntegrati
                      "true as col_bool, 'val' as col_str";
 
         try (QueryResponse response = client.query(sql, newJsonEachRowSettings()).get()) {
-            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
-            
+            ClickHouseTextFormatReader reader = client.newTextFormatReader(response);
+
             Assert.assertNotNull(reader.getSchema());
             Assert.assertEquals(reader.getSchema().getColumns().size(), 4);
-            
+
             Assert.assertEquals(reader.getSchema().getColumnByIndex(1).getDataType(), ClickHouseDataType.Int64);
             Assert.assertEquals(reader.getSchema().getColumnByIndex(2).getDataType(), ClickHouseDataType.Float64);
             Assert.assertEquals(reader.getSchema().getColumnByIndex(3).getDataType(), ClickHouseDataType.Bool);
@@ -101,8 +101,8 @@ public abstract class AbstractJSONEachRowFormatReaderTests extends BaseIntegrati
                      "true as bool, 'hello' as str";
 
         try (QueryResponse response = client.query(sql, newJsonEachRowSettings()).get()) {
-            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
-            
+            ClickHouseTextFormatReader reader = client.newTextFormatReader(response);
+
             reader.next();
             Assert.assertEquals(reader.getByte("b"), (byte) 120);
             Assert.assertEquals(reader.getShort("s"), (short) 30000);
@@ -120,11 +120,20 @@ public abstract class AbstractJSONEachRowFormatReaderTests extends BaseIntegrati
         String sql = "SELECT * FROM remote('127.0.0.1', system.one) WHERE dummy > 1";
 
         try (QueryResponse response = client.query(sql, newJsonEachRowSettings()).get()) {
-            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
-            
+            ClickHouseTextFormatReader reader = client.newTextFormatReader(response);
+
             Assert.assertFalse(reader.hasNext());
             Assert.assertNull(reader.next());
             Assert.assertEquals(reader.getSchema().getColumns().size(), 0);
+        }
+    }
+
+    @Test(groups = {"integration"}, expectedExceptions = IllegalArgumentException.class)
+    public void testNewBinaryFormatReaderRejectsJsonEachRow() throws Exception {
+        String sql = "SELECT 1 as id";
+
+        try (QueryResponse response = client.query(sql, newJsonEachRowSettings()).get()) {
+            client.newBinaryFormatReader(response);
         }
     }
 }

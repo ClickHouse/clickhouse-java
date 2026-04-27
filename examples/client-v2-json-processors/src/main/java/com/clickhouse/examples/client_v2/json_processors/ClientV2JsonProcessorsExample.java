@@ -3,7 +3,7 @@ package com.clickhouse.examples.client_v2.json_processors;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.command.CommandResponse;
-import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
+import com.clickhouse.client.api.data_formats.ClickHouseTextFormatReader;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseFormat;
@@ -75,7 +75,7 @@ public class ClientV2JsonProcessorsExample {
 
     private static void readRows(Client client, String processor) throws Exception {
         try (QueryResponse response = client.query(SELECT_DATA_SQL, new QuerySettings().setFormat(ClickHouseFormat.JSONEachRow)).get()) {
-            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+            ClickHouseTextFormatReader reader = client.newTextFormatReader(response);
             while (reader.next() != null) {
                 Map<String, Object> payload = reader.readValue("payload");
                 LOG.info("[{}] id={}, name={}, active={}, score={}, payload={}({})",
