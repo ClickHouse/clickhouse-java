@@ -1,7 +1,7 @@
 package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.DataTypeUtils;
-import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
+import com.clickhouse.client.api.data_formats.ClickHouseFormatReader;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.data.ClickHouseColumn;
@@ -51,7 +51,7 @@ import java.util.function.Consumer;
 public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     private static final Logger log = LoggerFactory.getLogger(ResultSetImpl.class);
     private ResultSetMetaDataImpl metaData;
-    protected ClickHouseBinaryFormatReader reader;
+    protected ClickHouseFormatReader reader;
     private QueryResponse response;
     private boolean closed;
     private final StatementImpl parentStatement;
@@ -73,7 +73,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     private Consumer<Exception> onDataTransferException;
 
-    public ResultSetImpl(StatementImpl parentStatement, QueryResponse response, ClickHouseBinaryFormatReader reader,
+    public ResultSetImpl(StatementImpl parentStatement, QueryResponse response, ClickHouseFormatReader reader,
                          Consumer<Exception> onDataTransferException) throws SQLException {
         this.parentStatement = parentStatement;
         this.response = response;

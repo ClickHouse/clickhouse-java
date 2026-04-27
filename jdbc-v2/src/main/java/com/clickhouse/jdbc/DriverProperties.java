@@ -80,7 +80,6 @@ public enum DriverProperties {
 
     /**
      * Controls logic of saving roles that were set using {@code SET <role>} statement.
-     * Default: true - save roles
      */
     REMEMBER_LAST_SET_ROLES("remember_last_set_roles", String.valueOf(Boolean.TRUE)),
 
