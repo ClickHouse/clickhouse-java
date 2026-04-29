@@ -1,5 +1,6 @@
 package com.clickhouse.jdbc;
 
+import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 
 import javax.sql.DataSource;
@@ -50,8 +51,11 @@ public class DataSourceImpl implements DataSource, JdbcV2Wrapper {
     @Override
     public Connection getConnection(String username, String password) throws SQLException {
         Properties info = getProperties();
-        info.setProperty("user", username);
-        info.setProperty("password", password);
+        info.setProperty(ClientConfigProperties.USER.getKey(), username);
+        info.setProperty(ClientConfigProperties.PASSWORD.getKey(), password);
+        info.setProperty(ClientConfigProperties.SSL_AUTH.getKey(), Boolean.FALSE.toString());
+        info.remove(ClientConfigProperties.ACCESS_TOKEN.getKey());
+        info.remove(ClientConfigProperties.BEARERTOKEN_AUTH.getKey());
 
         return driver.connect(this.url, info);
     }

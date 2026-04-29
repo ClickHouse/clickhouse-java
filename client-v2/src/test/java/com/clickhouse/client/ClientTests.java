@@ -501,6 +501,40 @@ public class ClientTests extends BaseIntegrationTest {
         }
     }
 
+    @Test(groups = {"integration"})
+    public void testRuntimeCredentialChange() throws Exception {
+        if (isCloud()) {
+            return; // creating users is not expected in cloud tests
+        }
+
+        String user1 = "client_v2_user1_" + RandomStringUtils.random(8, true, true).toLowerCase();
+        String user2 = "client_v2_user2_" + RandomStringUtils.random(8, true, true).toLowerCase();
+        String password1 = "^1A" + RandomStringUtils.random(12, true, true) + "3b$";
+        String password2 = "^1A" + RandomStringUtils.random(12, true, true) + "3B$";
+
+        try (Client adminClient = newClient().build()) {
+            try {
+                adminClient.execute("DROP USER IF EXISTS " + user1).get().close();
+                adminClient.execute("DROP USER IF EXISTS " + user2).get().close();
+                adminClient.execute("CREATE USER " + user1 + " IDENTIFIED BY '" + password1 + "'").get().close();
+                adminClient.execute("CREATE USER " + user2 + " IDENTIFIED BY '" + password2 + "'").get().close();
+
+                try (Client userClient = newClient().setUsername(user1).setPassword(password1).build()) {
+                    List<GenericRecord> firstResponse = userClient.queryAll("SELECT currentUser() AS user");
+                    Assert.assertEquals(firstResponse.get(0).getString("user"), user1);
+
+                    userClient.setCredentials(user2, password2);
+
+                    List<GenericRecord> secondResponse = userClient.queryAll("SELECT currentUser() AS user");
+                    Assert.assertEquals(secondResponse.get(0).getString("user"), user2);
+                }
+            } finally {
+                adminClient.execute("DROP USER IF EXISTS " + user1).get().close();
+                adminClient.execute("DROP USER IF EXISTS " + user2).get().close();
+            }
+        }
+    }
+
 
     @Test(groups = {"integration"})
     public void testLogComment() throws Exception {

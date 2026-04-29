@@ -5,6 +5,7 @@ import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.Session;
 import com.clickhouse.client.api.ClientFaultCause;
+import com.clickhouse.client.api.ClientMisconfigurationException;
 import com.clickhouse.client.api.ConnectionInitiationException;
 import com.clickhouse.client.api.ConnectionReuseStrategy;
 import com.clickhouse.client.api.ServerException;
@@ -866,9 +867,9 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 .compressServerResponse(false)
                 .build()) {
             fail("Expected exception");
-        } catch (IllegalArgumentException e) {
+        } catch (ClientMisconfigurationException e) {
             e.printStackTrace();
-                Assert.assertTrue(e.getMessage().startsWith("Only one of password, access token or SSL authentication"));
+            Assert.assertTrue(e.getMessage().startsWith("Only one of password, access token or SSL authentication"));
         }
     }
 
@@ -1057,7 +1058,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
                     .map(s -> Base64.getEncoder().encodeToString(s.getBytes(StandardCharsets.UTF_8)))
                     .reduce((s1, s2) -> s1 + "." + s2).get();
             try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
-                    .useBearerTokenAuth(jwtToken1)
+                    .setAccessToken(jwtToken1)
                     .compressServerResponse(false)
                     .build()) {
 
@@ -1087,7 +1088,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
                     .build());
 
             try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
-                    .useBearerTokenAuth(jwtToken1)
+                    .setAccessToken(jwtToken1)
                     .compressServerResponse(false)
                     .build()) {
 
@@ -1107,7 +1108,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
                         .build());
 
-                client.updateBearerToken(jwtToken2);
+                client.setAccessToken(jwtToken2);
 
                 client.execute("SELECT 1").get();
             }
@@ -1214,6 +1215,59 @@ public class HttpTransportTests extends BaseIntegrationTest {
     }
 
     @Test(groups = { "integration" })
+    public void testSetCredentialsAfterClientCreation() throws Exception {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
+        WireMockServer mockServer = new WireMockServer(WireMockConfiguration
+                .options().port(9090).notifier(new ConsoleNotifier(false)));
+        mockServer.start();
+
+        try {
+            String user1 = "default";
+            String password1 = "wrong-password";
+            String user2 = "runtime-user";
+            String password2 = "runtime-password";
+            String basicAuth2 = "Basic " + Base64.getEncoder().encodeToString(
+                    (user2 + ":" + password2).getBytes(StandardCharsets.UTF_8));
+
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .withHeader(HttpHeaders.AUTHORIZATION, WireMock.equalTo("Basic " + Base64.getEncoder().encodeToString(
+                            (user1 + ":" + password1).getBytes(StandardCharsets.UTF_8))))
+                    .willReturn(WireMock.aResponse()
+                            .withStatus(HttpStatus.SC_UNAUTHORIZED))
+                    .build());
+
+            try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
+                    .setUsername(user1)
+                    .setPassword(password1)
+                    .compressServerResponse(false)
+                    .build()) {
+                try {
+                    client.execute("SELECT 1").get();
+                    fail("Exception expected");
+                } catch (ServerException e) {
+                    Assert.assertEquals(e.getTransportProtocolCode(), HttpStatus.SC_UNAUTHORIZED);
+                }
+
+                mockServer.resetAll();
+                mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                        .withHeader(HttpHeaders.AUTHORIZATION, WireMock.equalTo(basicAuth2))
+                        .willReturn(WireMock.aResponse()
+                                .withHeader("X-ClickHouse-Summary",
+                                        "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}"))
+                        .build());
+
+                client.setCredentials(user2, password2);
+                client.execute("SELECT 1").get();
+            }
+        } finally {
+            mockServer.stop();
+        }
+    }
+
+    @Test(groups = { "integration" })
     public void testJWTWithCloud() throws Exception {
         if (!isCloud()) {
             return; // only for cloud
@@ -1221,7 +1275,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
         String jwt = System.getenv("CLIENT_JWT");
         Assert.assertTrue(jwt != null && !jwt.trim().isEmpty(), "JWT is missing");
         Assert.assertFalse(jwt.contains("\n") || jwt.contains("-----"), "JWT should be single string ready for HTTP header");
-        try (Client client = newClient().useBearerTokenAuth(jwt).build()) {
+        try (Client client = newClient().setAccessToken(jwt).build()) {
             try {
                 List<GenericRecord> response = client.queryAll("SELECT user(), now()");
                 System.out.println("response: " + response.get(0).getString(1) + " time: " + response.get(0).getString(2));
