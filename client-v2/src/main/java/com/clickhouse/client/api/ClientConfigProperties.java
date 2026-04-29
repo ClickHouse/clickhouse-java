@@ -7,17 +7,7 @@ import com.clickhouse.data.ClickHouseFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.TimeZone;
+import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -126,8 +116,8 @@ public enum ClientConfigProperties {
     CLIENT_NETWORK_BUFFER_SIZE("client_network_buffer_size", Integer.class, "300000"),
 
     /**
-     * Preferred client setting for token-based authentication like JWT and Oauth.
-     * For Http it is translated to Authorization Bearer header.
+     * Preferred client setting for token-based authentication like JWT and OAuth.
+     * For HTTP it is translated to Authorization Bearer header.
      */
     ACCESS_TOKEN("access_token", String.class),
 

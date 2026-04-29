@@ -106,7 +106,8 @@ import java.util.stream.Collectors;
  *
  *
  *
- * <p>Client is thread-safe. It uses exclusive set of object to perform an operation.</p>
+ * <p>Client is thread-safe. It uses exclusive set of object to perform an operation.
+ * Exception is client global authentication configuration. Application should handle it in the way it is designed./p>
  *
  */
 public class Client implements AutoCloseable {
