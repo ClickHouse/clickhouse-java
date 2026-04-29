@@ -116,6 +116,7 @@ public class Client implements AutoCloseable {
 
     private final List<Endpoint> endpoints;
     private final Map<String, Object> configuration;
+    private final Session session;
 
     private final Map<String, String> readOnlyConfig;
 
@@ -145,8 +146,10 @@ public class Client implements AutoCloseable {
     private Client(Collection<Endpoint> endpoints, Map<String,String> configuration,
                    ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy,
                    Object metricsRegistry, Supplier<String> queryIdGenerator, CredentialsManager cManager) {
-        this.configuration = new ConcurrentHashMap<>(ClientConfigProperties.parseConfigMap(configuration));
+        Map<String, Object> parsedConfiguration = new ConcurrentHashMap<>(ClientConfigProperties.parseConfigMap(configuration));
         this.credentialsManager = cManager;
+        this.session = Session.extractFrom(parsedConfiguration);
+        this.configuration = new ConcurrentHashMap<>(parsedConfiguration);
         this.readOnlyConfig = Collections.unmodifiableMap(configuration);
         this.metricsRegistry = metricsRegistry;
         this.queryIdGenerator = queryIdGenerator;
@@ -674,10 +677,12 @@ public class Client implements AutoCloseable {
         }
 
         /**
-         * Sets the maximum time for operation to complete. By default, it is set to 3 hours.
-         * @param timeout
-         * @param timeUnit
-         * @return
+         * Sets the maximum time for operation to complete. By default, it is unlimited.
+         * Value is saved in milliseconds always.
+         *
+         * @param timeout value of the timeout
+         * @param timeUnit time unit of the timeout value
+         * @return this instance
          */
         public Builder setExecutionTimeout(long timeout, ChronoUnit timeUnit) {
             this.configuration.put(ClientConfigProperties.MAX_EXECUTION_TIME.getKey(), String.valueOf(Duration.of(timeout, timeUnit).toMillis()));
@@ -938,6 +943,54 @@ public class Client implements AutoCloseable {
          */
         public Builder serverSetting(String name,  Collection<String> values) {
             this.configuration.put(ClientConfigProperties.SERVER_SETTING_PREFIX + name, ClientConfigProperties.commaSeparated(values));
+            return this;
+        }
+
+        /**
+         * Sets ClickHouse session id to be sent with each request.
+         */
+        public Builder setSessionId(String sessionId) {
+            ValidationUtils.checkNonBlank(sessionId, ClickHouseHttpProto.QPARAM_SESSION_ID);
+            return serverSetting(ClickHouseHttpProto.QPARAM_SESSION_ID, sessionId);
+        }
+
+        /**
+         * Sets ClickHouse session check flag to be sent with each request.
+         */
+        public Builder setSessionCheck(boolean sessionCheck) {
+            return serverSetting(ClickHouseHttpProto.QPARAM_SESSION_CHECK, sessionCheck ? "1" : "0");
+        }
+
+        /**
+         * Sets ClickHouse session timeout in seconds to be sent with each request.
+         */
+        public Builder setSessionTimeout(int timeoutInSeconds) {
+            ValidationUtils.checkPositive(timeoutInSeconds, ClickHouseHttpProto.QPARAM_SESSION_TIMEOUT);
+            return serverSetting(ClickHouseHttpProto.QPARAM_SESSION_TIMEOUT, String.valueOf(timeoutInSeconds));
+        }
+
+        /**
+         * Sets ClickHouse session timezone to be sent with each request.
+         */
+        public Builder setSessionTimezone(String timezone) {
+            ValidationUtils.checkNonBlank(timezone, ClickHouseHttpProto.QPARAM_SESSION_TIMEZONE);
+            return serverSetting(ClickHouseHttpProto.QPARAM_SESSION_TIMEZONE, timezone);
+        }
+
+        public Builder use(Session session) {
+            ValidationUtils.checkNotNull(session, "session");
+            if (session.getSessionId() != null) {
+                setSessionId(session.getSessionId());
+            }
+            if (session.getSessionCheck() != null) {
+                setSessionCheck(session.getSessionCheck());
+            }
+            if (session.getSessionTimeout() != null) {
+                setSessionTimeout(session.getSessionTimeout());
+            }
+            if (session.getSessionTimezone() != null) {
+                setSessionTimezone(session.getSessionTimezone());
+            }
             return this;
         }
 
@@ -1896,10 +1949,10 @@ public class Client implements AutoCloseable {
         QuerySettings settings = new QuerySettings().setDatabase(database);
         try (QueryResponse response = operationTimeout == 0
                 ? query(describeQuery, queryParams, settings).get()
-                : query(describeQuery, queryParams, settings).get(getOperationTimeout(), TimeUnit.SECONDS)) {
+                : query(describeQuery, queryParams, settings).get(operationTimeout, TimeUnit.MILLISECONDS)) {
             return TableSchemaParser.readTSKV(response.getInputStream(), name, originalQuery, database);
         } catch (TimeoutException e) {
-            throw new ClientException("Operation has likely timed out after " + getOperationTimeout() + " seconds.", e);
+            throw new ClientException("Operation has likely timed out after " + getOperationTimeout() + " milliseconds.", e);
         } catch (ExecutionException e) {
             throw new ClientException("Failed to get table schema", e.getCause());
         } catch (ServerException e) {
@@ -2056,7 +2109,10 @@ public class Client implements AutoCloseable {
         return readOnlyConfig;
     }
 
-    /** Returns operation timeout in seconds */
+    /**
+     * Returns operation ({@link ClientConfigProperties#MAX_EXECUTION_TIME}) timeout value in milliseconds.
+     * @return timeout value in milliseconds.
+     */
     protected int getOperationTimeout() {
         return ClientConfigProperties.MAX_EXECUTION_TIME.getOrDefault(configuration);
     }
@@ -2101,6 +2157,14 @@ public class Client implements AutoCloseable {
 
     public void updateClientName(String name) {
         this.configuration.put(ClientConfigProperties.CLIENT_NAME.getKey(), name);
+    }
+
+    /**
+     * Updates ClickHouse session id for all subsequent requests created by this client.
+     */
+    public void updateSessionId(String sessionId) {
+        ValidationUtils.checkNonBlank(sessionId, ClickHouseHttpProto.QPARAM_SESSION_ID);
+        this.session.updateSessionId(sessionId);
     }
 
     public static final String clientVersion =
@@ -2174,6 +2238,7 @@ public class Client implements AutoCloseable {
      */
     private Map<String, Object> buildRequestSettings(Map<String, Object> opSettings) {
         Map<String, Object> requestSettings = new HashMap<>(configuration);
+        session.applyTo(requestSettings);
         credentialsManager.applyCredentials(requestSettings);
         requestSettings.putAll(opSettings);
         return requestSettings;

@@ -220,14 +220,17 @@ public class JdbcConfiguration {
             String pathWithoutLeadingSlash = rawPath.startsWith("/") ? rawPath.substring(1) : rawPath;
             int lastSlashIndex = pathWithoutLeadingSlash.lastIndexOf('/');
 
+            String pathToDecode;
             if (lastSlashIndex > 0) {
                 httpPath = "/" + pathWithoutLeadingSlash.substring(0, lastSlashIndex);
-                database = URLDecoder.decode(pathWithoutLeadingSlash.substring(lastSlashIndex + 1), StandardCharsets.UTF_8);
+                pathToDecode = pathWithoutLeadingSlash.substring(lastSlashIndex + 1);
             } else {
                 // No slash found (lastSlashIndex == -1), so it's a single segment representing the database name.
                 // Example: "mydb" -> httpPath="", database="mydb"
-                database = URLDecoder.decode(pathWithoutLeadingSlash, StandardCharsets.UTF_8);
+                pathToDecode = pathWithoutLeadingSlash;
             }
+            // requires 10+ java               database = URLDecoder.decode(pathWithoutLeadingSlash.substring(lastSlashIndex + 1), StandardCharsets.UTF_8);
+            database = URLDecoder.decode(pathToDecode);
         }
 
         // Build connection URL with HTTP path preserved

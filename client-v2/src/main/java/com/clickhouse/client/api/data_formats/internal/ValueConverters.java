@@ -6,13 +6,16 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.sql.Date;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.util.Collections;
 import java.util.Map;
 import java.util.function.Function;
 
+/**
+ * This class should be used to convert non-null value with known type.
+ * All methods should be kept minimal without null or instanceOf checks.
+ */
 public final class ValueConverters {
 
 
@@ -210,7 +213,10 @@ public final class ValueConverters {
     }
 
     public BigDecimal convertNumberToBigDecimal(Object value) {
-        return BigDecimal.valueOf(((Number) value).doubleValue());
+        if (value instanceof Byte || value instanceof Short || value instanceof Integer || value instanceof Long) {
+            return BigDecimal.valueOf(((Number)value).longValue());
+        }
+        return new BigDecimal(value.toString());
     }
 
     // Date & Time converters

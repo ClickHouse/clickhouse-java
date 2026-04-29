@@ -3,6 +3,7 @@ package com.clickhouse.client;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.Session;
 import com.clickhouse.client.api.ClientFaultCause;
 import com.clickhouse.client.api.ClientMisconfigurationException;
 import com.clickhouse.client.api.ConnectionInitiationException;
@@ -13,6 +14,7 @@ import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.enums.ProxyType;
+import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.internal.DataTypeConverter;
 import com.clickhouse.client.api.internal.ServerSettings;
@@ -626,6 +628,93 @@ public class HttpTransportTests extends BaseIntegrationTest {
         }
     }
 
+    @Test(groups = { "integration" })
+    public void testSessionSettingsClientAndOperationLevels() {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
+        WireMockServer mockServer = new WireMockServer(WireMockConfiguration
+                .options().dynamicPort().notifier(new ConsoleNotifier(false)));
+        mockServer.start();
+
+        Session clientSession = new Session()
+                .setSessionId("client-session")
+                .setSessionCheck(false)
+                .setSessionTimeout(60)
+                .setSessionTimezone("Europe/London");
+
+        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .use(clientSession)
+                .compressClientRequest(false)
+                .build()) {
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .withQueryParam("session_id", WireMock.equalTo("query-session"))
+                    .withQueryParam("session_check", WireMock.equalTo("1"))
+                    .withQueryParam("session_timeout", WireMock.equalTo("15"))
+                    .withQueryParam("session_timezone", WireMock.equalTo("Asia/Tokyo"))
+                    .willReturn(WireMock.aResponse()
+                            .withHeader("X-ClickHouse-Summary",
+                                    "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")).build());
+
+            Session querySession = new Session()
+                    .setSessionId("query-session")
+                    .setSessionCheck(true)
+                    .setSessionTimeout(15)
+                    .setSessionTimezone("Asia/Tokyo");
+            QuerySettings querySettings = new QuerySettings().use(querySession);
+            try (QueryResponse response = client.query("SELECT 1", querySettings).get(1, TimeUnit.SECONDS)) {
+                Assert.assertEquals(response.getReadBytes(), 10);
+            }
+
+            mockServer.resetRequests();
+            mockServer.resetMappings();
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .withQueryParam("session_id", WireMock.equalTo("client-session"))
+                    .withQueryParam("session_check", WireMock.equalTo("0"))
+                    .withQueryParam("session_timeout", WireMock.equalTo("60"))
+                    .withQueryParam("session_timezone", WireMock.equalTo("Europe/London"))
+                    .willReturn(WireMock.aResponse()
+                            .withHeader("X-ClickHouse-Summary",
+                                    "{ \"read_bytes\": \"11\", \"read_rows\": \"1\"}")).build());
+
+            try (CommandResponse response = client.execute("SELECT 1").get(1, TimeUnit.SECONDS)) {
+                Assert.assertEquals(response.getReadBytes(), 11);
+            }
+
+            mockServer.resetRequests();
+            mockServer.resetMappings();
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .withQueryParam("session_id", WireMock.equalTo("insert-session"))
+                    .withQueryParam("session_check", WireMock.equalTo("0"))
+                    .withQueryParam("session_timeout", WireMock.equalTo("90"))
+                    .withQueryParam("session_timezone", WireMock.equalTo("America/Denver"))
+                    .willReturn(WireMock.aResponse()
+                            .withHeader("X-ClickHouse-Summary",
+                                    "{ \"read_bytes\": \"12\", \"read_rows\": \"1\"}")).build());
+
+            Session insertSession = new Session()
+                    .setSessionId("insert-session")
+                    .setSessionCheck(false)
+                    .setSessionTimeout(90)
+                    .setSessionTimezone("America/Denver");
+            InsertSettings insertSettings = new InsertSettings().use(insertSession);
+            try (InsertResponse response = client.insert(
+                    "test_table",
+                    new ByteArrayInputStream("1\n".getBytes(StandardCharsets.UTF_8)),
+                    ClickHouseFormat.CSV,
+                    insertSettings).get(1, TimeUnit.SECONDS)) {
+                Assert.assertEquals(response.getReadBytes(), 12);
+            }
+        } catch (Exception e) {
+            Assert.fail("Unexpected exception", e);
+        } finally {
+            mockServer.stop();
+        }
+    }
+
     static {
         if (Boolean.getBoolean("test.debug")) {
             System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "DEBUG");
@@ -1025,6 +1114,69 @@ public class HttpTransportTests extends BaseIntegrationTest {
             }
         } finally {
             mockServer.stop();
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testUpdateSessionIdAtRuntime() throws Exception {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
+        WireMockServer mockServer = new WireMockServer(WireMockConfiguration
+                .options().dynamicPort().notifier(new ConsoleNotifier(false)));
+        mockServer.start();
+
+        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .setSessionId("session-initial")
+                .setSessionCheck(false)
+                .setSessionTimeout(60)
+                .setSessionTimezone("UTC")
+                .compressServerResponse(false)
+                .build()) {
+
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .withQueryParam("session_id", WireMock.equalTo("session-initial"))
+                    .withQueryParam("session_check", WireMock.equalTo("0"))
+                    .withQueryParam("session_timeout", WireMock.equalTo("60"))
+                    .withQueryParam("session_timezone", WireMock.equalTo("UTC"))
+                    .willReturn(WireMock.aResponse()
+                            .withHeader("X-ClickHouse-Summary",
+                                    "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")).build());
+
+            try (CommandResponse response = client.execute("SELECT 1").get(1, TimeUnit.SECONDS)) {
+                Assert.assertEquals(response.getReadBytes(), 10);
+            }
+
+            mockServer.resetAll();
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .withQueryParam("session_id", WireMock.equalTo("session-updated"))
+                    .withQueryParam("session_check", WireMock.equalTo("0"))
+                    .withQueryParam("session_timeout", WireMock.equalTo("60"))
+                    .withQueryParam("session_timezone", WireMock.equalTo("UTC"))
+                    .willReturn(WireMock.aResponse()
+                            .withHeader("X-ClickHouse-Summary",
+                                    "{ \"read_bytes\": \"11\", \"read_rows\": \"1\"}")).build());
+
+            client.updateSessionId("session-updated");
+
+            try (CommandResponse response = client.execute("SELECT 1").get(1, TimeUnit.SECONDS)) {
+                Assert.assertEquals(response.getReadBytes(), 11);
+            }
+        } finally {
+            mockServer.stop();
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testUpdateSessionIdRejectInvalidValues() {
+        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", 8123, false)
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .build()) {
+            Assert.assertThrows(IllegalArgumentException.class, () -> client.updateSessionId(""));
         }
     }
 
