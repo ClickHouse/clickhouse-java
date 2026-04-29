@@ -94,6 +94,25 @@ Client client = new Client.Builder()
     .build();
 ```
 
+--- 
+## Migration from Client V1
+
+When migrating from Client V1 (`clickhouse-client`) to Client V2 (`client-v2`), the configuration properties related to authentication have been unified under `ClientConfigProperties` and exposed directly on `Client.Builder`. You no longer need to use `ClickHouseCredentials` objects.
+
+| Client V1 (`ClickHouseClientOption` / `ClickHouseCredentials`) | Client V2 (`ClientConfigProperties` / Builder methods) | Description |
+|----------------------------------------------------------------|--------------------------------------------------------|-------------|
+| `ClickHouseCredentials(user, password)`                        | `user`, `password` / `setUsername()`, `setPassword()`  | Basic auth. |
+| `ClickHouseCredentials.fromAccessToken(token)`                 | `access_token` / `setAccessToken()`                    | Token auth. |
+| `SSL` (`ssl`)                                                  | `ssl_authentication` / `useSSLAuthentication()`        | Enable mTLS authentication. |
+| `SSL_CERTIFICATE` (`sslcert`)                                  | `sslcert` / `setClientCertificate()`                   | Path to the client certificate. |
+| `SSL_KEY` (`sslkey`)                                           | `ssl_key` / `setClientKey()`                           | Path to the client private key. |
+| `SSL_ROOT_CERTIFICATE` (`sslrootcert`)                         | `sslrootcert` / `setRootCertificate()`                 | Path to the CA/Root certificate. |
+| `TRUST_STORE` (`trust_store`)                                  | `trust_store` / `setSSLTrustStore()`                   | Path to the Trust Store. |
+| `KEY_STORE_PASSWORD` (`key_store_password`)                    | `key_store_password` / `setSSLTrustStorePassword()`    | Password for the Trust/Key Store. |
+| `KEY_STORE_TYPE` (`key_store_type`)                            | `key_store_type` / `setSSLTrustStoreType()`            | Type of the Trust/Key Store (e.g. JKS). |
+
+
+
 ---
 
 ## Summary
