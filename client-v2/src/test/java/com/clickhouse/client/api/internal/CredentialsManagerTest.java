@@ -22,15 +22,15 @@ public class CredentialsManagerTest {
         };
     }
 
-    @Test(groups = {"unit"})
+    @Test(groups = {"integration"})
     public void testValidateAuthConfigRejectsMissingAuthenticationConfiguration() {
         ClientMisconfigurationException exception = Assert.expectThrows(ClientMisconfigurationException.class,
-                () -> CredentialsManager.validateAuthConfig(new HashMap<>()));
+                () -> new CredentialsManager(new HashMap<>()));
 
         Assert.assertTrue(exception.getMessage().contains("required"));
     }
 
-    @Test(groups = {"unit"}, dataProvider = "conflictingAuthConfig")
+    @Test(groups = {"integration"}, dataProvider = "conflictingAuthConfig")
     public void testValidateAuthConfigRejectsSslAuthCombinedWithAnotherCredential(String conflictingKey,
                                                                                    String conflictingValue) {
         Map<String, String> configuration = new HashMap<>();
@@ -38,24 +38,24 @@ public class CredentialsManagerTest {
         configuration.put(conflictingKey, conflictingValue);
 
         ClientMisconfigurationException exception = Assert.expectThrows(ClientMisconfigurationException.class,
-                () -> CredentialsManager.validateAuthConfig(configuration));
+                () -> new CredentialsManager(configuration));
 
         Assert.assertEquals(exception.getMessage(),
                 "Only one of password, access token or SSL authentication can be used per client.");
     }
 
-    @Test(groups = {"unit"})
+    @Test(groups = {"integration"})
     public void testValidateAuthConfigRejectsSslAuthWithoutCertificate() {
         Map<String, String> configuration = new HashMap<>();
         configuration.put(ClientConfigProperties.SSL_AUTH.getKey(), Boolean.TRUE.toString());
 
         ClientMisconfigurationException exception = Assert.expectThrows(ClientMisconfigurationException.class,
-                () -> CredentialsManager.validateAuthConfig(configuration));
+                () -> new CredentialsManager(configuration));
 
         Assert.assertEquals(exception.getMessage(), "SSL authentication requires a client certificate");
     }
 
-    @Test(groups = {"unit"})
+    @Test(groups = {"integration"})
     public void testValidateAuthConfigRejectsTrustStoreAndCertificateTogether() {
         Map<String, String> configuration = new HashMap<>();
         configuration.put(ClientConfigProperties.USER.getKey(), "user");
@@ -63,12 +63,12 @@ public class CredentialsManagerTest {
         configuration.put(ClientConfigProperties.SSL_CERTIFICATE.getKey(), "client-cert.pem");
 
         ClientMisconfigurationException exception = Assert.expectThrows(ClientMisconfigurationException.class,
-                () -> CredentialsManager.validateAuthConfig(configuration));
+                () -> new CredentialsManager(configuration));
 
         Assert.assertEquals(exception.getMessage(), "Trust store and certificates cannot be used together");
     }
 
-    @Test(groups = {"unit"})
+    @Test(groups = {"integration"})
     public void testConstructorReadsInitialCredentialsWithoutChangingSourceConfiguration() {
         Map<String, String> configuration = new HashMap<>();
         configuration.put(ClientConfigProperties.USER.getKey(), "user");
@@ -83,7 +83,7 @@ public class CredentialsManagerTest {
         Assert.assertEquals(configuration.get(ClientConfigProperties.PASSWORD.getKey()), "password");
     }
 
-    @Test(groups = {"unit"})
+    @Test(groups = {"integration"})
     public void testConstructorMaterializesAccessTokenAsAuthorizationHeader() {
         Map<String, String> configuration = new HashMap<>();
         configuration.put(ClientConfigProperties.ACCESS_TOKEN.getKey(), "token");
@@ -96,7 +96,7 @@ public class CredentialsManagerTest {
         Assert.assertEquals(configuration.get(ClientConfigProperties.ACCESS_TOKEN.getKey()), "token");
     }
 
-    @Test(groups = {"unit"})
+    @Test(groups = {"integration"})
     public void testConstructorReadsSslAuthFlagFromStringConfiguration() {
         Map<String, String> configuration = new HashMap<>();
         configuration.put(ClientConfigProperties.USER.getKey(), "user");
@@ -110,7 +110,7 @@ public class CredentialsManagerTest {
         Assert.assertEquals(snapshot.get(ClientConfigProperties.SSL_AUTH.getKey()), Boolean.TRUE);
     }
 
-    @Test(groups = {"unit"})
+    @Test(groups = {"integration"})
     public void testApplyCredentialsDoesNotResetCallerProvidedTargetEntries() {
         Map<String, String> configuration = new HashMap<>();
         configuration.put(ClientConfigProperties.USER.getKey(), "user");
@@ -131,7 +131,7 @@ public class CredentialsManagerTest {
         Assert.assertEquals(requestSettings.get(ClientConfigProperties.SSL_AUTH.getKey()), Boolean.TRUE);
     }
 
-    @Test(groups = {"unit"})
+    @Test(groups = {"integration"})
     public void testSetAccessTokenClearsUsernameAndPasswordCredentials() {
         Map<String, String> configuration = new HashMap<>();
         configuration.put(ClientConfigProperties.USER.getKey(), "user");
