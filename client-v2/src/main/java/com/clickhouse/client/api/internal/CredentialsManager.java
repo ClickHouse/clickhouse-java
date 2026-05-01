@@ -69,26 +69,39 @@ public class CredentialsManager {
 
     private static final String SSL_REQUIRES_CERT_ERR_MSG = "SSL authentication requires a client certificate";
 
+    private static final String PASSWORD_AND_AUTH_HEADER_BASIC_AUTH_ERR_MSG = "When both password and authentication header is set then basic auth. should be disabled";
+
     private void validateAndSet(Map<String, String> config) throws ClientMisconfigurationException {
 
+        boolean hasUserPassword = isUserPassword(config);
+        boolean hasAccessToken = isAccessToken(config);
+        boolean sslAuthEnabled = isSslAuth(config);
+        boolean hasAuthHeader = isCustomAuthHeader(config);
         final long authMethodsCount = Arrays
-                .stream(new Boolean[] {isAccessToken(config), isSslAuth(config), isCustomAuthHeader(config)})
+                .stream(new Boolean[] {hasUserPassword, hasAccessToken, sslAuthEnabled, hasAuthHeader})
                 .filter(b-> b).count();
 
         String username = config.get(ClientConfigProperties.USER.getKey());
-
-        if (authMethodsCount == 0 && isUserPassword(config)) {
+        if (authMethodsCount == 1 && !hasAuthHeader) {
+            // Auth header handled specially
             String password = config.getOrDefault(ClientConfigProperties.PASSWORD.getKey(), "");
-            updateBackedConfig(username, password, false, null);
-        } else if (authMethodsCount == 1) {
-            // no password auth
             boolean useSslAuth = MapUtils.getFlag(config, ClientConfigProperties.SSL_AUTH.getKey(), false);
             String accessToken = config.get(ClientConfigProperties.ACCESS_TOKEN.getKey());
-            String authHeader = config.get(AUTHORIZATION_HEADER_KEY);
-
-            updateBackedConfig(username, null, useSslAuth, authHeader == null ? accessToken : authHeader);
+            updateBackedConfig(username, password, useSslAuth, accessToken);
+        } else if (authMethodsCount == 0 && ClientUtils.isNotBlank(username)) {
+            // password not set - it is still user, password case if no other auth
+            String password = config.getOrDefault(ClientConfigProperties.PASSWORD.getKey(), "");
+            updateBackedConfig(username, password, false, null);
         } else if (authMethodsCount == 0) {
             throw new ClientMisconfigurationException(NO_AUTH_ERR_MSG);
+        } else if (hasAuthHeader) {
+            if (hasUserPassword && MapUtils.getFlag(config, ClientConfigProperties.HTTP_USE_BASIC_AUTH.getKey(),
+                    ClientConfigProperties.HTTP_USE_BASIC_AUTH.getDefObjVal())) {
+                throw new ClientMisconfigurationException(PASSWORD_AND_AUTH_HEADER_BASIC_AUTH_ERR_MSG);
+            }
+            String password = config.getOrDefault(ClientConfigProperties.PASSWORD.getKey(), "");
+            String authHeader = config.getOrDefault(AUTHORIZATION_HEADER_KEY, "");
+            updateBackedConfig(username, password, false, authHeader);
         } else {
             throw new ClientMisconfigurationException(ONLY_ONE_METHOD_ERR_MSG);
         }
@@ -97,7 +110,8 @@ public class CredentialsManager {
     private boolean isUserPassword(Map<String, ?> config) {
         String username = (String) config.get(ClientConfigProperties.USER.getKey());
         boolean hasUser = ClientUtils.isNotBlank(username);
-        return hasUser && !isSslAuth(config);
+        String password = (String) config.get(ClientConfigProperties.PASSWORD.getKey());
+        return hasUser && password != null;
     }
 
     private boolean isSslAuth(Map<String, ?> config) {

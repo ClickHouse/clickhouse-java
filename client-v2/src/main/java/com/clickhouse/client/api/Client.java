@@ -2221,7 +2221,7 @@ public class Client implements AutoCloseable {
      * @param bearer - token to use
      */
     public void setBearerToken(String bearer) {
-        setAccessToken(bearer);
+        setAccessToken(CredentialsManager.AUTH_HEADER_BEARER_PREFIX + bearer);
     }
 
     private Endpoint getNextAliveNode() {

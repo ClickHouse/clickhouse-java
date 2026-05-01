@@ -700,9 +700,9 @@ public class ClientTests extends BaseIntegrationTest {
             return true;
         };
 
-        t.apply(builderF.get(), (e) ->
+        t.apply(builderF.get().setUsername(""), (e) ->
                 Assert.assertTrue(e.getMessage().contains("Auth configuration is missing"), e.getMessage()));
-        t.apply(builderF.get().setUsername("user"), (e) ->
+        t.apply(builderF.get().setUsername(null), (e) ->
                 Assert.assertTrue(e.getMessage().contains("Auth configuration is missing"), e.getMessage()));
         t.apply(builderF.get().setUsername("").setPassword("pass"), (e) ->
                 Assert.assertTrue(e.getMessage().contains("Auth configuration is missing"), e.getMessage()));
