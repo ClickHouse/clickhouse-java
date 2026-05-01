@@ -12,6 +12,7 @@ import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.internal.ClickHouseLZ4OutputStream;
+import com.clickhouse.client.api.internal.CredentialsManager;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.internal.ValidationUtils;
 import com.clickhouse.client.api.metadata.DefaultColumnToMethodMatchingStrategy;
@@ -33,22 +34,15 @@ import org.testng.util.Strings;
 import java.io.ByteArrayInputStream;
 import java.net.ConnectException;
 import java.net.UnknownHostException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Queue;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiFunction;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static java.time.temporal.ChronoUnit.MILLIS;
@@ -692,6 +686,38 @@ public class ClientTests extends BaseIntegrationTest {
             ConnectionInitiationException ce = (ConnectionInitiationException) e.getCause();
             Assert.assertTrue(ce.getCause() instanceof UnknownHostException);
         }
+    }
+
+    @Test(groups = {"integration"})
+    public void testInvalidAuthConfiguration() throws Exception {
+        Supplier<Client.Builder> builderF = () -> new Client.Builder().addEndpoint("http://localhost:8123");
+        BiFunction<Client.Builder, Consumer<Exception>, Boolean> t = (b, c) -> {
+            try (Client client = b.build()){
+                fail("exception expected");
+            } catch (ClientMisconfigurationException e) {
+                c.accept(e);
+            }
+            return true;
+        };
+
+        t.apply(builderF.get(), (e) ->
+                Assert.assertTrue(e.getMessage().contains("Auth configuration is missing"), e.getMessage()));
+        t.apply(builderF.get().setUsername("user"), (e) ->
+                Assert.assertTrue(e.getMessage().contains("Auth configuration is missing"), e.getMessage()));
+        t.apply(builderF.get().setUsername("").setPassword("pass"), (e) ->
+                Assert.assertTrue(e.getMessage().contains("Auth configuration is missing"), e.getMessage()));
+
+        t.apply(builderF.get().useSSLAuthentication(true), (e) ->
+                Assert.assertTrue(e.getMessage().contains("SSL authentication requires a client certificate"), e.getMessage()));
+
+        t.apply(builderF.get().useSSLAuthentication(true).setClientCertificate("cert").setSSLTrustStore("trustStore"), (e) ->
+                Assert.assertTrue(e.getMessage().contains("Trust store and certificates cannot be used together"), e.getMessage()));
+        t.apply(builderF.get().setUsername("user").setPassword("pass").setClientCertificate("cert").setSSLTrustStore("trustStore"), (e) ->
+                Assert.assertTrue(e.getMessage().contains("Trust store and certificates cannot be used together"), e.getMessage()));
+        t.apply(builderF.get().setAccessToken("token").setClientCertificate("cert").setSSLTrustStore("trustStore"), (e) ->
+                Assert.assertTrue(e.getMessage().contains("Trust store and certificates cannot be used together"), e.getMessage()));
+        t.apply(builderF.get().setOption(CredentialsManager.AUTHORIZATION_HEADER_KEY, "CustomAuth token").setClientCertificate("cert").setSSLTrustStore("trustStore"), (e) ->
+                Assert.assertTrue(e.getMessage().contains("Trust store and certificates cannot be used together"), e.getMessage()));
     }
 
     public boolean isVersionMatch(String versionExpression, Client client) {

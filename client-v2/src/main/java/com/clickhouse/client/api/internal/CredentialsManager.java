@@ -4,6 +4,7 @@ import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientMisconfigurationException;
 import org.apache.hc.core5.http.HttpHeaders;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -15,25 +16,18 @@ import java.util.Map;
  */
 public class CredentialsManager {
 
-    private static final String AUTHORIZATION_HEADER_KEY =
+    public static final String AUTHORIZATION_HEADER_KEY =
             ClientConfigProperties.httpHeader(HttpHeaders.AUTHORIZATION);
-    private static final String AUTH_HEADER_BEARER_PREFIX = "Bearer ";
+    public static final String AUTH_HEADER_BEARER_PREFIX = "Bearer ";
 
-    private final Map<String, String> bakedConfig = new HashMap<>();
+    private final Map<String, Object> authConfig = new HashMap<>();
 
     public CredentialsManager(Map<String, String> configuration) {
         validateAndSet(configuration);
-        // TODO: bake config
-    }
-
-    public Map<String, Object> snapshot() {
-        Map<String, Object> snapshot = new HashMap<>();
-        applyCredentials(snapshot);
-        return snapshot;
     }
 
     public void applyCredentials(Map<String, Object> target) {
-        target.putAll(bakedConfig);
+        target.putAll(authConfig);
     }
 
     /**
@@ -43,7 +37,7 @@ public class CredentialsManager {
      * serialize updates and request execution if they require thread safety.
      */
     public void setCredentials(String username, String password) {
-        updateBackedConfig(username, password, false, null, null);
+        updateBackedConfig(username, password, false, null);
     }
 
     /**
@@ -53,55 +47,73 @@ public class CredentialsManager {
      * serialize updates and request execution if they require thread safety.
      */
     public void setAccessToken(String accessToken) {
-        updateBackedConfig(null, null, false, accessToken, accessToken == null ? null :
-                AUTH_HEADER_BEARER_PREFIX + accessToken);
+        updateBackedConfig(null, null, false, accessToken);
     }
 
-    private void updateBackedConfig(String username, String password, boolean useSslAuth, String accessToken, String authHeader) {
-        bakedConfig.put(ClientConfigProperties.USER.getKey(), username);
-        bakedConfig.put(ClientConfigProperties.PASSWORD.getKey(), password);
-        bakedConfig.put(ClientConfigProperties.SSL_AUTH.getKey(), String.valueOf(useSslAuth));
-        bakedConfig.put(ClientConfigProperties.ACCESS_TOKEN.getKey(), accessToken);
-        bakedConfig.put(AUTHORIZATION_HEADER_KEY, authHeader);
+    private void updateBackedConfig(String username, String password, boolean useSslAuth, String authHeader) {
+        authConfig.put(ClientConfigProperties.USER.getKey(), username);
+        authConfig.put(ClientConfigProperties.PASSWORD.getKey(), password);
+        authConfig.put(ClientConfigProperties.SSL_AUTH.getKey(), useSslAuth);
+        authConfig.put(AUTHORIZATION_HEADER_KEY, authHeader);
     }
 
     public String getUsername() {
-        String username = bakedConfig.get(ClientConfigProperties.USER.getKey());
+        String username = (String) authConfig.get(ClientConfigProperties.USER.getKey());
         return username == null ? ClientConfigProperties.USER.getDefaultValue() : username;
     }
 
     private static final String NO_AUTH_ERR_MSG = "Auth configuration is missing. At least one the following should be provided: " +
             "user & password, access token, custom authentication headers";
 
-    private void validateAndSet(Map<String, ?> configuration) throws ClientMisconfigurationException {
-        // check if username and password are empty. so can not initiate client?
-        boolean useSslAuth = MapUtils.getFlag(configuration, ClientConfigProperties.SSL_AUTH.getKey(), false);
-        String accessToken = (String) configuration.get(ClientConfigProperties.ACCESS_TOKEN.getKey());
-        boolean hasAccessToken = ClientUtils.isNotBlank(accessToken);
-        String username = (String) configuration.get(ClientConfigProperties.USER.getKey());
-        boolean hasUser = ClientUtils.isNotBlank(username);
-        String password = (String) configuration.get(ClientConfigProperties.PASSWORD.getKey());
-        boolean hasPassword = ClientUtils.isNotBlank(password);
-        String authHeader = (String) configuration.get(AUTHORIZATION_HEADER_KEY);
-        boolean customHttpHeaders = ClientUtils.isNotBlank(authHeader);
+    private static final String ONLY_ONE_METHOD_ERR_MSG = "Only one of password, access token or SSL authentication can be used per client.";
 
-        if (!(useSslAuth || hasAccessToken || hasUser || hasPassword || customHttpHeaders)) {
+    private static final String SSL_REQUIRES_CERT_ERR_MSG = "SSL authentication requires a client certificate";
+
+    private void validateAndSet(Map<String, ?> config) throws ClientMisconfigurationException {
+
+        final long authMethodsCount = Arrays
+                .stream(new Boolean[] {isUserPassword(config), isAccessToken(config), isSslAuth(config),
+                        isCustomAuthHeader(config)})
+                .filter(b-> b).count();
+
+        if (authMethodsCount == 1) {
+            String username = (String) config.get(ClientConfigProperties.USER.getKey());
+            String password = (String) config.get(ClientConfigProperties.PASSWORD.getKey());
+            boolean useSslAuth = MapUtils.getFlag(config, ClientConfigProperties.SSL_AUTH.getKey(), false);
+            String accessToken = (String) config.get(ClientConfigProperties.ACCESS_TOKEN.getKey());
+            String authHeader = (String) config.get(AUTHORIZATION_HEADER_KEY);
+
+            updateBackedConfig(username, password, useSslAuth, authHeader == null ? accessToken : authHeader);
+        } else if (authMethodsCount == 0) {
             throw new ClientMisconfigurationException(NO_AUTH_ERR_MSG);
+        } else {
+            throw new ClientMisconfigurationException(ONLY_ONE_METHOD_ERR_MSG);
         }
+    }
 
-        if (useSslAuth && (hasAccessToken || hasPassword)) {
-            throw new ClientMisconfigurationException("Only one of password, access token or SSL authentication can be used per client.");
+    private boolean isUserPassword(Map<String, ?> config) {
+        String username = (String) config.get(ClientConfigProperties.USER.getKey());
+        boolean hasUser = ClientUtils.isNotBlank(username);
+        String password = (String) config.get(ClientConfigProperties.PASSWORD.getKey());
+        boolean hasPassword = password != null;
+        return hasUser && hasPassword;
+    }
+
+    private boolean isSslAuth(Map<String, ?> config) {
+        boolean useSslAuth = MapUtils.getFlag(config, ClientConfigProperties.SSL_AUTH.getKey(), false);
+        if (useSslAuth && !config.containsKey(ClientConfigProperties.SSL_CERTIFICATE.getKey())) {
+            throw new ClientMisconfigurationException(SSL_REQUIRES_CERT_ERR_MSG);
         }
+        return useSslAuth;
+    }
 
-        if (useSslAuth && !configuration.containsKey(ClientConfigProperties.SSL_CERTIFICATE.getKey())) {
-            throw new ClientMisconfigurationException("SSL authentication requires a client certificate");
-        }
+    private boolean isAccessToken(Map<String, ?> config) {
+        String accessToken = (String) config.get(ClientConfigProperties.ACCESS_TOKEN.getKey());
+        return ClientUtils.isNotBlank(accessToken);
+    }
 
-        if (configuration.containsKey(ClientConfigProperties.SSL_TRUST_STORE.getKey()) &&
-                configuration.containsKey(ClientConfigProperties.SSL_CERTIFICATE.getKey())) {
-            throw new ClientMisconfigurationException("Trust store and certificates cannot be used together");
-        }
-
-        updateBackedConfig(username, password, useSslAuth, accessToken, authHeader);
+    private boolean isCustomAuthHeader(Map<String, ?> config) {
+        String authHeader = (String) config.get(AUTHORIZATION_HEADER_KEY);
+        return ClientUtils.isNotBlank(authHeader);
     }
 }

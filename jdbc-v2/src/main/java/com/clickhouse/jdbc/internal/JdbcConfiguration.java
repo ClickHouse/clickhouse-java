@@ -95,12 +95,9 @@ public class JdbcConfiguration {
         boolean useSSLInfo = Boolean.parseBoolean(props.getProperty(DriverProperties.SECURE_CONNECTION.getKey(), "false"));
         boolean useSSLUrlProperties = Boolean.parseBoolean(urlProperties.getOrDefault(DriverProperties.SECURE_CONNECTION.getKey(), "false"));
         boolean useSSL = useSSLInfo || useSSLUrlProperties;
-        String accessToken = props.getProperty(ClientConfigProperties.ACCESS_TOKEN.getKey(), null);
-        if (accessToken == null) {
-            accessToken = props.getProperty(ClientConfigProperties.BEARERTOKEN_AUTH.getKey(), null);
-        }
-        if (accessToken != null) {
-            clientProperties.put(ClientConfigProperties.ACCESS_TOKEN.getKey(), accessToken);
+        String bearerToken = props.getProperty(ClientConfigProperties.BEARERTOKEN_AUTH.getKey(), null);
+        if (bearerToken != null) {
+            clientProperties.put(ClientConfigProperties.BEARERTOKEN_AUTH.getKey(), bearerToken);
         }
 
         this.connectionUrl = createConnectionURL(tmpConnectionUrl, useSSL);

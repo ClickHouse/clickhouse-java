@@ -868,7 +868,6 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 .build()) {
             fail("Expected exception");
         } catch (ClientMisconfigurationException e) {
-            e.printStackTrace();
             Assert.assertTrue(e.getMessage().startsWith("Only one of password, access token or SSL authentication"));
         }
     }
@@ -1058,7 +1057,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
                     .map(s -> Base64.getEncoder().encodeToString(s.getBytes(StandardCharsets.UTF_8)))
                     .reduce((s1, s2) -> s1 + "." + s2).get();
             try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
-                    .setAccessToken(jwtToken1)
+                    .useBearerTokenAuth(jwtToken1)
                     .compressServerResponse(false)
                     .build()) {
 
@@ -1088,7 +1087,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
                     .build());
 
             try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
-                    .setAccessToken(jwtToken1)
+                    .useBearerTokenAuth(jwtToken1)
                     .compressServerResponse(false)
                     .build()) {
 
@@ -1108,7 +1107,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
                         .build());
 
-                client.setAccessToken(jwtToken2);
+                client.setBearerToken(jwtToken2);
 
                 client.execute("SELECT 1").get();
             }
@@ -1275,7 +1274,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
         String jwt = System.getenv("CLIENT_JWT");
         Assert.assertTrue(jwt != null && !jwt.trim().isEmpty(), "JWT is missing");
         Assert.assertFalse(jwt.contains("\n") || jwt.contains("-----"), "JWT should be single string ready for HTTP header");
-        try (Client client = newClient().setAccessToken(jwt).build()) {
+        try (Client client = newClient().useBearerTokenAuth(jwt).build()) {
             try {
                 List<GenericRecord> response = client.queryAll("SELECT user(), now()");
                 System.out.println("response: " + response.get(0).getString(1) + " time: " + response.get(0).getString(2));

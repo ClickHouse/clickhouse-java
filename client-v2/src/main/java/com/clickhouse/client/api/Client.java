@@ -198,7 +198,7 @@ public class Client implements AutoCloseable {
 
         this.httpClientHelper = new HttpAPIClientHelper(this.configuration, metricsRegistry, initSslContext, lz4Factory);
         this.serverVersion = configuration.getOrDefault(ClientConfigProperties.SERVER_VERSION.getKey(), "unknown");
-        this.dbUser = credentialsManager.getUsername();
+        this.dbUser = configuration.getOrDefault(ClientConfigProperties.USER.getKey(), ClientConfigProperties.USER.getDefObjVal());
         this.typeHintMapping = (Map<ClickHouseDataType, Class<?>>) this.configuration.get(ClientConfigProperties.TYPE_HINT_MAPPING.getKey());
     }
 
@@ -347,11 +347,8 @@ public class Client implements AutoCloseable {
             if (key.equals(ClientConfigProperties.PRODUCT_NAME.getKey())) {
                 setClientName(value);
             }
-            if (key.equals(ClientConfigProperties.ACCESS_TOKEN.getKey())) {
-                setAccessToken(value);
-            }
             if (key.equals(ClientConfigProperties.BEARERTOKEN_AUTH.getKey())) {
-                setAccessToken(value);
+                useBearerTokenAuth(value);
             }
             return this;
         }
@@ -379,17 +376,13 @@ public class Client implements AutoCloseable {
         }
 
         /**
-         * Preferred way to configure token-based authentication.
+         * Access token for authentication with server. Required for all operations.
          * Same access token will be used for all endpoints.
-         * Internally it is sent as an HTTP Bearer token.
          *
          * @param accessToken - plain text access token
          */
-        @SuppressWarnings("deprecation")
         public Builder setAccessToken(String accessToken) {
             this.configuration.put(ClientConfigProperties.ACCESS_TOKEN.getKey(), accessToken);
-            this.configuration.remove(ClientConfigProperties.BEARERTOKEN_AUTH.getKey());
-            this.httpHeader(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken);
             return this;
         }
 
@@ -1047,16 +1040,17 @@ public class Client implements AutoCloseable {
         }
 
         /**
-         * Legacy HTTP-specific alias for {@link Builder#setAccessToken(String)}.
-         * Prefer using {@link Builder#setAccessToken(String)}.
+         * Specifies whether to use Bearer Authentication and what token to use.
+         * The token will be sent as is, so it should be encoded before passing to this method.
          *
          * @param bearerToken - token to use
          * @return same instance of the builder
          */
-        @Deprecated
         public Builder useBearerTokenAuth(String bearerToken) {
             // Most JWT libraries (https://jwt.io/libraries?language=Java) compact tokens in proper way
-            return setAccessToken(bearerToken);
+            // Bearer token in subset of access token
+            setAccessToken(CredentialsManager.AUTH_HEADER_BEARER_PREFIX + bearerToken);
+            return this;
         }
 
         /**
@@ -1141,6 +1135,11 @@ public class Client implements AutoCloseable {
             }
 
             CredentialsManager cManager = new CredentialsManager(this.configuration);
+
+            if (configuration.containsKey(ClientConfigProperties.SSL_TRUST_STORE.getKey()) &&
+                    configuration.containsKey(ClientConfigProperties.SSL_CERTIFICATE.getKey())) {
+                throw new ClientMisconfigurationException("Trust store and certificates cannot be used together");
+            }
 
             // Check timezone settings
             String useTimeZoneValue = this.configuration.get(ClientConfigProperties.USE_TIMEZONE.getKey());
@@ -2221,7 +2220,7 @@ public class Client implements AutoCloseable {
      *
      * @param bearer - token to use
      */
-    public void updateBearerToken(String bearer) {
+    public void setBearerToken(String bearer) {
         setAccessToken(bearer);
     }
 

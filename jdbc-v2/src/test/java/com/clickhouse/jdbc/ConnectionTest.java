@@ -850,7 +850,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = { "integration" })
-    public void testAccessTokenAuth() throws Exception {
+    public void testBearerTokenAuth() throws Exception {
         if (isCloud()) {
             return; // mocked server
         }
@@ -898,7 +898,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
                                             "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")).build());
 
             Properties properties = new Properties();
-            properties.put(ClientConfigProperties.ACCESS_TOKEN.getKey(), jwtToken1);
+            properties.put(ClientConfigProperties.BEARERTOKEN_AUTH.getKey(), jwtToken1);
             properties.put("compress", "false");
             String jdbcUrl = "jdbc:clickhouse://" + "localhost" + ":" + mockServer.port();
             try (Connection conn = new ConnectionImpl(jdbcUrl, properties);
@@ -911,7 +911,6 @@ public class ConnectionTest extends JdbcIntegrationTest {
             mockServer.stop();
         }
     }
-
     @Test(groups = { "integration" })
     public void testJWTWithCloud() throws Exception {
         if (!isCloud()) {
