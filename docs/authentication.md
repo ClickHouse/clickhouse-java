@@ -25,8 +25,13 @@ Client client = new Client.Builder()
 If you need to update the credentials dynamically at runtime (for subsequent requests), you can use the client instance:
 
 ```java
-client.setCredentials("new_user", "new_password");
+client.updateUserAndPassword("new_user", "new_password");
 ```
+
+> Note: the runtime updaters do not switch the authentication method.
+> A client built with username/password can only be updated with
+> `updateUserAndPassword(...)`; calling a token-based updater on it throws
+> `ClientMisconfigurationException`.
 
 ---
 
@@ -36,20 +41,33 @@ client.setCredentials("new_user", "new_password");
 Token-based authentication allows clients to authenticate using a pre-generated access token (such as an API key) instead of a traditional username and password. In HTTP interactions, this token is typically sent in the `Authorization: Bearer <token>` header.
 
 ### Client Configuration
-To configure an access token, use the `setAccessToken` method in the builder:
+For the standard `Authorization: Bearer <token>` scheme use `useBearerTokenAuth(...)` on the builder. The client will prepend the `Bearer ` prefix for you:
 
 ```java
 Client client = new Client.Builder()
     .addEndpoint("http://localhost:8123")
-    .setAccessToken("my_access_token")
+    .useBearerTokenAuth("my_access_token")
     .build();
 ```
 
-You can also update the token dynamically at runtime:
+If you need to send a non-`Bearer` scheme (or you already have the full header value), use `setAccessToken(...)`. The value is sent verbatim as the `Authorization` header, so include the scheme prefix yourself:
 
 ```java
-client.setAccessToken("new_access_token");
+Client client = new Client.Builder()
+    .addEndpoint("http://localhost:8123")
+    .setAccessToken("Bearer my_access_token") // value used as-is
+    .build();
 ```
+
+You can also update the token dynamically at runtime. `updateBearerToken(...)` adds the `Bearer ` prefix; `updateAccessToken(...)` writes the value as-is:
+
+```java
+client.updateBearerToken("new_access_token");      // -> Authorization: Bearer new_access_token
+client.updateAccessToken("Bearer new_access_token"); // -> Authorization: Bearer new_access_token
+```
+
+> Note: as with username/password, a client built without an access token cannot
+> be promoted to token-based authentication at runtime.
 
 ---
 

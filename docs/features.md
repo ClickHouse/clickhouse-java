@@ -32,7 +32,7 @@ Compatibility-sensitive traits:
 
 - Named parameter typing is part of the contract: placeholders are written as `{name:Type}` and the supplied value must match the expected ClickHouse textual representation for that type.
 - String query parameters are expected to round-trip correctly for ordinary text, Unicode, slashes, dashes, and leading or trailing spaces.
-- Runtime authentication changes are compatibility-sensitive: after `setCredentials()` or `setAccessToken()`, subsequent requests from the same `Client` are expected to use the updated credentials.
+- Runtime authentication changes are compatibility-sensitive: after `updateUserAndPassword()`, `updateAccessToken()`, or `updateBearerToken()`, subsequent requests from the same `Client` are expected to use the updated credentials. The authentication method itself is fixed at construction time; calling a runtime updater that does not match the configured method throws `ClientMisconfigurationException`.
 - String escaping behavior in `SQLUtils` is compatibility-sensitive: `enquoteLiteral()` uses SQL-style doubled single quotes, while `escapeSingleQuotes()` escapes both backslashes and single quotes with backslashes.
 - Identifier quoting behavior is stable API for helper callers: identifiers are double-quoted, embedded double quotes are doubled, and optional quoting keeps simple identifiers unchanged.
 - Instant formatting is type-sensitive and should not drift: `Date` formatting depends on an explicit timezone, `DateTime` is serialized as epoch seconds, and higher-precision timestamps preserve up to 9 fractional digits.

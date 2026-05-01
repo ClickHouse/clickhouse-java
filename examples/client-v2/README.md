@@ -57,7 +57,7 @@ Note: HTTP sessions require server affinity. Use a single endpoint or sticky rou
 ## Runtime Credentials Switch Demo (Two Users)
 
 This standalone example creates two users and demonstrates switching credentials
-on the same `Client` instance at runtime via `setCredentials()`.
+on the same `Client` instance at runtime via `updateUserAndPassword()`.
 
 Run it with endpoint only (admin user defaults to `default`):
 

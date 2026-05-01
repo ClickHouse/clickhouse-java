@@ -53,12 +53,12 @@ public class RuntimeCredentialsTwoUsers {
                 printCurrentUser(client, "Initial user");
 
                 // Switch to the second user
-                client.setCredentials(secondUser, secondPassword);
+                client.updateUserAndPassword(secondUser, secondPassword);
                 // Print the current user by executing a query `SELECT currentUser()`
                 printCurrentUser(client, "After switch to second user");
 
                 // Switch back to the first user
-                client.setCredentials(firstUser, firstPassword);
+                client.updateUserAndPassword(firstUser, firstPassword);
                 // Print the current user by executing a query `SELECT currentUser()`
                 printCurrentUser(client, "After switch back to first user");
             } finally {

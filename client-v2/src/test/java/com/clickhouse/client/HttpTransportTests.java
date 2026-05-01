@@ -1107,7 +1107,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
                         .build());
 
-                client.setBearerToken(jwtToken2);
+                client.updateBearerToken(jwtToken2);
 
                 client.execute("SELECT 1").get();
             }
@@ -1258,7 +1258,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
                                         "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}"))
                         .build());
 
-                client.setCredentials(user2, password2);
+                client.updateUserAndPassword(user2, password2);
                 client.execute("SELECT 1").get();
             }
         } finally {

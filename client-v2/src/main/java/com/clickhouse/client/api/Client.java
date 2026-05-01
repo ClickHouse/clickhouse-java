@@ -45,7 +45,6 @@ import net.jpountz.lz4.LZ4Factory;
 import org.apache.hc.core5.concurrent.DefaultThreadFactory;
 import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.Header;
-import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -1043,7 +1042,7 @@ public class Client implements AutoCloseable {
          * Specifies whether to use Bearer Authentication and what token to use.
          * The token will be sent as is, so it should be encoded before passing to this method.
          *
-         * @param bearerToken - token to use
+         * @param bearerToken - token to use (without {@code Bearer} prefix)
          * @return same instance of the builder
          */
         public Builder useBearerTokenAuth(String bearerToken) {
@@ -2183,45 +2182,50 @@ public class Client implements AutoCloseable {
     }
 
     /**
-     * Updates the credentials used for subsequent requests.
-     *
-     * <p>This method is not thread-safe with respect to other credential updates
+     * Updates Bearer token for other requests.
+     * This method is not thread-safe with respect to other credential updates
      * or concurrent request execution. Applications must coordinate access if
      * they require stronger consistency.
-     *
-     * @param username username to use for subsequent requests
-     * @param password password to use for subsequent requests
+     * Method doesn't allow to switch authentication type
+     * @param bearer - token to use without {@code "Bearer"} prefix.
      */
-    public void setCredentials(String username, String password) {
+    public void updateBearerToken(String bearer) {
+        if (!credentialsManager.isHasAccessToken()) {
+            throw new ClientMisconfigurationException("Authentication type cannot be switch at runtime");
+        }
+        updateAccessToken(CredentialsManager.AUTH_HEADER_BEARER_PREFIX + bearer);
+    }
+
+    /**
+     * Updates the user & password for all subsequential requests.
+     * This method is not thread-safe with respect to other credential updates
+     * or concurrent request execution. Applications must coordinate access if
+     * they require stronger consistency.
+     * Method doesn't allow to switch authentication type
+     * @param username user name
+     * @param password user password
+     * @throws ClientMisconfigurationException if another authentication type in use.
+     */
+    public void updateUserAndPassword(String username, String password) {
+        if (!credentialsManager.isHasUserPassword()) {
+            throw new ClientMisconfigurationException("Authentication type cannot be switch at runtime");
+        }
         this.credentialsManager.setCredentials(username, password);
     }
 
     /**
-     * Preferred runtime API to update token-based authentication.
-     * Internally it refreshes the HTTP Bearer token used by requests.
-     *
-     * <p>This method is not thread-safe with respect to other credential updates
+     * Updates access token for the client. Change will be applied to all following requests.
+     * This method is not thread-safe with respect to other credential updates
      * or concurrent request execution. Applications must coordinate access if
      * they require stronger consistency.
-     *
+     * Method doesn't allow to switch authentication type
      * @param accessToken - plain text access token
      */
-    public void setAccessToken(String accessToken) {
+    public void updateAccessToken(String accessToken) {
+        if (!credentialsManager.isHasAccessToken()) {
+            throw new ClientMisconfigurationException("Authentication type cannot be switch at runtime");
+        }
         this.credentialsManager.setAccessToken(accessToken);
-    }
-
-    /**
-     * Legacy HTTP-specific alias for {@link #setAccessToken(String)}.
-     * Prefer using {@link #setAccessToken(String)}.
-     *
-     * <p>This method is not thread-safe with respect to other credential updates
-     * or concurrent request execution. Applications must coordinate access if
-     * they require stronger consistency.
-     *
-     * @param bearer - token to use
-     */
-    public void setBearerToken(String bearer) {
-        setAccessToken(CredentialsManager.AUTH_HEADER_BEARER_PREFIX + bearer);
     }
 
     private Endpoint getNextAliveNode() {

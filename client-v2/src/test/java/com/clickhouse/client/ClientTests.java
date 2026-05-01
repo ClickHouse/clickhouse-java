@@ -42,7 +42,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static java.time.temporal.ChronoUnit.MILLIS;
@@ -517,7 +516,7 @@ public class ClientTests extends BaseIntegrationTest {
                     List<GenericRecord> firstResponse = userClient.queryAll("SELECT currentUser() AS user");
                     Assert.assertEquals(firstResponse.get(0).getString("user"), user1);
 
-                    userClient.setCredentials(user2, password2);
+                    userClient.updateUserAndPassword(user2, password2);
 
                     List<GenericRecord> secondResponse = userClient.queryAll("SELECT currentUser() AS user");
                     Assert.assertEquals(secondResponse.get(0).getString("user"), user2);
