@@ -1,6 +1,18 @@
 ## 0.9.9
 
+### Breaking Changes
+
+- **[client-v2]** `Client.Builder#build()` now throws `ClientMisconfigurationException` instead of `IllegalArgumentException` for authentication and SSL misconfiguration (missing credentials, conflicting authentication methods, missing client certificate when SSL authentication is enabled, and trust store used together with a client certificate). Callers that relied on catching `IllegalArgumentException` from `build()` for these cases must catch `ClientMisconfigurationException` (which extends `RuntimeException` via `ClientException`).
+
+- **[client-v2]** Combining `setUsername(...)` + `setPassword(...)` with a custom `Authorization` HTTP header (`httpHeader(HttpHeaders.AUTHORIZATION, ...)`) now fails at `Client.Builder#build()` with `ClientMisconfigurationException` unless HTTP Basic authentication is explicitly disabled via `useHTTPBasicAuth(false)`. Previously this combination was accepted and the custom `Authorization` header overrode the ClickHouse user/password headers at request time.
+
+- **[client-v2]** The `access_token` configuration property (set via `Client.Builder#setAccessToken(String)` or directly through `setOption`) is now actually applied to outgoing requests as the `Authorization` HTTP header value verbatim. Previously the value was stored under `access_token` but never sent on the wire, so providing it alone had no effect on authentication. Callers must include the scheme prefix themselves (e.g. `setAccessToken("Bearer <token>")`), or use `useBearerTokenAuth(String)` which prepends `Bearer ` automatically.
+
+- **[client-v2]** `Client.Builder#useBearerTokenAuth(String)` now stores the bearer token under the `access_token` configuration key (with the `Bearer ` prefix) instead of writing it directly into `http_header_authorization`. The HTTP wire format is unchanged, but the token is no longer observable through `Client#getReadOnlyConfig()` under the `http_header_authorization` key.
+
 ### New Features
+
+- **[client-v2]** Added runtime credential update APIs on `Client`: `updateUserAndPassword(String, String)`, `updateAccessToken(String)`, and `updateBearerToken(String)`. Subsequent requests on the same `Client` instance use the new credentials without rebuilding the client. The authentication method is fixed at construction time; calling a runtime updater that does not match the configured method throws `ClientMisconfigurationException`. See `docs/authentication.md` for details and migration guidance.
 
 - **[jdbc-v2]** Added `cluster_name` configuration property to specify a target cluster for statements like `KILL QUERY` that require an `ON CLUSTER` clause to execute across all nodes. (https://github.com/ClickHouse/clickhouse-java/issues/2837)
 

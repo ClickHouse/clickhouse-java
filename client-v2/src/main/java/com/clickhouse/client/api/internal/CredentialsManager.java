@@ -7,7 +7,8 @@ import org.apache.hc.core5.http.HttpHeaders;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Manages mutable authentication-related client settings.
@@ -20,21 +21,19 @@ public class CredentialsManager {
             ClientConfigProperties.httpHeader(HttpHeaders.AUTHORIZATION);
     public static final String AUTH_HEADER_BEARER_PREFIX = "Bearer ";
 
-    private final Map<String, Object> authConfig = new ConcurrentHashMap<>();
-
-    private final boolean sslAuthEnabled;
+    private final AtomicReference<Map<String, Object>> authConfig = new AtomicReference<>();
 
     private final boolean hasUserPassword;
 
     private final boolean hasAccessToken;
 
-    private final boolean hasAuthHeader;
-
     public CredentialsManager(Map<String, String> config) {
         this.hasUserPassword = isUserPassword(config);
         this.hasAccessToken = isAccessToken(config);
-        this.sslAuthEnabled = isSslAuth(config);
-        this.hasAuthHeader = isCustomAuthHeader(config);
+
+        boolean sslAuthEnabled = isSslAuth(config);
+        boolean hasAuthHeader = isCustomAuthHeader(config);
+
         final long authMethodsCount = Arrays
                 .stream(new Boolean[] {hasUserPassword, hasAccessToken, sslAuthEnabled, hasAuthHeader})
                 .filter(b-> b).count();
@@ -74,7 +73,8 @@ public class CredentialsManager {
     }
 
     public void applyCredentials(Map<String, Object> target) {
-        target.putAll(authConfig);
+        Map<String, Object> properties = authConfig.get();
+        target.putAll(properties);
     }
 
     /**
@@ -98,10 +98,12 @@ public class CredentialsManager {
     }
 
     private void updateBackedConfig(String username, String password, boolean useSslAuth, String authHeader) {
-        authConfig.put(ClientConfigProperties.USER.getKey(), username);
-        authConfig.put(ClientConfigProperties.PASSWORD.getKey(), password);
-        authConfig.put(ClientConfigProperties.SSL_AUTH.getKey(), useSslAuth);
-        authConfig.put(AUTHORIZATION_HEADER_KEY, authHeader);
+        Map<String, Object> updated = new HashMap<>();
+        updated.put(ClientConfigProperties.USER.getKey(), username);
+        updated.put(ClientConfigProperties.PASSWORD.getKey(), password);
+        updated.put(ClientConfigProperties.SSL_AUTH.getKey(), useSslAuth);
+        updated.put(AUTHORIZATION_HEADER_KEY, authHeader);
+        authConfig.set(updated);
     }
 
     private static final String NO_AUTH_ERR_MSG = "Auth configuration is missing. At least one the following should be provided: " +

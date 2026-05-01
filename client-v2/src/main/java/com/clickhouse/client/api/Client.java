@@ -2101,7 +2101,8 @@ public class Client implements AutoCloseable {
     }
 
     /**
-     * Returns unmodifiable map of configuration options.
+     * Returns unmodifiable map of initial configuration options.
+     * As authentication configuration values can change this map doesn't reflect them.
      * @return - configuration options
      */
     public Map<String, String> getConfiguration() {
@@ -2197,7 +2198,7 @@ public class Client implements AutoCloseable {
     }
 
     /**
-     * Updates the user & password for all subsequential requests.
+     * Updates the user and password for all subsequential requests.
      * This method is not thread-safe with respect to other credential updates
      * or concurrent request execution. Applications must coordinate access if
      * they require stronger consistency.
