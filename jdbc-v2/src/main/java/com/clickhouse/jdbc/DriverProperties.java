@@ -124,6 +124,11 @@ public enum DriverProperties {
     @Deprecated
     HTTP_CONNECTION_PROVIDER("http_connection_provider", null),
 
+    /**
+     * Define cluster name for statement executions like KILL
+     */
+    CLUSTER_NAME("jdbc_cluster_name", null),
+
     ;
 
 

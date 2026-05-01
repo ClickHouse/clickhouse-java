@@ -2,13 +2,21 @@
 
 ### Breaking Changes
 
-- **[jdbc-v2]** Hardcoded server setting `async_insert=0` is removed as well as others. This is done to 
-fix issue with overriding these settings and using client with read-only profiles. The change, first of all, makes 
-driver behavior to follow default what is set on server side (note: starting ClickHouse 26.3 `async_insert` is on by default).
-In second, this fix changes what number of affected rows returned by method like `java.sql.Statement.executeUpdate(java.lang.String)`. 
-Previously they return more accurate values because insert was synchronous, but in case of asynchronous insert it is not 
-guaranteed anymore (see also https://github.com/ClickHouse/ClickHouse/issues/57768). Read more about asynchronous insert https://clickhouse.com/docs/optimize/asynchronous-inserts.
-(https://github.com/ClickHouse/clickhouse-java/issues/2652, https://github.com/ClickHouse/clickhouse-java/issues/2825)
+- **[jdbc-v2]** Hardcoded server setting `async_insert=0` is removed as well as others. This is done to
+  fix issue with overriding these settings and using client with read-only profiles. The change, first of all, makes
+  driver behavior to follow default what is set on server side (note: starting ClickHouse 26.3 `async_insert` is on by default).
+  In second, this fix changes what number of affected rows returned by method like `java.sql.Statement.executeUpdate(java.lang.String)`.
+  Previously they return more accurate values because insert was synchronous, but in case of asynchronous insert it is not
+  guaranteed anymore (see also https://github.com/ClickHouse/ClickHouse/issues/57768). Read more about asynchronous insert https://clickhouse.com/docs/optimize/asynchronous-inserts.
+  (https://github.com/ClickHouse/clickhouse-java/issues/2652, https://github.com/ClickHouse/clickhouse-java/issues/2825)
+
+### New Features
+
+- **[jdbc-v2]** Added `cluster_name` configuration property to specify a target cluster for statements like `KILL QUERY` that require an `ON CLUSTER` clause to execute across all nodes. (https://github.com/ClickHouse/clickhouse-java/issues/2837)
+
+### Bug Fixes
+
+- **[client-v2]** Fixed inconsistent use of `executionTimeout` parameter in `Client` component. The timeout was previously set in milliseconds but mistakenly retrieved and used in seconds in some places. Now it correctly uses milliseconds consistently. (https://github.com/ClickHouse/clickhouse-java/issues/2358)
 
 ## 0.9.8
 
