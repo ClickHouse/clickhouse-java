@@ -106,7 +106,7 @@ import java.util.stream.Collectors;
  *
  *
  * <p>Client is thread-safe. It uses exclusive set of object to perform an operation.
- * Exception is client global authentication configuration. Application should handle it in the way it is designed./p>
+ * Exception is client global authentication configuration. Application should handle it in the way it is designed.</p>
  *
  */
 public class Client implements AutoCloseable {
@@ -2182,6 +2182,7 @@ public class Client implements AutoCloseable {
         return unmodifiableDbRolesView;
     }
 
+
     /**
      * Updates Bearer token for other requests.
      * This method is not thread-safe with respect to other credential updates
@@ -2191,9 +2192,7 @@ public class Client implements AutoCloseable {
      * @param bearer - token to use without {@code "Bearer"} prefix.
      */
     public void updateBearerToken(String bearer) {
-        if (!credentialsManager.isHasAccessToken()) {
-            throw new ClientMisconfigurationException("Authentication type cannot be switch at runtime");
-        }
+        ValidationUtils.checkNonBlank(bearer, "Bearer token");
         updateAccessToken(CredentialsManager.AUTH_HEADER_BEARER_PREFIX + bearer);
     }
 
@@ -2208,9 +2207,6 @@ public class Client implements AutoCloseable {
      * @throws ClientMisconfigurationException if another authentication type in use.
      */
     public void updateUserAndPassword(String username, String password) {
-        if (!credentialsManager.isHasUserPassword()) {
-            throw new ClientMisconfigurationException("Authentication type cannot be switch at runtime");
-        }
         this.credentialsManager.setCredentials(username, password);
     }
 
@@ -2223,9 +2219,6 @@ public class Client implements AutoCloseable {
      * @param accessToken - plain text access token
      */
     public void updateAccessToken(String accessToken) {
-        if (!credentialsManager.isHasAccessToken()) {
-            throw new ClientMisconfigurationException("Authentication type cannot be switch at runtime");
-        }
         this.credentialsManager.setAccessToken(accessToken);
     }
 

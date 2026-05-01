@@ -7,7 +7,6 @@ import org.apache.hc.core5.http.HttpHeaders;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -35,8 +34,8 @@ public class CredentialsManager {
         boolean hasAuthHeader = isCustomAuthHeader(config);
 
         final long authMethodsCount = Arrays
-                .stream(new Boolean[] {hasUserPassword, hasAccessToken, sslAuthEnabled, hasAuthHeader})
-                .filter(b-> b).count();
+                .stream(new Boolean[]{hasUserPassword, hasAccessToken, sslAuthEnabled, hasAuthHeader})
+                .filter(b -> b).count();
 
         String username = config.get(ClientConfigProperties.USER.getKey());
         if (authMethodsCount == 1 && !hasAuthHeader) {
@@ -64,18 +63,12 @@ public class CredentialsManager {
         }
     }
 
-    public boolean isHasAccessToken() {
-        return hasAccessToken;
-    }
-
-    public boolean isHasUserPassword() {
-        return hasUserPassword;
-    }
-
     public void applyCredentials(Map<String, Object> target) {
         Map<String, Object> properties = authConfig.get();
         target.putAll(properties);
     }
+
+    private static final String AUTH_CANNOT_BE_SWITCHED_ERR_MSG = "Authentication type cannot be switched at runtime";
 
     /**
      * Replaces the current username/password credentials.
@@ -84,6 +77,11 @@ public class CredentialsManager {
      * serialize updates and request execution if they require thread safety.
      */
     public void setCredentials(String username, String password) {
+        ValidationUtils.checkNonBlank(username, "username");
+        ValidationUtils.checkNonBlank(password, "password");
+        if (!hasUserPassword) {
+            throw new ClientMisconfigurationException(AUTH_CANNOT_BE_SWITCHED_ERR_MSG);
+        }
         updateBackedConfig(username, password, false, null);
     }
 
@@ -94,6 +92,10 @@ public class CredentialsManager {
      * serialize updates and request execution if they require thread safety.
      */
     public void setAccessToken(String accessToken) {
+        if (!hasAccessToken) {
+            throw new ClientMisconfigurationException(AUTH_CANNOT_BE_SWITCHED_ERR_MSG);
+        }
+        ValidationUtils.checkNonBlank(accessToken, "accessToken");
         updateBackedConfig(null, null, false, accessToken);
     }
 
