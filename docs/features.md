@@ -7,6 +7,7 @@ This document lists stable, user-visible behavior in `client-v2` and `jdbc-v2` t
 - HTTP and HTTPS connectivity: Connects to ClickHouse over HTTP(S), supports endpoint paths, and exposes a basic `ping` health check.
 - TLS configuration: Supports trust stores, client certificates/keys, SSL certificate authentication, and SNI for HTTPS connections.
 - Authentication modes: Supports username/password credentials, ClickHouse auth headers, bearer tokens, and optional HTTP Basic authentication.
+- Runtime credential updates: Existing `Client` instances can update username/password or bearer-token credentials for subsequent requests without rebuilding the client.
 - Proxy support: Can send requests through configured HTTP proxies, including proxy credentials.
 - Connection and socket tuning: Exposes pool sizing, keep-alive, reuse strategy, connect/request/socket timeouts, and low-level socket options.
 - Query execution: Executes SQL asynchronously and returns streaming query responses with response metadata and metrics.
@@ -31,6 +32,7 @@ Compatibility-sensitive traits:
 
 - Named parameter typing is part of the contract: placeholders are written as `{name:Type}` and the supplied value must match the expected ClickHouse textual representation for that type.
 - String query parameters are expected to round-trip correctly for ordinary text, Unicode, slashes, dashes, and leading or trailing spaces.
+- Runtime authentication changes are compatibility-sensitive: after `updateUserAndPassword()`, `updateAccessToken()`, or `updateBearerToken()`, subsequent requests from the same `Client` are expected to use the updated credentials. The authentication method itself is fixed at construction time; calling a runtime updater that does not match the configured method throws `ClientMisconfigurationException`.
 - String escaping behavior in `SQLUtils` is compatibility-sensitive: `enquoteLiteral()` uses SQL-style doubled single quotes, while `escapeSingleQuotes()` escapes both backslashes and single quotes with backslashes.
 - Identifier quoting behavior is stable API for helper callers: identifiers are double-quoted, embedded double quotes are doubled, and optional quoting keeps simple identifiers unchanged.
 - Instant formatting is type-sensitive and should not drift: `Date` formatting depends on an explicit timezone, `DateTime` is serialized as epoch seconds, and higher-precision timestamps preserve up to 9 fractional digits.
