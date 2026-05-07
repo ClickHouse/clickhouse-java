@@ -2,6 +2,7 @@ package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.data_formats.internal.BinaryString;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.GenericRecord;
@@ -38,7 +39,9 @@ import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.Calendar;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
@@ -69,6 +72,11 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     private Executor networkTimeoutExecutor;
 
     private final FeatureManager featureManager;
+
+    private Map<ClickHouseDataType, Class<?>> typeMappingHint;
+
+    private static final Map<ClickHouseDataType, Class<?>> BINARY_STRING_MAPPING = Collections.singletonMap(ClickHouseDataType.String, BinaryString.class);
+    private static final Map<ClickHouseDataType, Class<?>> ARRAYS_AS_LIST_MAPPING = Collections.singletonMap(ClickHouseDataType.Array, List.class);
 
     public ConnectionImpl(String url, Properties info) throws SQLException {
         try {
@@ -122,6 +130,10 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
             this.sqlParser = SqlParserFacade.getParser(config.getDriverProperty(DriverProperties.SQL_PARSER.getKey(),
                     DriverProperties.SQL_PARSER.getDefaultValue()), config);
             this.featureManager = new FeatureManager(this.config);
+
+            this.typeMappingHint = new HashMap<>();
+            this.typeMappingHint.putAll(BINARY_STRING_MAPPING);
+            this.typeMappingHint.putAll(ARRAYS_AS_LIST_MAPPING);
         } catch (SQLException e) {
             throw e;
         } catch (Exception e) {
@@ -159,6 +171,14 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
      */
     public JdbcConfiguration getJdbcConfig() {
         return this.config;
+    }
+
+    /**
+     * Internal API
+     * @return map of type-to-class mapping
+     */
+    public Map<ClickHouseDataType, Class<?>> getTypeMappingHint() {
+        return typeMappingHint;
     }
 
     @Override

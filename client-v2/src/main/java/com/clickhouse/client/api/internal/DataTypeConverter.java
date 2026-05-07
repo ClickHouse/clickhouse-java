@@ -3,6 +3,8 @@ package com.clickhouse.client.api.internal;
 import com.clickhouse.client.api.ClickHouseException;
 import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
+import com.clickhouse.client.api.data_formats.internal.BinaryString;
+import com.clickhouse.client.api.data_formats.internal.ValueConverters;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 
@@ -35,6 +37,8 @@ public class DataTypeConverter {
     private final ListAsStringWriter listAsStringWriter = new ListAsStringWriter();
 
     private final ArrayAsStringWriter arrayAsStringWriter = new ArrayAsStringWriter();
+
+    private final ValueConverters valueConverters = new ValueConverters();
 
     public String convertToString(Object value, ClickHouseColumn column) {
         if (value == null) {
@@ -72,21 +76,29 @@ public class DataTypeConverter {
     }
 
     public String stringToString(Object bytesOrString, ClickHouseColumn column) {
-        StringBuilder sb = new StringBuilder();
         if (column.isArray()) {
+            StringBuilder sb = new StringBuilder();
             sb.append(QUOTE);
-        }
-        if (bytesOrString instanceof CharSequence) {
-            sb.append(((CharSequence) bytesOrString));
-        } else if (bytesOrString instanceof byte[]) {
-            sb.append(new String((byte[]) bytesOrString));
+            if (bytesOrString instanceof BinaryString) {
+                sb.append(((BinaryString)bytesOrString).asString()); // string will be cached
+            } else if (bytesOrString instanceof CharSequence) {
+                sb.append(((CharSequence) bytesOrString));
+            } else if (bytesOrString instanceof byte[]) {
+                sb.append(new String((byte[]) bytesOrString));
+            } else {
+                sb.append(bytesOrString);
+            }
+            sb.append(QUOTE);
+            return sb.toString();
         } else {
-            sb.append(bytesOrString);
+            if (bytesOrString instanceof BinaryString) {
+                return ((BinaryString)bytesOrString).asString(); // string will be cached
+            } else if (bytesOrString instanceof byte[]) {
+                return new String((byte[]) bytesOrString);
+            } else {
+                return bytesOrString.toString();
+            }
         }
-        if (column.isArray()) {
-            sb.append(QUOTE);
-        }
-        return sb.toString();
     }
 
     public static ZoneId UTC_ZONE_ID = ZoneId.of("UTC");

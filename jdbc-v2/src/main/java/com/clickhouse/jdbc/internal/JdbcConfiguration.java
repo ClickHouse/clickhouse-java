@@ -359,8 +359,7 @@ public class JdbcConfiguration {
 
     public Client.Builder applyClientProperties(Client.Builder builder) {
         builder.addEndpoint(connectionUrl)
-                .setOptions(clientProperties)
-                .typeHintMapping(defaultTypeHintMapping());
+                .setOptions(clientProperties);
         return builder;
     }
 
@@ -383,12 +382,6 @@ public class JdbcConfiguration {
     public boolean isFlagSet(DriverProperties prop) {
         String value = driverProperties.getOrDefault(prop.getKey(), prop.getDefaultValue());
         return Boolean.parseBoolean(value);
-    }
-
-    private Map<ClickHouseDataType, Class<?>> defaultTypeHintMapping() {
-        Map<ClickHouseDataType, Class<?>> mapping = new HashMap<>();
-        mapping.put(ClickHouseDataType.Array, List.class);
-        return mapping;
     }
 
     public boolean useMaxResultRows() {
