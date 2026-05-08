@@ -111,9 +111,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
                 this.client.loadServerInfo();
             }
             this.schema = client.getDefaultDatabase();
-            this.defaultQuerySettings = new QuerySettings()
-                    .serverSetting(ServerSettings.ASYNC_INSERT, "0")
-                    .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "0");
+            this.defaultQuerySettings = new QuerySettings();
 
             this.metadata = new DatabaseMetaDataImpl(this, false, url);
             this.defaultCalendar = Calendar.getInstance();

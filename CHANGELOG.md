@@ -1,5 +1,22 @@
 ## 0.9.9
 
+### Breaking Changes
+
+- **[jdbc-v2]** The driver no longer hardcodes the server settings `async_insert=0` and `wait_end_of_query=0` on every JDBC
+  connection. This unblocks two scenarios that previously did not work: overriding these settings per connection or per
+  statement, and using the driver against read-only profiles that disallow `SETTINGS` overrides. There are two consequences:
+  - The driver now follows the server-side defaults for these settings (note: starting with ClickHouse 26.3, `async_insert`
+    defaults to `1`). Removing the explicit `wait_end_of_query=0` is a no-op against server defaults but lets users opt in to
+    `wait_end_of_query=1`.
+  - The row count returned by `java.sql.Statement.executeUpdate(java.lang.String)` (and the matching `PreparedStatement`
+    method) is no longer guaranteed to be accurate for INSERT statements when the server runs them asynchronously, and
+    parsing/data errors in the INSERT body may not surface synchronously as a `SQLException`. Previously these were
+    accurate because inserts were forced to be synchronous (see also https://github.com/ClickHouse/ClickHouse/issues/57768).
+    To restore the previous behavior, set `async_insert=0` (or `wait_for_async_insert=1`) per connection or statement.
+    Read more about asynchronous insert: https://clickhouse.com/docs/optimize/asynchronous-inserts.
+
+  (https://github.com/ClickHouse/clickhouse-java/issues/2652, https://github.com/ClickHouse/clickhouse-java/issues/2825)
+
 ### New Features
 
 - **[jdbc-v2]** Added `cluster_name` configuration property to specify a target cluster for statements like `KILL QUERY` that require an `ON CLUSTER` clause to execute across all nodes. (https://github.com/ClickHouse/clickhouse-java/issues/2837)
