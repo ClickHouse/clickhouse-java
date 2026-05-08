@@ -174,7 +174,10 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             if (queryTimeout == 0) {
                 response = connection.getClient().query(lastStatementSql, mergedSettings).get();
             } else {
-                response = connection.getClient().query(lastStatementSql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS);
+                // we need to perform async operation to support timeout.
+                response = connection.getClient().query(lastStatementSql, mergedSettings
+                                .setOption(ClientConfigProperties.ASYNC_OPERATIONS.getKey(), true))
+                        .get(queryTimeout, TimeUnit.SECONDS);
             }
 
             if (response.getFormat().isText()) {
@@ -246,7 +249,9 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         LOG.trace("SQL Query: {}", lastStatementSql);
         int updateCount = 0;
         try (QueryResponse response = queryTimeout == 0 ? connection.getClient().query(lastStatementSql, mergedSettings).get()
-                : connection.getClient().query(lastStatementSql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS)) {
+                : connection.getClient().query(lastStatementSql, mergedSettings
+                        .setOption(ClientConfigProperties.ASYNC_OPERATIONS.getKey(), true))
+                        .get(queryTimeout, TimeUnit.SECONDS)) {
             updateCount = Math.max(0, (int) response.getWrittenRows()); // when statement alters schema no result rows returned.
             lastQueryId = response.getQueryId();
         } catch (Exception e) {
