@@ -7,6 +7,7 @@ import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 
 import java.io.IOException;
+import java.lang.reflect.Array;
 import java.net.InetAddress;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -63,6 +64,14 @@ public class DataTypeConverter {
                 return ipvToString(value, column);
             case Array:
                 return  arrayToString(value, column);
+            case Point:
+            case Ring:
+            case LineString:
+            case Polygon:
+            case MultiLineString:
+            case MultiPolygon:
+            case Geometry:
+                return geoToString(value, column);
             case Variant:
             case Dynamic:
                 return variantOrDynamicToString(value, column);
@@ -212,6 +221,11 @@ public class DataTypeConverter {
         return arrayToString(value, column);
     }
 
+    public String geoToString(Object value, ClickHouseColumn column) {
+        String geoValue = tryGeoToString(value, column);
+        return geoValue != null ? geoValue : value.toString();
+    }
+
     /**
      *
      * @param value not null object value to convert
@@ -222,7 +236,127 @@ public class DataTypeConverter {
         if (value instanceof BinaryStreamReader.ArrayValue) {
             return arrayToString(value, column);
         }
+        String geoValue = tryGeoToString(value, column);
+        if (geoValue != null) {
+            return geoValue;
+        }
+        if (value.getClass().isArray()) {
+            return arrayToString(value, column);
+        }
         return value.toString();
+    }
+
+    private String tryGeoToString(Object value, ClickHouseColumn column) {
+        if (value == null || !value.getClass().isArray()) {
+            return null;
+        }
+
+        int dimensions = getArrayDimensions(value);
+        if (dimensions < 1 || dimensions > 4 || !isGeoShape(value, dimensions)) {
+            return null;
+        }
+
+        ClickHouseDataType dataType = column.getDataType();
+        if (isGeoType(dataType)) {
+            return geoArrayToString(value);
+        }
+
+        if (dataType == ClickHouseDataType.Variant && matchesGeoVariant(column, dimensions)) {
+            return geoArrayToString(value);
+        }
+
+        if (dataType == ClickHouseDataType.Dynamic) {
+            return geoArrayToString(value);
+        }
+
+        return null;
+    }
+
+    private boolean matchesGeoVariant(ClickHouseColumn column, int dimensions) {
+        for (ClickHouseColumn nestedColumn : column.getNestedColumns()) {
+            if (isGeoTypeForDimensions(nestedColumn.getDataType(), dimensions)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isGeoType(ClickHouseDataType dataType) {
+        switch (dataType) {
+            case Point:
+            case Ring:
+            case LineString:
+            case Polygon:
+            case MultiLineString:
+            case MultiPolygon:
+            case Geometry:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private boolean isGeoTypeForDimensions(ClickHouseDataType dataType, int dimensions) {
+        switch (dimensions) {
+            case 1:
+                return dataType == ClickHouseDataType.Point;
+            case 2:
+                return dataType == ClickHouseDataType.Ring || dataType == ClickHouseDataType.LineString;
+            case 3:
+                return dataType == ClickHouseDataType.Polygon || dataType == ClickHouseDataType.MultiLineString;
+            case 4:
+                return dataType == ClickHouseDataType.MultiPolygon;
+            default:
+                return false;
+        }
+    }
+
+    private int getArrayDimensions(Object value) {
+        int dimensions = 0;
+        Class<?> arrayClass = value.getClass();
+        while (arrayClass.isArray()) {
+            dimensions++;
+            arrayClass = arrayClass.getComponentType();
+        }
+        return dimensions;
+    }
+
+    private boolean isGeoShape(Object value, int dimensions) {
+        if (dimensions == 1) {
+            return Array.getLength(value) == 2
+                    && Array.get(value, 0) instanceof Double
+                    && Array.get(value, 1) instanceof Double;
+        }
+
+        for (int i = 0, len = Array.getLength(value); i < len; i++) {
+            Object item = Array.get(value, i);
+            if (item == null || !item.getClass().isArray() || !isGeoShape(item, dimensions - 1)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private String geoArrayToString(Object value) {
+        int dimensions = getArrayDimensions(value);
+        if (dimensions == 1) {
+            return new StringBuilder()
+                    .append('(')
+                    .append(Array.get(value, 0))
+                    .append(',')
+                    .append(Array.get(value, 1))
+                    .append(')')
+                    .toString();
+        }
+
+        StringBuilder builder = new StringBuilder().append('[');
+        for (int i = 0, len = Array.getLength(value); i < len; i++) {
+            if (i > 0) {
+                builder.append(',');
+            }
+            builder.append(geoArrayToString(Array.get(value, i)));
+        }
+        return builder.append(']').toString();
     }
 
     private static void appendEnquotedArrayElement(String value, ClickHouseColumn elementColumn, Appendable appendable) {
