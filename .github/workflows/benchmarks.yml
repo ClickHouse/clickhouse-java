@@ -9,6 +9,10 @@ on:
       pr:
         description: "Pull request#"
         required: false
+      threshold:
+        description: "Regression threshold (Δ% on Time or Alloc/op)"
+        required: false
+        default: "10"
   issue_comment:
     types: [created]
 
@@ -16,6 +20,10 @@ env:
   CHC_BRANCH: "main"
   CH_VERSION: "25.3"
   JAVA_VERSION: 17
+  # Default Δ% above which a regression / improvement is flagged and the
+  # PR check is failed. Overridable per workflow_dispatch input or per
+  # `/benchmark threshold=N` comment.
+  DEFAULT_THRESHOLD_PCT: "10"
 
 # One run per PR (cancel any in-progress run when a newer /benchmark arrives
 # for the same PR). Scheduled runs are grouped by SHA so they don't fight
@@ -38,6 +46,7 @@ jobs:
       issues: write
     outputs:
       pr_number: ${{ steps.resolve.outputs.pr_number }}
+      threshold: ${{ steps.resolve.outputs.threshold }}
     steps:
       - name: Validate comment
         id: validate
@@ -74,9 +83,18 @@ jobs:
             "repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" \
             -f content='rocket' || true
 
-      - name: Resolve PR number
+      - name: Resolve PR number and threshold
         id: resolve
-        run: echo "pr_number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          DEFAULT_THRESHOLD: ${{ env.DEFAULT_THRESHOLD_PCT }}
+        run: |
+          # Accept `/benchmark threshold=15` or `/benchmark threshold=7.5`.
+          # Anything else falls back to the workflow default.
+          T=$(printf '%s' "$COMMENT_BODY" | grep -oE 'threshold=[0-9]+(\.[0-9]+)?' | head -1 | cut -d= -f2 || true)
+          [ -z "$T" ] && T="$DEFAULT_THRESHOLD"
+          echo "pr_number=${{ github.event.issue.number }}" >> "$GITHUB_OUTPUT"
+          echo "threshold=$T" >> "$GITHUB_OUTPUT"
 
   jmh:
     needs: [trigger-check]
@@ -87,14 +105,31 @@ jobs:
     name: "Mininal JMH Benchmarks"
     runs-on: "ubuntu-latest"
     timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: write
+      actions: read
     steps:
-      - name: Resolve PR number
+      - name: Resolve PR number and threshold
         id: pr
+        env:
+          COMMENT_THRESHOLD: ${{ needs.trigger-check.outputs.threshold }}
+          DISPATCH_THRESHOLD: ${{ github.event.inputs.threshold }}
+          DEFAULT_THRESHOLD: ${{ env.DEFAULT_THRESHOLD_PCT }}
         run: |
           case "${{ github.event_name }}" in
-            issue_comment)     echo "number=${{ needs.trigger-check.outputs.pr_number }}" >> $GITHUB_OUTPUT ;;
-            workflow_dispatch) echo "number=${{ github.event.inputs.pr }}" >> $GITHUB_OUTPUT ;;
-            *)                 echo "number=" >> $GITHUB_OUTPUT ;;
+            issue_comment)
+              echo "number=${{ needs.trigger-check.outputs.pr_number }}" >> "$GITHUB_OUTPUT"
+              echo "threshold=${COMMENT_THRESHOLD:-$DEFAULT_THRESHOLD}" >> "$GITHUB_OUTPUT"
+              ;;
+            workflow_dispatch)
+              echo "number=${{ github.event.inputs.pr }}" >> "$GITHUB_OUTPUT"
+              echo "threshold=${DISPATCH_THRESHOLD:-$DEFAULT_THRESHOLD}" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "number=" >> "$GITHUB_OUTPUT"
+              echo "threshold=$DEFAULT_THRESHOLD" >> "$GITHUB_OUTPUT"
+              ;;
           esac
       - name: Post "started" comment
         if: github.event_name == 'issue_comment' && steps.pr.outputs.number != ''
@@ -138,3 +173,93 @@ jobs:
           name: result ${{ github.job }}
           path: |
             performance/jmh-results*
+
+      # Compare against the latest scheduled run on `main` and post a
+      # markdown comment. Only relevant when this run is tied to a PR;
+      # scheduled / non-PR runs skip these steps. We never fail the
+      # workflow if comparison fails — it's reporting, not gating.
+      - name: Fetch baseline results (latest successful main schedule)
+        id: baseline
+        if: steps.pr.outputs.number != ''
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p baseline-results
+          RUN_ID=$(gh run list \
+            --workflow benchmarks.yml \
+            --branch main \
+            --status success \
+            --limit 20 \
+            --repo "${{ github.repository }}" \
+            --json databaseId,event \
+            -q 'map(select(.event=="schedule"))[0].databaseId // empty')
+          if [ -z "$RUN_ID" ]; then
+            echo "No scheduled baseline run found on main"
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "Baseline run: $RUN_ID"
+          if gh run download "$RUN_ID" --dir baseline-results --repo "${{ github.repository }}"; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+          else
+            echo "Failed to download baseline artifacts"
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Compare benchmark results
+        id: compare
+        if: steps.pr.outputs.number != '' && steps.baseline.outputs.found == 'true'
+        continue-on-error: true
+        run: |
+          python3 .github/scripts/compare-jmh.py \
+            --baseline baseline-results \
+            --current performance \
+            --baseline-run-id "${{ steps.baseline.outputs.run_id }}" \
+            --current-run-id "${{ github.run_id }}" \
+            --repo "${{ github.repository }}" \
+            --server-url "${{ github.server_url }}" \
+            --threshold-pct "${{ steps.pr.outputs.threshold }}" \
+            --output comparison.md \
+            --summary-output compare-summary.env
+          # Surface the script's summary file as step outputs so the
+          # follow-up "enforce threshold" step can decide whether to
+          # fail the job — without skipping the comment post.
+          cat compare-summary.env >> "$GITHUB_OUTPUT"
+          echo "ok=true" >> "$GITHUB_OUTPUT"
+
+      - name: Post baseline-not-found comment
+        if: |
+          steps.pr.outputs.number != '' &&
+          steps.baseline.outputs.found != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr comment "${{ steps.pr.outputs.number }}" \
+            --repo "${{ github.repository }}" \
+            --body "JMH benchmark comparison skipped: no successful scheduled run on \`main\` was found to use as a baseline." || true
+
+      - name: Post comparison comment
+        if: steps.compare.outputs.ok == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr comment "${{ steps.pr.outputs.number }}" \
+            --repo "${{ github.repository }}" \
+            --body-file comparison.md
+
+      # Fail the job — and therefore the PR check — when the comparison
+      # script flagged at least one regression beyond the threshold.
+      # This runs *after* the comment has been posted so reviewers still
+      # see the full table on the PR.
+      - name: Enforce regression threshold
+        if: steps.compare.outputs.ok == 'true'
+        run: |
+          REGRESSIONS="${{ steps.compare.outputs.regressions }}"
+          THRESHOLD="${{ steps.pr.outputs.threshold }}"
+          if [ -n "$REGRESSIONS" ] && [ "$REGRESSIONS" -gt 0 ]; then
+            echo "::error::$REGRESSIONS benchmark(s) regressed by more than ${THRESHOLD}% vs baseline."
+            exit 1
+          fi
+          echo "No regressions over ${THRESHOLD}%."
