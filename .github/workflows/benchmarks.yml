@@ -9,32 +9,110 @@ on:
       pr:
         description: "Pull request#"
         required: false
+  issue_comment:
+    types: [created]
 
 env:
   CHC_BRANCH: "main"
   CH_VERSION: "25.3"
   JAVA_VERSION: 17
 
+# One run per PR (cancel any in-progress run when a newer /benchmark arrives
+# for the same PR). Scheduled runs are grouped by SHA so they don't fight
+# with PR runs.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.number || github.sha }}
+  group: ${{ github.workflow }}-${{ github.event.issue.number || github.event.inputs.pr || github.sha }}
   cancel-in-progress: true
 
 jobs:
+  # Gate: only run for `issue_comment` events when the comment is on a PR,
+  # starts with `/benchmark`, is not from a bot, and the commenter is a
+  # repo OWNER/MEMBER/COLLABORATOR. For schedule and workflow_dispatch this
+  # job is skipped and the benchmark job runs unconditionally.
+  trigger-check:
+    if: github.event_name == 'issue_comment'
+    name: "Check /benchmark trigger"
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      issues: write
+    outputs:
+      pr_number: ${{ steps.resolve.outputs.pr_number }}
+    steps:
+      - name: Validate comment
+        id: validate
+        if: |
+          github.event.issue.pull_request != null &&
+          github.event.sender.type != 'Bot' &&
+          startsWith(github.event.comment.body, '/benchmark') &&
+          contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+        run: echo "ok=true" >> $GITHUB_OUTPUT
+        # Note: we deliberately use `startsWith` (not `contains`) so the
+        # instruction comment posted by the PR-open bot, which mentions
+        # `/benchmark` mid-sentence, does not re-trigger this workflow.
+
+      - name: Reject unauthorized trigger
+        if: steps.validate.outputs.ok != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # If it looks like a /benchmark attempt by someone without
+          # permission, leave a -1 reaction so they get feedback.
+          if [[ "${{ github.event.issue.pull_request != null }}" == "true" ]] \
+             && [[ "${{ startsWith(github.event.comment.body, '/benchmark') }}" == "true" ]]; then
+            gh api -X POST \
+              "repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" \
+              -f content='-1' || true
+          fi
+          exit 1
+
+      - name: Acknowledge trigger
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api -X POST \
+            "repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" \
+            -f content='rocket' || true
+
+      - name: Resolve PR number
+        id: resolve
+        run: echo "pr_number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+
   jmh:
-    if: ${{ startsWith(github.repository, 'ClickHouse/') }}
+    needs: [trigger-check]
+    if: |
+      always() &&
+      startsWith(github.repository, 'ClickHouse/') &&
+      (needs.trigger-check.result == 'success' || needs.trigger-check.result == 'skipped')
     name: "Mininal JMH Benchmarks"
     runs-on: "ubuntu-latest"
     timeout-minutes: 30
     steps:
+      - name: Resolve PR number
+        id: pr
+        run: |
+          case "${{ github.event_name }}" in
+            issue_comment)     echo "number=${{ needs.trigger-check.outputs.pr_number }}" >> $GITHUB_OUTPUT ;;
+            workflow_dispatch) echo "number=${{ github.event.inputs.pr }}" >> $GITHUB_OUTPUT ;;
+            *)                 echo "number=" >> $GITHUB_OUTPUT ;;
+          esac
+      - name: Post "started" comment
+        if: github.event_name == 'issue_comment' && steps.pr.outputs.number != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api -X POST \
+            "repos/${{ github.repository }}/issues/${{ steps.pr.outputs.number }}/comments" \
+            -f body="JMH benchmark run started: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" || true
       - name: Check out Git repository
         uses: actions/checkout@v4
         with:
           ref: ${{ env.CHC_BRANCH }}
       - name: Check out PR
+        if: steps.pr.outputs.number != ''
         run: |
           git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
-            origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
-        if: github.event.inputs.pr != ''
+            origin pull/${{ steps.pr.outputs.number }}/merge:merged-pr && git checkout merged-pr
       - name: Install JDK and Maven
         uses: actions/setup-java@v4
         with:
