@@ -33,12 +33,27 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Gate: only run for `issue_comment` events when the comment is on a PR,
-  # starts with `/benchmark`, is not from a bot, and the commenter is a
-  # repo OWNER/MEMBER/COLLABORATOR. For schedule and workflow_dispatch this
-  # job is skipped and the benchmark job runs unconditionally.
+  # Gate for `issue_comment` events. The job is *skipped* (not failed) for
+  # anything that isn't a real `/benchmark` request — bot comments,
+  # comments on plain issues, and comments that don't start with the
+  # slash-command. This is what keeps unrelated activity (SonarQube
+  # quality-gate replies, etc.) from littering the Actions tab with red
+  # failed runs.
+  #
+  # Only an actual `/benchmark` attempt by someone without write access
+  # makes the job run and fail loudly (with a -1 reaction on the
+  # comment) — that's intentional feedback for an unauthorized trigger.
+  #
+  # For `schedule` and `workflow_dispatch` events the job-level `if` is
+  # false → trigger-check is skipped → the `jmh` job's `if` allows it
+  # to run.
   trigger-check:
-    if: github.event_name == 'issue_comment'
+    if: |
+      github.event_name == 'issue_comment' &&
+      github.event.issue.pull_request != null &&
+      github.event.sender.type != 'Bot' &&
+      github.event.comment.user.type != 'Bot' &&
+      startsWith(github.event.comment.body, '/benchmark')
     name: "Check /benchmark trigger"
     runs-on: ubuntu-latest
     permissions:
@@ -48,31 +63,20 @@ jobs:
       pr_number: ${{ steps.resolve.outputs.pr_number }}
       threshold: ${{ steps.resolve.outputs.threshold }}
     steps:
-      - name: Validate comment
-        id: validate
-        if: |
-          github.event.issue.pull_request != null &&
-          github.event.sender.type != 'Bot' &&
-          startsWith(github.event.comment.body, '/benchmark') &&
-          contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
-        run: echo "ok=true" >> $GITHUB_OUTPUT
-        # Note: we deliberately use `startsWith` (not `contains`) so the
-        # instruction comment posted by the PR-open bot, which mentions
-        # `/benchmark` mid-sentence, does not re-trigger this workflow.
+      - name: Check commenter is a collaborator
+        id: auth
+        if: contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+        run: echo "ok=true" >> "$GITHUB_OUTPUT"
 
       - name: Reject unauthorized trigger
-        if: steps.validate.outputs.ok != 'true'
+        if: steps.auth.outputs.ok != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # If it looks like a /benchmark attempt by someone without
-          # permission, leave a -1 reaction so they get feedback.
-          if [[ "${{ github.event.issue.pull_request != null }}" == "true" ]] \
-             && [[ "${{ startsWith(github.event.comment.body, '/benchmark') }}" == "true" ]]; then
-            gh api -X POST \
-              "repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" \
-              -f content='-1' || true
-          fi
+          gh api -X POST \
+            "repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" \
+            -f content='-1' || true
+          echo "::error::User ${{ github.event.comment.user.login }} (author_association=${{ github.event.comment.author_association }}) is not allowed to run /benchmark."
           exit 1
 
       - name: Acknowledge trigger
@@ -98,10 +102,19 @@ jobs:
 
   jmh:
     needs: [trigger-check]
+    # For `issue_comment` we require trigger-check to have *succeeded*
+    # (a real `/benchmark` from a collaborator). For every other event
+    # (`schedule`, `workflow_dispatch`) the trigger-check job is
+    # filtered out by its job-level `if`, so we require `skipped`.
+    # Without this split, bot comments that skip trigger-check would
+    # erroneously satisfy the `success || skipped` fan-in.
     if: |
       always() &&
       startsWith(github.repository, 'ClickHouse/') &&
-      (needs.trigger-check.result == 'success' || needs.trigger-check.result == 'skipped')
+      (
+        (github.event_name == 'issue_comment' && needs.trigger-check.result == 'success') ||
+        (github.event_name != 'issue_comment' && needs.trigger-check.result == 'skipped')
+      )
     name: "Mininal JMH Benchmarks"
     runs-on: "ubuntu-latest"
     timeout-minutes: 30
