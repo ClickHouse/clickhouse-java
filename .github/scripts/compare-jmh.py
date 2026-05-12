@@ -11,9 +11,11 @@ metrics:
   mean sampled latency per op; it's our best available proxy for CPU
   work since no dedicated CPU profiler is configured in
   `BenchmarkRunner`.
-* `Alloc/op` — `secondaryMetrics["·gc.alloc.rate.norm"]`, populated by
+* `Alloc/op` — `secondaryMetrics["gc.alloc.rate.norm"]`, populated by
   JMH's `GCProfiler`. This is bytes allocated per benchmark op and is
-  the standard, low-noise JMH memory metric.
+  the standard, low-noise JMH memory metric. (Note: JMH 1.37 stores the
+  key with no prefix; some visualizer tools display it as
+  `·gc.alloc.rate.norm` but the raw JSON does not contain that dot.)
 
 Both metrics are "lower is better", so a positive delta indicates the
 PR is worse than the baseline. A run is considered failed when **any**
@@ -42,9 +44,25 @@ Key = Tuple[str, str]
 # ---------------------------------------------------------------------------
 
 # JMH's `GCProfiler` reports allocation rate normalised per op under this
-# secondary metric key (the leading char is U+00B7 MIDDLE DOT, not a regular
-# dot — that's JMH's convention for profiler-emitted metrics).
-ALLOC_NORM_KEY = "\u00b7gc.alloc.rate.norm"
+# secondary metric key. Verified against jmh-core 1.37 sources: the key
+# is the literal `gc.alloc.rate.norm` with no prefix. Some visualizers
+# render it as `·gc.alloc.rate.norm`, which is a display convention, not
+# what JMH writes to JSON.
+ALLOC_NORM_KEY = "gc.alloc.rate.norm"
+
+# Tolerated prefix-bearing variants we'll fall back to if the canonical
+# key ever moves. Lets a future JMH (or a non-Oracle JVM profiler that
+# decorates the label) keep working without us being aware.
+ALLOC_NORM_VARIANTS = (
+    ALLOC_NORM_KEY,
+    "\u00b7gc.alloc.rate.norm",  # pre-emptive middle-dot variant
+    "+gc.alloc.rate.norm",
+)
+
+# Set to True the first time we fail to find any allocation data; used
+# to emit a one-time diagnostic listing the secondary keys present so
+# the cause is obvious in workflow logs.
+_alloc_warn_printed = False
 
 
 @dataclass(frozen=True)
@@ -70,13 +88,35 @@ def _secondary(record: Dict[str, Any], key: str) -> Optional[Dict[str, Any]]:
     return val if isinstance(val, dict) else None
 
 
+def _alloc(record: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Pull the GC allocation-per-op metric, tolerating prefix variants.
+
+    Falls back to a suffix match so even an unrecognised prefix (e.g. a
+    third-party JMH profiler that decorates the label) still works."""
+    global _alloc_warn_printed
+    sm = record.get("secondaryMetrics") or {}
+    for k in ALLOC_NORM_VARIANTS:
+        v = sm.get(k)
+        if isinstance(v, dict):
+            return v
+    # Last-resort suffix match.
+    for k, v in sm.items():
+        if isinstance(v, dict) and k.lower().endswith("gc.alloc.rate.norm"):
+            return v
+    if sm and not _alloc_warn_printed:
+        print(
+            "warn: no `gc.alloc.rate.norm` (or prefix-variant) found in "
+            "secondaryMetrics. Available keys: "
+            + ", ".join(sorted(sm.keys())),
+            file=sys.stderr,
+        )
+        _alloc_warn_printed = True
+    return None
+
+
 METRICS: List[Metric] = [
     Metric(id="time", label="Time", extract=_primary),
-    Metric(
-        id="alloc",
-        label="Alloc/op",
-        extract=lambda r: _secondary(r, ALLOC_NORM_KEY),
-    ),
+    Metric(id="alloc", label="Alloc/op", extract=_alloc),
 ]
 
 
@@ -391,7 +431,7 @@ def build_markdown(
             bench, params = k
             rec = current[k]
             time_d = _primary(rec) or {}
-            alloc_d = _secondary(rec, ALLOC_NORM_KEY) or {}
+            alloc_d = _alloc(rec) or {}
             out.append(
                 f"- `{short_bench(bench)}` ({params or '—'}): "
                 f"time={fmt_score(_float(time_d, 'score'), _float(time_d, 'scoreError'), time_d.get('scoreUnit', ''))}, "
