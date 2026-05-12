@@ -11,9 +11,11 @@ metrics:
   mean sampled latency per op; it's our best available proxy for CPU
   work since no dedicated CPU profiler is configured in
   `BenchmarkRunner`.
-* `Alloc/op` — `secondaryMetrics["·gc.alloc.rate.norm"]`, populated by
+* `Alloc/op` — `secondaryMetrics["gc.alloc.rate.norm"]`, populated by
   JMH's `GCProfiler`. This is bytes allocated per benchmark op and is
-  the standard, low-noise JMH memory metric.
+  the standard, low-noise JMH memory metric. (Note: JMH 1.37 stores the
+  key with no prefix; some visualizer tools display it as
+  `·gc.alloc.rate.norm` but the raw JSON does not contain that dot.)
 
 Both metrics are "lower is better", so a positive delta indicates the
 PR is worse than the baseline. A run is considered failed when **any**
@@ -30,6 +32,7 @@ import glob
 import json
 import os
 import sys
+from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -41,9 +44,25 @@ Key = Tuple[str, str]
 # ---------------------------------------------------------------------------
 
 # JMH's `GCProfiler` reports allocation rate normalised per op under this
-# secondary metric key (the leading char is U+00B7 MIDDLE DOT, not a regular
-# dot — that's JMH's convention for profiler-emitted metrics).
-ALLOC_NORM_KEY = "\u00b7gc.alloc.rate.norm"
+# secondary metric key. Verified against jmh-core 1.37 sources: the key
+# is the literal `gc.alloc.rate.norm` with no prefix. Some visualizers
+# render it as `·gc.alloc.rate.norm`, which is a display convention, not
+# what JMH writes to JSON.
+ALLOC_NORM_KEY = "gc.alloc.rate.norm"
+
+# Tolerated prefix-bearing variants we'll fall back to if the canonical
+# key ever moves. Lets a future JMH (or a non-Oracle JVM profiler that
+# decorates the label) keep working without us being aware.
+ALLOC_NORM_VARIANTS = (
+    ALLOC_NORM_KEY,
+    "\u00b7gc.alloc.rate.norm",  # pre-emptive middle-dot variant
+    "+gc.alloc.rate.norm",
+)
+
+# Set to True the first time we fail to find any allocation data; used
+# to emit a one-time diagnostic listing the secondary keys present so
+# the cause is obvious in workflow logs.
+_alloc_warn_printed = False
 
 
 @dataclass(frozen=True)
@@ -69,13 +88,35 @@ def _secondary(record: Dict[str, Any], key: str) -> Optional[Dict[str, Any]]:
     return val if isinstance(val, dict) else None
 
 
+def _alloc(record: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Pull the GC allocation-per-op metric, tolerating prefix variants.
+
+    Falls back to a suffix match so even an unrecognised prefix (e.g. a
+    third-party JMH profiler that decorates the label) still works."""
+    global _alloc_warn_printed
+    sm = record.get("secondaryMetrics") or {}
+    for k in ALLOC_NORM_VARIANTS:
+        v = sm.get(k)
+        if isinstance(v, dict):
+            return v
+    # Last-resort suffix match.
+    for k, v in sm.items():
+        if isinstance(v, dict) and k.lower().endswith("gc.alloc.rate.norm"):
+            return v
+    if sm and not _alloc_warn_printed:
+        print(
+            "warn: no `gc.alloc.rate.norm` (or prefix-variant) found in "
+            "secondaryMetrics. Available keys: "
+            + ", ".join(sorted(sm.keys())),
+            file=sys.stderr,
+        )
+        _alloc_warn_printed = True
+    return None
+
+
 METRICS: List[Metric] = [
     Metric(id="time", label="Time", extract=_primary),
-    Metric(
-        id="alloc",
-        label="Alloc/op",
-        extract=lambda r: _secondary(r, ALLOC_NORM_KEY),
-    ),
+    Metric(id="alloc", label="Alloc/op", extract=_alloc),
 ]
 
 
@@ -247,6 +288,35 @@ def build_rows(
 # ---------------------------------------------------------------------------
 
 
+def compute_discriminators(
+    rows: List[Row], current: Dict[Key, Dict[str, Any]]
+) -> Dict[Key, str]:
+    """For each row, return a short string of only the params that differ
+    between rows sharing the same fully-qualified benchmark name.
+
+    When a benchmark is run with only one combination of params, its
+    discriminator is the empty string (no need to disambiguate).
+    """
+    by_bench: Dict[str, List[Row]] = defaultdict(list)
+    for r in rows:
+        bench, _ = r.key
+        by_bench[bench].append(r)
+
+    out: Dict[Key, str] = {}
+    for bench, group in by_bench.items():
+        if len(group) <= 1:
+            out[group[0].key] = ""
+            continue
+        params_dicts = [(current.get(r.key) or {}).get("params") or {} for r in group]
+        all_keys = sorted({k for p in params_dicts for k in p.keys()})
+        varying = [
+            k for k in all_keys if len({p.get(k) for p in params_dicts}) > 1
+        ]
+        for r, p in zip(group, params_dicts):
+            out[r.key] = ", ".join(f"{k}={p[k]}" for k in varying if k in p)
+    return out
+
+
 def build_markdown(
     rows: List[Row],
     only_current: List[Key],
@@ -266,14 +336,19 @@ def build_markdown(
         if not any(d.regression(threshold) for d in r.deltas)
         and any(d.improvement(threshold) for d in r.deltas)
     )
+    discriminators = compute_discriminators(rows, current)
 
     out: List[str] = ["<!-- jmh-benchmark-comparison -->"]
     if regressions:
-        out.append(f"## ❌ JMH benchmark comparison — {regressions} regression(s) over {threshold:g}%")
+        out.append(
+            f"## ❌ JMH benchmark comparison — {regressions} regression(s) over {threshold:g}%"
+        )
     elif improvements:
-        out.append(f"## ✅ JMH benchmark comparison — {improvements} improvement(s) over {threshold:g}%")
+        out.append(
+            f"## ✅ JMH benchmark comparison — no regressions, {improvements} improvement(s) over {threshold:g}%"
+        )
     else:
-        out.append(f"## JMH benchmark comparison — no changes over {threshold:g}%")
+        out.append(f"## ✅ JMH benchmark comparison — no changes over {threshold:g}%")
     out.append("")
 
     if repo and baseline_run_id and current_run_id:
@@ -285,15 +360,56 @@ def build_markdown(
         )
         out.append("")
 
-    out.append(
-        f"Threshold: **±{threshold:g}%**. "
-        f"Metrics: **Time** (`primaryMetric.score`, `SampleTime` — proxy for CPU work) and "
-        f"**Alloc/op** (`{ALLOC_NORM_KEY}`, GC allocations per op — memory pressure). "
-        "Both are lower-is-better, so a positive Δ% means the PR is worse than baseline."
-    )
-    out.append("")
-
+    # ---- brief per-benchmark summary --------------------------------------
     if rows:
+        # Stable order: regressions first, then improvements, then noise.
+        # Within each bucket, biggest |Δ| first.
+        def bucket(r: Row) -> int:
+            if any(d.regression(threshold) for d in r.deltas):
+                return 0
+            if any(d.improvement(threshold) for d in r.deltas):
+                return 1
+            return 2
+
+        rows = sorted(rows, key=lambda r: (bucket(r), -r.sort_key()))
+
+        for r in rows:
+            bench, _ = r.key
+            disc = discriminators.get(r.key, "")
+            b = bucket(r)
+            icon = "❌" if b == 0 else "✅"
+
+            # In the brief view, only mention metrics that actually crossed
+            # the threshold — keeps noisy rows to a single line.
+            bits: List[str] = []
+            for d in r.deltas:
+                if d.delta_pct is None:
+                    continue
+                if d.regression(threshold):
+                    bits.append(f"**{d.metric.label} {fmt_delta(d.delta_pct)}**")
+                elif d.improvement(threshold):
+                    bits.append(f"{d.metric.label} {fmt_delta(d.delta_pct)}")
+
+            line = f"- {icon} `{short_bench(bench)}`"
+            if disc:
+                line += f" `[{disc}]`"
+            if bits:
+                line += " — " + ", ".join(bits)
+            out.append(line)
+        out.append("")
+    else:
+        out.append("_No benchmarks matched between baseline and PR._")
+        out.append("")
+
+    # ---- detailed table (collapsed) ---------------------------------------
+    if rows:
+        out.append(
+            f"<details><summary>Detailed metrics "
+            f"(threshold ±{threshold:g}%, Time = <code>primaryMetric.score</code> from <code>SampleTime</code>, "
+            f"Alloc/op = <code>{ALLOC_NORM_KEY}</code>; positive Δ% = worse than baseline)"
+            "</summary>"
+        )
+        out.append("")
         header = "| Benchmark | Params | " + " | ".join(m.label for m in METRICS) + " | Status |"
         sep = "|---|---|" + "|".join(["---"] * len(METRICS)) + "|---|"
         out.append(header)
@@ -305,8 +421,7 @@ def build_markdown(
                 f"| `{short_bench(bench)}` | {params or '—'} | {cells} | {r.status(threshold)} |"
             )
         out.append("")
-    else:
-        out.append("_No benchmarks matched between baseline and PR._")
+        out.append("</details>")
         out.append("")
 
     if only_current:
@@ -316,7 +431,7 @@ def build_markdown(
             bench, params = k
             rec = current[k]
             time_d = _primary(rec) or {}
-            alloc_d = _secondary(rec, ALLOC_NORM_KEY) or {}
+            alloc_d = _alloc(rec) or {}
             out.append(
                 f"- `{short_bench(bench)}` ({params or '—'}): "
                 f"time={fmt_score(_float(time_d, 'score'), _float(time_d, 'scoreError'), time_d.get('scoreUnit', ''))}, "
