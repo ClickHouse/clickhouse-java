@@ -317,6 +317,70 @@ def compute_discriminators(
     return out
 
 
+# Visual markers used in rendered output. "Performance went up" =
+# improvement (less time / less memory per op).
+ARROW_REGRESS = "\u2b07\ufe0f"  # ⬇️
+ARROW_IMPROVE = "\u2b06\ufe0f"  # ⬆️
+ARROW_NOISE = "\u2796"          # ➖
+
+DOT_REGRESS = "\U0001f534"      # 🔴
+DOT_IMPROVE = "\U0001f7e2"      # 🟢
+
+
+def _row_arrow(r: Row, threshold: float) -> str:
+    if any(d.regression(threshold) for d in r.deltas):
+        return ARROW_REGRESS
+    if any(d.improvement(threshold) for d in r.deltas):
+        return ARROW_IMPROVE
+    return ARROW_NOISE
+
+
+def _short_delta(d: MetricDelta, threshold: float) -> str:
+    """One-line metric delta for the brief bullet list.
+
+    Returns "" for noise (caller drops it). Regressions are 🔴-marked and
+    bold so they stand out on a packed PR comment; improvements are
+    🟢-marked but unbolded.
+    """
+    if d.delta_pct is None:
+        return ""
+    label = d.metric.label
+    delta = fmt_delta(d.delta_pct)
+    if d.regression(threshold):
+        return f"{DOT_REGRESS} **{label} {delta}**"
+    if d.improvement(threshold):
+        return f"{DOT_IMPROVE} {label} {delta}"
+    return ""
+
+
+def _stats_cell(r: Row, threshold: float) -> str:
+    """Render the joined Stats cell for one row in the detail table.
+
+    Each metric occupies a `<br>`-separated line. Regressions are
+    bolded and 🔴-tagged; improvements are 🟢-tagged. Metrics with no
+    baseline/current data are rendered grey ("—") so the cell still
+    shows which dimension is missing.
+    """
+    lines: List[str] = []
+    for d in r.deltas:
+        label = d.metric.label
+        if d.delta_pct is None:
+            base = fmt_score(d.baseline, d.baseline_err, d.unit)
+            curr = fmt_score(d.current, d.current_err, d.unit)
+            lines.append(f"{label} {base} → {curr} (—)")
+            continue
+        base = fmt_score(d.baseline, d.baseline_err, d.unit)
+        curr = fmt_score(d.current, d.current_err, d.unit)
+        delta = fmt_delta(d.delta_pct)
+        if d.regression(threshold):
+            lines.append(f"{DOT_REGRESS} **{label}** {base} → {curr} (**{delta}**)")
+        elif d.improvement(threshold):
+            lines.append(f"{DOT_IMPROVE} **{label}** {base} → {curr} ({delta})")
+        else:
+            lines.append(f"{label} {base} → {curr} ({delta})")
+    return "<br>".join(lines)
+
+
 def build_markdown(
     rows: List[Row],
     only_current: List[Key],
@@ -341,14 +405,14 @@ def build_markdown(
     out: List[str] = ["<!-- jmh-benchmark-comparison -->"]
     if regressions:
         out.append(
-            f"## ❌ JMH benchmark comparison — {regressions} regression(s) over {threshold:g}%"
+            f"## {DOT_REGRESS} JMH benchmark comparison — {regressions} regression(s) over {threshold:g}%"
         )
     elif improvements:
         out.append(
-            f"## ✅ JMH benchmark comparison — no regressions, {improvements} improvement(s) over {threshold:g}%"
+            f"## {DOT_IMPROVE} JMH benchmark comparison — no regressions, {improvements} improvement(s) over {threshold:g}%"
         )
     else:
-        out.append(f"## ✅ JMH benchmark comparison — no changes over {threshold:g}%")
+        out.append(f"## {DOT_IMPROVE} JMH benchmark comparison — no changes over {threshold:g}%")
     out.append("")
 
     if repo and baseline_run_id and current_run_id:
@@ -376,21 +440,13 @@ def build_markdown(
         for r in rows:
             bench, _ = r.key
             disc = discriminators.get(r.key, "")
-            b = bucket(r)
-            icon = "❌" if b == 0 else "✅"
+            arrow = _row_arrow(r, threshold)
 
-            # In the brief view, only mention metrics that actually crossed
-            # the threshold — keeps noisy rows to a single line.
-            bits: List[str] = []
-            for d in r.deltas:
-                if d.delta_pct is None:
-                    continue
-                if d.regression(threshold):
-                    bits.append(f"**{d.metric.label} {fmt_delta(d.delta_pct)}**")
-                elif d.improvement(threshold):
-                    bits.append(f"{d.metric.label} {fmt_delta(d.delta_pct)}")
+            # Only mention metrics that actually crossed the threshold
+            # in the brief view — keeps noisy rows to a single line.
+            bits = [s for s in (_short_delta(d, threshold) for d in r.deltas) if s]
 
-            line = f"- {icon} `{short_bench(bench)}`"
+            line = f"- {arrow} `{short_bench(bench)}`"
             if disc:
                 line += f" `[{disc}]`"
             if bits:
@@ -410,16 +466,14 @@ def build_markdown(
             "</summary>"
         )
         out.append("")
-        header = "| Benchmark | Params | " + " | ".join(m.label for m in METRICS) + " | Status |"
-        sep = "|---|---|" + "|".join(["---"] * len(METRICS)) + "|---|"
-        out.append(header)
-        out.append(sep)
+        out.append("| Benchmark | Stats |")
+        out.append("|---|---|")
         for r in rows:
             bench, params = r.key
-            cells = " | ".join(d.cell() for d in r.deltas)
-            out.append(
-                f"| `{short_bench(bench)}` | {params or '—'} | {cells} | {r.status(threshold)} |"
-            )
+            bench_cell = f"`{short_bench(bench)}`"
+            if params:
+                bench_cell += f"<br><sub>{params}</sub>"
+            out.append(f"| {bench_cell} | {_stats_cell(r, threshold)} |")
         out.append("")
         out.append("</details>")
         out.append("")
