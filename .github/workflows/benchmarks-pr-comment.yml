@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   comment:
-    if: startsWith(github.repository, 'ClickHouse/')
+    if: startsWith(github.repository, 'ClickHouse/clickhouse-java')
     runs-on: ubuntu-latest
     steps:
       - name: Post benchmark instructions

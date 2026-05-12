@@ -25,61 +25,55 @@ env:
   # `/benchmark threshold=N` comment.
   DEFAULT_THRESHOLD_PCT: "10"
 
-# One run per PR (cancel any in-progress run when a newer /benchmark arrives
-# for the same PR). Scheduled runs are grouped by SHA so they don't fight
-# with PR runs.
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.issue.number || github.event.inputs.pr || github.sha }}
-  cancel-in-progress: true
+# NOTE: there is intentionally no workflow-level `concurrency:` block.
+# `issue_comment` events fire for *every* comment on every PR / issue,
+# including those from bots (e.g. sonarqubecloud). A workflow-level
+# `cancel-in-progress` group keyed on the PR number would cancel an
+# in-flight legitimate `/benchmark` run as soon as any unrelated bot
+# commented on the same PR. The per-PR concurrency rule is enforced on
+# the `jmh` job instead, so unrelated comment events leave the job
+# skipped without claiming the concurrency slot.
 
 jobs:
-  # Gate for `issue_comment` events. The job is *skipped* (not failed) for
-  # anything that isn't a real `/benchmark` request — bot comments,
-  # comments on plain issues, and comments that don't start with the
-  # slash-command. This is what keeps unrelated activity (SonarQube
-  # quality-gate replies, etc.) from littering the Actions tab with red
-  # failed runs.
-  #
-  # Only an actual `/benchmark` attempt by someone without write access
-  # makes the job run and fail loudly (with a -1 reaction on the
-  # comment) — that's intentional feedback for an unauthorized trigger.
-  #
-  # For `schedule` and `workflow_dispatch` events the job-level `if` is
-  # false → trigger-check is skipped → the `jmh` job's `if` allows it
-  # to run.
-  trigger-check:
-    if: |
-      github.event_name == 'issue_comment' &&
-      github.event.issue.pull_request != null &&
-      github.event.sender.type != 'Bot' &&
-      github.event.comment.user.type != 'Bot' &&
-      startsWith(github.event.comment.body, '/benchmark')
-    name: "Check /benchmark trigger"
-    runs-on: ubuntu-latest
+  jmh:
+    name: "Mininal JMH Benchmarks"
+    runs-on: "ubuntu-latest"
+    timeout-minutes: 30
     permissions:
+      contents: read
       pull-requests: write
       issues: write
-    outputs:
-      pr_number: ${{ steps.resolve.outputs.pr_number }}
-      threshold: ${{ steps.resolve.outputs.threshold }}
+      actions: read
+    # Single fan-in filter, modelled on `.github/workflows/claude.yml`:
+    # the job runs for the daily schedule, manual `workflow_dispatch`,
+    # or a `/benchmark` slash-command from a non-bot repo collaborator
+    # on a pull request. Bot comments and chat comments leave the job
+    # skipped — no failed run, no notification, no concurrency
+    # collision.
+    if: |
+      startsWith(github.repository, 'ClickHouse/') &&
+      (
+        github.event_name == 'schedule' ||
+        github.event_name == 'workflow_dispatch' ||
+        (
+          github.event_name == 'issue_comment' &&
+          github.event.issue.pull_request != null &&
+          github.event.sender.type != 'Bot' &&
+          github.event.comment.user.type != 'Bot' &&
+          startsWith(github.event.comment.body, '/benchmark') &&
+          contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+        )
+      )
+    # One running benchmark per PR (and per-SHA for the daily
+    # schedule). Concurrency lives on this job, not on the workflow,
+    # so unrelated comment events (which the job-level `if` filters
+    # out) never claim the slot or cancel an in-flight run.
+    concurrency:
+      group: ${{ github.workflow }}-jmh-${{ github.event.issue.number || github.event.inputs.pr || github.sha }}
+      cancel-in-progress: true
     steps:
-      - name: Check commenter is a collaborator
-        id: auth
-        if: contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
-        run: echo "ok=true" >> "$GITHUB_OUTPUT"
-
-      - name: Reject unauthorized trigger
-        if: steps.auth.outputs.ok != 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh api -X POST \
-            "repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" \
-            -f content='-1' || true
-          echo "::error::User ${{ github.event.comment.user.login }} (author_association=${{ github.event.comment.author_association }}) is not allowed to run /benchmark."
-          exit 1
-
-      - name: Acknowledge trigger
+      - name: Acknowledge /benchmark trigger
+        if: github.event_name == 'issue_comment'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -88,55 +82,23 @@ jobs:
             -f content='rocket' || true
 
       - name: Resolve PR number and threshold
-        id: resolve
-        env:
-          COMMENT_BODY: ${{ github.event.comment.body }}
-          DEFAULT_THRESHOLD: ${{ env.DEFAULT_THRESHOLD_PCT }}
-        run: |
-          # Accept `/benchmark threshold=15` or `/benchmark threshold=7.5`.
-          # Anything else falls back to the workflow default.
-          T=$(printf '%s' "$COMMENT_BODY" | grep -oE 'threshold=[0-9]+(\.[0-9]+)?' | head -1 | cut -d= -f2 || true)
-          [ -z "$T" ] && T="$DEFAULT_THRESHOLD"
-          echo "pr_number=${{ github.event.issue.number }}" >> "$GITHUB_OUTPUT"
-          echo "threshold=$T" >> "$GITHUB_OUTPUT"
-
-  jmh:
-    needs: [trigger-check]
-    # For `issue_comment` we require trigger-check to have *succeeded*
-    # (a real `/benchmark` from a collaborator). For every other event
-    # (`schedule`, `workflow_dispatch`) the trigger-check job is
-    # filtered out by its job-level `if`, so we require `skipped`.
-    # Without this split, bot comments that skip trigger-check would
-    # erroneously satisfy the `success || skipped` fan-in.
-    if: |
-      always() &&
-      startsWith(github.repository, 'ClickHouse/') &&
-      (
-        (github.event_name == 'issue_comment' && needs.trigger-check.result == 'success') ||
-        (github.event_name != 'issue_comment' && needs.trigger-check.result == 'skipped')
-      )
-    name: "Mininal JMH Benchmarks"
-    runs-on: "ubuntu-latest"
-    timeout-minutes: 30
-    permissions:
-      contents: read
-      pull-requests: write
-      actions: read
-    steps:
-      - name: Resolve PR number and threshold
         id: pr
         env:
-          COMMENT_THRESHOLD: ${{ needs.trigger-check.outputs.threshold }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          DISPATCH_PR: ${{ github.event.inputs.pr }}
           DISPATCH_THRESHOLD: ${{ github.event.inputs.threshold }}
           DEFAULT_THRESHOLD: ${{ env.DEFAULT_THRESHOLD_PCT }}
         run: |
           case "${{ github.event_name }}" in
             issue_comment)
-              echo "number=${{ needs.trigger-check.outputs.pr_number }}" >> "$GITHUB_OUTPUT"
-              echo "threshold=${COMMENT_THRESHOLD:-$DEFAULT_THRESHOLD}" >> "$GITHUB_OUTPUT"
+              # Accept `/benchmark threshold=15` or `/benchmark threshold=7.5`.
+              T=$(printf '%s' "$COMMENT_BODY" | grep -oE 'threshold=[0-9]+(\.[0-9]+)?' | head -1 | cut -d= -f2 || true)
+              [ -z "$T" ] && T="$DEFAULT_THRESHOLD"
+              echo "number=${{ github.event.issue.number }}" >> "$GITHUB_OUTPUT"
+              echo "threshold=$T" >> "$GITHUB_OUTPUT"
               ;;
             workflow_dispatch)
-              echo "number=${{ github.event.inputs.pr }}" >> "$GITHUB_OUTPUT"
+              echo "number=$DISPATCH_PR" >> "$GITHUB_OUTPUT"
               echo "threshold=${DISPATCH_THRESHOLD:-$DEFAULT_THRESHOLD}" >> "$GITHUB_OUTPUT"
               ;;
             *)
@@ -144,6 +106,7 @@ jobs:
               echo "threshold=$DEFAULT_THRESHOLD" >> "$GITHUB_OUTPUT"
               ;;
           esac
+
       - name: Post "started" comment
         if: github.event_name == 'issue_comment' && steps.pr.outputs.number != ''
         env:
@@ -152,33 +115,40 @@ jobs:
           gh api -X POST \
             "repos/${{ github.repository }}/issues/${{ steps.pr.outputs.number }}/comments" \
             -f body="JMH benchmark run started: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" || true
+
       - name: Check out Git repository
         uses: actions/checkout@v4
         with:
           ref: ${{ env.CHC_BRANCH }}
+
       - name: Check out PR
         if: steps.pr.outputs.number != ''
         run: |
           git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
             origin pull/${{ steps.pr.outputs.number }}/merge:merged-pr && git checkout merged-pr
+
       - name: Install JDK and Maven
         uses: actions/setup-java@v4
         with:
           distribution: "temurin"
           java-version: ${{ env.JAVA_VERSION }}
           cache: "maven"
+
       - name: Build
         run: mvn --batch-mode --no-transfer-progress -Dj8 -DskipTests=true clean install
+
       - name: Prepare Dataset
         run: |
           cd ./performance &&
           mvn --batch-mode --no-transfer-progress clean compile exec:exec -Dexec.executable=java \
           -Dexec.args="-classpath %classpath com.clickhouse.benchmark.data.DataSetGenerator -input sample_dataset.sql -name default -rows 100000"
+
       - name: Run Benchmarks 
         run: |
           cd ./performance &&
           mvn --batch-mode --no-transfer-progress clean compile exec:exec -Dexec.executable=java -Dexec.args="-classpath %classpath com.clickhouse.benchmark.BenchmarkRunner \
           -l 100000,10000 -m 3 -t 15 -b q,i -d file://default.csv"
+
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: success()
