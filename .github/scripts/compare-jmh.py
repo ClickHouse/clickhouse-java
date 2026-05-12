@@ -30,6 +30,7 @@ import glob
 import json
 import os
 import sys
+from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -247,6 +248,35 @@ def build_rows(
 # ---------------------------------------------------------------------------
 
 
+def compute_discriminators(
+    rows: List[Row], current: Dict[Key, Dict[str, Any]]
+) -> Dict[Key, str]:
+    """For each row, return a short string of only the params that differ
+    between rows sharing the same fully-qualified benchmark name.
+
+    When a benchmark is run with only one combination of params, its
+    discriminator is the empty string (no need to disambiguate).
+    """
+    by_bench: Dict[str, List[Row]] = defaultdict(list)
+    for r in rows:
+        bench, _ = r.key
+        by_bench[bench].append(r)
+
+    out: Dict[Key, str] = {}
+    for bench, group in by_bench.items():
+        if len(group) <= 1:
+            out[group[0].key] = ""
+            continue
+        params_dicts = [(current.get(r.key) or {}).get("params") or {} for r in group]
+        all_keys = sorted({k for p in params_dicts for k in p.keys()})
+        varying = [
+            k for k in all_keys if len({p.get(k) for p in params_dicts}) > 1
+        ]
+        for r, p in zip(group, params_dicts):
+            out[r.key] = ", ".join(f"{k}={p[k]}" for k in varying if k in p)
+    return out
+
+
 def build_markdown(
     rows: List[Row],
     only_current: List[Key],
@@ -266,14 +296,19 @@ def build_markdown(
         if not any(d.regression(threshold) for d in r.deltas)
         and any(d.improvement(threshold) for d in r.deltas)
     )
+    discriminators = compute_discriminators(rows, current)
 
     out: List[str] = ["<!-- jmh-benchmark-comparison -->"]
     if regressions:
-        out.append(f"## ❌ JMH benchmark comparison — {regressions} regression(s) over {threshold:g}%")
+        out.append(
+            f"## ❌ JMH benchmark comparison — {regressions} regression(s) over {threshold:g}%"
+        )
     elif improvements:
-        out.append(f"## ✅ JMH benchmark comparison — {improvements} improvement(s) over {threshold:g}%")
+        out.append(
+            f"## ✅ JMH benchmark comparison — no regressions, {improvements} improvement(s) over {threshold:g}%"
+        )
     else:
-        out.append(f"## JMH benchmark comparison — no changes over {threshold:g}%")
+        out.append(f"## ✅ JMH benchmark comparison — no changes over {threshold:g}%")
     out.append("")
 
     if repo and baseline_run_id and current_run_id:
@@ -285,15 +320,56 @@ def build_markdown(
         )
         out.append("")
 
-    out.append(
-        f"Threshold: **±{threshold:g}%**. "
-        f"Metrics: **Time** (`primaryMetric.score`, `SampleTime` — proxy for CPU work) and "
-        f"**Alloc/op** (`{ALLOC_NORM_KEY}`, GC allocations per op — memory pressure). "
-        "Both are lower-is-better, so a positive Δ% means the PR is worse than baseline."
-    )
-    out.append("")
-
+    # ---- brief per-benchmark summary --------------------------------------
     if rows:
+        # Stable order: regressions first, then improvements, then noise.
+        # Within each bucket, biggest |Δ| first.
+        def bucket(r: Row) -> int:
+            if any(d.regression(threshold) for d in r.deltas):
+                return 0
+            if any(d.improvement(threshold) for d in r.deltas):
+                return 1
+            return 2
+
+        rows = sorted(rows, key=lambda r: (bucket(r), -r.sort_key()))
+
+        for r in rows:
+            bench, _ = r.key
+            disc = discriminators.get(r.key, "")
+            b = bucket(r)
+            icon = "❌" if b == 0 else "✅"
+
+            # In the brief view, only mention metrics that actually crossed
+            # the threshold — keeps noisy rows to a single line.
+            bits: List[str] = []
+            for d in r.deltas:
+                if d.delta_pct is None:
+                    continue
+                if d.regression(threshold):
+                    bits.append(f"**{d.metric.label} {fmt_delta(d.delta_pct)}**")
+                elif d.improvement(threshold):
+                    bits.append(f"{d.metric.label} {fmt_delta(d.delta_pct)}")
+
+            line = f"- {icon} `{short_bench(bench)}`"
+            if disc:
+                line += f" `[{disc}]`"
+            if bits:
+                line += " — " + ", ".join(bits)
+            out.append(line)
+        out.append("")
+    else:
+        out.append("_No benchmarks matched between baseline and PR._")
+        out.append("")
+
+    # ---- detailed table (collapsed) ---------------------------------------
+    if rows:
+        out.append(
+            f"<details><summary>Detailed metrics "
+            f"(threshold ±{threshold:g}%, Time = <code>primaryMetric.score</code> from <code>SampleTime</code>, "
+            f"Alloc/op = <code>{ALLOC_NORM_KEY}</code>; positive Δ% = worse than baseline)"
+            "</summary>"
+        )
+        out.append("")
         header = "| Benchmark | Params | " + " | ".join(m.label for m in METRICS) + " | Status |"
         sep = "|---|---|" + "|".join(["---"] * len(METRICS)) + "|---|"
         out.append(header)
@@ -305,8 +381,7 @@ def build_markdown(
                 f"| `{short_bench(bench)}` | {params or '—'} | {cells} | {r.status(threshold)} |"
             )
         out.append("")
-    else:
-        out.append("_No benchmarks matched between baseline and PR._")
+        out.append("</details>")
         out.append("")
 
     if only_current:
