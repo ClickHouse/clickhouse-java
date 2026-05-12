@@ -121,6 +121,16 @@ jobs:
         with:
           ref: ${{ env.CHC_BRANCH }}
 
+      # The benchmark code runs against the PR's working tree (see the
+      # PR checkout below), but the comparison tooling lives in this
+      # workflow's contract on `main`. Stash a copy now so the compare
+      # step still works even when the PR branch was forked before
+      # `.github/scripts/compare-jmh.py` existed.
+      - name: Stash comparison tooling from main
+        run: |
+          mkdir -p "$RUNNER_TEMP/jmh-tools"
+          cp -v .github/scripts/compare-jmh.py "$RUNNER_TEMP/jmh-tools/"
+
       - name: Check out PR
         if: steps.pr.outputs.number != ''
         run: |
@@ -196,7 +206,7 @@ jobs:
         if: steps.pr.outputs.number != '' && steps.baseline.outputs.found == 'true'
         continue-on-error: true
         run: |
-          python3 .github/scripts/compare-jmh.py \
+          python3 "$RUNNER_TEMP/jmh-tools/compare-jmh.py" \
             --baseline baseline-results \
             --current performance \
             --baseline-run-id "${{ steps.baseline.outputs.run_id }}" \
