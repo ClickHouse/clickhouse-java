@@ -297,12 +297,12 @@ jobs:
           echo "::add-mask::$CLICKHOUSE_CLOUD_HOST"
           # Verify we actually generated a DB name to avoid dropping something accidentally 
           if [ -n "$TEST_DB_NAME" ]; then
-            echo "Cleaning up database: $TEST_DB_NAME"
-#            curl -s -u "default:$CLICKHOUSE_CLOUD_PASSWORD" "https://$CLICKHOUSE_CLOUD_HOST:8443" --data-binary "DROP DATABASE IF EXISTS $TEST_DB_NAME"
-            curl -s -u "default:$CLICKHOUSE_CLOUD_PASSWORD" "https://$CLICKHOUSE_CLOUD_HOST:8443" --data-binary "SELECT '$TEST_DB_NAME'"
+            echo "Cleaning up database: $TEST_DB_NAME";
+            curl -s -u "default:$CLICKHOUSE_CLOUD_PASSWORD" "https://$CLICKHOUSE_CLOUD_HOST:8443" --data-binary "SELECT '$TEST_DB_NAME'";
           else
-            echo "No database name was generated; skipping cleanup."
-          fi
+            echo "No database name was generated; skipping cleanup.";
+          fi;
+
   test-jdbc-driver:
     runs-on: ubuntu-latest
     needs: test-java-client
