@@ -256,6 +256,23 @@ jobs:
           EOF
       - name: Install Java client
         run: mvn --also-make --batch-mode --no-transfer-progress -DskipTests=true -Dmaven.javadoc.skip=true install
+      - name: Generate Database Name
+        run: |
+          # Combine the GitHub Run ID and a random number to guarantee uniqueness
+          RANDOM_DB="clickhouse_java_test_${GITHUB_RUN_ID}_${RANDOM}"
+          
+          # Write it to GITHUB_ENV so future steps can access it as $DB_NAME
+          echo "TEST_DB_NAME=$RANDOM_DB" >> $GITHUB_ENV
+          echo "Generated database name: $RANDOM_DB"
+
+      - name: Create Temporary Database
+        env:
+          CLICKHOUSE_CLOUD_HOST: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_HOST_SMT }}
+          CLICKHOUSE_CLOUD_PASSWORD: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_PASSWORD_SMT }}
+        run: |
+          echo "::add-mask::$CLICKHOUSE_CLOUD_HOST"
+          echo "Creating database: $TEST_DB_NAME"
+          curl -s -u "default:$CLICKHOUSE_CLOUD_PASSWORD" "https://$CLICKHOUSE_CLOUD_HOST:8443" --data-binary "CREATE DATABASE IF NOT EXISTS $TEST_DB_NAME"
       - name: Test http client
         env:
           CLICKHOUSE_CLOUD_HOST: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_HOST_SMT }}
@@ -271,7 +288,21 @@ jobs:
           path: |
             **/target/failsafe-reports
             **/target/surefire-reports
-
+      - name: Cleanup Database Unconditionally
+        if: always() # CRITICAL: This ensures the step runs regardless of previous success/failure
+        env:
+          CLICKHOUSE_CLOUD_HOST: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_HOST_SMT }}
+          CLICKHOUSE_CLOUD_PASSWORD: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_PASSWORD_SMT }}
+        run: |
+          echo "::add-mask::$CLICKHOUSE_CLOUD_HOST"
+          # Verify we actually generated a DB name to avoid dropping something accidentally 
+          if [ -n "$TEST_DB_NAME" ]; then
+            echo "Cleaning up database: $TEST_DB_NAME"
+#            curl -s -u "default:$CLICKHOUSE_CLOUD_PASSWORD" "https://$CLICKHOUSE_CLOUD_HOST:8443" --data-binary "DROP DATABASE IF EXISTS $TEST_DB_NAME"
+            curl -s -u "default:$CLICKHOUSE_CLOUD_PASSWORD" "https://$CLICKHOUSE_CLOUD_HOST:8443" --data-binary "SELECT '$TEST_DB_NAME'"
+          else
+            echo "No database name was generated; skipping cleanup."
+          fi
   test-jdbc-driver:
     runs-on: ubuntu-latest
     needs: test-java-client

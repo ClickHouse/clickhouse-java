@@ -8,7 +8,6 @@ import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.images.builder.ImageFromDockerfile;
-import org.testcontainers.shaded.org.checkerframework.checker.units.qual.A;
 import org.testng.annotations.AfterSuite;
 import org.testng.annotations.BeforeSuite;
 
@@ -23,7 +22,6 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.time.temporal.ChronoUnit.SECONDS;
 
@@ -64,12 +62,20 @@ public class ClickHouseServerForTest {
     private static boolean isCloud = false;
 
     private static final String database;
-    private static final AtomicBoolean databaseCreatedCloud = new AtomicBoolean(false);
-    private static final AtomicBoolean databaseDroppedCloud = new AtomicBoolean(false);
+    private static final boolean localDatabase;
 
     static {
         properties = new Properties(System.getProperties());
-        database = "clickhouse_java_" + UUID.randomUUID().toString().substring(0, 8) + "_test_" + System.currentTimeMillis();
+        String externalDatabase = System.getenv("TEST_DB_NAME"); // see build.yaml workflow
+        if (externalDatabase != null && !externalDatabase.trim().isEmpty()) {
+            localDatabase = false;
+            database = externalDatabase;
+        } else {
+            localDatabase = true;
+            database = "clickhouse_java_" + UUID.randomUUID().toString().substring(0, 8) + "_test_" + System.currentTimeMillis();
+        }
+
+        LOGGER.info("Local database: {}", localDatabase);
 
         String proxy = properties.getProperty("proxyAddress");
         if (proxy != null && !proxy.isEmpty()) { // use external proxy
@@ -324,13 +330,9 @@ public class ClickHouseServerForTest {
     @BeforeSuite(groups = {"integration"})
     public static void beforeSuite() {
         if (isCloud) {
-            synchronized (databaseCreatedCloud) {
-                if (!databaseCreatedCloud.get()) {
-                    if (!runQuery("CREATE DATABASE IF NOT EXISTS " + database)) {
-                        throw new RuntimeException("Failed to create database for testing.");
-                    }
-
-                    databaseCreatedCloud.set(true);
+            if (localDatabase) {
+                if (!runQuery("CREATE DATABASE IF NOT EXISTS " + database)) {
+                    throw new RuntimeException("Failed to create database for testing.");
                 }
             }
             return;
@@ -367,13 +369,9 @@ public class ClickHouseServerForTest {
         }
 
         if (isCloud) {
-            synchronized (databaseDroppedCloud) {
-                if (!databaseDroppedCloud.get()) {
-                    if (!runQuery("DROP DATABASE IF EXISTS `" + database + "`")) {
-                        LOGGER.warn("Failed to drop database for testing.");
-                    }
-
-                    databaseDroppedCloud.set(true);
+            if (localDatabase) {
+                if (!runQuery("DROP DATABASE IF EXISTS `" + database + "`")) {
+                    LOGGER.warn("Failed to drop database for testing.");
                 }
             }
         }
