@@ -406,7 +406,6 @@ public class ClickHouseServerForTest {
             try {
                 URL serverURL = new URL(uri);
                 LOGGER.info("sending request to {} (uri={})", serverURL, uri);
-                sql = "SELECT 1";
                 byte[] postData = sql.getBytes(StandardCharsets.UTF_8);
                 for (int attempts = 0; attempts < 10; attempts++) {
                     HttpURLConnection httpConn = (HttpURLConnection) serverURL.openConnection();
