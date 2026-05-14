@@ -2,6 +2,7 @@ package com.clickhouse.client.api.insert;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.Session;
 import com.clickhouse.client.api.internal.CommonSettings;
 import org.apache.hc.core5.http.HttpHeaders;
 
@@ -88,6 +89,59 @@ public class InsertSettings {
      */
     public InsertSettings setQueryId(String queryId) {
         settings.setQueryId(queryId);
+        return this;
+    }
+
+    /**
+     * Sets ClickHouse session id for this operation.
+     */
+    public InsertSettings setSessionId(String sessionId) {
+        settings.setSessionId(sessionId);
+        return this;
+    }
+
+    public String getSessionId() {
+        return settings.getSessionId();
+    }
+
+    /**
+     * Sets ClickHouse session check flag for this operation.
+     */
+    public InsertSettings setSessionCheck(boolean sessionCheck) {
+        settings.setSessionCheck(sessionCheck);
+        return this;
+    }
+
+    public Boolean getSessionCheck() {
+        return settings.getSessionCheck();
+    }
+
+    /**
+     * Sets ClickHouse session timeout (seconds) for this operation.
+     */
+    public InsertSettings setSessionTimeout(int timeoutInSeconds) {
+        settings.setSessionTimeout(timeoutInSeconds);
+        return this;
+    }
+
+    public Integer getSessionTimeout() {
+        return settings.getSessionTimeout();
+    }
+
+    /**
+     * Sets ClickHouse session timezone for this operation.
+     */
+    public InsertSettings setSessionTimezone(String timezone) {
+        settings.setSessionTimezone(timezone);
+        return this;
+    }
+
+    public String getSessionTimezone() {
+        return settings.getSessionTimezone();
+    }
+
+    public InsertSettings use(Session session) {
+        settings.use(session);
         return this;
     }
 

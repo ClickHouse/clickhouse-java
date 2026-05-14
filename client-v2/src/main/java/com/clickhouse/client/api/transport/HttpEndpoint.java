@@ -1,8 +1,10 @@
 package com.clickhouse.client.api.transport;
 
 import com.clickhouse.client.api.ClientMisconfigurationException;
+import com.clickhouse.client.api.internal.ValidationUtils;
 
 import java.net.URI;
+import java.net.MalformedURLException;
 import java.net.URL;
 
 public class HttpEndpoint implements Endpoint {
@@ -19,24 +21,28 @@ public class HttpEndpoint implements Endpoint {
 
     private final String path;
 
-    public HttpEndpoint(String host, int port, boolean secure, String path){
-        this.host = host;
-        this.port = port;
-        this.secure = secure;
-        if (path != null && !path.isEmpty()) {
-            // Ensure basePath starts with /
-            this.path = path.startsWith("/") ? path : "/" + path;
-        } else {
-            this.path = "/";
-        }
-        
-        // Use URI constructor to properly handle encoding of path segments
-        // Encode path segments separately to preserve slashes
-        try {
-            this.uri = new URI(secure ? "https" : "http", null, host, port, this.path, null, null);
-        } catch (Exception e) {
-            throw new ClientMisconfigurationException("Failed to create endpoint URL", e);
-        }
+    public HttpEndpoint(String endpoint) {
+        this(parseEndpointUrl(endpoint));
+    }
+
+    public HttpEndpoint(String host, int port, boolean secure, String path) {
+        this(new EndpointDetails(validateHost(host), validatePort(port), secure, normalizePath(path)));
+    }
+
+    private HttpEndpoint(URL endpointUrl) {
+        this(new EndpointDetails(
+                validateHost(endpointUrl.getHost()),
+                validatePort(endpointUrl.getPort()),
+                isSecure(endpointUrl.getProtocol()),
+                decodePath(endpointUrl.getPath())));
+    }
+
+    private HttpEndpoint(EndpointDetails endpointDetails) {
+        this.host = endpointDetails.host;
+        this.port = endpointDetails.port;
+        this.secure = endpointDetails.secure;
+        this.path = endpointDetails.path;
+        this.uri = createUri(endpointDetails.host, endpointDetails.port, endpointDetails.secure, endpointDetails.path);
         this.info = uri.toString();
     }
 
@@ -76,5 +82,72 @@ public class HttpEndpoint implements Endpoint {
     @Override
     public int hashCode() {
         return uri.hashCode();
+    }
+
+    private static URL parseEndpointUrl(String endpoint) {
+        try {
+            return new URL(endpoint);
+        } catch (MalformedURLException e) {
+            throw new IllegalArgumentException("Failed to parse endpoint URL", e);
+        }
+    }
+
+    private static String validateHost(String host) {
+        ValidationUtils.checkNonBlank(host, "host");
+        return host;
+    }
+
+    private static int validatePort(int port) {
+        if (port <= 0) {
+            throw new ValidationUtils.SettingsValidationException("port", "Valid port must be specified");
+        }
+        ValidationUtils.checkRange(port, 1, ValidationUtils.TCP_PORT_NUMBER_MAX, "port");
+        return port;
+    }
+
+    private static boolean isSecure(String protocol) {
+        if ("https".equalsIgnoreCase(protocol)) {
+            return true;
+        }
+        if ("http".equalsIgnoreCase(protocol)) {
+            return false;
+        }
+        throw new IllegalArgumentException("Only HTTP and HTTPS protocols are supported");
+    }
+
+    private static String normalizePath(String path) {
+        if (path != null && !path.isEmpty()) {
+            return path.startsWith("/") ? path : "/" + path;
+        }
+        return "/";
+    }
+
+    private static String decodePath(String path) {
+        String normalizedPath = normalizePath(path);
+        return URI.create(normalizedPath.replace(" ", "%20")).getPath();
+    }
+
+    private static URI createUri(String host, int port, boolean secure, String path) {
+        try {
+            String scheme = secure ? "https" : "http";
+            String authority = host + ":" + port;
+            return new URI(scheme, authority, path, null, null);
+        } catch (Exception e) {
+            throw new ClientMisconfigurationException("Failed to create endpoint URL", e);
+        }
+    }
+
+    private static final class EndpointDetails {
+        private final String host;
+        private final int port;
+        private final boolean secure;
+        private final String path;
+
+        private EndpointDetails(String host, int port, boolean secure, String path) {
+            this.host = host;
+            this.port = port;
+            this.secure = secure;
+            this.path = path;
+        }
     }
 }

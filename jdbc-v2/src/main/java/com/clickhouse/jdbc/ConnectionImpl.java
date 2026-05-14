@@ -52,8 +52,8 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     protected final JdbcConfiguration config;
 
     private boolean closed = false;
-    protected boolean onCluster;//TODO: Placeholder for cluster support
-    protected String cluster;
+    protected final boolean onCluster;
+    protected final String cluster;
     private String catalog;
     private String schema;
     private String appName;
@@ -74,8 +74,9 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
         try {
             this.url = url;//Raw URL
             this.config = new JdbcConfiguration(url, info);
-            this.onCluster = false;
-            this.cluster = null;
+            final String tmpClusterName = config.getDriverProperty(DriverProperties.CLUSTER_NAME.getKey(), DriverProperties.CLUSTER_NAME.getDefaultValue());
+            this.cluster = tmpClusterName == null ? null : tmpClusterName.trim();
+            this.onCluster = this.cluster != null && !this.cluster.isEmpty();
             this.appName = "";
             this.readOnly = false;
             this.holdability = ResultSet.HOLD_CURSORS_OVER_COMMIT;

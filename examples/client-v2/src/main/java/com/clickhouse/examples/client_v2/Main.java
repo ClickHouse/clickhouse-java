@@ -11,15 +11,12 @@ import java.util.UUID;
 public class Main {
 
     public static void main(String[] args) {
-        final String endpoint = System.getProperty("chEndpoint", "http://localhost:8123");
-        final String user = System.getProperty("chUser", "default");
-        final String password = System.getProperty("chPassword", "");
-        final String database = System.getProperty("chDatabase", "default");
+        ExamplesSupport.ConnectionConfig config = ExamplesSupport.loadConnectionConfig();
 
         //  Stream data from resources/sample_hacker_news_posts.json to ClickHouse
-        Stream2DbWriter writer = new Stream2DbWriter(endpoint, user, password, database);
+        Stream2DbWriter writer = new Stream2DbWriter(config.endpoint, config.user, config.password, config.database);
 
-        if (writer.isServerAlive()) {
+        if (ExamplesSupport.isServerAlive(config)) {
             log.info("ClickHouse server is alive");
         } else {
             log.error("ClickHouse server is not alive");
@@ -36,13 +33,13 @@ public class Main {
         }
 
         // Read data back
-        SimpleReader reader = new SimpleReader(endpoint, user, password, database);
+        SimpleReader reader = new SimpleReader(config.endpoint, config.user, config.password, config.database);
         reader.readDataUsingBinaryFormat();
         reader.readDataAll();
         reader.readData();
 
         // Read as Text format
-        TextFormatsReader textFormatsReader = new TextFormatsReader(endpoint, user, password, database);
+        TextFormatsReader textFormatsReader = new TextFormatsReader(config.endpoint, config.user, config.password, config.database);
         textFormatsReader.readAsJsonEachRow();
         textFormatsReader.readAsJsonEachRowButGSon();
         textFormatsReader.readJSONEachRowIntoArrayOfObject();
@@ -51,7 +48,7 @@ public class Main {
         textFormatsReader.readAsTSV();
 
         // Insert data using POJO
-        POJO2DbWriter pojoWriter = new POJO2DbWriter(endpoint, user, password, database);
+        POJO2DbWriter pojoWriter = new POJO2DbWriter(config.endpoint, config.user, config.password, config.database);
         pojoWriter.resetTable();
         for (int i = 0; i < 10; i++) {
             pojoWriter.submit(new ArticleViewEvent(11132929d, LocalDateTime.now(), UUID.randomUUID().toString()));
@@ -60,7 +57,7 @@ public class Main {
         pojoWriter.printLastEvents();
 
         // Insert data using POJO with JSON
-        ExperimentalJSONExample jsonExample = new ExperimentalJSONExample(endpoint, user, password, database);
+        ExperimentalJSONExample jsonExample = new ExperimentalJSONExample(config.endpoint, config.user, config.password, config.database);
         jsonExample.writeData();
         jsonExample.readData();
 

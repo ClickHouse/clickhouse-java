@@ -57,6 +57,7 @@ import static org.objectweb.asm.Opcodes.INVOKESTATIC;
 import static org.objectweb.asm.Opcodes.INVOKEVIRTUAL;
 import static org.objectweb.asm.Opcodes.RETURN;
 
+@SuppressWarnings("deprecation")
 public class SerializerUtils {
 
     public static void serializeData(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
@@ -76,6 +77,9 @@ public class SerializerUtils {
                 break;
             case Variant:
                 serializerVariant(stream, column, value);
+                break;
+            case Geometry:
+                serializerGeometry(stream, column, value);
                 break;
             case Point:
                 value = value instanceof ClickHouseGeoPointValue ? ((ClickHouseGeoPointValue)value).getValue() : value;
@@ -305,9 +309,12 @@ public class SerializerUtils {
         if (binTag == -1) {
             switch (dt) {
                 case Point:
+                case LineString:
+                case MultiLineString:
                 case Polygon:
                 case Ring:
                 case MultiPolygon:
+                case Geometry:
                     stream.write(ClickHouseDataType.CUSTOM_TYPE_BIN_TAG);
                     BinaryStreamUtils.writeString(stream, dt.name());
                     return;
@@ -505,10 +512,10 @@ public class SerializerUtils {
                 BinaryStreamUtils.writeInt64(stream, convertToLong(value));
                 break;
             case Int128:
-                BinaryStreamUtils.writeInt128(stream, convertToBigInteger(value));
+                BinaryStreamUtils.writeInt128(stream, NumberConverter.toBigInteger(value));
                 break;
             case Int256:
-                BinaryStreamUtils.writeInt256(stream, convertToBigInteger(value));
+                BinaryStreamUtils.writeInt256(stream, NumberConverter.toBigInteger(value));
                 break;
             case UInt8:
                 BinaryStreamUtils.writeUnsignedInt8(stream, convertToInteger(value));
@@ -520,13 +527,13 @@ public class SerializerUtils {
                 BinaryStreamUtils.writeUnsignedInt32(stream, convertToLong(value));
                 break;
             case UInt64:
-                BinaryStreamUtils.writeUnsignedInt64(stream, convertToLong(value));
+                BinaryStreamUtils.writeUnsignedInt64(stream, NumberConverter.toBigInteger(value));
                 break;
             case UInt128:
-                BinaryStreamUtils.writeUnsignedInt128(stream, convertToBigInteger(value));
+                BinaryStreamUtils.writeUnsignedInt128(stream, NumberConverter.toBigInteger(value));
                 break;
             case UInt256:
-                BinaryStreamUtils.writeUnsignedInt256(stream, convertToBigInteger(value));
+                BinaryStreamUtils.writeUnsignedInt256(stream, NumberConverter.toBigInteger(value));
                 break;
             case Float32:
                 BinaryStreamUtils.writeFloat32(stream, (float) value);
@@ -539,7 +546,7 @@ public class SerializerUtils {
             case Decimal64:
             case Decimal128:
             case Decimal256:
-                BinaryStreamUtils.writeDecimal(stream, convertToBigDecimal(value), column.getPrecision(), column.getScale());
+                BinaryStreamUtils.writeDecimal(stream, NumberConverter.toBigDecimal(value), column.getPrecision(), column.getScale());
                 break;
             case Bool:
                 BinaryStreamUtils.writeBoolean(stream, (Boolean) value);
@@ -714,8 +721,144 @@ public class SerializerUtils {
             BinaryStreamUtils.writeUnsignedInt8(out, typeOrdNum);
             serializeData(out, value, column.getNestedColumns().get(typeOrdNum));
         } else {
-            throw new IllegalArgumentException("Cannot write value of class " + value.getClass() + " into column with variant type " + column.getOriginalTypeName());
+            throw new IllegalArgumentException("Cannot write value of class " + (value == null ? "<null value>" : value.getClass())
+                    + " into column with variant type " + column.getOriginalTypeName());
         }
+    }
+
+    public static void serializerGeometry(OutputStream out, ClickHouseColumn column, Object value) throws IOException {
+        int typeOrdNum = column.getGeometryVariantOrdNum(value);
+        if (typeOrdNum == -1) {
+            int dimensions = getArrayDimensions(value);
+            if (isValidGeometryShape(value, dimensions)) {
+                typeOrdNum = column.getGeometryVariantOrdNum(dimensions);
+            }
+        }
+        if (typeOrdNum != -1) {
+            BinaryStreamUtils.writeUnsignedInt8(out, typeOrdNum);
+            serializeData(out, value, column.getNestedColumns().get(typeOrdNum));
+        } else {
+            throw new IllegalArgumentException(
+                    "Cannot write value of class " + (value == null ? "<null value>" : value.getClass())
+                            + " into column with geometry type "
+                            + column.getOriginalTypeName());
+        }
+    }
+
+    static int getArrayDimensions(Object value) {
+        if (value instanceof double[] || value instanceof Double[]) {
+            return 1;
+        } else if (value instanceof double[][] || value instanceof Double[][]) {
+            return 2;
+        } else if (value instanceof double[][][] || value instanceof Double[][][]) {
+            return 3;
+        } else if (value instanceof double[][][][] || value instanceof Double[][][][]) {
+            return 4;
+        } else if (value == null) {
+            return -1;
+        }
+
+        if (value instanceof List<?>) {
+            Object nestedValue = firstNonNullListElement((List<?>) value);
+            if (nestedValue == null) {
+                return 1;
+            }
+
+            int nestedDimensions = getArrayDimensions(nestedValue);
+            return nestedDimensions > 0 ? nestedDimensions + 1 : 1;
+        } else if (!value.getClass().isArray()) {
+            return -1;
+        }
+
+        Class<?> componentType = value.getClass();
+        int dimensions = 0;
+        while (componentType.isArray()) {
+            dimensions++;
+            componentType = componentType.getComponentType();
+        }
+
+        if (componentType != Object.class) {
+            return dimensions;
+        }
+
+        Object nestedValue = firstNonNullArrayElement(value);
+        if (nestedValue == null) {
+            return dimensions;
+        }
+
+        int nestedDimensions = getArrayDimensions(nestedValue);
+        return nestedDimensions > 0 ? dimensions + nestedDimensions : dimensions;
+    }
+
+    private static Object firstNonNullListElement(List<?> value) {
+        for (Object item : value) {
+            if (item != null) {
+                return item;
+            }
+        }
+
+        return null;
+    }
+
+    private static boolean isValidGeometryShape(Object value, int dimensions) {
+        if (value == null || dimensions < 1) {
+            return false;
+        }
+
+        if (dimensions == 1) {
+            return getGeometryLength(value) == 2
+                    && getGeometryElement(value, 0) instanceof Number
+                    && getGeometryElement(value, 1) instanceof Number;
+        }
+
+        int len = getGeometryLength(value);
+        if (len < 0) {
+            return false;
+        }
+
+        for (int i = 0; i < len; i++) {
+            Object element = getGeometryElement(value, i);
+            if (element == null || !isArrayOrList(element) || !isValidGeometryShape(element, dimensions - 1)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static boolean isArrayOrList(Object value) {
+        return value instanceof List<?> || value.getClass().isArray();
+    }
+
+    private static int getGeometryLength(Object value) {
+        if (value instanceof List<?>) {
+            return ((List<?>) value).size();
+        } else if (value != null && value.getClass().isArray()) {
+            return Array.getLength(value);
+        }
+
+        return -1;
+    }
+
+    private static Object getGeometryElement(Object value, int index) {
+        if (value instanceof List<?>) {
+            return ((List<?>) value).get(index);
+        } else if (value != null && value.getClass().isArray()) {
+            return Array.get(value, index);
+        }
+
+        return null;
+    }
+
+    private static Object firstNonNullArrayElement(Object value) {
+        for (int i = 0, len = Array.getLength(value); i < len; i++) {
+            Object item = Array.get(value, i);
+            if (item != null) {
+                return item;
+            }
+        }
+
+        return null;
     }
 
     private static final ClickHouseColumn GEO_POINT_TUPLE = ClickHouseColumn.parse("geopoint Tuple(Float64, Float64)").get(0);
@@ -762,32 +905,6 @@ public class SerializerUtils {
             return ((Boolean) value) ? 1L : 0L;
         } else {
             throw new IllegalArgumentException("Cannot convert " + value + " to Long");
-        }
-    }
-
-    public static BigInteger convertToBigInteger(Object value) {
-        if (value instanceof BigInteger) {
-            return (BigInteger) value;
-        } else if (value instanceof Number) {
-            return BigInteger.valueOf(((Number) value).longValue());
-        } else if (value instanceof String) {
-            return new BigInteger((String) value);
-        } else {
-            throw new IllegalArgumentException("Cannot convert " + value + " to BigInteger");
-        }
-    }
-
-    public static BigDecimal convertToBigDecimal(Object value) {
-        if (value instanceof BigDecimal) {
-            return (BigDecimal) value;
-        } else if (value instanceof BigInteger) {
-            return new BigDecimal((BigInteger) value);
-        } else if (value instanceof Number) {
-            return BigDecimal.valueOf(((Number) value).doubleValue());
-        } else if (value instanceof String) {
-            return new BigDecimal((String) value);
-        } else {
-            throw new IllegalArgumentException("Cannot convert " + value + " to BigDecimal");
         }
     }
 

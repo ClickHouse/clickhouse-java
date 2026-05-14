@@ -1,13 +1,13 @@
 package com.clickhouse.client.api.data_formats.internal;
 
+import com.clickhouse.data.ClickHouseColumn;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.lang.reflect.Array;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
-import java.util.Arrays;
 import java.util.TimeZone;
 
 import org.testng.Assert;
@@ -189,5 +189,19 @@ public class BinaryStreamReaderTests {
         int[] array1 = (int[]) array.getArray();
         Object[] array2 = array.getArrayOfObjects();
         Assert.assertEquals(array1.length, array2.length);
+    }
+
+    @Test
+    public void testReadNullVariantReturnsNull() throws Exception {
+        ClickHouseColumn column = ClickHouseColumn.of("v", "Variant(Int32, String)");
+        BinaryStreamReader reader = new BinaryStreamReader(
+                new ByteArrayInputStream(new byte[]{(byte) 0xFF}),
+                TimeZone.getTimeZone("UTC"),
+                null,
+                new BinaryStreamReader.CachingByteBufferAllocator(),
+                false,
+                null);
+
+        Assert.assertNull(reader.readValue(column));
     }
 }

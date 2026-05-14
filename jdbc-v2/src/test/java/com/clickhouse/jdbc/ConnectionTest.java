@@ -1163,4 +1163,45 @@ public class ConnectionTest extends JdbcIntegrationTest {
             }
         }
     }
+
+    @Test(groups = {"integration"})
+    public void testSessionTimeout() throws Exception {
+        if (isCloud()) {
+            return; // HTTP sessions require server affinity
+        }
+
+        for (int timeout : new int[]{5, 10}) {
+            String sessionId = "test_session_" + UUID.randomUUID().toString();
+            Properties properties = new Properties();
+            properties.put(ClientConfigProperties.serverSetting("session_id"), sessionId);
+            properties.put(ClientConfigProperties.serverSetting("session_timeout"), String.valueOf(timeout));
+
+            // Create session and temp table
+            try (Connection conn = getJdbcConnection(properties)) {
+                try (Statement stmt = conn.createStatement()) {
+                    stmt.execute("CREATE TEMPORARY TABLE test_session_table_" + timeout + " (id Int32)");
+                    stmt.execute("INSERT INTO test_session_table_" + timeout + " VALUES (1)");
+
+                    try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_session_table_" + timeout)) {
+                        Assert.assertTrue(rs.next());
+                        Assert.assertEquals(rs.getInt(1), 1);
+                    }
+                }
+            }
+
+            // Wait for session timeout
+            Thread.sleep((timeout + 2) * 1000L);
+
+            // Reconnect with same session_id and verify table is gone
+            try (Connection conn = getJdbcConnection(properties)) {
+                try (Statement stmt = conn.createStatement()) {
+                    try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_session_table_" + timeout)) {
+                        fail("Table should not be accessible as session has timed out");
+                    } catch (SQLException e) {
+                        Assert.assertTrue(e.getMessage().contains("Unknown table") || e.getMessage().contains("does not exist"));
+                    }
+                }
+            }
+        }
+    }
 }

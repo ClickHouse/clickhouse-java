@@ -643,6 +643,161 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
     }
 
     @Test(groups = { "integration" })
+    public void testDecimalTypesTruncateOnWriteAndRead() throws SQLException {
+        final String tableName = "test_decimal_truncate";
+        runQuery("DROP TABLE IF EXISTS " + tableName);
+        runQuery("CREATE TABLE " + tableName + " (order Int8, "
+                + "dec Decimal(9, 2), dec32 Decimal32(4), dec64 Decimal64(8), dec128 Decimal128(18), dec256 Decimal256(18)"
+                + ") ENGINE = MergeTree ORDER BY ()");
+
+        BigDecimal[] positiveWritten = new BigDecimal[] {
+                new BigDecimal("1234567.899"),
+                new BigDecimal("12345.67891"),
+                new BigDecimal("1234567890.123456789"),
+                new BigDecimal("12345678901234567890.1234567890123456789"),
+                new BigDecimal("1234567890123456789012345678901234567890.1234567890123456789")
+        };
+        BigDecimal[] positiveExpected = new BigDecimal[] {
+                new BigDecimal("1234567.89"),
+                new BigDecimal("12345.6789"),
+                new BigDecimal("1234567890.12345678"),
+                new BigDecimal("12345678901234567890.123456789012345678"),
+                new BigDecimal("1234567890123456789012345678901234567890.123456789012345678")
+        };
+        BigDecimal[] negativeWritten = new BigDecimal[] {
+                new BigDecimal("-1234567.899"),
+                new BigDecimal("-12345.67891"),
+                new BigDecimal("-1234567890.123456789"),
+                new BigDecimal("-12345678901234567890.1234567890123456789"),
+                new BigDecimal("-1234567890123456789012345678901234567890.1234567890123456789")
+        };
+        BigDecimal[] negativeExpected = new BigDecimal[] {
+                new BigDecimal("-1234567.89"),
+                new BigDecimal("-12345.6789"),
+                new BigDecimal("-1234567890.12345678"),
+                new BigDecimal("-12345678901234567890.123456789012345678"),
+                new BigDecimal("-1234567890123456789012345678901234567890.123456789012345678")
+        };
+
+        try (Connection conn = getJdbcConnection();
+             PreparedStatement stmt = conn.prepareStatement("INSERT INTO " + tableName + " VALUES (?, ?, ?, ?, ?, ?)")) {
+            stmt.setInt(1, 1);
+            for (int i = 0; i < positiveWritten.length; i++) {
+                stmt.setBigDecimal(i + 2, positiveWritten[i]);
+            }
+            stmt.executeUpdate();
+
+            stmt.setInt(1, 2);
+            for (int i = 0; i < negativeWritten.length; i++) {
+                stmt.setBigDecimal(i + 2, negativeWritten[i]);
+            }
+            stmt.executeUpdate();
+        }
+
+        try (Connection conn = getJdbcConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT * FROM " + tableName + " ORDER BY order")) {
+            assertDecimalTruncationRow(rs, 1, positiveExpected);
+            assertDecimalTruncationRow(rs, 2, negativeExpected);
+            assertFalse(rs.next());
+        }
+    }
+
+    private void assertDecimalTruncationRow(ResultSet rs, int order, BigDecimal[] expectedValues) throws SQLException {
+        String[] columns = { "dec", "dec32", "dec64", "dec128", "dec256" };
+
+        assertTrue(rs.next());
+        assertEquals(rs.getInt("order"), order);
+        for (int i = 0; i < columns.length; i++) {
+            String column = columns[i];
+            BigDecimal expected = expectedValues[i];
+
+            assertEquals(rs.getString(column), expected.toPlainString());
+            assertEquals(rs.getBigDecimal(column), expected);
+            assertEquals(rs.getObject(column), expected);
+            assertEquals(rs.getObject(column, BigDecimal.class), expected);
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testDecimalTypesWithFractionalFloatParameters() throws SQLException {
+        final String tableName = "test_decimal_fractional_floats";
+        float[] values = new float[] {
+                0.0001f,   // mantissa 1
+                0.0127f,   // mantissa 127
+                0.0128f,   // mantissa 128
+                0.0255f,   // mantissa 255
+                0.0256f,   // mantissa 256
+                6.5535f,   // mantissa 65535
+                6.5536f,   // mantissa 65536
+                838.8607f, // mantissa 8388607
+                838.8608f  // mantissa 8388608
+        };
+        String[] expectedScale4 = new String[] {
+                "0.0001",
+                "0.0127",
+                "0.0128",
+                "0.0255",
+                "0.0256",
+                "6.5535",
+                "6.5536",
+                "838.8607",
+                "838.8608"
+        };
+        String[] expectedScale8 = new String[] {
+                "0.00010000",
+                "0.01270000",
+                "0.01280000",
+                "0.02550000",
+                "0.02560000",
+                "6.55350000",
+                "6.55360000",
+                "838.86070000",
+                "838.86080000"
+        };
+        runQuery("DROP TABLE IF EXISTS " + tableName);
+        runQuery("CREATE TABLE " + tableName + " (order Int8, "
+                + "dec Decimal(9, 4), dec32 Decimal32(4), dec64 Decimal64(8)"
+                + ") ENGINE = MergeTree ORDER BY ()");
+
+        try (Connection conn = getJdbcConnection();
+             PreparedStatement stmt = conn.prepareStatement("INSERT INTO " + tableName + " VALUES (?, ?, ?, ?)")) {
+            for (int i = 0; i < values.length; i++) {
+                stmt.setInt(1, i + 1);
+                stmt.setFloat(2, values[i]);
+                stmt.setFloat(3, values[i]);
+                stmt.setFloat(4, values[i]);
+                stmt.executeUpdate();
+            }
+        }
+
+        try (Connection conn = getJdbcConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT * FROM " + tableName + " ORDER BY order")) {
+            for (int i = 0; i < expectedScale4.length; i++) {
+                assertTrue(rs.next());
+                assertEquals(rs.getInt("order"), i + 1);
+
+                assertEquals(rs.getString("dec"), expectedScale4[i]);
+                assertEquals(rs.getBigDecimal("dec"), new BigDecimal(expectedScale4[i]));
+                assertEquals(rs.getObject("dec"), new BigDecimal(expectedScale4[i]));
+                assertEquals(rs.getObject("dec", BigDecimal.class), new BigDecimal(expectedScale4[i]));
+
+                assertEquals(rs.getString("dec32"), expectedScale4[i]);
+                assertEquals(rs.getBigDecimal("dec32"), new BigDecimal(expectedScale4[i]));
+                assertEquals(rs.getObject("dec32"), new BigDecimal(expectedScale4[i]));
+                assertEquals(rs.getObject("dec32", BigDecimal.class), new BigDecimal(expectedScale4[i]));
+
+                assertEquals(rs.getString("dec64"), expectedScale8[i]);
+                assertEquals(rs.getBigDecimal("dec64"), new BigDecimal(expectedScale8[i]));
+                assertEquals(rs.getObject("dec64"), new BigDecimal(expectedScale8[i]));
+                assertEquals(rs.getObject("dec64", BigDecimal.class), new BigDecimal(expectedScale8[i]));
+            }
+            assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = { "integration" })
     public void testDateTimeTypes() throws SQLException {
         runQuery("CREATE TABLE test_datetimes (order Int8, " +
                 "dateTime DateTime, dateTime32 DateTime32, " +
@@ -2519,6 +2674,171 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
                 assertEquals(asArray.getArray(),  row);
                 assertEquals(asArray.getBaseTypeName(), ClickHouseDataType.MultiPolygon.name());
                 assertEquals(asArray.getBaseType(), Types.ARRAY);
+            }
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testGeoGeometry() throws Exception {
+        if (earlierThan(25, 11)) {
+            return;
+        }
+
+        final Object[] expectedValues = new Object[] {
+                new double[] {1D, 2D},
+                new double[][] {{1D, 2D}, {3D, 4D}, {1D, 2D}},
+                new double[][][] {{{1D, 2D}, {3D, 4D}, {1D, 2D}}},
+                new double[][][][] {
+                        {{{1D, 2D}, {3D, 4D}, {1D, 2D}}},
+                        {{{5D, 6D}, {7D, 8D}, {5D, 6D}}}
+                }
+        };
+        final String table = "test_geo_geometry";
+        Properties properties = new Properties();
+        properties.setProperty(ClientConfigProperties.serverSetting("allow_suspicious_variant_types"), "1");
+
+        try (Connection conn = getJdbcConnection(properties); Statement stmt = conn.createStatement()) {
+            stmt.executeUpdate("DROP TABLE IF EXISTS " + table);
+            stmt.executeUpdate("CREATE TABLE " + table + " (rowId Int32, geom Geometry) ENGINE = MergeTree ORDER BY ()");
+            stmt.executeUpdate("INSERT INTO " + table + " VALUES "
+                    + "(0, (1, 2)), "
+                    + "(1, [(1, 2), (3, 4), (1, 2)]), "
+                    + "(2, [[(1, 2), (3, 4), (1, 2)]]), "
+                    + "(3, [[[(1, 2), (3, 4), (1, 2)]], [[(5, 6), (7, 8), (5, 6)]]])");
+
+            try (ResultSet rs = stmt.executeQuery("SELECT * FROM " + table + " ORDER BY rowId")) {
+                final int geomColumn = 2;
+                ResultSetMetaData rsMd = rs.getMetaData();
+                assertEquals(rsMd.getColumnTypeName(geomColumn), ClickHouseDataType.Geometry.name());
+                assertEquals(rsMd.getColumnType(geomColumn), Types.ARRAY);
+
+                int rowId = 0;
+                while (rs.next()) {
+                    assertEquals(rs.getInt("rowId"), rowId);
+                    assertFalse(rs.getString("geom").isEmpty());
+
+                    Object asObject = rs.getObject(geomColumn);
+                    assertGeometryValue(asObject, expectedValues[rowId]);
+
+                    Array asArray = rs.getArray(geomColumn);
+                    assertGeometryValue(asArray.getArray(), expectedValues[rowId]);
+                    assertEquals(asArray.getBaseTypeName(), ClickHouseDataType.Geometry.name());
+                    assertEquals(asArray.getBaseType(), Types.ARRAY);
+                    rowId++;
+                }
+
+                assertEquals(rowId, expectedValues.length);
+            }
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testGeoGeometryPreparedStatement() throws Exception {
+        if (earlierThan(25, 11)) {
+            return;
+        }
+
+        final Object[] expectedValues = new Object[] {
+                new double[] {1D, 2D},
+                new double[][] {{1D, 2D}, {3D, 4D}, {1D, 2D}},
+                new double[][][] {{{1D, 2D}, {3D, 4D}, {1D, 2D}}},
+                new double[][][][] {
+                        {{{1D, 2D}, {3D, 4D}, {1D, 2D}}},
+                        {{{5D, 6D}, {7D, 8D}, {5D, 6D}}}
+                }
+        };
+        final String table = "test_geo_geometry_ps";
+        Properties properties = new Properties();
+        properties.setProperty(ClientConfigProperties.serverSetting("allow_suspicious_variant_types"), "1");
+
+        try (Connection conn = getJdbcConnection(properties); Statement stmt = conn.createStatement()) {
+            stmt.executeUpdate("DROP TABLE IF EXISTS " + table);
+            stmt.executeUpdate("CREATE TABLE " + table + " (rowId Int32, geom Geometry) ENGINE = MergeTree ORDER BY ()");
+
+            try (PreparedStatement pstmt = conn.prepareStatement("INSERT INTO " + table + " VALUES (?, ?)")) {
+                for (int i = 0; i < expectedValues.length; i++) {
+                    pstmt.setInt(1, i);
+                    pstmt.setObject(2, createGeometryParameter(conn, expectedValues[i]));
+                    pstmt.addBatch();
+                }
+                assertEquals(pstmt.executeBatch().length, expectedValues.length);
+            }
+
+            try (ResultSet rs = stmt.executeQuery("SELECT * FROM " + table + " ORDER BY rowId")) {
+                int rowId = 0;
+                while (rs.next()) {
+                    assertEquals(rs.getInt("rowId"), rowId);
+                    assertFalse(rs.getString("geom").isEmpty());
+                    assertGeometryValue(rs.getObject("geom"), expectedValues[rowId]);
+                    assertGeometryValue(rs.getArray("geom").getArray(), expectedValues[rowId]);
+                    rowId++;
+                }
+
+                assertEquals(rowId, expectedValues.length);
+            }
+        }
+    }
+
+    private static Object createGeometryParameter(Connection conn, Object value) throws SQLException {
+        if (value instanceof double[]) {
+            return conn.createStruct("Tuple(Float32, Float32)", Arrays.stream((double[]) value).boxed().toArray(Double[]::new));
+        } else if (value instanceof double[][]) {
+            return conn.createArrayOf("Array(Point)", box2d((double[][]) value));
+        } else if (value instanceof double[][][]) {
+            return conn.createArrayOf("Array(Array(Point))", box3d((double[][][]) value));
+        } else if (value instanceof double[][][][]) {
+            return conn.createArrayOf("Array(Array(Array(Point)))", box4d((double[][][][]) value));
+        }
+
+        throw new SQLException("Unsupported geometry parameter type: " + value.getClass());
+    }
+
+    private static Double[][] box2d(double[][] value) {
+        Double[][] result = new Double[value.length][];
+        for (int i = 0; i < value.length; i++) {
+            result[i] = Arrays.stream(value[i]).boxed().toArray(Double[]::new);
+        }
+        return result;
+    }
+
+    private static Double[][][] box3d(double[][][] value) {
+        Double[][][] result = new Double[value.length][][];
+        for (int i = 0; i < value.length; i++) {
+            result[i] = box2d(value[i]);
+        }
+        return result;
+    }
+
+    private static Double[][][][] box4d(double[][][][] value) {
+        Double[][][][] result = new Double[value.length][][][];
+        for (int i = 0; i < value.length; i++) {
+            result[i] = box3d(value[i]);
+        }
+        return result;
+    }
+
+    private static void assertGeometryValue(Object actual, Object expected) {
+        Assert.assertNotNull(actual);
+        Assert.assertTrue(actual.getClass().isArray(), "Geometry value should be returned as an array");
+        assertGeometryArrayEquals(actual, expected);
+    }
+
+    private static void assertGeometryArrayEquals(Object actual, Object expected) {
+        int actualLength = java.lang.reflect.Array.getLength(actual);
+        int expectedLength = java.lang.reflect.Array.getLength(expected);
+        assertEquals(actualLength, expectedLength);
+
+        for (int i = 0; i < expectedLength; i++) {
+            Object actualItem = java.lang.reflect.Array.get(actual, i);
+            Object expectedItem = java.lang.reflect.Array.get(expected, i);
+
+            if (expectedItem != null && expectedItem.getClass().isArray()) {
+                Assert.assertNotNull(actualItem);
+                Assert.assertTrue(actualItem.getClass().isArray(),
+                        "Expected nested array but found: " + actualItem.getClass());
+                assertGeometryArrayEquals(actualItem, expectedItem);
+            } else {
+                assertEquals(((Number) actualItem).doubleValue(), ((Number) expectedItem).doubleValue());
             }
         }
     }
