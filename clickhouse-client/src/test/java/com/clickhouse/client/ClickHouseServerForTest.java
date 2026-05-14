@@ -8,6 +8,7 @@ import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.images.builder.ImageFromDockerfile;
+import org.testcontainers.shaded.org.checkerframework.checker.units.qual.A;
 import org.testng.annotations.AfterSuite;
 import org.testng.annotations.BeforeSuite;
 
@@ -22,6 +23,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.time.temporal.ChronoUnit.SECONDS;
 
@@ -62,6 +64,8 @@ public class ClickHouseServerForTest {
     private static boolean isCloud = false;
 
     private static final String database;
+    private static final AtomicBoolean databaseCreatedCloud = new AtomicBoolean(false);
+    private static final AtomicBoolean databaseDroppedCloud = new AtomicBoolean(false);
 
     static {
         properties = new Properties(System.getProperties());
@@ -320,10 +324,15 @@ public class ClickHouseServerForTest {
     @BeforeSuite(groups = {"integration"})
     public static void beforeSuite() {
         if (isCloud) {
-            if (!runQuery("CREATE DATABASE IF NOT EXISTS " + database)) {
-                throw new RuntimeException("Failed to create database for testing.");
-            }
+            synchronized (databaseCreatedCloud) {
+                if (!databaseCreatedCloud.get()) {
+                    if (!runQuery("CREATE DATABASE IF NOT EXISTS " + database)) {
+                        throw new RuntimeException("Failed to create database for testing.");
+                    }
 
+                    databaseCreatedCloud.set(true);
+                }
+            }
             return;
         }
 
@@ -358,8 +367,14 @@ public class ClickHouseServerForTest {
         }
 
         if (isCloud) {
-            if (!runQuery("DROP DATABASE IF EXISTS `" + database + "`")) {
-                LOGGER.warn("Failed to drop database for testing.");
+            synchronized (databaseDroppedCloud) {
+                if (!databaseDroppedCloud.get()) {
+                    if (!runQuery("DROP DATABASE IF EXISTS `" + database + "`")) {
+                        LOGGER.warn("Failed to drop database for testing.");
+                    }
+
+                    databaseDroppedCloud.set(true);
+                }
             }
         }
     }
@@ -391,16 +406,18 @@ public class ClickHouseServerForTest {
             try {
                 URL serverURL = new URL(uri);
                 LOGGER.info("sending request to {} (uri={})", serverURL, uri);
-
+                sql = "SELECT 1";
+                byte[] postData = sql.getBytes(StandardCharsets.UTF_8);
                 for (int attempts = 0; attempts < 10; attempts++) {
                     HttpURLConnection httpConn = (HttpURLConnection) serverURL.openConnection();
                     try {
                         httpConn.setRequestMethod("POST");
                         httpConn.setDoOutput(true);
                         httpConn.setRequestProperty("Authorization", "Basic " + Base64.getEncoder().encodeToString(("default:" + getPassword()).getBytes()));
+                        httpConn.setFixedLengthStreamingMode(postData.length);
 
                         try (OutputStream out = httpConn.getOutputStream()) {
-                            out.write(sql.getBytes(StandardCharsets.UTF_8));
+                            out.write(postData, 0, postData.length);
                             out.flush();
                         }
 
