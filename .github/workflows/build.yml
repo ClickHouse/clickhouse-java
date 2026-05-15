@@ -295,11 +295,10 @@ jobs:
           CLICKHOUSE_CLOUD_HOST: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_HOST_SMT_PROD }}
           CLICKHOUSE_CLOUD_PASSWORD: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_PASSWORD_SMT_PROD }}
         run: |
-          echo "::add-mask::$CLICKHOUSE_CLOUD_HOST"
           # Verify we actually generated a DB name to avoid dropping something accidentally 
           if [ -n "$TEST_DB_NAME" ]; then
             echo "Cleaning up database: $TEST_DB_NAME";
-            curl -s -u "default:$CLICKHOUSE_CLOUD_PASSWORD" "https://$CLICKHOUSE_CLOUD_HOST:8443" --data-binary "SELECT '$TEST_DB_NAME'";
+            curl -s -u "default:$CLICKHOUSE_CLOUD_PASSWORD" "https://$CLICKHOUSE_CLOUD_HOST:8443" --data-binary "DROP DATABASE IF EXISTS '$TEST_DB_NAME'";
           else
             echo "No database name was generated; skipping cleanup.";
           fi;
