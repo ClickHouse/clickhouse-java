@@ -1,4 +1,4 @@
-## 0.9.9
+## 0.10.9
 
 ### Breaking Changes
 
@@ -20,6 +20,8 @@
 ### New Features
 
 - **[jdbc-v2]** Added `cluster_name` configuration property to specify a target cluster for statements like `KILL QUERY` that require an `ON CLUSTER` clause to execute across all nodes. (https://github.com/ClickHouse/clickhouse-java/issues/2837)
+
+- **[client-v2, jdbc-v2]** Added support for ClickHouse `Geometry` type for ClickHouse `25.11+`, where `Geometry` changed from a `String` alias to `Variant(Point, Ring, LineString, MultiLineString, Polygon, MultiPolygon)` (client still compatible with older versions). Includes client read/write handling and JDBC type mapping for retrieving and inserting geometry values. Current writes infer the target geometry variant from array nesting depth, so `Ring` vs `LineString` and `Polygon` vs `MultiLineString` are not yet distinguishable through the generic `Geometry` write path. (https://github.com/ClickHouse/clickhouse-java/pull/2815)
 
 ### Bug Fixes
 

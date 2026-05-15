@@ -1504,6 +1504,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                         case Polygon:
                         case MultiPolygon:
                         case MultiLineString:
+                        case Geometry:
                             break; // read as is
                         default:
                             if (typeMap == null || typeMap.isEmpty()) {

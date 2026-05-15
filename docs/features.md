@@ -15,6 +15,7 @@ This document lists stable, user-visible behavior in `client-v2` and `jdbc-v2` t
 - Result materialization helpers: Provides streaming `Records`, generic row access, and convenience APIs that materialize all rows into generic records or typed POJOs.
 - Binary format readers: Reads ClickHouse binary result formats including `Native`, `RowBinary`, `RowBinaryWithNames`, and `RowBinaryWithNamesAndTypes`.
 - Data type conversion: Maps ClickHouse types to Java values for binary reads, POJO binding, and SQL parameter formatting, including date/time handling.
+- Geometry type support: For ClickHouse `25.11+`, where `Geometry` changed from a string alias to `Variant(Point, Ring, LineString, MultiLineString, Polygon, MultiPolygon)`, the client reads and writes `Geometry` values through generic records, binary readers, POJO binding, and SQL parameter formatting, using Java array dimensionality to represent the geometry shape.
 - Insert APIs: Supports inserting registered POJOs, raw streams, and callback-driven writers, with optional column lists and format selection.
 - Insert controls: Supports insert-specific settings such as deduplication token, query id, compression behavior, and request headers.
 - Command execution: Executes DDL or other non-result commands and exposes response summaries and operation metrics.
@@ -35,6 +36,8 @@ Compatibility-sensitive traits:
 - Identifier quoting behavior is stable API for helper callers: identifiers are double-quoted, embedded double quotes are doubled, and optional quoting keeps simple identifiers unchanged.
 - Instant formatting is type-sensitive and should not drift: `Date` formatting depends on an explicit timezone, `DateTime` is serialized as epoch seconds, and higher-precision timestamps preserve up to 9 fractional digits.
 - Timezone conversion helpers preserve nanoseconds and can intentionally shift local date or time when interpreted in a different timezone; this behavior is covered by tests and should not be normalized away.
+- `Geometry` handling is shape-sensitive: supported values are 1D through 4D Java arrays representing the nested geometry variants, and unsupported shapes or non-array values are rejected during serialization.
+- `Geometry` write inference is dimension-based rather than fully type-specific: point, ring/line string, polygon/multi-line string, and multi-polygon are selected from array depth, so writing `Geometry` cannot currently distinguish `Ring` from `LineString` or `Polygon` from `MultiLineString`.
 - Session precedence is part of the contract: client session defaults apply to each request, operation settings may override them, and only the client `session_id` is mutable at runtime while other client session properties remain fixed for the lifetime of the client.
 
 
@@ -60,6 +63,7 @@ Compatibility-sensitive traits:
 - Parameter metadata: Reports prepared-statement parameter counts.
 - Type mapping and conversions: Maps ClickHouse types to JDBC types and Java classes, including date/time handling and `java.time` support.
 - Arrays and tuples: Supports JDBC arrays plus ClickHouse tuple values through custom `Array` and `Struct` implementations.
+- Geometry type mapping: For ClickHouse `25.11+`, where `Geometry` changed from a string alias to `Variant(Point, Ring, LineString, MultiLineString, Polygon, MultiPolygon)`, JDBC exposes `Geometry` as `ARRAY`, returns nested Java arrays from `getObject()`/`getArray()`, and accepts `Struct` or nested `Array` inputs for prepared-statement inserts depending on the geometry shape.
 - Client info propagation: Supports JDBC client info such as `ApplicationName` and forwards it to the underlying client name.
 - Wrapper support: Implements standard JDBC `Wrapper` and `unwrap` behavior on major JDBC objects.
 - Packaging and runtime compatibility: Ships as a JDBC 4.2 driver, depends on `client-v2`, and includes native-image metadata for GraalVM users.
@@ -71,6 +75,8 @@ Compatibility-sensitive traits:
 - String parameters are escaped with backslash-based escaping: backslashes are doubled and single quotes are backslash-escaped before values are wrapped in single quotes.
 - `?` placeholder detection is SQL-aware and should not treat question marks inside quoted strings, quoted identifiers, comments, casts, or similar syntax as bind parameters.
 - String-like ClickHouse values have stable JDBC expectations: `String`, `FixedString`, and `Enum` values are returned as strings, while `UUID` is available both as `getString()` and `getObject(..., UUID.class)`.
+- `Geometry` has a stable JDBC mapping: metadata reports SQL type `ARRAY` with type name `Geometry`, read paths return nested Java arrays rather than custom wrappers, and write paths depend on the caller preserving the intended point/array nesting shape.
+- JDBC `Geometry` writes share the same ambiguity as the client serializer: variant selection is inferred from nesting depth, so `Ring` versus `LineString` and `Polygon` versus `MultiLineString` are not currently distinguishable when writing through the generic `Geometry` path.
 - Binary parameters passed through `setBytes()` are encoded as ClickHouse `unhex(...)` expressions rather than text literals; empty byte arrays map to an empty string expression.
 - Stream and reader setters (`setAsciiStream`, `setUnicodeStream`, `setBinaryStream`, `setCharacterStream`, `setNCharacterStream`) are treated as text input encoded with the same string-escaping rules, including length-based truncation when a length is supplied.
 - `getString()` formatting for temporal values is stable output: `Date` uses `yyyy-MM-dd`, `DateTime` uses `yyyy-MM-dd HH:mm:ss`, and `DateTime64` preserves fractional precision, all interpreted in server timezone context where applicable.
