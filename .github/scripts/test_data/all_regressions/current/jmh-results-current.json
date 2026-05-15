@@ -1,0 +1,20 @@
+[
+  {
+    "benchmark": "com.clickhouse.benchmark.clients.QueryClient.queryV2",
+    "mode": "sample",
+    "params": {"limit": "10000"},
+    "primaryMetric": {"score": 26.0, "scoreError": 0.6, "scoreUnit": "ms/op"},
+    "secondaryMetrics": {
+      "gc.alloc.rate.norm": {"score": 3300.0, "scoreError": 18.0, "scoreUnit": "B/op"}
+    }
+  },
+  {
+    "benchmark": "com.clickhouse.benchmark.clients.InsertClient.insertV2",
+    "mode": "sample",
+    "params": {"limit": "10000"},
+    "primaryMetric": {"score": 100.0, "scoreError": 1.8, "scoreUnit": "ms/op"},
+    "secondaryMetrics": {
+      "gc.alloc.rate.norm": {"score": 5400.0, "scoreError": 30.0, "scoreUnit": "B/op"}
+    }
+  }
+]

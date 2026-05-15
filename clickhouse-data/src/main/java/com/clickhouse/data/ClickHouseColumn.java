@@ -54,6 +54,7 @@ import java.util.stream.Collectors;
 /**
  * This class represents a column defined in database.
  */
+@SuppressWarnings("deprecation")
 public final class ClickHouseColumn implements Serializable {
     public static final String TYPE_NAME = "Column";
     public static final ClickHouseColumn[] EMPTY_ARRAY = new ClickHouseColumn[0];
@@ -104,6 +105,8 @@ public final class ClickHouseColumn implements Serializable {
     private Map<Class<?>, Integer> classToVariantOrdNumMap;
 
     private Map<Class<?>, Integer> arrayToVariantOrdNumMap;
+
+    private Map<Integer, Integer> geometryTypeDimensionsToVariantOrdNumMap;
 
     private Map<Class<?>, Integer> mapKeyToVariantOrdNumMap;
     private Map<Class<?>, Integer> mapValueToVariantOrdNumMap;
@@ -293,11 +296,27 @@ public final class ClickHouseColumn implements Serializable {
             case Ring:
                 column.template = ClickHouseGeoRingValue.ofEmpty();
                 break;
+            case LineString:
+                column.template = ClickHouseGeoRingValue.ofEmpty();
+                break;
             case Polygon:
+                column.template = ClickHouseGeoPolygonValue.ofEmpty();
+                break;
+            case MultiLineString:
                 column.template = ClickHouseGeoPolygonValue.ofEmpty();
                 break;
             case MultiPolygon:
                 column.template = ClickHouseGeoMultiPolygonValue.ofEmpty();
+                break;
+            case Geometry:
+                ClickHouseColumn geometryVariantHelper = GEOMETRY_VARIANT_COLUMN;
+                column.template = ClickHouseTupleValue.of();
+                column.nested = geometryVariantHelper.nested;
+                column.classToVariantOrdNumMap = geometryVariantHelper.classToVariantOrdNumMap;
+                column.arrayToVariantOrdNumMap = geometryVariantHelper.arrayToVariantOrdNumMap;
+                column.geometryTypeDimensionsToVariantOrdNumMap = geometryVariantHelper.geometryTypeDimensionsToVariantOrdNumMap;
+                column.mapKeyToVariantOrdNumMap = geometryVariantHelper.mapKeyToVariantOrdNumMap;
+                column.mapValueToVariantOrdNumMap = geometryVariantHelper.mapValueToVariantOrdNumMap;
                 break;
             case Nested:
                 column.template = ClickHouseNestedValue.ofEmpty(column.nested);
@@ -316,6 +335,28 @@ public final class ClickHouseColumn implements Serializable {
         }
 
         return column;
+    }
+
+    private static ClickHouseColumn createGeometryVariantColumn() {
+        ClickHouseColumn column = ClickHouseColumn.of("v",
+                "Variant(Point, Ring, LineString, MultiLineString, Polygon, MultiPolygon)");
+        Map<Integer, Integer> map = new HashMap<>();
+        map.put(1, getVariantOrdNum(column.nested, ClickHouseDataType.Point));
+        map.put(2, getVariantOrdNum(column.nested, ClickHouseDataType.Ring));
+        map.put(3, getVariantOrdNum(column.nested, ClickHouseDataType.Polygon));
+        map.put(4, getVariantOrdNum(column.nested, ClickHouseDataType.MultiPolygon));
+        column.geometryTypeDimensionsToVariantOrdNumMap = Collections.unmodifiableMap(map);
+        return column;
+    }
+
+    private static int getVariantOrdNum(List<ClickHouseColumn> nestedColumns, ClickHouseDataType dataType) {
+        for (int i = 0; i < nestedColumns.size(); i++) {
+            if (nestedColumns.get(i).getDataType() == dataType) {
+                return i;
+            }
+        }
+
+        throw new IllegalArgumentException("Missing nested geometry type: " + dataType);
     }
 
     protected static int readColumn(String args, int startIndex, int len, String name, List<ClickHouseColumn> list) {
@@ -374,7 +415,7 @@ public final class ClickHouseColumn implements Serializable {
                     nestedColumns.add(ClickHouseColumn.of("", p));
                 }
             }
-            column = new ClickHouseColumn(ClickHouseDataType.valueOf(matchedKeyword), name,
+            column = new ClickHouseColumn(ClickHouseDataType.of(matchedKeyword), name,
                     args.substring(startIndex, i), nullable, lowCardinality, params, nestedColumns);
             column.aggFuncType = aggFunc;
             if (!nestedColumns.isEmpty()) {
@@ -468,7 +509,7 @@ public final class ClickHouseColumn implements Serializable {
                     variantDataTypes.add(c.dataType);
                 });
             }
-            column = new ClickHouseColumn(ClickHouseDataType.valueOf(matchedKeyword), name,
+            column = new ClickHouseColumn(ClickHouseDataType.of(matchedKeyword), name,
                     args.substring(startIndex, endIndex + 1), nullable, lowCardinality, null, nestedColumns);
             for (ClickHouseColumn n : nestedColumns) {
                 estimatedLength += n.estimatedByteLength;
@@ -821,6 +862,9 @@ public final class ClickHouseColumn implements Serializable {
 
     public int getVariantOrdNum(Object value) {
         if (value != null && value.getClass().isArray()) {
+            if (arrayToVariantOrdNumMap == null) {
+                return -1;
+            }
             // TODO: add cache by value class
             Class<?> c = value.getClass();
             while (c.isArray()) {
@@ -828,11 +872,14 @@ public final class ClickHouseColumn implements Serializable {
             }
             return arrayToVariantOrdNumMap.getOrDefault(c, -1);
         } else if (value != null && value instanceof List<?>) {
+            if (arrayToVariantOrdNumMap == null) {
+                return -1;
+            }
             // TODO: add cache by instance of the list
-            Object tmpV = ((List) value).get(0);
+            Object tmpV = ((List<?>) value).get(0);
             Class<?> valueClass = tmpV.getClass();
             while (tmpV instanceof List<?>) {
-                tmpV = ((List) tmpV).get(0);
+                tmpV = ((List<?>) tmpV).get(0);
                 valueClass = tmpV.getClass();
             }
             return arrayToVariantOrdNumMap.getOrDefault(valueClass, -1);
@@ -861,9 +908,32 @@ public final class ClickHouseColumn implements Serializable {
             }
             return -1;
         } else {
-            return classToVariantOrdNumMap.getOrDefault(value.getClass(), -1);
+            return getGeometryVariantOrdNum(value);
         }
     }
+
+    public int getGeometryVariantOrdNum(Object value) {
+        if (value == null || classToVariantOrdNumMap == null) {
+            return -1;
+        }
+
+        Integer ordNum = classToVariantOrdNumMap.get(value.getClass());
+        if (ordNum != null) {
+            return ordNum;
+        }
+
+        return -1;
+    }
+
+    public int getGeometryVariantOrdNum(int dimensions) {
+        if (dimensions < 1 || geometryTypeDimensionsToVariantOrdNumMap == null) {
+            return -1;
+        }
+
+        return geometryTypeDimensionsToVariantOrdNumMap.getOrDefault(dimensions, -1);
+    }
+
+    private static final ClickHouseColumn GEOMETRY_VARIANT_COLUMN = createGeometryVariantColumn();
 
     public boolean isArray() {
         return dataType == ClickHouseDataType.Array;
