@@ -1218,10 +1218,17 @@ public class HttpTransportTests extends BaseIntegrationTest {
         if (!isCloud()) {
             return; // only for cloud
         }
-        String jwt = System.getenv("CLIENT_JWT");
+        final String jwt = System.getenv("CLIENT_JWT");
+        final String host = System.getenv("JWT_TEST_HOST");
         Assert.assertTrue(jwt != null && !jwt.trim().isEmpty(), "JWT is missing");
         Assert.assertFalse(jwt.contains("\n") || jwt.contains("-----"), "JWT should be single string ready for HTTP header");
-        try (Client client = newClient().useBearerTokenAuth(jwt).build()) {
+        try (Client client = new Client.Builder()
+                .addEndpoint(Protocol.HTTP, host, 8443, true)
+                .setUsername("default")
+                .compressClientRequest(false)
+                .setDefaultDatabase("default")
+                .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1")
+                .useBearerTokenAuth(jwt).build()) {
             try {
                 List<GenericRecord> response = client.queryAll("SELECT user(), now()");
                 System.out.println("response: " + response.get(0).getString(1) + " time: " + response.get(0).getString(2));

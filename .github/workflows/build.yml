@@ -278,6 +278,7 @@ jobs:
           CLICKHOUSE_CLOUD_HOST: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_HOST_SMT_PROD }}
           CLICKHOUSE_CLOUD_PASSWORD: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_PASSWORD_SMT_PROD }}
           CLIENT_JWT: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_JWT_DESERT_VM_43 }}
+          JWT_TEST_HOST: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_HOST_SMT }}
         run: |
           mvn --batch-mode --no-transfer-progress --projects ${{ matrix.project }} -DclickhouseVersion=${{ matrix.clickhouse }} -Dprotocol=http -Dmaven.javadoc.skip=true verify
       - name: Upload test results
