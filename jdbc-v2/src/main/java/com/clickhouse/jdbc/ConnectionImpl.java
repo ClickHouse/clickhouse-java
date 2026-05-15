@@ -2,7 +2,6 @@ package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
-import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QuerySettings;

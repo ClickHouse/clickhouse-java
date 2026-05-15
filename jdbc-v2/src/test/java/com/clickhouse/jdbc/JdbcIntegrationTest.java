@@ -5,7 +5,6 @@ import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.internal.ServerSettings;
-import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.data.ClickHouseVersion;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
@@ -13,7 +12,6 @@ import com.clickhouse.logging.LoggerFactory;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
@@ -39,7 +37,9 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
 
     public Connection getJdbcConnection(Map<String, Object> propertiesMap) throws SQLException {
         Properties config = new Properties();
-        config.putAll(propertiesMap);
+        if (propertiesMap != null && !propertiesMap.isEmpty()) {
+            config.putAll(propertiesMap);
+        }
         return getJdbcConnection(config);
     }
 
