@@ -27,6 +27,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 
 import static org.testng.Assert.assertEquals;
@@ -149,7 +150,7 @@ public class StatementTest extends JdbcIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testExecuteUpdateSimpleNumbers() throws Exception {
-        try (Connection conn = getJdbcConnection()) {
+        try (Connection conn = getJdbcConnection(Map.of(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF))) {
             try (Statement stmt = conn.createStatement()) {
                 assertEquals(stmt.executeUpdate("CREATE TABLE IF NOT EXISTS " + getDatabase() + ".simpleNumbers (num UInt8) ENGINE = MergeTree ORDER BY ()"), 0);
                 assertEquals(stmt.executeUpdate("INSERT INTO " + getDatabase() + ".simpleNumbers VALUES (1), (2), (3)"), 3);
@@ -168,7 +169,7 @@ public class StatementTest extends JdbcIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testExecuteUpdateSimpleFloats() throws Exception {
-        try (Connection conn = getJdbcConnection()) {
+        try (Connection conn = getJdbcConnection(Map.of(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF))) {
             try (Statement stmt = conn.createStatement()) {
                 assertEquals(stmt.executeUpdate("CREATE TABLE IF NOT EXISTS " + getDatabase() + ".simpleFloats (num Float32) ENGINE = MergeTree ORDER BY ()"), 0);
                 assertEquals(stmt.executeUpdate("INSERT INTO " + getDatabase() + ".simpleFloats VALUES (1.1), (2.2), (3.3)"), 3);
@@ -188,7 +189,7 @@ public class StatementTest extends JdbcIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testExecuteUpdateBooleans() throws Exception {
-        try (Connection conn = getJdbcConnection()) {
+        try (Connection conn = getJdbcConnection(Map.of(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF))) {
             try (Statement stmt = conn.createStatement()) {
                 assertEquals(stmt.executeUpdate("CREATE TABLE IF NOT EXISTS " + getDatabase() + ".booleans (id UInt8, flag Boolean) ENGINE = MergeTree ORDER BY ()"), 0);
                 assertEquals(stmt.executeUpdate("INSERT INTO " + getDatabase() + ".booleans VALUES (0, true), (1, false), (2, true)"), 3);
@@ -207,7 +208,7 @@ public class StatementTest extends JdbcIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testExecuteUpdateStrings() throws Exception {
-        try (Connection conn = getJdbcConnection()) {
+        try (Connection conn = getJdbcConnection(Map.of(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF))) {
             try (Statement stmt = conn.createStatement()) {
                 assertEquals(stmt.executeUpdate("CREATE TABLE IF NOT EXISTS " + getDatabase() + ".strings (id UInt8, words String) ENGINE = MergeTree ORDER BY ()"), 0);
                 assertEquals(stmt.executeUpdate("INSERT INTO " + getDatabase() + ".strings VALUES (0, 'Hello'), (1, 'World'), (2, 'ClickHouse')"), 3);
@@ -226,7 +227,7 @@ public class StatementTest extends JdbcIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testExecuteUpdateNulls() throws Exception {
-        try (Connection conn = getJdbcConnection()) {
+        try (Connection conn = getJdbcConnection(Map.of(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF))) {
             try (Statement stmt = conn.createStatement()) {
                 assertEquals(stmt.executeUpdate("CREATE TABLE IF NOT EXISTS " + getDatabase() + ".nulls (id UInt8, nothing Nullable(String)) ENGINE = MergeTree ORDER BY ()"), 0);
                 assertEquals(stmt.executeUpdate("INSERT INTO " + getDatabase() + ".nulls VALUES (0, 'Hello'), (1, NULL), (2, 'ClickHouse')"), 3);
@@ -245,7 +246,7 @@ public class StatementTest extends JdbcIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testExecuteUpdateDates() throws Exception {
-        try (Connection conn = getJdbcConnection()) {
+        try (Connection conn = getJdbcConnection(Map.of(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF))) {
             try (Statement stmt = conn.createStatement()) {
                 assertEquals(stmt.executeUpdate("CREATE TABLE IF NOT EXISTS " + getDatabase() + ".dates (id UInt8, date Nullable(Date), datetime Nullable(DateTime)) ENGINE = MergeTree ORDER BY ()"), 0);
                 assertEquals(stmt.executeUpdate("INSERT INTO " + getDatabase() + ".dates VALUES (0, '2020-01-01', '2020-01-01 10:11:12'), (1, NULL, '2020-01-01 12:10:07'), (2, '2020-01-01', NULL)"), 3);
@@ -265,10 +266,81 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
+    private static final int ASYNC_INSERT_SETTINGS_DP_ROWS = 100_000;
+
+    @DataProvider(name = "asyncInsertSettingsDP")
+    public static Object[][] asyncInsertSettingsDP() {
+        return new Object[][]{
+                // asyncInsert, waitAsyncInsert, expectedUpdateCount, expectedSelectCount, should fail
+                {ServerSettings.OFF, ServerSettings.OFF, ASYNC_INSERT_SETTINGS_DP_ROWS, ASYNC_INSERT_SETTINGS_DP_ROWS, true},
+                {ServerSettings.OFF, ServerSettings.ON, ASYNC_INSERT_SETTINGS_DP_ROWS, ASYNC_INSERT_SETTINGS_DP_ROWS, true},
+                {ServerSettings.ON, ServerSettings.OFF, 0, -1, false}, // return immediately
+                {ServerSettings.ON, ServerSettings.ON, ASYNC_INSERT_SETTINGS_DP_ROWS, ASYNC_INSERT_SETTINGS_DP_ROWS, true}
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "asyncInsertSettingsDP")
+    public void testInsertWithAsyncInsert(String asyncInsert, String waitAsyncInsert, int expectedUpdateCount, int expectedSelectCount, boolean fails) throws Exception {
+        String tableName = "test_async_insert_param_" + asyncInsert + "_" + waitAsyncInsert + "_" + UUID.randomUUID().toString().replace("-", "_");
+        
+        Properties props = new Properties();
+        props.setProperty(ClientConfigProperties.serverSetting(ServerSettings.ASYNC_INSERT), asyncInsert);
+        props.setProperty(ClientConfigProperties.serverSetting(ServerSettings.WAIT_ASYNC_INSERT), waitAsyncInsert);
+        // Wait end of query off for isolation of this logic
+        props.setProperty(ClientConfigProperties.serverSetting(ServerSettings.WAIT_END_OF_QUERY), ServerSettings.OFF);
+
+        if (waitAsyncInsert.equals(ServerSettings.ON)) {
+            // make it flush to disk to check that we get result. If buffer is bigger server may wait flushing to disk.
+            props.setProperty(ClientConfigProperties.serverSetting("async_insert_max_data_size"), "3488890");
+        }
+
+        StringBuilder sb = new StringBuilder("INSERT INTO " + getDatabase() + "." + tableName + " FORMAT TSV\n");
+        for (int i = 0; i < ASYNC_INSERT_SETTINGS_DP_ROWS; i++) {
+            sb.append(i).append("\t")
+                    .append("name_").append(i).append("\t")
+                    .append(i * 1.1).append("\t")
+                    .append(i % 2).append("\t")
+                    .append("2023-01-01 10:11:12").append("\n");
+        }
+        final String insertStatement = sb.toString();
+
+        try (Connection conn = getJdbcConnection(props)) {
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("CREATE TABLE IF NOT EXISTS " + getDatabase() + "." + tableName + " (id UInt32, name String, value Float64, status Int8, timestamp DateTime) ENGINE = MergeTree ORDER BY id");
+                stmt.execute("TRUNCATE TABLE " + getDatabase() + "." + tableName);
+
+                int updateCount = stmt.executeUpdate(insertStatement);
+
+                assertEquals(updateCount, expectedUpdateCount);
+
+                try (ResultSet rs = stmt.executeQuery("SELECT count() FROM " + getDatabase() + "." + tableName)) {
+                    assertTrue(rs.next());
+                    int count = rs.getInt(1);
+                    if (expectedSelectCount == -1) {
+                        assertTrue(count < ASYNC_INSERT_SETTINGS_DP_ROWS, "Expected count to be < " + ASYNC_INSERT_SETTINGS_DP_ROWS + ", but was: " + count);
+                    } else {
+                        assertEquals(count, expectedSelectCount);
+                    }
+                }
+
+                // verify error scenario
+                final String failingInsertStatement = insertStatement
+                        + "some\t1invalid\trow\t10\n";
+
+                try {
+                    stmt.executeUpdate(failingInsertStatement);
+                    assertFalse(fails, "should fail");
+                } catch (Exception e) {
+                    assertTrue(fails, "should not fail");
+                }
+            }
+        }
+    }
+
 
     @Test(groups = {"integration"})
     public void testExecuteUpdateBatch() throws Exception {
-        try (Connection conn = getJdbcConnection()) {
+        try (Connection conn = getJdbcConnection(Map.of(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF))) {
             try (Statement stmt = conn.createStatement()) {
                 assertEquals(stmt.executeUpdate("CREATE TABLE IF NOT EXISTS " + getDatabase() + ".batch (id UInt8, num UInt8) ENGINE = MergeTree ORDER BY ()"), 0);
                 stmt.addBatch("INSERT INTO " + getDatabase() + ".batch VALUES (0, 1)");
@@ -297,7 +369,7 @@ public class StatementTest extends JdbcIntegrationTest {
     @Test(groups = {"integration"})
     public void testExecuteUpdateBatchReuse() throws Exception {
         String tableClause = getDatabase() + ".batch_reuse";
-        try (Connection conn = getJdbcConnection()) {
+        try (Connection conn = getJdbcConnection(Map.of(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF))) {
             try (Statement stmt = conn.createStatement()) {
                 assertEquals(stmt.executeUpdate("CREATE TABLE IF NOT EXISTS " + tableClause + " (id UInt8, num UInt8) ENGINE = MergeTree ORDER BY ()"), 0);
                 // add and execute first invalid batch
@@ -692,7 +764,7 @@ public class StatementTest extends JdbcIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testNewLineSQLParsing() throws Exception {
-        try (Connection conn = getJdbcConnection()) {
+        try (Connection conn = getJdbcConnection(Map.of(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF))) {
             String sqlCreate = "CREATE TABLE balance ( `id` UUID, `currency` String, `amount` Decimal(64, 18), `create_time` DateTime64(6), `_version` UInt64, `_sign` UInt8 ) ENGINE = ReplacingMergeTree PRIMARY KEY id ORDER BY id;";
             try (Statement stmt = conn.createStatement()) {
                 int r = stmt.executeUpdate(sqlCreate);
@@ -757,7 +829,7 @@ public class StatementTest extends JdbcIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testNullableFixedStringType() throws Exception {
-        try (Connection conn = getJdbcConnection()) {
+        try (Connection conn = getJdbcConnection(Map.of(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF))) {
             String sqlCreate = "CREATE TABLE `data_types` (`f1` FixedString(4),`f2` LowCardinality(FixedString(4)), `f3` Nullable(FixedString(4)), `f4` LowCardinality(Nullable(FixedString(4))) ) ENGINE Memory;";
             try (Statement stmt = conn.createStatement()) {
                 int r = stmt.executeUpdate(sqlCreate);
@@ -1161,7 +1233,7 @@ public class StatementTest extends JdbcIntegrationTest {
             Assert.assertNull(stmt.getResultSet());
         }
 
-        try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
+        try (Connection conn = getJdbcConnection(Map.of(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF)); Statement stmt = conn.createStatement()) {
             // no result set and update count
             Assert.assertFalse(stmt.execute("CREATE TABLE test_multi_result (id Int32) Engine MergeTree ORDER BY ()"));
             Assert.assertNull(stmt.getResultSet());
@@ -1354,6 +1426,7 @@ public class StatementTest extends JdbcIntegrationTest {
     public void testUnknownStatement(String parserName) throws Exception {
         Properties properties = new Properties();
         properties.setProperty(DriverProperties.SQL_PARSER.getKey(), parserName);
+        properties.setProperty(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF);
         try (Connection conn = getJdbcConnection(properties)) {
 
             try (Statement stmt = conn.createStatement()) {

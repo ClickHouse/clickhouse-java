@@ -2,7 +2,6 @@ package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
-import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QuerySettings;
@@ -111,9 +110,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
                 this.client.loadServerInfo();
             }
             this.schema = client.getDefaultDatabase();
-            this.defaultQuerySettings = new QuerySettings()
-                    .serverSetting(ServerSettings.ASYNC_INSERT, "0")
-                    .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "0");
+            this.defaultQuerySettings = new QuerySettings();
 
             this.metadata = new DatabaseMetaDataImpl(this, false, url);
             this.defaultCalendar = Calendar.getInstance();
