@@ -529,7 +529,7 @@ public class HttpAPIClientHelper {
         return doPostRequest(requestConfig, req);
     }
 
-    public ClassicHttpResponse executeMultiPartRequest(Endpoint server, Map<String, Object> requestConfig, String sqlQuery) throws Exception {
+        public ClassicHttpResponse executeMultiPartRequest(Endpoint server, Map<String, Object> requestConfig, String sqlQuery) throws Exception {
 
         requestConfig.put(ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey(), false);
 

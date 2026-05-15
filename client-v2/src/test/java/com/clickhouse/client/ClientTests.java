@@ -34,7 +34,17 @@ import org.testng.util.Strings;
 import java.io.ByteArrayInputStream;
 import java.net.ConnectException;
 import java.net.UnknownHostException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Queue;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -475,7 +485,7 @@ public class ClientTests extends BaseIntegrationTest {
             return;
         }
 
-        String password = "^1A" + RandomStringUtils.random(12, true, true) + "3B$";
+        String password = "^1A" + RandomStringUtils.insecure().next(12, true, true) + "3B$";
         final String rolesList = "\"" + Strings.join("\",\"", roles) + "\"";
         try (Client client = newClient().build()) {
             client.execute("DROP ROLE IF EXISTS " + rolesList).get().close();
@@ -500,10 +510,10 @@ public class ClientTests extends BaseIntegrationTest {
             return; // creating users is not expected in cloud tests
         }
 
-        String user1 = "client_v2_user1_" + RandomStringUtils.random(8, true, true).toLowerCase();
-        String user2 = "client_v2_user2_" + RandomStringUtils.random(8, true, true).toLowerCase();
-        String password1 = "^1A" + RandomStringUtils.random(12, true, true) + "3b$";
-        String password2 = "^1A" + RandomStringUtils.random(12, true, true) + "3B$";
+        String user1 = "client_v2_user1_" + RandomStringUtils.insecure().next(8, true, true).toLowerCase();
+        String user2 = "client_v2_user2_" + RandomStringUtils.insecure().next(8, true, true).toLowerCase();
+        String password1 = "^1A" + RandomStringUtils.insecure().next(12, true, true) + "3b$";
+        String password2 = "^1A" + RandomStringUtils.insecure().next(12, true, true) + "3B$";
 
         try (Client adminClient = newClient().build()) {
             try {

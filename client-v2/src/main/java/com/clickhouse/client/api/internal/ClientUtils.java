@@ -5,6 +5,8 @@ package com.clickhouse.client.api.internal;
  */
 public final class ClientUtils {
 
+    private ClientUtils() {}
+
     public static boolean isNotBlank(String str) {
         return str != null && !str.trim().isEmpty();
     }
