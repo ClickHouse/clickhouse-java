@@ -22,6 +22,8 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.number || github.sha }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
 
 jobs:
   run-examples-with-8-jdk-and-latest:

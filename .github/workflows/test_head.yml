@@ -19,6 +19,9 @@ concurrency:
 env:
   CH_VERSION: "head"
 
+permissions:
+  contents: read
+
 jobs:
   test-java-client:
     runs-on: ubuntu-latest

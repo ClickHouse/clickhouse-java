@@ -15,6 +15,9 @@ env:
   # CHC_VERSION: "0.9.0"
   CH_VERSION: "25.3"
 
+permissions:
+  contents: read
+
 jobs:
   nightly:
     if: ${{ startsWith(github.repository, 'ClickHouse/') }}
