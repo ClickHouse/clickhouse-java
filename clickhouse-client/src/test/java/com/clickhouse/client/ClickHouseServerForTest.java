@@ -68,6 +68,9 @@ public class ClickHouseServerForTest {
         properties = new Properties(System.getProperties());
         String externalDatabase = System.getenv("TEST_DB_NAME"); // see build.yaml workflow
         if (externalDatabase != null && !externalDatabase.trim().isEmpty()) {
+            if (!externalDatabase.startsWith("clickhouse_java_test_")) {
+                throw new RuntimeException("external database for tests should start with 'clickhouse_java_test_'");
+            }
             localDatabase = false;
             database = externalDatabase;
         } else {

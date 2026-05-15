@@ -1220,7 +1220,8 @@ public class HttpTransportTests extends BaseIntegrationTest {
         }
         final String jwt = System.getenv("CLIENT_JWT");
         final String host = System.getenv("JWT_TEST_HOST");
-        Assert.assertTrue(jwt != null && !jwt.trim().isEmpty(), "JWT is missing");
+        Assert.assertTrue(jwt != null && !jwt.trim().isEmpty(), "CLIENT_JWT is not set.");
+        Assert.assertTrue(host != null && !host.trim().isEmpty(), "JWT_TEST_HOST is not set");
         Assert.assertFalse(jwt.contains("\n") || jwt.contains("-----"), "JWT should be single string ready for HTTP header");
         try (Client client = new Client.Builder()
                 .addEndpoint(Protocol.HTTP, host, 8443, true)
