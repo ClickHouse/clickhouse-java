@@ -62,10 +62,23 @@ public class ClickHouseServerForTest {
     private static boolean isCloud = false;
 
     private static final String database;
+    private static final boolean localDatabase;
 
     static {
         properties = new Properties(System.getProperties());
-        database = "clickhouse_java_" + UUID.randomUUID().toString().substring(0, 8) + "_test_" + System.currentTimeMillis();
+        String externalDatabase = System.getenv("TEST_DB_NAME"); // see build.yaml workflow
+        if (externalDatabase != null && !externalDatabase.trim().isEmpty()) {
+            if (!externalDatabase.startsWith("clickhouse_java_test_")) {
+                throw new RuntimeException("external database for tests should start with 'clickhouse_java_test_'");
+            }
+            localDatabase = false;
+            database = externalDatabase;
+        } else {
+            localDatabase = true;
+            database = "clickhouse_java_" + UUID.randomUUID().toString().substring(0, 8) + "_test_" + System.currentTimeMillis();
+        }
+
+        LOGGER.info("Local database: {}", localDatabase);
 
         String proxy = properties.getProperty("proxyAddress");
         if (proxy != null && !proxy.isEmpty()) { // use external proxy
@@ -320,10 +333,11 @@ public class ClickHouseServerForTest {
     @BeforeSuite(groups = {"integration"})
     public static void beforeSuite() {
         if (isCloud) {
-            if (!runQuery("CREATE DATABASE IF NOT EXISTS " + database)) {
-                throw new RuntimeException("Failed to create database for testing.");
+            if (localDatabase) {
+                if (!runQuery("CREATE DATABASE IF NOT EXISTS " + database)) {
+                    throw new RuntimeException("Failed to create database for testing.");
+                }
             }
-
             return;
         }
 
@@ -358,8 +372,10 @@ public class ClickHouseServerForTest {
         }
 
         if (isCloud) {
-            if (!runQuery("DROP DATABASE IF EXISTS `" + database + "`")) {
-                LOGGER.warn("Failed to drop database for testing.");
+            if (localDatabase) {
+                if (!runQuery("DROP DATABASE IF EXISTS `" + database + "`")) {
+                    LOGGER.warn("Failed to drop database for testing.");
+                }
             }
         }
     }
@@ -391,16 +407,17 @@ public class ClickHouseServerForTest {
             try {
                 URL serverURL = new URL(uri);
                 LOGGER.info("sending request to {} (uri={})", serverURL, uri);
-
+                byte[] postData = sql.getBytes(StandardCharsets.UTF_8);
                 for (int attempts = 0; attempts < 10; attempts++) {
                     HttpURLConnection httpConn = (HttpURLConnection) serverURL.openConnection();
                     try {
                         httpConn.setRequestMethod("POST");
                         httpConn.setDoOutput(true);
                         httpConn.setRequestProperty("Authorization", "Basic " + Base64.getEncoder().encodeToString(("default:" + getPassword()).getBytes()));
+                        httpConn.setFixedLengthStreamingMode(postData.length);
 
                         try (OutputStream out = httpConn.getOutputStream()) {
-                            out.write(sql.getBytes(StandardCharsets.UTF_8));
+                            out.write(postData, 0, postData.length);
                             out.flush();
                         }
 
