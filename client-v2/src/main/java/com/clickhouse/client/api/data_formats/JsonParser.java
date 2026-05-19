@@ -1,4 +1,4 @@
-package com.clickhouse.client.api.data_formats.internal;
+package com.clickhouse.client.api.data_formats;
 
 import java.util.Map;
 

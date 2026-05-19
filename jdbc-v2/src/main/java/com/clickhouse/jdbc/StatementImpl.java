@@ -180,7 +180,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
 
             ClickHouseFormatReader reader;
             if (response.getFormat() == ClickHouseFormat.JSONEachRow) {
-                reader = connection.getClient().newTextFormatReader(response);
+                reader = null; // TODO:
             } else if (!response.getFormat().isText()) {
                 reader = connection.getClient().newBinaryFormatReader(response);
             } else {

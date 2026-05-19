@@ -3,15 +3,12 @@ package com.clickhouse.client.api;
 import com.clickhouse.client.api.command.CommandResponse;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
-import com.clickhouse.client.api.data_formats.ClickHouseTextFormatReader;
-import com.clickhouse.client.api.data_formats.JSONEachRowFormatReader;
+import com.clickhouse.client.api.data_formats.JsonParserFactory;
 import com.clickhouse.client.api.data_formats.NativeFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesFormatReader;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
-import com.clickhouse.client.api.data_formats.internal.JsonParser;
-import com.clickhouse.client.api.data_formats.internal.JsonParserFactory;
 import com.clickhouse.client.api.data_formats.internal.MapBackedRecord;
 import com.clickhouse.client.api.data_formats.internal.ProcessParser;
 import com.clickhouse.client.api.enums.Protocol;
@@ -269,6 +266,7 @@ public class Client implements AutoCloseable {
         private ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy;
         private Object metricRegistry = null;
         private Supplier<String> queryIdGenerator;
+        private JsonParserFactory jsonParserFactory;
 
         public Builder() {
             this.endpoints = new HashSet<>();
@@ -2058,8 +2056,6 @@ public class Client implements AutoCloseable {
      * <p>Create an instance of {@link ClickHouseBinaryFormatReader} based on response. Table schema is option and only
      *  required for {@link ClickHouseFormat#RowBinaryWithNames}, {@link ClickHouseFormat#RowBinary}.
      *  Format {@link ClickHouseFormat#RowBinaryWithDefaults} is not supported for output (read operations).</p>
-     * <p>This factory only accepts binary output formats. For text formats such as
-     * {@link ClickHouseFormat#JSONEachRow} use {@link #newTextFormatReader(QueryResponse)} instead.</p>
      * @param response
      * @param schema
      * @return
@@ -2094,28 +2090,6 @@ public class Client implements AutoCloseable {
 
     public ClickHouseBinaryFormatReader newBinaryFormatReader(QueryResponse response) {
         return  newBinaryFormatReader(response, null);
-    }
-
-    /**
-     * <p>Create an instance of {@link ClickHouseTextFormatReader} based on response. Currently supports
-     * {@link ClickHouseFormat#JSONEachRow}; the concrete row parser is selected through the
-     * {@link ClientConfigProperties#JSON_PROCESSOR} configuration option.</p>
-     * <p>For binary output formats use
-     * {@link #newBinaryFormatReader(QueryResponse)} or
-     * {@link #newBinaryFormatReader(QueryResponse, TableSchema)} instead.</p>
-     * @param response query response whose stream will be consumed by the reader
-     * @return text format reader matching {@code response.getFormat()}
-     * @throws IllegalArgumentException if the response format is not a supported text format
-     */
-    public ClickHouseTextFormatReader newTextFormatReader(QueryResponse response) {
-        switch (response.getFormat()) {
-            case JSONEachRow:
-                String jsonProcessor = ClientConfigProperties.JSON_PROCESSOR.getOrDefault(configuration);
-                JsonParser parser = JsonParserFactory.createParser(jsonProcessor, response.getInputStream());
-                return new JSONEachRowFormatReader(parser);
-            default:
-                throw new IllegalArgumentException("Text readers doesn't support format: " + response.getFormat());
-        }
     }
 
     private String registerOperationMetrics() {

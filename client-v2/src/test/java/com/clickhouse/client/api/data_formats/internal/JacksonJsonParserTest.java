@@ -1,5 +1,6 @@
 package com.clickhouse.client.api.data_formats.internal;
 
+import com.clickhouse.client.api.data_formats.JsonParser;
 import com.fasterxml.jackson.core.JsonParseException;
 import org.testng.Assert;
 import org.testng.annotations.Test;
@@ -15,13 +16,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Test(groups = {"unit"})
 public class JacksonJsonParserTest {
 
+    private JacksonJsonParserFactory parserFactory = new JacksonJsonParserFactory();
+
     private static InputStream input(String json) {
         return new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8));
     }
 
     @Test
     public void testReadsSingleRow() throws Exception {
-        try (JacksonJsonParser parser = new JacksonJsonParser(
+        try (JsonParser parser = parserFactory.createJsonParser(
                 input("{\"id\": 1, \"name\": \"a\"}"))) {
             Map<String, Object> row = parser.nextRow();
             Assert.assertNotNull(row);
@@ -39,7 +42,7 @@ public class JacksonJsonParserTest {
         // newlines. Jackson skips whitespace between tokens, so the parser
         // must transparently advance to each subsequent object.
         String body = "{\"id\":1}\n{\"id\":2}\n  {\"id\":3}\n";
-        try (JacksonJsonParser parser = new JacksonJsonParser(input(body))) {
+        try (JsonParser parser = parserFactory.createJsonParser(input(body))) {
             for (int expected : Arrays.asList(1, 2, 3)) {
                 Map<String, Object> row = parser.nextRow();
                 Assert.assertNotNull(row, "row " + expected + " should not be null");
@@ -51,21 +54,21 @@ public class JacksonJsonParserTest {
 
     @Test
     public void testEmptyInputReturnsNull() throws Exception {
-        try (JacksonJsonParser parser = new JacksonJsonParser(input(""))) {
+        try (JsonParser parser = parserFactory.createJsonParser(input(""))) {
             Assert.assertNull(parser.nextRow());
         }
     }
 
     @Test
     public void testWhitespaceOnlyInputReturnsNull() throws Exception {
-        try (JacksonJsonParser parser = new JacksonJsonParser(input("   \n\n  "))) {
+        try (JsonParser parser = parserFactory.createJsonParser(input("   \n\n  "))) {
             Assert.assertNull(parser.nextRow());
         }
     }
 
     @Test
     public void testRepeatedNextRowAfterExhaustionRemainsNull() throws Exception {
-        try (JacksonJsonParser parser = new JacksonJsonParser(input("{\"id\":1}"))) {
+        try (JsonParser parser = parserFactory.createJsonParser(input("{\"id\":1}"))) {
             Assert.assertNotNull(parser.nextRow());
             Assert.assertNull(parser.nextRow());
             Assert.assertNull(parser.nextRow());
@@ -74,7 +77,7 @@ public class JacksonJsonParserTest {
 
     @Test(expectedExceptions = JsonParseException.class)
     public void testMalformedInputPropagatesParseException() throws Exception {
-        try (JacksonJsonParser parser = new JacksonJsonParser(input("{not valid json"))) {
+        try (JsonParser parser = parserFactory.createJsonParser(input("{not valid json"))) {
             parser.nextRow();
         }
     }
@@ -90,7 +93,7 @@ public class JacksonJsonParserTest {
             }
         };
 
-        JacksonJsonParser parser = new JacksonJsonParser(stream);
+        JsonParser parser = parserFactory.createJsonParser(stream);
         parser.close();
         Assert.assertTrue(closed.get(), "Underlying input stream should be closed");
     }

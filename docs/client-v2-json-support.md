@@ -202,7 +202,7 @@ When the configured processor is not present on the classpath at the time a
 `RuntimeException` with the following message:
 
 ```text
-JSON processor class not found: com.clickhouse.client.api.data_formats.internal.JacksonJsonParser.
+JSON processor class not found: com.clickhouse.client.api.data_formats.internal.JacksonJsonParserFactory.
 Make sure you have the required library (Jackson or Gson) on your classpath.
 ```
 

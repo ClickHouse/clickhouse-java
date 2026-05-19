@@ -1,6 +1,5 @@
 package com.clickhouse.client.api.data_formats;
 
-import com.clickhouse.client.api.data_formats.internal.JsonParser;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
@@ -115,6 +114,16 @@ public class JSONEachRowFormatReader implements ClickHouseTextFormatReader {
         } catch (Exception e) {
             throw new RuntimeException("Failed to read next JSON row", e);
         }
+    }
+
+    @Override
+    public String currentRowAsString() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Object currentRowAsObject() {
+        throw new UnsupportedOperationException();
     }
 
     @Override

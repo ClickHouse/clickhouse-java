@@ -9,7 +9,6 @@ import org.apache.commons.lang3.RandomStringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
-import org.testng.SkipException;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
@@ -650,7 +649,7 @@ public class StatementTest extends JdbcIntegrationTest {
     @Test(groups = {"integration"})
     public void testJSONEachRowFormat() throws Exception {
         Properties properties = new Properties();
-        properties.setProperty(ClientConfigProperties.JSON_PROCESSOR.getKey(), "JACKSON");
+        properties.setProperty(ClientConfigProperties.JSON_PARSER_FACTORY.getKey(), "JACKSON");
         try (Connection conn = getJdbcConnection(properties)) {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT 1 AS num, 'test' AS str FORMAT JSONEachRow")) {
@@ -666,7 +665,7 @@ public class StatementTest extends JdbcIntegrationTest {
     @Test(groups = {"integration"})
     public void testJSONEachRowFormatGson() throws Exception {
         Properties properties = new Properties();
-        properties.setProperty(ClientConfigProperties.JSON_PROCESSOR.getKey(), "GSON");
+        properties.setProperty(ClientConfigProperties.JSON_PARSER_FACTORY.getKey(), "GSON");
         try (Connection conn = getJdbcConnection(properties)) {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT 2 AS num, 'gson' AS str FORMAT JSONEachRow")) {

@@ -16,6 +16,7 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.time.LocalDate;
@@ -30,8 +31,6 @@ public abstract class AbstractJSONEachRowFormatReaderTests extends BaseIntegrati
 
     protected Client client;
 
-    protected abstract String getProcessor();
-
     @BeforeMethod(groups = {"integration"})
     public void setUp() {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
@@ -39,7 +38,6 @@ public abstract class AbstractJSONEachRowFormatReaderTests extends BaseIntegrati
                 .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isCloud())
                 .setUsername("default")
                 .setPassword(ClickHouseServerForTest.getPassword())
-                .setOption(ClientConfigProperties.JSON_PROCESSOR.getKey(), getProcessor())
                 .build();
     }
 
@@ -55,13 +53,15 @@ public abstract class AbstractJSONEachRowFormatReaderTests extends BaseIntegrati
                 .setFormat(ClickHouseFormat.JSONEachRow);
     }
 
+    protected abstract ClickHouseTextFormatReader createReader(QueryResponse response) throws IOException;
+
     @Test(groups = {"integration"})
     public void testBasicParsing() throws Exception {
         String sql = "SELECT 1 as id, 'test' as name, true as active " +
                      "UNION ALL SELECT 2, 'clickhouse', false";
 
         try (QueryResponse response = client.query(sql, newJsonEachRowSettings()).get();
-             ClickHouseTextFormatReader reader = client.newTextFormatReader(response)) {
+             ClickHouseTextFormatReader reader = createReader(response)) {
 
             // First row
             Assert.assertTrue(reader.hasNext());
@@ -92,7 +92,7 @@ public abstract class AbstractJSONEachRowFormatReaderTests extends BaseIntegrati
                      "true as col_bool, 'val' as col_str";
 
         try (QueryResponse response = client.query(sql, newJsonEachRowSettings()).get();
-             ClickHouseTextFormatReader reader = client.newTextFormatReader(response)) {
+             ClickHouseTextFormatReader reader = createReader(response)) {
 
             Assert.assertNotNull(reader.getSchema());
             Assert.assertEquals(reader.getSchema().getColumns().size(), 4);
@@ -111,7 +111,7 @@ public abstract class AbstractJSONEachRowFormatReaderTests extends BaseIntegrati
                      "true as bool, 'hello' as str";
 
         try (QueryResponse response = client.query(sql, newJsonEachRowSettings()).get();
-             ClickHouseTextFormatReader reader = client.newTextFormatReader(response)) {
+             ClickHouseTextFormatReader reader = createReader(response)) {
 
             reader.next();
             Assert.assertEquals(reader.getByte("b"), (byte) 120);
@@ -130,7 +130,7 @@ public abstract class AbstractJSONEachRowFormatReaderTests extends BaseIntegrati
         String sql = "SELECT * FROM remote('127.0.0.1', system.one) WHERE dummy > 1";
 
         try (QueryResponse response = client.query(sql, newJsonEachRowSettings()).get();
-             ClickHouseTextFormatReader reader = client.newTextFormatReader(response)) {
+             ClickHouseTextFormatReader reader = createReader(response)) {
 
             Assert.assertFalse(reader.hasNext());
             Assert.assertNull(reader.next());
@@ -145,7 +145,7 @@ public abstract class AbstractJSONEachRowFormatReaderTests extends BaseIntegrati
                      "true as bool, 'hello' as str";
 
         try (QueryResponse response = client.query(sql, newJsonEachRowSettings()).get();
-             ClickHouseTextFormatReader reader = client.newTextFormatReader(response)) {
+             ClickHouseTextFormatReader reader = createReader(response)) {
 
             reader.next();
             Assert.assertEquals(reader.getByte(1), (byte) 120);
@@ -166,7 +166,7 @@ public abstract class AbstractJSONEachRowFormatReaderTests extends BaseIntegrati
         String sql = "SELECT 7 as id, 'abc' as name, CAST(NULL AS Nullable(String)) as missing";
 
         try (QueryResponse response = client.query(sql, newJsonEachRowSettings()).get();
-             ClickHouseTextFormatReader reader = client.newTextFormatReader(response)) {
+             ClickHouseTextFormatReader reader = createReader(response)) {
 
             reader.next();
 
@@ -188,7 +188,7 @@ public abstract class AbstractJSONEachRowFormatReaderTests extends BaseIntegrati
         String sql = "SELECT toInt64(123456789012345) as bi, toDecimal64(12345.6789, 4) as bd";
 
         try (QueryResponse response = client.query(sql, newJsonEachRowSettings()).get();
-             ClickHouseTextFormatReader reader = client.newTextFormatReader(response)) {
+             ClickHouseTextFormatReader reader = createReader(response)) {
 
             reader.next();
             Assert.assertEquals(reader.getBigInteger("bi"), BigInteger.valueOf(123456789012345L));
@@ -210,7 +210,7 @@ public abstract class AbstractJSONEachRowFormatReaderTests extends BaseIntegrati
                      "'2024-05-06T07:08:09+02:00' as odt";
 
         try (QueryResponse response = client.query(sql, newJsonEachRowSettings()).get();
-             ClickHouseTextFormatReader reader = client.newTextFormatReader(response)) {
+             ClickHouseTextFormatReader reader = createReader(response)) {
 
             reader.next();
             Assert.assertEquals(reader.getLocalDate("d"), LocalDate.of(2024, 5, 6));
@@ -234,7 +234,7 @@ public abstract class AbstractJSONEachRowFormatReaderTests extends BaseIntegrati
                      "[1, 2, 3] as arr";
 
         try (QueryResponse response = client.query(sql, newJsonEachRowSettings()).get();
-             ClickHouseTextFormatReader reader = client.newTextFormatReader(response)) {
+             ClickHouseTextFormatReader reader = createReader(response)) {
 
             reader.next();
             UUID expected = UUID.fromString("11111111-2222-3333-4444-555555555555");

@@ -1,6 +1,5 @@
 package com.clickhouse.client.api.data_formats;
 
-import com.clickhouse.client.api.data_formats.internal.JsonParser;
 import com.clickhouse.data.ClickHouseDataType;
 import org.testng.Assert;
 import org.testng.annotations.Test;
