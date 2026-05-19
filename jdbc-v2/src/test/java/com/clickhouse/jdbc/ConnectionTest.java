@@ -923,7 +923,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
         Assert.assertTrue(url != null && !url.trim().isEmpty(), "JWT_TEST_HOST is not set");
 
         Properties properties = new Properties();
-        properties.put(ClientConfigProperties.ACCESS_TOKEN.getKey(), jwt);
+        properties.put(ClientConfigProperties.BEARERTOKEN_AUTH.getKey(), jwt);
         properties.put(ClientConfigProperties.USER.getKey(), "default");
 
         try (Connection conn = new ConnectionImpl(url, properties)) {
