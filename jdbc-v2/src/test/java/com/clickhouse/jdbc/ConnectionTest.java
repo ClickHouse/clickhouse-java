@@ -917,14 +917,16 @@ public class ConnectionTest extends JdbcIntegrationTest {
     @Test(groups = { "integration" })
     public void testJWTWithCloud() throws Exception {
 
-        String jwt = isCloud() ? System.getenv("CLIENT_JWT") : SAMPLE_JWT_TOKEN_FOR_TESTS;
+        final String jwt = isCloud() ? System.getenv("CLIENT_JWT") : SAMPLE_JWT_TOKEN_FOR_TESTS;
+        final String url = isCloud() ? "jdbc:ch:https://" + System.getenv("JWT_TEST_HOST") + "/" + getDatabase(): getEndpointString();
+        Assert.assertTrue(jwt != null && !jwt.trim().isEmpty(), "CLIENT_JWT is not set.");
+        Assert.assertTrue(url != null && !url.trim().isEmpty(), "JWT_TEST_HOST is not set");
+
         Properties properties = new Properties();
         properties.put(ClientConfigProperties.ACCESS_TOKEN.getKey(), jwt);
         properties.put(ClientConfigProperties.USER.getKey(), "default");
-        properties.put(ClientConfigProperties.HTTP_USE_BASIC_AUTH.getKey(), "false");
-        properties.put(ClientConfigProperties.DATABASE.getKey(), getDatabase());
 
-        try (Connection conn = new ConnectionImpl(getEndpointString(), properties)) {
+        try (Connection conn = new ConnectionImpl(url, properties)) {
             if (isCloud()) { // else check configuration only
                 try (Statement stmt = conn.createStatement();
                      ResultSet rs = stmt.executeQuery("SELECT 1")) {
