@@ -921,6 +921,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
         Properties properties = new Properties();
         properties.put(ClientConfigProperties.ACCESS_TOKEN.getKey(), jwt);
         properties.put(ClientConfigProperties.USER.getKey(), "default");
+        properties.put(ClientConfigProperties.HTTP_USE_BASIC_AUTH, false);
         properties.put(ClientConfigProperties.DATABASE.getKey(), getDatabase());
 
         try (Connection conn = new ConnectionImpl(getEndpointString(), properties)) {
