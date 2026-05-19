@@ -2678,6 +2678,171 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
         }
     }
 
+    @Test(groups = { "integration" })
+    public void testGeoGeometry() throws Exception {
+        if (earlierThan(25, 11)) {
+            return;
+        }
+
+        final Object[] expectedValues = new Object[] {
+                new double[] {1D, 2D},
+                new double[][] {{1D, 2D}, {3D, 4D}, {1D, 2D}},
+                new double[][][] {{{1D, 2D}, {3D, 4D}, {1D, 2D}}},
+                new double[][][][] {
+                        {{{1D, 2D}, {3D, 4D}, {1D, 2D}}},
+                        {{{5D, 6D}, {7D, 8D}, {5D, 6D}}}
+                }
+        };
+        final String table = "test_geo_geometry";
+        Properties properties = new Properties();
+        properties.setProperty(ClientConfigProperties.serverSetting("allow_suspicious_variant_types"), "1");
+
+        try (Connection conn = getJdbcConnection(properties); Statement stmt = conn.createStatement()) {
+            stmt.executeUpdate("DROP TABLE IF EXISTS " + table);
+            stmt.executeUpdate("CREATE TABLE " + table + " (rowId Int32, geom Geometry) ENGINE = MergeTree ORDER BY ()");
+            stmt.executeUpdate("INSERT INTO " + table + " VALUES "
+                    + "(0, (1, 2)), "
+                    + "(1, [(1, 2), (3, 4), (1, 2)]), "
+                    + "(2, [[(1, 2), (3, 4), (1, 2)]]), "
+                    + "(3, [[[(1, 2), (3, 4), (1, 2)]], [[(5, 6), (7, 8), (5, 6)]]])");
+
+            try (ResultSet rs = stmt.executeQuery("SELECT * FROM " + table + " ORDER BY rowId")) {
+                final int geomColumn = 2;
+                ResultSetMetaData rsMd = rs.getMetaData();
+                assertEquals(rsMd.getColumnTypeName(geomColumn), ClickHouseDataType.Geometry.name());
+                assertEquals(rsMd.getColumnType(geomColumn), Types.ARRAY);
+
+                int rowId = 0;
+                while (rs.next()) {
+                    assertEquals(rs.getInt("rowId"), rowId);
+                    assertFalse(rs.getString("geom").isEmpty());
+
+                    Object asObject = rs.getObject(geomColumn);
+                    assertGeometryValue(asObject, expectedValues[rowId]);
+
+                    Array asArray = rs.getArray(geomColumn);
+                    assertGeometryValue(asArray.getArray(), expectedValues[rowId]);
+                    assertEquals(asArray.getBaseTypeName(), ClickHouseDataType.Geometry.name());
+                    assertEquals(asArray.getBaseType(), Types.ARRAY);
+                    rowId++;
+                }
+
+                assertEquals(rowId, expectedValues.length);
+            }
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testGeoGeometryPreparedStatement() throws Exception {
+        if (earlierThan(25, 11)) {
+            return;
+        }
+
+        final Object[] expectedValues = new Object[] {
+                new double[] {1D, 2D},
+                new double[][] {{1D, 2D}, {3D, 4D}, {1D, 2D}},
+                new double[][][] {{{1D, 2D}, {3D, 4D}, {1D, 2D}}},
+                new double[][][][] {
+                        {{{1D, 2D}, {3D, 4D}, {1D, 2D}}},
+                        {{{5D, 6D}, {7D, 8D}, {5D, 6D}}}
+                }
+        };
+        final String table = "test_geo_geometry_ps";
+        Properties properties = new Properties();
+        properties.setProperty(ClientConfigProperties.serverSetting("allow_suspicious_variant_types"), "1");
+
+        try (Connection conn = getJdbcConnection(properties); Statement stmt = conn.createStatement()) {
+            stmt.executeUpdate("DROP TABLE IF EXISTS " + table);
+            stmt.executeUpdate("CREATE TABLE " + table + " (rowId Int32, geom Geometry) ENGINE = MergeTree ORDER BY ()");
+
+            try (PreparedStatement pstmt = conn.prepareStatement("INSERT INTO " + table + " VALUES (?, ?)")) {
+                for (int i = 0; i < expectedValues.length; i++) {
+                    pstmt.setInt(1, i);
+                    pstmt.setObject(2, createGeometryParameter(conn, expectedValues[i]));
+                    pstmt.addBatch();
+                }
+                assertEquals(pstmt.executeBatch().length, expectedValues.length);
+            }
+
+            try (ResultSet rs = stmt.executeQuery("SELECT * FROM " + table + " ORDER BY rowId")) {
+                int rowId = 0;
+                while (rs.next()) {
+                    assertEquals(rs.getInt("rowId"), rowId);
+                    assertFalse(rs.getString("geom").isEmpty());
+                    assertGeometryValue(rs.getObject("geom"), expectedValues[rowId]);
+                    assertGeometryValue(rs.getArray("geom").getArray(), expectedValues[rowId]);
+                    rowId++;
+                }
+
+                assertEquals(rowId, expectedValues.length);
+            }
+        }
+    }
+
+    private static Object createGeometryParameter(Connection conn, Object value) throws SQLException {
+        if (value instanceof double[]) {
+            return conn.createStruct("Tuple(Float32, Float32)", Arrays.stream((double[]) value).boxed().toArray(Double[]::new));
+        } else if (value instanceof double[][]) {
+            return conn.createArrayOf("Array(Point)", box2d((double[][]) value));
+        } else if (value instanceof double[][][]) {
+            return conn.createArrayOf("Array(Array(Point))", box3d((double[][][]) value));
+        } else if (value instanceof double[][][][]) {
+            return conn.createArrayOf("Array(Array(Array(Point)))", box4d((double[][][][]) value));
+        }
+
+        throw new SQLException("Unsupported geometry parameter type: " + value.getClass());
+    }
+
+    private static Double[][] box2d(double[][] value) {
+        Double[][] result = new Double[value.length][];
+        for (int i = 0; i < value.length; i++) {
+            result[i] = Arrays.stream(value[i]).boxed().toArray(Double[]::new);
+        }
+        return result;
+    }
+
+    private static Double[][][] box3d(double[][][] value) {
+        Double[][][] result = new Double[value.length][][];
+        for (int i = 0; i < value.length; i++) {
+            result[i] = box2d(value[i]);
+        }
+        return result;
+    }
+
+    private static Double[][][][] box4d(double[][][][] value) {
+        Double[][][][] result = new Double[value.length][][][];
+        for (int i = 0; i < value.length; i++) {
+            result[i] = box3d(value[i]);
+        }
+        return result;
+    }
+
+    private static void assertGeometryValue(Object actual, Object expected) {
+        Assert.assertNotNull(actual);
+        Assert.assertTrue(actual.getClass().isArray(), "Geometry value should be returned as an array");
+        assertGeometryArrayEquals(actual, expected);
+    }
+
+    private static void assertGeometryArrayEquals(Object actual, Object expected) {
+        int actualLength = java.lang.reflect.Array.getLength(actual);
+        int expectedLength = java.lang.reflect.Array.getLength(expected);
+        assertEquals(actualLength, expectedLength);
+
+        for (int i = 0; i < expectedLength; i++) {
+            Object actualItem = java.lang.reflect.Array.get(actual, i);
+            Object expectedItem = java.lang.reflect.Array.get(expected, i);
+
+            if (expectedItem != null && expectedItem.getClass().isArray()) {
+                Assert.assertNotNull(actualItem);
+                Assert.assertTrue(actualItem.getClass().isArray(),
+                        "Expected nested array but found: " + actualItem.getClass());
+                assertGeometryArrayEquals(actualItem, expectedItem);
+            } else {
+                assertEquals(((Number) actualItem).doubleValue(), ((Number) expectedItem).doubleValue());
+            }
+        }
+    }
+
     private static final HashMap<String, Object> EMPTY_JSON = new HashMap<>();
 
     @Test(groups = { "integration" }, dataProvider = "testJSONReadDP")

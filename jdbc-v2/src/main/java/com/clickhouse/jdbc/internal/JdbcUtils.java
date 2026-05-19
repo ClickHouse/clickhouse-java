@@ -191,6 +191,7 @@ public class JdbcUtils {
                         break;
                     case IPv4:
                     case IPv6:
+                    case Geometry:
                         // should be mapped to Object because require conversion.
                     default:
                         map.put(e.getKey(), Object.class);
