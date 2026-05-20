@@ -25,6 +25,12 @@ The example is structured as a small component:
   SQL, so the read path stays focused on the parser factory.
 - Two small subclasses, `CustomJacksonParserFactory` and
   `CustomGsonParserFactory`, demonstrate the protected-hook customization.
+  Both also implement a tiny `PayloadConverter` interface defined inside the
+  example: their configured `ObjectMapper` / `Gson` is reused to convert the
+  raw `payload` `Map` produced by the underlying library into a typed
+  `Payload` POJO. The default factories do not implement the interface, so
+  `readAll(...)` logs the raw map for them — making the contrast between the
+  default behavior and the customized behavior visible in the output.
 
 Each read call in `run()` follows the same three-step shape:
 
@@ -83,10 +89,19 @@ Steps performed by `run()`:
    - default `JacksonJsonParserFactory`;
    - `CustomJacksonParserFactory`, which overrides `createMapper()` to
      tolerate unknown properties and preserve big integers and decimals
-     exactly;
+     exactly, and implements `PayloadConverter` to convert each row's
+     `payload` `Map` into a `Payload` POJO via
+     `ObjectMapper.convertValue(...)`;
    - default `GsonJsonParserFactory`;
    - `CustomGsonParserFactory`, which overrides `customize(GsonBuilder)` to
-     use a `LONG_OR_DOUBLE` number policy and disable HTML escaping.
+     use a `LONG_OR_DOUBLE` number policy and disable HTML escaping, and
+     implements `PayloadConverter` to convert each row's `payload` `Map`
+     into a `Payload` POJO via `gson.fromJson(gson.toJsonTree(...))`.
+
+Logged rows include the payload value's runtime class so the difference
+between the default factories (which surface a `LinkedHashMap` /
+`LinkedTreeMap`) and the customized factories (which surface a `Payload`)
+shows up directly in the output.
 
 The build keeps both `jackson-databind` and `gson` on the classpath so the
 example can switch between processors at runtime. Production applications
