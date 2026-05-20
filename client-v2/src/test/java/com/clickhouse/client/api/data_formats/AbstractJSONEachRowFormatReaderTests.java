@@ -23,6 +23,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -57,31 +59,109 @@ public abstract class AbstractJSONEachRowFormatReaderTests extends BaseIntegrati
 
     @Test(groups = {"integration"})
     public void testBasicParsing() throws Exception {
-        String sql = "SELECT 1 as id, 'test' as name, true as active " +
-                     "UNION ALL SELECT 2, 'clickhouse', false";
+        String table = "test_basic_parsing";
 
-        try (QueryResponse response = client.query(sql, newJsonEachRowSettings()).get();
-             ClickHouseTextFormatReader reader = createReader(response)) {
+        List<Map<String, Object>> expected = Arrays.asList(
+                row(1, "test", true,
+                        Arrays.asList("a", "b", "c"),
+                        mapOf("x", 10, "y", 20)),
+                row(2, "clickhouse", false,
+                        Collections.singletonList("d"),
+                        mapOf("z", 30)));
 
-            // First row
-            Assert.assertTrue(reader.hasNext());
-            Map<String, Object> row1 = reader.next();
-            Assert.assertNotNull(row1);
-            Assert.assertEquals(reader.getInteger("id"), 1);
-            Assert.assertEquals(reader.getString("name"), "test");
-            Assert.assertEquals(reader.getBoolean("active"), true);
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        client.execute("CREATE TABLE " + table + " (" +
+                "id UInt32, " +
+                "name String, " +
+                "active Bool, " +
+                "tags Array(String), " +
+                "scores Map(String, Int32)" +
+                ") ENGINE = MergeTree ORDER BY id").get();
+        try {
+            client.execute("INSERT INTO " + table + " VALUES " + buildValuesClause(expected)).get();
 
-            // Second row
-            Assert.assertTrue(reader.hasNext());
-            Map<String, Object> row2 = reader.next();
-            Assert.assertNotNull(row2);
-            Assert.assertEquals(reader.getInteger("id"), 2);
-            Assert.assertEquals(reader.getString("name"), "clickhouse");
-            Assert.assertEquals(reader.getBoolean("active"), false);
+            String sql = "SELECT id, name, active, tags, scores FROM " + table + " ORDER BY id";
 
-            // No more rows
-            Assert.assertNull(reader.next());
+            try (QueryResponse response = client.query(sql, newJsonEachRowSettings()).get();
+                 ClickHouseTextFormatReader reader = createReader(response)) {
+
+                for (Map<String, Object> exp : expected) {
+                    Assert.assertTrue(reader.hasNext());
+                    Assert.assertNotNull(reader.next());
+
+                    Assert.assertEquals(reader.getInteger("id"), ((Number) exp.get("id")).intValue());
+                    Assert.assertEquals(reader.getString("name"), exp.get("name"));
+                    Assert.assertEquals(reader.getBoolean("active"), exp.get("active"));
+                    Assert.assertEquals(reader.getList("tags"), exp.get("tags"));
+
+                    Map<String, Object> actualScores = reader.readValue("scores");
+                    @SuppressWarnings("unchecked")
+                    Map<String, Integer> expectedScores = (Map<String, Integer>) exp.get("scores");
+                    Assert.assertNotNull(actualScores);
+                    Assert.assertEquals(actualScores.size(), expectedScores.size());
+                    for (Map.Entry<String, Integer> e : expectedScores.entrySet()) {
+                        Assert.assertEquals(((Number) actualScores.get(e.getKey())).intValue(),
+                                e.getValue().intValue());
+                    }
+                }
+
+                Assert.assertNull(reader.next());
+            }
+        } finally {
+            client.execute("DROP TABLE IF EXISTS " + table).get();
         }
+    }
+
+    private static Map<String, Object> row(int id, String name, boolean active,
+                                           List<String> tags, Map<String, Integer> scores) {
+        Map<String, Object> r = new java.util.LinkedHashMap<>();
+        r.put("id", id);
+        r.put("name", name);
+        r.put("active", active);
+        r.put("tags", tags);
+        r.put("scores", scores);
+        return r;
+    }
+
+    private static Map<String, Integer> mapOf(Object... pairs) {
+        Map<String, Integer> m = new java.util.LinkedHashMap<>();
+        for (int i = 0; i < pairs.length; i += 2) {
+            m.put((String) pairs[i], (Integer) pairs[i + 1]);
+        }
+        return m;
+    }
+
+    private static String buildValuesClause(List<Map<String, Object>> rows) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < rows.size(); i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            Map<String, Object> r = rows.get(i);
+            sb.append('(')
+              .append(r.get("id")).append(", ")
+              .append('\'').append(r.get("name")).append("', ")
+              .append(r.get("active")).append(", ");
+
+            @SuppressWarnings("unchecked")
+            List<String> tags = (List<String>) r.get("tags");
+            sb.append('[');
+            for (int t = 0; t < tags.size(); t++) {
+                if (t > 0) sb.append(", ");
+                sb.append('\'').append(tags.get(t)).append('\'');
+            }
+            sb.append("], {");
+
+            @SuppressWarnings("unchecked")
+            Map<String, Integer> scores = (Map<String, Integer>) r.get("scores");
+            int s = 0;
+            for (Map.Entry<String, Integer> e : scores.entrySet()) {
+                if (s++ > 0) sb.append(", ");
+                sb.append('\'').append(e.getKey()).append("': ").append(e.getValue());
+            }
+            sb.append("})");
+        }
+        return sb.toString();
     }
 
     @Test(groups = {"integration"})
