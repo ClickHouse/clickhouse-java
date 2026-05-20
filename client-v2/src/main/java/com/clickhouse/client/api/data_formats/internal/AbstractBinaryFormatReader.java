@@ -1086,7 +1086,36 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public void close() throws Exception {
-        input.close();
+        try {
+            input.close();
+        } catch (Exception e) {
+            // Apache HttpComponents ChunkedInputStream.close() drains remaining bytes and
+            // throws ConnectionClosedException ("Premature end of chunk coded message body")
+            // when the server tore the connection down mid-response (e.g. send_timeout fired
+            // before the terminating zero-length chunk was written). Any real iteration-time
+            // failure has already surfaced through nextRecord(); a drain failure at close()
+            // is informational only and should not punish callers of try-with-resources.
+            if (isConnectionClosedException(e)) {
+                LOG.debug("Swallowing chunked-stream drain on reader close: {}", e.toString());
+                return;
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * Walks the cause chain looking for an {@code org.apache.hc.core5.http.ConnectionClosedException}.
+     * Matched by class-name suffix so it works against both directly-referenced and shaded copies of
+     * the HC class without taking a compile-time dependency on it from this layer.
+     */
+    static boolean isConnectionClosedException(Throwable t) {
+        while (t != null) {
+            if (t.getClass().getName().endsWith(".ConnectionClosedException")) {
+                return true;
+            }
+            t = t.getCause();
+        }
+        return false;
     }
 
     private static class RecordWrapper implements Map<String, Object> {

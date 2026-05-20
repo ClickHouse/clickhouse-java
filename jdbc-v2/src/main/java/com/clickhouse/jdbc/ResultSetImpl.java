@@ -149,18 +149,6 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     public void close() throws SQLException {
         closed = true;
 
-        // Stream-close exceptions on the response body are expected when the server has
-        // already torn down the connection (e.g. SOCKET_TIMEOUT on the writer side hits
-        // `send_timeout` before the terminating chunk is written). The most common
-        // surface is `ConnectionClosedException: Premature end of chunk coded message
-        // body: closing chunk expected` from Apache HC's `ChunkedInputStream` drain,
-        // optionally wrapped through `FramedLZ4CompressorInputStream` when the
-        // response was lz4-compressed. The application has already finished iterating
-        // the result set; propagating the drain failure as a SQLException punishes
-        // well-behaved try-with-resources callers for a server-side socket race they
-        // cannot affect. Log at debug and swallow -- the connection is closed either
-        // way, and we should not turn `try (ResultSet rs = ...)` into a throwing path.
-        // See https://github.com/ClickHouse/clickhouse-java/issues/2361
         Exception e = null;
         try {
             if (reader != null) {
@@ -168,9 +156,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                     reader.close();
                 } catch (Exception re) {
                     log.debug("Error closing reader", re);
-                    if (!isStreamDrainException(re)) {
-                        e = re;
-                    }
+                    e = re;
                 } finally {
                     reader = null;
                 }
@@ -181,9 +167,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                     response.close();
                 } catch (Exception re) {
                     log.debug("Error closing response", re);
-                    if (!isStreamDrainException(re)) {
-                        e = re;
-                    }
+                    e = re;
                 } finally {
                     response = null;
                 }
@@ -194,33 +178,6 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         if (e != null) {
             throw ExceptionUtils.toSqlState(e);
         }
-    }
-
-    /**
-     * Determines whether a close-time exception originates from draining an
-     * already-truncated HTTP chunked response body. Such exceptions are not
-     * actionable from the caller's perspective -- iteration has finished, the
-     * connection is closing anyway, and the server's premature disconnect is the
-     * actual error condition (which, if it occurred during iteration, would have
-     * surfaced through {@code next()}).
-     */
-    // Package-private for unit tests.
-    static boolean isStreamDrainException(Throwable t) {
-        while (t != null) {
-            String msg = t.getMessage();
-            if (msg != null && (msg.contains("Premature end of chunk")
-                    || msg.contains("closing chunk expected"))) {
-                return true;
-            }
-            // ConnectionClosedException + class name match for defensive coverage of
-            // future HC versions that may rephrase the message.
-            String cls = t.getClass().getName();
-            if (cls.endsWith("ConnectionClosedException")) {
-                return true;
-            }
-            t = t.getCause();
-        }
-        return false;
     }
 
     @Override
