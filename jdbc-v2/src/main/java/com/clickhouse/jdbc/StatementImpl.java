@@ -2,6 +2,7 @@ package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.data_formats.ClickHouseFormatReader;
+import com.clickhouse.client.api.data_formats.JSONEachRowFormatReader;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
@@ -180,7 +181,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
 
             ClickHouseFormatReader reader;
             if (response.getFormat() == ClickHouseFormat.JSONEachRow) {
-                reader = null; // TODO:
+                reader = new JSONEachRowFormatReader(connection.getJsonParserFactory().createJsonParser(response.getInputStream()));
             } else if (!response.getFormat().isText()) {
                 reader = connection.getClient().newBinaryFormatReader(response);
             } else {

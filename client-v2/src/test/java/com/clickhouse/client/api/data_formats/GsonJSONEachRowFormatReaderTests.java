@@ -38,7 +38,7 @@ public class GsonJSONEachRowFormatReaderTests extends AbstractJSONEachRowFormatR
         };
 
         final String table = "test_row_to_object_json";
-        final String createStmt = "CREATE TABLE IF NOT EXISTS" + table + " (key String, sensor1 Decimal, sensor2 Decimal, params JSON) Engine MergeTree Order By (key)";
+        final String createStmt = "CREATE TABLE IF NOT EXISTS " + table + " (key String, sensor1 Decimal, sensor2 Decimal, params JSON) Engine MergeTree Order By (key)";
         client.execute(createStmt).get().close();
         client.execute("TRUNCATE " + table).get().close();
 

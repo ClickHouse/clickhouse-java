@@ -1,6 +1,9 @@
 package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.data_formats.JsonParserFactory;
+import com.clickhouse.client.api.data_formats.internal.GsonJsonParserFactory;
+import com.clickhouse.client.api.data_formats.internal.JacksonJsonParserFactory;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.data.ClickHouseVersion;
@@ -718,10 +721,10 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test(groups = {"integration"})
-    public void testJSONEachRowFormat() throws Exception {
+    @Test(groups = {"integration"}, dataProvider = "testJSONEachRowFormatDP")
+    public void testJSONEachRowFormat(Class<JsonParserFactory> parserFactory) throws Exception {
         Properties properties = new Properties();
-        properties.setProperty(ClientConfigProperties.JSON_PARSER_FACTORY.getKey(), "JACKSON");
+        properties.setProperty(DriverProperties.JSON_PARSER_FACTORY.getKey(), parserFactory.getName());
         try (Connection conn = getJdbcConnection(properties)) {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT 1 AS num, 'test' AS str FORMAT JSONEachRow")) {
@@ -734,20 +737,12 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test(groups = {"integration"})
-    public void testJSONEachRowFormatGson() throws Exception {
-        Properties properties = new Properties();
-        properties.setProperty(ClientConfigProperties.JSON_PARSER_FACTORY.getKey(), "GSON");
-        try (Connection conn = getJdbcConnection(properties)) {
-            try (Statement stmt = conn.createStatement()) {
-                try (ResultSet rs = stmt.executeQuery("SELECT 2 AS num, 'gson' AS str FORMAT JSONEachRow")) {
-                    assertTrue(rs.next());
-                    assertEquals(rs.getInt("num"), 2);
-                    assertEquals(rs.getString("str"), "gson");
-                    assertFalse(rs.next());
-                }
-            }
-        }
+    @DataProvider
+    public static Object[][] testJSONEachRowFormatDP() {
+        return new Object[][] {
+                {JacksonJsonParserFactory.class},
+                {GsonJsonParserFactory.class},
+        };
     }
 
     @Test(groups = "integration")

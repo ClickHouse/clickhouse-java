@@ -80,6 +80,7 @@ public enum DriverProperties {
 
     /**
      * Controls logic of saving roles that were set using {@code SET <role>} statement.
+     * Default: true - save roles
      */
     REMEMBER_LAST_SET_ROLES("remember_last_set_roles", String.valueOf(Boolean.TRUE)),
 
@@ -127,6 +128,13 @@ public enum DriverProperties {
      * Define cluster name for statement executions like KILL
      */
     CLUSTER_NAME("jdbc_cluster_name", null),
+
+    /**
+     * Defines what {@link com.clickhouse.client.api.data_formats.JsonParserFactory} implementation connection
+     * should use when response is in {@code JSONEachRow} format. Value is the name of the factory class. Driver
+     * will
+     */
+    JSON_PARSER_FACTORY("jdbc_json_parser_factor", null),
 
     ;
 
