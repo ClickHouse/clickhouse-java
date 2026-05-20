@@ -1,240 +1,190 @@
 package com.clickhouse.examples.client_v2.json_processors;
 
 import com.clickhouse.client.api.Client;
-import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.command.CommandResponse;
 import com.clickhouse.client.api.data_formats.ClickHouseTextFormatReader;
+import com.clickhouse.client.api.data_formats.JSONEachRowFormatReader;
+import com.clickhouse.client.api.data_formats.JsonParserFactory;
+import com.clickhouse.client.api.data_formats.internal.GsonJsonParserFactory;
+import com.clickhouse.client.api.data_formats.internal.JacksonJsonParserFactory;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseFormat;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.google.gson.GsonBuilder;
+import com.google.gson.ToNumberPolicy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 
+/**
+ * Demonstrates how to consume a {@code JSONEachRow} response with the client-v2
+ * {@link JSONEachRowFormatReader} and a {@link JsonParserFactory}.
+ *
+ * <p>The class is intentionally written as a regular component (instance methods,
+ * shared {@link Client} field) so it can be copied as-is into other projects and
+ * have its individual methods invoked.</p>
+ *
+ * <p>Two factories ship with the client and serve as the customization points:
+ * {@link com.clickhouse.client.api.data_formats.internal.JacksonJsonParserFactory} and {@link com.clickhouse.client.api.data_formats.internal.GsonJsonParserFactory}. Extend
+ * either of them and override the protected hook
+ * ({@code createMapper()} for Jackson, {@code customize(GsonBuilder)} for Gson)
+ * to plug in any library-level customization.</p>
+ */
 public class ClientV2JsonProcessorsExample {
+
     private static final Logger LOG = LoggerFactory.getLogger(ClientV2JsonProcessorsExample.class);
-    private static final String TABLE_NAME = "client_v2_json_processors_example";
-    private static final String SAMPLE_DATA_RESOURCE = "/sample_data.csv";
-    private static final String CREATE_TABLE_SQL = "CREATE TABLE " + TABLE_NAME + " ("
-            + "id UInt32, "
-            + "name String, "
-            + "active Bool, "
-            + "score Float64, "
-            + "payload JSON"
-            + ") ENGINE = MergeTree ORDER BY id";
-    private static final String SELECT_DATA_SQL = "SELECT id, name, active, score, payload "
-            + "FROM " + TABLE_NAME + " ORDER BY id";
+
+    private static final String TABLE = "client_v2_json_processors_example";
+
+    /** Sample dataset: {@code { id, name, active, score, payload }}. */
+    private static final Object[][] SAMPLE_ROWS = {
+            { 1, "alpha", true,  1.5, "{\"city\":\"Berlin\",\"tags\":[\"a\",\"b\"]}" },
+            { 2, "beta",  false, 2.5, "{\"city\":\"Paris\", \"tags\":[\"c\"]}"       },
+            { 3, "gamma", true,  3.5, "{\"city\":\"Tokyo\", \"tags\":[]}"            },
+    };
+
+    private final Client client;
+
+    public ClientV2JsonProcessorsExample(Client client) {
+        this.client = client;
+    }
 
     public static void main(String[] args) throws Exception {
-        ConnectionConfig config = ConnectionConfig.load();
-        defineTableStructure(config);
-        loadData(config);
-
-        runGsonExample(config);
-        runJacksonExample(config);
-    }
-
-    private static void defineTableStructure(ConnectionConfig config) throws Exception {
-        LOG.info("Step 1. Defining table structure: {}", TABLE_NAME);
-        try (Client client = createClient(config, "GSON")) {
-            executeStatement(client, "DROP TABLE IF EXISTS " + TABLE_NAME);
-            executeStatement(client, CREATE_TABLE_SQL);
+        try (Client client = buildClient()) {
+            new ClientV2JsonProcessorsExample(client).run();
         }
     }
 
-    private static void loadData(ConnectionConfig config) throws Exception {
-        List<SampleRow> rows = readSampleRows();
-        LOG.info("Step 2. Loading {} sample rows from {} into {}", rows.size(), SAMPLE_DATA_RESOURCE, TABLE_NAME);
-        try (Client client = createClient(config, "GSON")) {
-            executeStatement(client, "TRUNCATE TABLE " + TABLE_NAME);
-            executeStatement(client, buildInsertSql(rows));
-        }
+    /** Runs the full demo: prepares the table, loads sample rows, reads them four times. */
+    public void run() throws Exception {
+        recreateTable();
+        loadSampleData();
+
+        // 1. Default Jackson: use the shipped factory as-is.
+        readAll("Jackson (default)", new JacksonJsonParserFactory());
+
+        // 2. Customized Jackson: extend the factory and override createMapper().
+        readAll("Jackson (custom)", new CustomJacksonParserFactory());
+
+        // 3. Default Gson: use the shipped factory as-is.
+        readAll("Gson (default)", new GsonJsonParserFactory());
+
+        // 4. Customized Gson: extend the factory and override customize(GsonBuilder).
+        readAll("Gson (custom)", new CustomGsonParserFactory());
     }
 
-    private static void runJacksonExample(ConnectionConfig config) throws Exception {
-        LOG.info("Step 4. Running client-v2 example with Jackson");
-        try (Client client = createClient(config, "JACKSON")) {
-            readRows(client, "JACKSON");
-        }
-    }
+    /**
+     * Reads every row from {@link #TABLE} using a {@code JSONEachRow} stream
+     * decoded with the supplied {@link JsonParserFactory}.
+     */
+    public void readAll(String label, JsonParserFactory factory) throws Exception {
+        LOG.info("--- Reading rows with {} ---", label);
 
-    private static void runGsonExample(ConnectionConfig config) throws Exception {
-        LOG.info("Step 3. Running client-v2 example with Gson");
-        try (Client client = createClient(config, "GSON")) {
-            readRows(client, "GSON");
-        }
-    }
+        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.JSONEachRow);
+        String sql = "SELECT id, name, active, score, payload FROM " + TABLE + " ORDER BY id";
 
-    private static void readRows(Client client, String processor) throws Exception {
-        try (QueryResponse response = client.query(SELECT_DATA_SQL, new QuerySettings().setFormat(ClickHouseFormat.JSONEachRow)).get()) {
-            ClickHouseTextFormatReader reader = client.newTextFormatReader(response);
+        try (QueryResponse response = client.query(sql, settings).get();
+             ClickHouseTextFormatReader reader = new JSONEachRowFormatReader(
+                     factory.createJsonParser(response.getInputStream()))) {
+
             while (reader.next() != null) {
                 Map<String, Object> payload = reader.readValue("payload");
-                LOG.info("[{}] id={}, name={}, active={}, score={}, payload={}({})",
-                        processor,
+                LOG.info("  id={}, name={}, active={}, score={}, payload={}",
                         reader.getInteger("id"),
                         reader.getString("name"),
                         reader.getBoolean("active"),
                         reader.getDouble("score"),
-                        payload.getClass().getName(),
                         payload);
             }
         }
     }
 
-    private static Client createClient(ConnectionConfig config, String processor) {
+    public void recreateTable() throws Exception {
+        execute("DROP TABLE IF EXISTS " + TABLE);
+        execute("CREATE TABLE " + TABLE + " ("
+                + "id UInt32, name String, active Bool, score Float64, payload JSON"
+                + ") ENGINE = MergeTree ORDER BY id");
+    }
+
+    /** Inserts {@link #SAMPLE_ROWS} into {@link #TABLE} as a single batched INSERT. */
+    public void loadSampleData() throws Exception {
+        StringBuilder sql = new StringBuilder("INSERT INTO ").append(TABLE)
+                .append(" (id, name, active, score, payload) VALUES");
+        for (int i = 0; i < SAMPLE_ROWS.length; i++) {
+            Object[] row = SAMPLE_ROWS[i];
+            sql.append(i == 0 ? " " : ", ")
+                    .append('(').append(row[0])
+                    .append(", ").append(sqlString((String) row[1]))
+                    .append(", ").append(row[2])
+                    .append(", ").append(row[3])
+                    .append(", ").append(sqlString((String) row[4]))
+                    .append(')');
+        }
+        execute(sql.toString());
+    }
+
+    private void execute(String sql) throws Exception {
+        try (CommandResponse ignored = client.execute(sql).get()) {
+            LOG.debug("Executed: {}", sql);
+        }
+    }
+
+    private static Client buildClient() {
         return new Client.Builder()
-                .addEndpoint(config.endpoint)
-                .setUsername(config.user)
-                .setPassword(config.password)
-                .setDefaultDatabase(config.database)
+                .addEndpoint(System.getProperty("chEndpoint", "http://localhost:8123"))
+                .setUsername(System.getProperty("chUser", "default"))
+                .setPassword(System.getProperty("chPassword", ""))
+                .setDefaultDatabase(System.getProperty("chDatabase", "default"))
                 .serverSetting("allow_experimental_json_type", "1")
-                .setOption(ClientConfigProperties.JSON_PROCESSOR.getKey(), processor)
                 .build();
     }
 
-    private static void executeStatement(Client client, String sql) throws Exception {
-        try (CommandResponse ignored = client.execute(sql).get()) {
-            LOG.debug("Executed SQL: {}", sql);
-        }
-    }
-
-    private static List<SampleRow> readSampleRows() throws IOException {
-        InputStream stream = ClientV2JsonProcessorsExample.class.getResourceAsStream(SAMPLE_DATA_RESOURCE);
-        if (stream == null) {
-            throw new IOException("Resource not found: " + SAMPLE_DATA_RESOURCE);
-        }
-
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
-            String header = reader.readLine();
-            if (header == null) {
-                throw new IOException("CSV resource is empty: " + SAMPLE_DATA_RESOURCE);
-            }
-
-            List<SampleRow> rows = new ArrayList<>();
-            String line;
-            while ((line = reader.readLine()) != null) {
-                if (line.trim().isEmpty()) {
-                    continue;
-                }
-
-                List<String> values = parseCsvLine(line);
-                if (values.size() != 5) {
-                    throw new IOException("Expected 5 columns in sample CSV but found " + values.size() + ": " + line);
-                }
-
-                rows.add(new SampleRow(
-                        Integer.parseInt(values.get(0)),
-                        values.get(1),
-                        Boolean.parseBoolean(values.get(2)),
-                        Double.parseDouble(values.get(3)),
-                        values.get(4)));
-            }
-
-            return rows;
-        }
-    }
-
-    private static List<String> parseCsvLine(String line) {
-        List<String> values = new ArrayList<>();
-        StringBuilder current = new StringBuilder();
-        boolean inQuotes = false;
-
-        for (int i = 0; i < line.length(); i++) {
-            char ch = line.charAt(i);
-            if (ch == '"') {
-                if (inQuotes && i + 1 < line.length() && line.charAt(i + 1) == '"') {
-                    current.append('"');
-                    i++;
-                } else {
-                    inQuotes = !inQuotes;
-                }
-            } else if (ch == ',' && !inQuotes) {
-                values.add(current.toString());
-                current.setLength(0);
-            } else {
-                current.append(ch);
-            }
-        }
-
-        values.add(current.toString());
-        return values;
-    }
-
-    private static String buildInsertSql(List<SampleRow> rows) {
-        if (rows.isEmpty()) {
-            throw new IllegalArgumentException("Sample CSV does not contain any rows");
-        }
-
-        StringBuilder sql = new StringBuilder("INSERT INTO ")
-                .append(TABLE_NAME)
-                .append(" (id, name, active, score, payload) VALUES ");
-
-        for (SampleRow row : rows) {
-            sql.append('(')
-                    .append(row.id)
-                    .append(", ")
-                    .append(quoteSqlString(row.name))
-                    .append(", ")
-                    .append(row.active)
-                    .append(", ")
-                    .append(row.score)
-                    .append(", ")
-                    .append(quoteSqlString(row.payload))
-                    .append("), ");
-        }
-
-        sql.setLength(sql.length() - 2);
-        return sql.toString();
-    }
-
-    private static String quoteSqlString(String value) {
+    private static String sqlString(String value) {
         return "'" + value.replace("'", "''") + "'";
     }
 
-    private static final class SampleRow {
-        private final int id;
-        private final String name;
-        private final boolean active;
-        private final double score;
-        private final String payload;
+    // ---------------------------------------------------------------------
+    // Customized factories
+    // ---------------------------------------------------------------------
 
-        private SampleRow(int id, String name, boolean active, double score, String payload) {
-            this.id = id;
-            this.name = name;
-            this.active = active;
-            this.score = score;
-            this.payload = payload;
+    /**
+     * Customized {@link com.clickhouse.client.api.data_formats.internal.JacksonJsonParserFactory}. Override {@code createMapper()}
+     * to return any {@link ObjectMapper} you want — modules, feature flags,
+     * deserializers, etc. all carry over to row parsing.
+     *
+     * <p>This example tolerates new server-side keys and preserves big integers
+     * and decimals exactly inside the {@code payload} JSON column.</p>
+     */
+    public static final class CustomJacksonParserFactory extends com.clickhouse.client.api.data_formats.internal.JacksonJsonParserFactory {
+        @Override
+        protected ObjectMapper createMapper() {
+            return JsonMapper.builder()
+                    .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+                    .configure(DeserializationFeature.USE_BIG_INTEGER_FOR_INTS, true)
+                    .configure(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS, true)
+                    .build();
         }
     }
 
-    private static final class ConnectionConfig {
-        private final String endpoint;
-        private final String user;
-        private final String password;
-        private final String database;
-
-        private ConnectionConfig(String endpoint, String user, String password, String database) {
-            this.endpoint = endpoint;
-            this.user = user;
-            this.password = password;
-            this.database = database;
-        }
-
-        private static ConnectionConfig load() {
-            return new ConnectionConfig(
-                    System.getProperty("chEndpoint", "http://localhost:8123"),
-                    System.getProperty("chUser", "default"),
-                    System.getProperty("chPassword", ""),
-                    System.getProperty("chDatabase", "default"));
+    /**
+     * Customized {@link GsonJsonParserFactory}. Override
+     * {@code customize(GsonBuilder)} and configure the builder; the factory
+     * applies {@code setLenient()} on its own afterward (which is required for
+     * the stream-of-objects shape of {@code JSONEachRow}).
+     *
+     * <p>This example parses integer-shaped JSON numbers as {@code Long} (the
+     * default is {@code Double}, which loses precision for large {@code Int64}
+     * values) and disables HTML escaping on round-trips.</p>
+     */
+    public static final class CustomGsonParserFactory extends GsonJsonParserFactory {
+        @Override
+        protected void customize(GsonBuilder builder) {
+            builder.setObjectToNumberStrategy(ToNumberPolicy.LONG_OR_DOUBLE)
+                    .disableHtmlEscaping();
         }
     }
 }

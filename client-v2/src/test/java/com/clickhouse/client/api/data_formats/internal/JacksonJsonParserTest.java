@@ -1,5 +1,6 @@
 package com.clickhouse.client.api.data_formats.internal;
 
+import com.clickhouse.client.api.data_formats.JacksonJsonParserFactory;
 import com.clickhouse.client.api.data_formats.JsonParser;
 import com.fasterxml.jackson.core.JsonParseException;
 import org.testng.Assert;

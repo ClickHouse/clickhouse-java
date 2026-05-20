@@ -29,7 +29,7 @@ application {
 }
 
 tasks.named<JavaExec>("run") {
-    listOf("chEndpoint", "chUser", "chPassword", "chDatabase", "jsonProcessor").forEach { key ->
+    listOf("chEndpoint", "chUser", "chPassword", "chDatabase").forEach { key ->
         System.getProperty(key)?.let { value ->
             systemProperty(key, value)
         }

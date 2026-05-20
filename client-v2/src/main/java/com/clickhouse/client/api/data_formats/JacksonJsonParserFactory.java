@@ -1,7 +1,5 @@
-package com.clickhouse.client.api.data_formats.internal;
+package com.clickhouse.client.api.data_formats;
 
-import com.clickhouse.client.api.data_formats.JsonParser;
-import com.clickhouse.client.api.data_formats.JsonParserFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.IOException;

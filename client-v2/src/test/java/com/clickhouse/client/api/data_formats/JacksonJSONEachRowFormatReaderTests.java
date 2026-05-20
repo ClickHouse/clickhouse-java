@@ -1,6 +1,5 @@
 package com.clickhouse.client.api.data_formats;
 
-import com.clickhouse.client.api.data_formats.internal.JacksonJsonParserFactory;
 import com.clickhouse.client.api.query.QueryResponse;
 import org.testng.annotations.Test;
 

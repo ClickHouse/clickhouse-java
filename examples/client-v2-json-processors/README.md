@@ -2,12 +2,40 @@
 
 ## Overview
 
-This standalone example shows how to configure `client-v2` to read `JSONEachRow`
-responses with both supported JSON processors using one shared table and one
-shared dataset:
+This standalone example shows how to consume a `JSONEachRow` response with the
+`client-v2` `JSONEachRowFormatReader` and a `JsonParserFactory`. The two
+factories shipped with the client are the customization points:
 
-- `JACKSON`
-- `GSON`
+- `JacksonJsonParserFactory` exposes a `protected ObjectMapper createMapper()`
+  hook — override it to return a fully configured `ObjectMapper` (modules,
+  feature flags, custom deserializers, etc.).
+- `GsonJsonParserFactory` exposes a `protected void customize(GsonBuilder)`
+  hook — override it to configure the `GsonBuilder` (number policy, type
+  adapters, etc.). The factory still applies `setLenient()` on its own
+  afterwards, which is required for the stream-of-objects shape of
+  `JSONEachRow`.
+
+The example is structured as a small component:
+
+- `ClientV2JsonProcessorsExample(Client client)` holds the shared `Client` and
+  exposes regular instance methods (`recreateTable()`, `loadSampleData()`,
+  `readAll(label, factory)`, `run()`), so the class can be copied as-is into
+  another project and have its individual methods invoked.
+- Sample rows are kept in a plain `Object[][]` constant, separate from the
+  SQL, so the read path stays focused on the parser factory.
+- Two small subclasses, `CustomJacksonParserFactory` and
+  `CustomGsonParserFactory`, demonstrate the protected-hook customization.
+
+Each read call in `run()` follows the same three-step shape:
+
+1. **Create the factory** — `new JacksonJsonParserFactory()` /
+   `new GsonJsonParserFactory()` for defaults, or an instance of a custom
+   subclass.
+2. **Customize if needed** — only inside the subclass, by overriding the
+   protected hook.
+3. **Execute** — `readAll(label, factory)` runs the `SELECT` and feeds the
+   response stream through
+   `new JSONEachRowFormatReader(factory.createJsonParser(...))`.
 
 ## Requirements
 
@@ -25,10 +53,10 @@ gradle run
 
 Connection properties can be supplied as system properties:
 
-- `-DchEndpoint` - Endpoint to connect to (default: `http://localhost:8123`)
-- `-DchUser` - ClickHouse user name (default: `default`)
-- `-DchPassword` - ClickHouse user password (default: empty)
-- `-DchDatabase` - ClickHouse database name (default: `default`)
+- `-DchEndpoint` — endpoint to connect to (default: `http://localhost:8123`)
+- `-DchUser` — ClickHouse user name (default: `default`)
+- `-DchPassword` — ClickHouse user password (default: empty)
+- `-DchDatabase` — ClickHouse database name (default: `default`)
 
 Example with custom connection properties:
 
@@ -44,15 +72,22 @@ gradle run \
 
 `com.clickhouse.examples.client_v2.json_processors.ClientV2JsonProcessorsExample`
 
-- Runs the following steps in order:
-  1. defines table `client_v2_json_processors_example` with primitive columns
-     and one `payload JSON` column;
-  2. loads sample rows from `src/main/resources/sample_data.csv` into that table;
-  3. reads the same rows with `runGsonExample(...)`;
-  4. reads the same rows again with `runJacksonExample(...)`.
-- Reads rows back through `client.newTextFormatReader(response)` and logs the
-  primitive columns together with the parsed JSON object from `payload`.
+Steps performed by `run()`:
+
+1. `recreateTable()` — drops and re-creates `client_v2_json_processors_example`
+   with primitive columns and one `payload JSON` column.
+2. `loadSampleData()` — inserts the rows from the `SAMPLE_ROWS` array as a
+   single batched `INSERT`.
+3. `readAll(...)` is invoked four times, each time with a different
+   `JsonParserFactory`:
+   - default `JacksonJsonParserFactory`;
+   - `CustomJacksonParserFactory`, which overrides `createMapper()` to
+     tolerate unknown properties and preserve big integers and decimals
+     exactly;
+   - default `GsonJsonParserFactory`;
+   - `CustomGsonParserFactory`, which overrides `customize(GsonBuilder)` to
+     use a `LONG_OR_DOUBLE` number policy and disable HTML escaping.
 
 The build keeps both `jackson-databind` and `gson` on the classpath so the
-example can switch between processors at runtime. Production applications only
-need to keep the processor they actually use.
+example can switch between processors at runtime. Production applications
+only need to keep the processor they actually use.

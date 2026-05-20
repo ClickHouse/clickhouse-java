@@ -1,6 +1,5 @@
 package com.clickhouse.client.api.data_formats;
 
-import com.clickhouse.client.api.data_formats.internal.GsonJsonParserFactory;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.query.QueryResponse;

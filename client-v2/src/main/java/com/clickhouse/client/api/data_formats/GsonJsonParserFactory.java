@@ -1,7 +1,5 @@
-package com.clickhouse.client.api.data_formats.internal;
+package com.clickhouse.client.api.data_formats;
 
-import com.clickhouse.client.api.data_formats.JsonParser;
-import com.clickhouse.client.api.data_formats.JsonParserFactory;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;

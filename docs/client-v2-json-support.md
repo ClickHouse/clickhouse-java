@@ -157,14 +157,20 @@ unavailable, the factory throws a `RuntimeException` whose message identifies
 the missing dependency.
 
 The shipped implementations construct their own `ObjectMapper` and `Gson`
-instances with default settings. Injecting a pre-configured parser, custom
-Jackson modules, or Gson `TypeAdapter`s is not part of the public API in the
-current release: neither parser exposes a constructor that accepts a
-configured library instance, the `JsonParser` SPI itself resides in an
-`internal` package and is not a stable extension point, and
-`JsonParserFactory` does not accept caller-supplied implementation classes.
-Customization of JSON binding should therefore be performed on the caller
-side, after the row has been materialized as `Map<String, Object>`.
+instances with default settings. To customize the underlying library
+(Jackson modules, feature flags, Gson `TypeAdapter`s, number policies, etc.)
+extend the corresponding factory and override its protected hook:
+
+- `JacksonJsonParserFactory` exposes `protected ObjectMapper createMapper()`.
+  Override it to return a fully configured `ObjectMapper`; the factory uses
+  the returned instance for all subsequent row parsing.
+- `GsonJsonParserFactory` exposes `protected void customize(GsonBuilder
+  builder)`. Override it to configure the `GsonBuilder` before the factory
+  applies `setLenient()` and calls `build()`.
+
+Customization that does not need to influence the underlying parser can
+still be performed on the caller side, after the row has been materialized
+as `Map<String, Object>`.
 
 ### `JSON_PROCESSOR` configuration property
 
@@ -202,7 +208,7 @@ When the configured processor is not present on the classpath at the time a
 `RuntimeException` with the following message:
 
 ```text
-JSON processor class not found: com.clickhouse.client.api.data_formats.internal.JacksonJsonParserFactory.
+JSON processor class not found: com.clickhouse.client.api.data_formats.JacksonJsonParserFactory.
 Make sure you have the required library (Jackson or Gson) on your classpath.
 ```
 
