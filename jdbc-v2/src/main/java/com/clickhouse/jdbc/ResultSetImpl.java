@@ -204,7 +204,8 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
      * actual error condition (which, if it occurred during iteration, would have
      * surfaced through {@code next()}).
      */
-    private static boolean isStreamDrainException(Throwable t) {
+    // Package-private for unit tests.
+    static boolean isStreamDrainException(Throwable t) {
         while (t != null) {
             String msg = t.getMessage();
             if (msg != null && (msg.contains("Premature end of chunk")
