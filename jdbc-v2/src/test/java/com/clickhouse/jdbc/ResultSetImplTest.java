@@ -1,6 +1,7 @@
 package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.data_formats.JacksonJsonParserFactory;
 import com.clickhouse.data.ClickHouseVersion;
 import org.testng.Assert;
 import org.testng.annotations.Test;
@@ -260,6 +261,29 @@ public class ResultSetImplTest extends JdbcIntegrationTest {
                 Assert.assertFalse(rs.isFirst());
                 Assert.assertFalse(rs.isLast());
                 Assert.assertEquals(rs.getRow(), 0);
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testJsonEachRowCursorPositionDetectsLastRow() throws SQLException {
+        Properties properties = new Properties();
+        properties.setProperty(DriverProperties.JSON_PARSER_FACTORY.getKey(), JacksonJsonParserFactory.class.getName());
+        properties.setProperty(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), "JSONEachRow");
+        try (Connection conn = getJdbcConnection(properties); Statement stmt = conn.createStatement()) {
+            int limit = 13;
+            try (ResultSet rs = stmt.executeQuery("SELECT number FROM system.numbers LIMIT " + limit)) {
+
+                for (int i = 0; i < limit - 1; i++) {
+                    Assert.assertTrue(rs.next());
+                    Assert.assertFalse(rs.isLast());
+                }
+
+                Assert.assertTrue(rs.next());
+                Assert.assertTrue(rs.isLast());
+
+                Assert.assertFalse(rs.next());
+                Assert.assertFalse(rs.isLast());
             }
         }
     }

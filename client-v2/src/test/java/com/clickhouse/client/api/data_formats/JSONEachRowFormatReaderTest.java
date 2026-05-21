@@ -203,8 +203,6 @@ public class JSONEachRowFormatReaderTest {
             public void close() { }
         };
         try (JSONEachRowFormatReader reader = new JSONEachRowFormatReader(parser)) {
-            // First row was read eagerly during construction.
-            Assert.assertNotNull(reader.next());
             try {
                 reader.next();
                 Assert.fail("Expected RuntimeException");
@@ -227,11 +225,9 @@ public class JSONEachRowFormatReaderTest {
         try (JSONEachRowFormatReader reader = readerOf(r1, r2)) {
             Assert.assertTrue(reader.hasNext());
             Assert.assertSame(reader.next(), r1);
-            // After the first row has been returned, hasNext() optimistically
-            // returns true; callers detect the end of the stream when next()
-            // returns null.
             Assert.assertTrue(reader.hasNext());
             Assert.assertSame(reader.next(), r2);
+            Assert.assertFalse(reader.hasNext());
             Assert.assertNull(reader.next());
         }
     }

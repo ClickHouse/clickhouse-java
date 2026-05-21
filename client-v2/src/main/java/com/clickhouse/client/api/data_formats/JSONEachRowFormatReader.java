@@ -30,19 +30,20 @@ public class JSONEachRowFormatReader implements ClickHouseTextFormatReader {
     private final JsonParser parser;
     private TableSchema schema;
     private Map<String, Object> currentRow;
-    private Map<String, Object> firstRow;
-    private boolean firstRowRead = false;
+    private Map<String, Object> nextRow;
+    private boolean hasNext;
 
     public JSONEachRowFormatReader(JsonParser parser) {
         this.parser = parser;
         try {
-            this.firstRow = parser.nextRow();
-            if (firstRow != null) {
+            this.nextRow = parser.nextRow();
+            this.hasNext = this.nextRow != null;
+            if (nextRow != null) {
                 List<ClickHouseColumn> columns = new ArrayList<>();
-                for (String key : firstRow.keySet()) {
+                for (String key : nextRow.keySet()) {
                     // For JSONEachRow we don't know the exact ClickHouse type, so we use a reasonable default.
                     // We can try to guess based on the value type in the first row.
-                    columns.add(ClickHouseColumn.of(key, guessDataType(firstRow.get(key)), false));
+                    columns.add(ClickHouseColumn.of(key, guessDataType(nextRow.get(key)), false));
                 }
                 this.schema = new TableSchema(columns);
             } else {
@@ -95,23 +96,28 @@ public class JSONEachRowFormatReader implements ClickHouseTextFormatReader {
 
     @Override
     public boolean hasNext() {
-        if (!firstRowRead) {
-            return firstRow != null;
-        }
-        return true; // We'll find out in next()
+        return hasNext;
     }
 
     @Override
     public Map<String, Object> next() {
-        if (!firstRowRead) {
-            firstRowRead = true;
-            currentRow = firstRow;
-            return currentRow;
+        if (!hasNext) {
+            currentRow = null;
+            return null;
         }
+
+        currentRow = nextRow;
+        readNextRow();
+        return currentRow;
+    }
+
+    private void readNextRow() {
         try {
-            currentRow = parser.nextRow();
-            return currentRow;
+            nextRow = parser.nextRow();
+            hasNext = nextRow != null;
         } catch (Exception e) {
+            hasNext = false;
+            nextRow = null;
             throw new RuntimeException("Failed to read next JSON row", e);
         }
     }
