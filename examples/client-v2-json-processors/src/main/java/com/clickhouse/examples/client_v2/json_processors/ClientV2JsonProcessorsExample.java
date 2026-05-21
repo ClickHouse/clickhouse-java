@@ -1,6 +1,7 @@
 package com.clickhouse.examples.client_v2.json_processors;
 
 import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.command.CommandResponse;
 import com.clickhouse.client.api.data_formats.ClickHouseTextFormatReader;
 import com.clickhouse.client.api.data_formats.GsonJsonParserFactory;
@@ -96,7 +97,9 @@ public class ClientV2JsonProcessorsExample {
     public void readAll(String label, JsonParserFactory factory) throws Exception {
         LOG.info("--- Reading rows with {} ---", label);
 
-        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.JSONEachRow);
+        QuerySettings settings = new QuerySettings()
+                .setFormat(ClickHouseFormat.JSONEachRow)
+                .setOption(ClientConfigProperties.JSON_DISABLE_NUMBER_QUOTING.getKey(), true);
         String sql = "SELECT id, name, active, score, payload FROM " + TABLE + " ORDER BY id";
 
         PayloadConverter converter = factory instanceof PayloadConverter ? (PayloadConverter) factory : null;

@@ -90,9 +90,12 @@ server settings explicitly on the connection when numeric accessors are used:
 ```java
 props.setProperty(ClientConfigProperties.serverSetting("output_format_json_quote_64bit_integers"), "0");
 props.setProperty(ClientConfigProperties.serverSetting("output_format_json_quote_64bit_floats"), "0");
-props.setProperty(ClientConfigProperties.serverSetting("output_format_json_quote_denormals"), "0");
 props.setProperty(ClientConfigProperties.serverSetting("output_format_json_quote_decimals"), "0");
 ```
+
+Denormal floating-point values (`NaN`, `Inf`, `-Inf`) are not handled by the
+built-in JSON reader yet. Keep `output_format_json_quote_denormals=1` and
+handle those values as strings if your queries can return them.
 
 ## Integer Precision
 

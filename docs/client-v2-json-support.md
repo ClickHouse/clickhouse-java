@@ -67,9 +67,9 @@ provides additional advantages beyond what the format alone delivers:
   `com.clickhouse.client.api.data_formats`, consisting of `JsonParser`,
   `JsonParserFactory`, `JacksonJsonParserFactory`, and
   `GsonJsonParserFactory`.
-- Forces a fixed set of server settings for `JSONEachRow` requests so that
-  the response stream contains plain JSON numbers (see
-  [Forced server settings](#forced-server-settings-for-jsoneachrow)).
+- Adds an opt-in client flag for `JSONEachRow` requests that asks ClickHouse
+  to emit large integers, floats, and decimals as plain JSON numbers (see
+  [JSON number output settings](#json-number-output-settings)).
 - Declares Jackson and Gson as `provided` Maven dependencies, so that
   applications must include the chosen processor on their own classpath.
 
@@ -179,6 +179,18 @@ have a public no-argument constructor. There is no equivalent `client-v2`
 configuration key; direct client users pass a factory instance to their own
 reader construction code.
 
+### JSON number quoting flag
+
+`client-v2` can opt in to numeric JSON output settings through
+`ClientConfigProperties.JSON_DISABLE_NUMBER_QUOTING`:
+
+| Property key                                  | Default | Effect |
+| --------------------------------------------- | ------- | ------ |
+| `json_disable_number_quoting`                 | `false` | When `true` and the resolved request format is `JSONEachRow`, sets `output_format_json_quote_64bit_integers=0`, `output_format_json_quote_64bit_floats=0`, and `output_format_json_quote_decimals=0` for that request. |
+
+The flag can be set on the client builder or on a specific `QuerySettings`
+instance. It does not change `output_format_json_quote_denormals`.
+
 ## Runtime dependencies
 
 `client-v2` and `jdbc-v2` declare the JSON libraries with `provided` scope,
@@ -216,7 +228,8 @@ Client client = new Client.Builder()
 JsonParserFactory parserFactory = new JacksonJsonParserFactory();
 
 QuerySettings settings = new QuerySettings()
-        .setFormat(ClickHouseFormat.JSONEachRow);
+        .setFormat(ClickHouseFormat.JSONEachRow)
+        .setOption(ClientConfigProperties.JSON_DISABLE_NUMBER_QUOTING.getKey(), true);
 
 try (QueryResponse response = client.query(
         "SELECT id, name, active, score, payload FROM events ORDER BY id",
@@ -237,9 +250,9 @@ try (QueryResponse response = client.query(
 Notes:
 
 - Set `ClickHouseFormat.JSONEachRow` in `QuerySettings`. Do not rely on an SQL
-  `FORMAT JSONEachRow` clause for direct `client-v2` examples, because the
-  client applies JSON-specific server settings only when the request settings
-  identify the format as `JSONEachRow`.
+  `FORMAT JSONEachRow` clause for direct `client-v2` examples when you also
+  want client-side JSON number output settings, because those settings are
+  applied only when the request settings identify the format as `JSONEachRow`.
 - `client.newBinaryFormatReader(response)` continues to return a
   `ClickHouseBinaryFormatReader` for binary output formats and rejects text
   formats such as `JSONEachRow` with `IllegalArgumentException`. Callers that
@@ -267,7 +280,6 @@ props.setProperty(DriverProperties.JSON_PARSER_FACTORY.getKey(),
 props.setProperty(ClientConfigProperties.serverSetting("allow_experimental_json_type"), "1");
 props.setProperty(ClientConfigProperties.serverSetting("output_format_json_quote_64bit_integers"), "0");
 props.setProperty(ClientConfigProperties.serverSetting("output_format_json_quote_64bit_floats"), "0");
-props.setProperty(ClientConfigProperties.serverSetting("output_format_json_quote_denormals"), "0");
 props.setProperty(ClientConfigProperties.serverSetting("output_format_json_quote_decimals"), "0");
 
 try (Connection conn = DriverManager.getConnection(
@@ -294,9 +306,11 @@ Behavior:
   and `JSONEachRow` as output formats; any other text format causes
   `SQLException("Only RowBinaryWithNameAndTypes and JSONEachRow are supported
   for output format. ...")` to be thrown.
-- `ResultSet.getObject(...)` returns parser-native `Map` and scalar values
-  without an additional string round-trip. JSON arrays are exposed as JDBC
-  `Array` values, wrapping the parser-produced list.
+- `ResultSet.getObject(...)` returns parser-native `Map`, `List`, and scalar
+  values without an additional string round-trip. JSON arrays are returned as
+  the `List` implementation produced by the selected JSON library. Because
+  `JSONEachRow` has no array element metadata, `ResultSet.getArray(...)` is
+  not supported for these inferred JSON arrays.
 - The JSON processor is selected at the connection level through the
   `jdbc_json_parser_factory` driver property. It cannot be changed per
   statement, in line with the lifecycle of other connection options.
@@ -304,25 +318,34 @@ Behavior:
   server settings explicitly as connection properties when integer or decimal
   numeric accessors are used.
 
-## Forced server settings for `JSONEachRow`
+## JSON number output settings
 
 `Client.applyFormatSpecificSettings(...)` runs after request settings have
 been merged and after the request format has been resolved. When the format
-is `JSONEachRow`, the following server-side settings are forced for the
-request:
+is `JSONEachRow` and
+`ClientConfigProperties.JSON_DISABLE_NUMBER_QUOTING` is enabled, the
+following server-side settings are set to `0` for the request:
 
-| Setting                                   | Forced value | Rationale                                                                  |
+| Setting                                   | Value | Rationale                                                                  |
 | ----------------------------------------- | ------------ | -------------------------------------------------------------------------- |
-| `output_format_json_quote_64bit_integers` | `0`          | Emits `Int64` and `UInt64` as JSON numbers rather than quoted strings.     |
-| `output_format_json_quote_64bit_floats`   | `0`          | Emits 64-bit floating-point values as JSON numbers.                        |
-| `output_format_json_quote_denormals`      | `0`          | Avoids quoting `NaN` and `Inf`, allowing materialization as `Double`.      |
-| `output_format_json_quote_decimals`       | `0`          | Emits decimals as JSON numbers, allowing materialization as `BigDecimal` or `Double`. |
+| `output_format_json_quote_64bit_integers` | `0`   | Emits `Int64` and `UInt64` as JSON numbers rather than quoted strings.     |
+| `output_format_json_quote_64bit_floats`   | `0`   | Emits 64-bit floating-point values as JSON numbers.                        |
+| `output_format_json_quote_decimals`       | `0`   | Emits decimals as JSON numbers, allowing materialization as `BigDecimal` or `Double`. |
 
-These overrides are scoped to the individual request and apply only when the
-request format in `QuerySettings` is `JSONEachRow`. They are required for the
-typed accessors of the reader to operate correctly. JDBC callers that use SQL
-`FORMAT JSONEachRow` should set the same server settings explicitly through
-connection properties.
+These overrides are scoped to the individual request and apply only when both
+conditions are true: the request format in `QuerySettings` is `JSONEachRow`,
+and `json_disable_number_quoting` is enabled through the client
+or request settings. Explicit server settings are otherwise preserved.
+
+Denormal floating-point values (`NaN`, `Inf`, `-Inf`) are not yet handled by
+the built-in JSON reader. The client does not set
+`output_format_json_quote_denormals`; keep the server default or set
+`output_format_json_quote_denormals=1` so these values are quoted, then handle
+them as strings at the application boundary.
+
+JDBC callers that use SQL `FORMAT JSONEachRow` should set the same numeric
+server settings explicitly through connection properties when integer or
+decimal numeric accessors are used.
 
 ## Row parsing, schema, and typed accessors
 
@@ -349,9 +372,10 @@ behavior.
 ### Integer precision with Gson
 
 ClickHouse `Int64` and `UInt64` values can exceed the exactly representable
-integer range of a JSON floating-point number. The client intentionally emits
-them as JSON numbers for `JSONEachRow`, so the selected JSON library's number
-materialization policy matters.
+integer range of a JSON floating-point number. When
+`json_disable_number_quoting` is enabled, the client asks
+ClickHouse to emit them as JSON numbers for `JSONEachRow`, so the selected
+JSON library's number materialization policy matters.
 
 Jackson's default `Map.class` materialization keeps ordinary integer tokens as
 integer `Number` implementations. Gson's default `Map<String, Object>`

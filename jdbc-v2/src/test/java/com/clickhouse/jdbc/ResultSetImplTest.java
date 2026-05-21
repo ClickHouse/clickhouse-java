@@ -26,6 +26,7 @@ import java.sql.Statement;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.util.List;
 import java.util.Properties;
 
 import static org.testng.Assert.assertEquals;
@@ -284,6 +285,27 @@ public class ResultSetImplTest extends JdbcIntegrationTest {
 
                 Assert.assertFalse(rs.next());
                 Assert.assertFalse(rs.isLast());
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testJsonEachRowGetObjectReturnsParserNativeArray() throws SQLException {
+        Properties properties = new Properties();
+        properties.setProperty(DriverProperties.JSON_PARSER_FACTORY.getKey(), JacksonJsonParserFactory.class.getName());
+        try (Connection conn = getJdbcConnection(properties); Statement stmt = conn.createStatement()) {
+            try (ResultSet rs = stmt.executeQuery("SELECT [1, 2, 3] AS arr FORMAT JSONEachRow")) {
+                Assert.assertTrue(rs.next());
+                Object value = rs.getObject("arr");
+                Assert.assertTrue(value instanceof List, "Expected parser-native List but got " + value.getClass());
+
+                List<?> list = (List<?>) value;
+                Assert.assertEquals(list.size(), 3);
+                Assert.assertEquals(((Number) list.get(0)).intValue(), 1);
+                Assert.assertEquals(((Number) list.get(1)).intValue(), 2);
+                Assert.assertEquals(((Number) list.get(2)).intValue(), 3);
+
+                Assert.expectThrows(SQLException.class, () -> rs.getArray("arr"));
             }
         }
     }

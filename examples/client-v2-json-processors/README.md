@@ -46,8 +46,8 @@ Each read call in `run()` follows the same three-step shape:
 The client example selects the output format with
 `new QuerySettings().setFormat(ClickHouseFormat.JSONEachRow)`. Use that form
 instead of appending `FORMAT JSONEachRow` to the SQL when calling `client-v2`
-directly, because the client applies JSON-specific server settings from the
-request format.
+directly when you enable client-side JSON number output settings, because
+those settings depend on the request format.
 
 ## Integer Precision
 

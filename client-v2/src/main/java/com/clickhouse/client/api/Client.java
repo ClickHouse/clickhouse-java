@@ -3,7 +3,6 @@ package com.clickhouse.client.api;
 import com.clickhouse.client.api.command.CommandResponse;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
-import com.clickhouse.client.api.data_formats.JsonParserFactory;
 import com.clickhouse.client.api.data_formats.NativeFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatReader;
@@ -2223,21 +2222,21 @@ public class Client implements AutoCloseable {
      * Must be called after {@link #buildRequestSettings(Map)} and after the request format has been resolved
      * (either provided by the caller or defaulted), so that the inspected format reflects the final value.
      *
-     * <p>For {@link ClickHouseFormat#JSONEachRow} the JSON output flags below are forced to {@code 0} so that the
-     * stream contains plain JSON numbers (and not quoted strings or non-standard tokens), which is what
-     * {@link com.clickhouse.client.api.data_formats.JSONEachRowFormatReader} expects:</p>
+     * <p>For {@link ClickHouseFormat#JSONEachRow}, callers may opt in to plain JSON numbers by setting
+     * {@link ClientConfigProperties#JSON_DISABLE_NUMBER_QUOTING}. Explicit server settings are otherwise
+     * left untouched.</p>
      * <ul>
      *     <li>{@code output_format_json_quote_64bit_integers}</li>
      *     <li>{@code output_format_json_quote_64bit_floats}</li>
-     *     <li>{@code output_format_json_quote_denormals}</li>
      *     <li>{@code output_format_json_quote_decimals}</li>
      * </ul>
      */
     private static void applyFormatSpecificSettings(QuerySettings requestSettings) {
-        if (requestSettings.getFormat() == ClickHouseFormat.JSONEachRow) {
+        boolean disableNumberQuoting = ClientConfigProperties.JSON_DISABLE_NUMBER_QUOTING
+                .getOrDefault(requestSettings.getAllSettings());
+        if (requestSettings.getFormat() == ClickHouseFormat.JSONEachRow && disableNumberQuoting) {
             requestSettings.serverSetting("output_format_json_quote_64bit_integers", "0");
             requestSettings.serverSetting("output_format_json_quote_64bit_floats", "0");
-            requestSettings.serverSetting("output_format_json_quote_denormals", "0");
             requestSettings.serverSetting("output_format_json_quote_decimals", "0");
         }
     }
