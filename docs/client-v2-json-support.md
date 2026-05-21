@@ -33,12 +33,11 @@ provides additional advantages beyond what the format alone delivers:
   materializes one row at a time, so peak memory consumption is bounded by
   the size of the current row rather than by the size of the result set.
 - **Reuse of an existing JSON dependency on the classpath.** Applications
-  that already depend on Jackson or Gson for unrelated purposes can select
-  the matching processor through `JSON_PROCESSOR` and avoid contributing a
-  second JSON library to the runtime classpath. Only the library JARs are
-  shared; the reader uses its own default `ObjectMapper` or `Gson` instance
-  and does not pick up the application's configured modules, `TypeAdapter`s,
-  or other customizations.
+  that already depend on Jackson or Gson for unrelated purposes can instantiate
+  the matching `JsonParserFactory` and avoid contributing a second JSON library
+  to the runtime classpath. Only the library JARs are shared; the default
+  factories use their own `ObjectMapper` or `Gson` instance unless callers
+  provide a subclass with custom settings.
 - **Choice between processors.** Jackson and Gson are selected independently
   and can be swapped at deployment time. Applications may pick the processor
   that best matches their existing classpath and operational constraints,
@@ -59,20 +58,15 @@ provides additional advantages beyond what the format alone delivers:
 - Adds `com.clickhouse.client.api.data_formats.JSONEachRowFormatReader`,
   which implements `ClickHouseTextFormatReader` over a streaming JSON
   parser.
-- Adds `Client.newTextFormatReader(QueryResponse)` as the dedicated factory
-  for text output formats. Currently it accepts
-  `ClickHouseFormat.JSONEachRow` and returns a `ClickHouseTextFormatReader`.
-  `Client.newBinaryFormatReader(...)` continues to construct the binary
+- `Client.newBinaryFormatReader(...)` continues to construct the binary
   readers (`Native`, `RowBinary`, `RowBinaryWithNames`,
   `RowBinaryWithNamesAndTypes`) and rejects text formats with
-  `IllegalArgumentException`.
-- Introduces an internal JSON parser SPI under
-  `com.clickhouse.client.api.data_formats.internal`, consisting of
-  `JsonParser`, `JsonParserFactory`, `JacksonJsonParser`, and
-  `GsonJsonParser`.
-- Adds the client option `ClientConfigProperties.JSON_PROCESSOR`
-  (key `json_processor`), with default value `JACKSON` and accepted values
-  `JACKSON` and `GSON`.
+  `IllegalArgumentException`. `JSONEachRow` callers construct
+  `JSONEachRowFormatReader` directly from a `JsonParser`.
+- Introduces a JSON parser SPI under
+  `com.clickhouse.client.api.data_formats`, consisting of `JsonParser`,
+  `JsonParserFactory`, `JacksonJsonParserFactory`, and
+  `GsonJsonParserFactory`.
 - Forces a fixed set of server settings for `JSONEachRow` requests so that
   the response stream contains plain JSON numbers (see
   [Forced server settings](#forced-server-settings-for-jsoneachrow)).
@@ -83,8 +77,9 @@ provides additional advantages beyond what the format alone delivers:
 
 - Modifies `StatementImpl.executeQuery(...)` to accept `JSONEachRow` as a
   valid output format. All other text formats remain unsupported.
-- Forwards the `json_processor` option to the underlying `client-v2`
-  configuration; it is configured through `Properties` or the JDBC URL.
+- Adds `DriverProperties.JSON_PARSER_FACTORY`
+  (key `jdbc_json_parser_factor`) for selecting the `JsonParserFactory`
+  implementation by fully-qualified class name.
 - Declares Jackson and Gson as `provided` dependencies, consistent with
   `client-v2`.
 
@@ -124,9 +119,9 @@ package com.clickhouse.client.api.data_formats;
 public class JSONEachRowFormatReader implements ClickHouseTextFormatReader { ... }
 ```
 
-The reader is normally instantiated by `Client.newTextFormatReader(...)`.
-The class is public so that callers can construct it from any
-`InputStream`-backed `JsonParser`.
+The reader is instantiated from an `InputStream`-backed `JsonParser`. Callers
+usually create that parser through `JacksonJsonParserFactory`,
+`GsonJsonParserFactory`, or an application subclass of one of those factories.
 
 `JSONEachRow` is a text format, so the reader implements
 `ClickHouseTextFormatReader`. Callers that need to handle both binary and
@@ -135,26 +130,24 @@ text readers uniformly can program against `ClickHouseFormatReader`.
 ### `JsonParser` SPI
 
 ```java
-package com.clickhouse.client.api.data_formats.internal;
+package com.clickhouse.client.api.data_formats;
 
 public interface JsonParser extends AutoCloseable {
     Map<String, Object> nextRow() throws Exception;
 }
 ```
 
-Two implementations are provided:
+Two factories are provided:
 
-- `JacksonJsonParser` uses `com.fasterxml.jackson.core` and
+- `JacksonJsonParserFactory` uses `com.fasterxml.jackson.core` and
   `com.fasterxml.jackson.databind` to stream JSON objects.
-- `GsonJsonParser` uses `com.google.gson` with a lenient `JsonReader`,
+- `GsonJsonParserFactory` uses `com.google.gson` with a lenient `JsonReader`,
   which accepts a sequence of top-level JSON objects separated by whitespace,
   as produced by `JSONEachRow`.
 
-`JsonParserFactory.createParser(String type, InputStream)` selects an
-implementation based on the value of the `JSON_PROCESSOR` option.
-Implementations are loaded reflectively. When the requested implementation is
-unavailable, the factory throws a `RuntimeException` whose message identifies
-the missing dependency.
+`JsonParserFactory.createJsonParser(InputStream)` creates a parser for each
+response stream. The factory may hold reusable parser configuration, but the
+returned `JsonParser` is request-scoped and owns the stream reader it creates.
 
 The shipped implementations construct their own `ObjectMapper` and `Gson`
 instances with default settings. To customize the underlying library
@@ -172,45 +165,42 @@ Customization that does not need to influence the underlying parser can
 still be performed on the caller side, after the row has been materialized
 as `Map<String, Object>`.
 
-### `JSON_PROCESSOR` configuration property
+### JDBC parser factory property
 
-Defined in `ClientConfigProperties`:
+`jdbc-v2` selects the parser factory through
+`DriverProperties.JSON_PARSER_FACTORY`:
 
-| Property key      | Default   | Accepted values   |
-| ----------------- | --------- | ----------------- |
-| `json_processor`  | `JACKSON` | `JACKSON`, `GSON` |
+| Property key              | Value |
+| ------------------------- | ----- |
+| `jdbc_json_parser_factor` | Fully-qualified class name implementing `JsonParserFactory` |
 
-The same property is used by the `client-v2` builder
-(`ClientConfigProperties.JSON_PROCESSOR.getKey()`) and by the JDBC driver,
-where it is supplied through `Properties` or the JDBC URL query string.
+The named class is loaded reflectively when the connection is created and must
+have a public no-argument constructor. There is no equivalent `client-v2`
+configuration key; direct client users pass a factory instance to their own
+reader construction code.
 
 ## Runtime dependencies
 
 `client-v2` and `jdbc-v2` declare the JSON libraries with `provided` scope,
 so that they are not contributed to the runtime classpath of applications
-that do not require them. Applications must add exactly one of the following
-to their runtime classpath:
+that do not require them. Applications must add the JSON library used by the
+selected factory to their runtime classpath:
 
 - Jackson — `com.fasterxml.jackson.core:jackson-databind`,
   `com.fasterxml.jackson.core:jackson-core`,
   `com.fasterxml.jackson.core:jackson-annotations`
-  (required when `JSON_PROCESSOR=JACKSON`, the default); or
+  (required when using `JacksonJsonParserFactory`); or
 - Gson — `com.google.code.gson:gson`
-  (required when `JSON_PROCESSOR=GSON`).
+  (required when using `GsonJsonParserFactory`).
 
 The repository builds against Jackson `2.17.2` and Gson `2.10.1`. The parser
 implementations rely only on the streaming token API and a single
 `Map<String, Object>` materialization call, so other recent versions of
 either library are expected to be compatible.
 
-When the configured processor is not present on the classpath at the time a
-`JSONEachRow` reader is constructed, `JsonParserFactory` throws a
-`RuntimeException` with the following message:
-
-```text
-JSON processor class not found: com.clickhouse.client.api.data_formats.JacksonJsonParserFactory.
-Make sure you have the required library (Jackson or Gson) on your classpath.
-```
+When the selected JSON library is not present on the classpath, construction
+or first use of the corresponding factory fails with the dependency-loading
+error raised by the JVM or the JSON library.
 
 ## Usage in `client-v2`
 
@@ -221,17 +211,18 @@ Client client = new Client.Builder()
         .setPassword("")
         .setDefaultDatabase("default")
         .serverSetting("allow_experimental_json_type", "1")
-        .setOption(ClientConfigProperties.JSON_PROCESSOR.getKey(), "JACKSON") // or "GSON"
         .build();
+
+JsonParserFactory parserFactory = new JacksonJsonParserFactory();
 
 QuerySettings settings = new QuerySettings()
         .setFormat(ClickHouseFormat.JSONEachRow);
 
 try (QueryResponse response = client.query(
         "SELECT id, name, active, score, payload FROM events ORDER BY id",
-        settings).get()) {
-
-    ClickHouseTextFormatReader reader = client.newTextFormatReader(response);
+        settings).get();
+     ClickHouseTextFormatReader reader = new JSONEachRowFormatReader(
+             parserFactory.createJsonParser(response.getInputStream()))) {
     while (reader.next() != null) {
         int id              = reader.getInteger("id");
         String name         = reader.getString("name");
@@ -245,15 +236,15 @@ try (QueryResponse response = client.query(
 
 Notes:
 
-- The reader is constructed only when the request format is `JSONEachRow`.
-  The default request format remains `RowBinaryWithNamesAndTypes`, and
-  callers that do not explicitly opt in are not affected.
-- `client.newTextFormatReader(response)` returns a `ClickHouseTextFormatReader`
-  for text output formats. `client.newBinaryFormatReader(response)` continues
-  to return a `ClickHouseBinaryFormatReader` for binary output formats and
-  rejects text formats (such as `JSONEachRow`) with
-  `IllegalArgumentException`. Callers that need to handle both can program
-  against the shared `ClickHouseFormatReader` parent interface.
+- Set `ClickHouseFormat.JSONEachRow` in `QuerySettings`. Do not rely on an SQL
+  `FORMAT JSONEachRow` clause for direct `client-v2` examples, because the
+  client applies JSON-specific server settings only when the request settings
+  identify the format as `JSONEachRow`.
+- `client.newBinaryFormatReader(response)` continues to return a
+  `ClickHouseBinaryFormatReader` for binary output formats and rejects text
+  formats such as `JSONEachRow` with `IllegalArgumentException`. Callers that
+  need to handle both can program against the shared `ClickHouseFormatReader`
+  parent interface.
 - `Map<String, Object>` is the canonical materialization for JSON columns
   and for the row itself, as produced by the selected library. JSON arrays
   are returned as `List<Object>`; nested JSON objects are returned as nested
@@ -270,9 +261,14 @@ format on the caller's behalf.
 Properties props = new Properties();
 props.setProperty("user", "default");
 props.setProperty("password", "");
-props.setProperty(ClientConfigProperties.JSON_PROCESSOR.getKey(), "JACKSON"); // or "GSON"
+props.setProperty(DriverProperties.JSON_PARSER_FACTORY.getKey(),
+        JacksonJsonParserFactory.class.getName());
 // The JSON column type is experimental on the server side.
 props.setProperty(ClientConfigProperties.serverSetting("allow_experimental_json_type"), "1");
+props.setProperty(ClientConfigProperties.serverSetting("output_format_json_quote_64bit_integers"), "0");
+props.setProperty(ClientConfigProperties.serverSetting("output_format_json_quote_64bit_floats"), "0");
+props.setProperty(ClientConfigProperties.serverSetting("output_format_json_quote_denormals"), "0");
+props.setProperty(ClientConfigProperties.serverSetting("output_format_json_quote_decimals"), "0");
 
 try (Connection conn = DriverManager.getConnection(
         "jdbc:clickhouse://localhost:8123/default", props);
@@ -302,8 +298,11 @@ Behavior:
   selected JSON parser (`Map`, `List`, or scalar), without an additional
   string round-trip.
 - The JSON processor is selected at the connection level through the
-  `json_processor` option. It cannot be changed per statement, in line with
-  the lifecycle of other client options.
+  `jdbc_json_parser_factor` driver property. It cannot be changed per
+  statement, in line with the lifecycle of other connection options.
+- Because JDBC selects `JSONEachRow` through SQL text, set the JSON output
+  server settings explicitly as connection properties when integer or decimal
+  numeric accessors are used.
 
 ## Forced server settings for `JSONEachRow`
 
@@ -320,8 +319,10 @@ request:
 | `output_format_json_quote_decimals`       | `0`          | Emits decimals as JSON numbers, allowing materialization as `BigDecimal` or `Double`. |
 
 These overrides are scoped to the individual request and apply only when the
-request format is `JSONEachRow`. They are required for the typed accessors of
-the reader to operate correctly and must not be overridden by callers.
+request format in `QuerySettings` is `JSONEachRow`. They are required for the
+typed accessors of the reader to operate correctly. JDBC callers that use SQL
+`FORMAT JSONEachRow` should set the same server settings explicitly through
+connection properties.
 
 ## Row parsing, schema, and typed accessors
 
@@ -344,6 +345,48 @@ representation, widening rules, handling of large integers, and any other
 JSON-to-Java decisions are governed entirely by the library. The reader
 neither inspects raw JSON tokens nor overrides the library's parsing
 behavior.
+
+### Integer precision with Gson
+
+ClickHouse `Int64` and `UInt64` values can exceed the exactly representable
+integer range of a JSON floating-point number. The client intentionally emits
+them as JSON numbers for `JSONEachRow`, so the selected JSON library's number
+materialization policy matters.
+
+Jackson's default `Map.class` materialization keeps ordinary integer tokens as
+integer `Number` implementations. Gson's default `Map<String, Object>`
+materialization can surface JSON numbers as floating-point values, which may
+round integers larger than `2^53` before `getLong(...)` sees them.
+
+If you use Gson and need integer precision, provide a custom factory that
+configures Gson's object number strategy:
+
+```java
+public final class PreciseGsonJsonParserFactory extends GsonJsonParserFactory {
+    @Override
+    protected void customize(GsonBuilder builder) {
+        builder.setObjectToNumberStrategy(com.google.gson.ToNumberPolicy.LONG_OR_DOUBLE);
+    }
+}
+```
+
+Use that factory directly with `client-v2`:
+
+```java
+JsonParserFactory parserFactory = new PreciseGsonJsonParserFactory();
+```
+
+For JDBC, put the factory class name in the connection properties:
+
+```java
+props.setProperty(DriverProperties.JSON_PARSER_FACTORY.getKey(),
+        PreciseGsonJsonParserFactory.class.getName());
+```
+
+`ToNumberPolicy.LONG_OR_DOUBLE` preserves values that fit in `long` as
+`Long`. If exact decimal representation is more important than returning
+`Long` for integer tokens, use `ToNumberPolicy.BIG_DECIMAL` and convert
+explicitly at the application boundary.
 
 ### Minimal schema discovery
 
@@ -408,7 +451,7 @@ For these types, callers should obtain the parsed value through
 
 ## Streaming and lifetime
 
-- `JacksonJsonParser` and `GsonJsonParser` delegate parsing to the
+- `JacksonJsonParserFactory` and `GsonJsonParserFactory` delegate parsing to the
   underlying library and consume one row at a time from the response
   `InputStream`. Memory consumption is proportional to the size of the
   current row and is independent of the size of the result set.
@@ -422,8 +465,9 @@ For these types, callers should obtain the parsed value through
 
 ## Compatibility considerations
 
-- The `JSON_PROCESSOR` property is additive. Applications that do not request
-  `JSONEachRow` and do not set this property are unaffected.
+- The parser factory classes are additive. Applications that do not request
+  `JSONEachRow` and do not instantiate or configure a parser factory are
+  unaffected.
 - The default request format is unchanged. The existing binary readers
   (`Native`, `RowBinary`, `RowBinaryWithNames`, `RowBinaryWithNamesAndTypes`)
   retain their previous behavior.
@@ -431,32 +475,28 @@ For these types, callers should obtain the parsed value through
   `ClickHouseBinaryFormatReader` and `ClickHouseTextFormatReader` are sibling
   sub-interfaces of the new `ClickHouseFormatReader`. The accessor surface is
   unchanged; callers that hold a `ClickHouseBinaryFormatReader` reference for
-  binary formats are unaffected. Callers that previously obtained a
-  `ClickHouseBinaryFormatReader` for `JSONEachRow` from
-  `Client.newBinaryFormatReader(...)` must switch to
-  `Client.newTextFormatReader(...)`, which returns a
-  `ClickHouseTextFormatReader`. `Client.newBinaryFormatReader(...)` now
-  rejects `JSONEachRow` with `IllegalArgumentException`.
+  binary formats are unaffected. `Client.newBinaryFormatReader(...)` rejects
+  `JSONEachRow` with `IllegalArgumentException`; construct
+  `JSONEachRowFormatReader` directly for JSONEachRow streams.
 - Jackson and Gson are now declared with `provided` scope in `client-v2` and
   `jdbc-v2`. Applications that previously inherited Jackson transitively from
   these modules in `test` scope must declare the chosen processor explicitly
   on their runtime classpath.
-- The previously undocumented `json_processor` driver property has been
-  removed from `DriverProperties`. The same value is now configured as a
-  regular client option; the runtime behavior is unchanged.
+- `jdbc_json_parser_factor` is a new JDBC driver property and is only needed
+  by connections that execute `FORMAT JSONEachRow` queries.
 
 ## Examples
 
 Two runnable Gradle examples are provided under `examples/`:
 
 - `examples/client-v2-json-processors` exercises the `client-v2` API
-  directly, switching between `JACKSON` and `GSON` against a shared sample
+  directly, switching between Jackson and Gson factories against a shared sample
   table that contains primitive columns and one `payload JSON` column.
   Entry point: `ClientV2JsonProcessorsExample`.
 - `examples/jdbc-v2-json-processors` performs the same flow through the JDBC
   driver, with `FORMAT JSONEachRow` appended to the `SELECT` statement and
-  the same `JACKSON` / `GSON` selection applied through connection
-  properties. Entry point: `JdbcV2JsonProcessorsExample`.
+  parser factory selection applied through connection properties. Entry point:
+  `JdbcV2JsonProcessorsExample`.
 
 Both examples include a sample dataset under
 `src/main/resources/sample_data.csv` and require a running ClickHouse server
@@ -469,7 +509,7 @@ with `allow_experimental_json_type=1`.
   the subclasses `JacksonJSONEachRowFormatReaderTests` and
   `GsonJSONEachRowFormatReaderTests`. The suite covers basic parsing, schema
   inference, primitive type accessors, and empty result sets.
-- `jdbc-v2/src/test/java/com/clickhouse/jdbc/StatementTest.java` adds the
-  test methods `testJSONEachRowFormat` and `testJSONEachRowFormatGson`,
-  which exercise `Statement.executeQuery("... FORMAT JSONEachRow")` through
-  the JDBC driver against both processors.
+- `jdbc-v2/src/test/java/com/clickhouse/jdbc/StatementTest.java` adds
+  `testJSONEachRowFormat`, which exercises
+  `Statement.executeQuery("... FORMAT JSONEachRow")` through the JDBC driver
+  against both parser factories.

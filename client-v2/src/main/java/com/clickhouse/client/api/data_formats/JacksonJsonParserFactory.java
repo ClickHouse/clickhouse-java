@@ -14,6 +14,7 @@ public class JacksonJsonParserFactory implements JsonParserFactory {
     }
 
     protected ObjectMapper createMapper() {
+        // override this method to customize object mapper
         return new ObjectMapper();
     }
 

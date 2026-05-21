@@ -84,6 +84,48 @@ Each read call in `run()` follows the same three-step shape:
    with `JSON_PARSER_FACTORY=<FQN>`, runs the `SELECT ... FORMAT JSONEachRow`
    and iterates the `ResultSet`.
 
+Because JDBC selects `JSONEachRow` through SQL text, set the JSON output
+server settings explicitly on the connection when numeric accessors are used:
+
+```java
+props.setProperty(ClientConfigProperties.serverSetting("output_format_json_quote_64bit_integers"), "0");
+props.setProperty(ClientConfigProperties.serverSetting("output_format_json_quote_64bit_floats"), "0");
+props.setProperty(ClientConfigProperties.serverSetting("output_format_json_quote_denormals"), "0");
+props.setProperty(ClientConfigProperties.serverSetting("output_format_json_quote_decimals"), "0");
+```
+
+## Integer Precision
+
+ClickHouse 64-bit integers can be larger than the exact integer range of a
+JSON floating-point number. Jackson's default map materialization preserves
+ordinary integer tokens as integer `Number` values. Gson's default
+`Map<String, Object>` materialization may surface numbers as floating-point
+values, which can round large integers before `ResultSet.getLong(...)` sees
+them.
+
+For Gson, extend `GsonJsonParserFactory` and configure the object number
+strategy:
+
+```java
+public final class PreciseGsonJsonParserFactory extends GsonJsonParserFactory {
+    @Override
+    protected void customize(GsonBuilder builder) {
+        builder.setObjectToNumberStrategy(com.google.gson.ToNumberPolicy.LONG_OR_DOUBLE);
+    }
+}
+```
+
+Then configure JDBC with the factory class name:
+
+```java
+props.setProperty(DriverProperties.JSON_PARSER_FACTORY.getKey(),
+        PreciseGsonJsonParserFactory.class.getName());
+```
+
+The included `CustomGsonParserFactory` uses this pattern. Use
+`ToNumberPolicy.BIG_DECIMAL` instead when exact decimal representation matters
+more than receiving integer tokens as `Long`.
+
 ## Requirements
 
 - JDK 17 or newer

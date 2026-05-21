@@ -187,6 +187,10 @@ public class JdbcV2JsonProcessorsExample {
         properties.setProperty("user", user);
         properties.setProperty("password", password);
         properties.setProperty(ClientConfigProperties.serverSetting("allow_experimental_json_type"), "1");
+        properties.setProperty(ClientConfigProperties.serverSetting("output_format_json_quote_64bit_integers"), "0");
+        properties.setProperty(ClientConfigProperties.serverSetting("output_format_json_quote_64bit_floats"), "0");
+        properties.setProperty(ClientConfigProperties.serverSetting("output_format_json_quote_denormals"), "0");
+        properties.setProperty(ClientConfigProperties.serverSetting("output_format_json_quote_decimals"), "0");
         return properties;
     }
 

@@ -6,6 +6,8 @@ import java.util.Map;
  * Interface for JSON row processors.
  */
 public interface JsonParser extends AutoCloseable {
+
+
     /**
      * Reads next row from the input stream.
      * @return map of column names to values, or null if no more rows

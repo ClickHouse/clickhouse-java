@@ -5,7 +5,6 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
-import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;

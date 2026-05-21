@@ -266,7 +266,6 @@ public class Client implements AutoCloseable {
         private ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy;
         private Object metricRegistry = null;
         private Supplier<String> queryIdGenerator;
-        private JsonParserFactory jsonParserFactory;
 
         public Builder() {
             this.endpoints = new HashSet<>();

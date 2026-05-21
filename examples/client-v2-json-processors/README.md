@@ -43,6 +43,36 @@ Each read call in `run()` follows the same three-step shape:
    response stream through
    `new JSONEachRowFormatReader(factory.createJsonParser(...))`.
 
+The client example selects the output format with
+`new QuerySettings().setFormat(ClickHouseFormat.JSONEachRow)`. Use that form
+instead of appending `FORMAT JSONEachRow` to the SQL when calling `client-v2`
+directly, because the client applies JSON-specific server settings from the
+request format.
+
+## Integer Precision
+
+ClickHouse 64-bit integers can be larger than the exact integer range of a
+JSON floating-point number. Jackson's default map materialization preserves
+ordinary integer tokens as integer `Number` values. Gson's default
+`Map<String, Object>` materialization may surface numbers as floating-point
+values, which can round large integers before `getLong(...)` sees them.
+
+For Gson, extend `GsonJsonParserFactory` and configure the object number
+strategy:
+
+```java
+public final class PreciseGsonJsonParserFactory extends GsonJsonParserFactory {
+    @Override
+    protected void customize(GsonBuilder builder) {
+        builder.setObjectToNumberStrategy(com.google.gson.ToNumberPolicy.LONG_OR_DOUBLE);
+    }
+}
+```
+
+The included `CustomGsonParserFactory` uses this pattern. Use
+`ToNumberPolicy.BIG_DECIMAL` instead when exact decimal representation matters
+more than receiving integer tokens as `Long`.
+
 ## Requirements
 
 - JDK 17 or newer
