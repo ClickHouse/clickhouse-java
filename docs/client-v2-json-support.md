@@ -311,6 +311,13 @@ Behavior:
   the `List` implementation produced by the selected JSON library. Because
   `JSONEachRow` has no array element metadata, `ResultSet.getArray(...)` is
   not supported for these inferred JSON arrays.
+- Temporal typed JDBC accessors follow the current `JSONEachRowFormatReader`
+  text-accessor support. `ResultSet.getString(...)` can be used to read the
+  server-formatted temporal text, but `getTimestamp(...)`,
+  `getObject(..., Timestamp.class)`, and related temporal conversions are not
+  guaranteed for `FORMAT JSONEachRow` result sets. Use the binary default
+  format when JDBC temporal typed accessors are required, or read the value as
+  a string/object and convert it in application code.
 - The JSON processor is selected at the connection level through the
   `jdbc_json_parser_factory` driver property. It cannot be changed per
   statement, in line with the lifecycle of other connection options.

@@ -429,7 +429,14 @@ public class JSONEachRowFormatReader implements ClickHouseTextFormatReader {
 
     @Override
     public Object[] getTuple(String colName) {
-        return (Object[]) currentRow.get(colName);
+        Object value = currentRow.get(colName);
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof List<?>) {
+            return ((List<?>) value).toArray(new Object[0]);
+        }
+        return (Object[]) value;
     }
 
     @Override

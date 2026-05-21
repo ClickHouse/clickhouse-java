@@ -401,7 +401,8 @@ public class JSONEachRowFormatReaderTest {
         UUID uuid = UUID.fromString("11111111-2222-3333-4444-555555555555");
         try (JSONEachRowFormatReader reader = readerOf(row(
                 "u", uuid.toString(),
-                "arr", Arrays.asList(1, 2, 3)))) {
+                "arr", Arrays.asList(1, 2, 3),
+                "tuple", Arrays.asList("a", 1)))) {
             reader.next();
 
             Assert.assertEquals(reader.getUUID("u"), uuid);
@@ -410,6 +411,9 @@ public class JSONEachRowFormatReaderTest {
             List<Integer> list = reader.getList("arr");
             Assert.assertEquals(list, Arrays.asList(1, 2, 3));
             Assert.assertEquals(reader.<Integer>getList(2), Arrays.asList(1, 2, 3));
+
+            Assert.assertEquals(reader.getTuple("tuple"), new Object[] {"a", 1});
+            Assert.assertEquals(reader.getTuple(3), new Object[] {"a", 1});
         }
     }
 
