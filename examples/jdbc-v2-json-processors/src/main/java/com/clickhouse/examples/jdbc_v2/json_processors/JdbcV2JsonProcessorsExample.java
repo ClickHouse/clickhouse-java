@@ -209,7 +209,7 @@ public class JdbcV2JsonProcessorsExample {
      *
      * <p>This class must be {@code public static} with a public no-arg
      * constructor because the JDBC driver loads it reflectively via the
-     * {@code jdbc_json_parser_factor} driver property; the {@code .getName()}
+     * {@code jdbc_json_parser_factory} driver property; the {@code .getName()}
      * of a nested class is the {@code Outer$Inner} binary form, which
      * {@code Class.forName(...)} accepts.</p>
      *
@@ -246,7 +246,7 @@ public class JdbcV2JsonProcessorsExample {
      *
      * <p>This class must be {@code public static} with a public no-arg
      * constructor because the JDBC driver loads it reflectively via the
-     * {@code jdbc_json_parser_factor} driver property; the {@code .getName()}
+     * {@code jdbc_json_parser_factory} driver property; the {@code .getName()}
      * of a nested class is the {@code Outer$Inner} binary form, which
      * {@code Class.forName(...)} accepts.</p>
      *

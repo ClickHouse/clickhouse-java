@@ -14,6 +14,7 @@ This document lists stable, user-visible behavior in `client-v2` and `jdbc-v2` t
 - Parameterized SQL: Accepts named query parameters and can send them through supported HTTP request encodings.
 - Result materialization helpers: Provides streaming `Records`, generic row access, and convenience APIs that materialize all rows into generic records or typed POJOs.
 - Binary format readers: Reads ClickHouse binary result formats including `Native`, `RowBinary`, `RowBinaryWithNames`, and `RowBinaryWithNamesAndTypes`.
+- JSONEachRow text reader: Can stream `JSONEachRow` responses through a caller-supplied `JsonParser`, with Jackson and Gson parser factory implementations available as optional classpath dependencies.
 - Data type conversion: Maps ClickHouse types to Java values for binary reads, POJO binding, and SQL parameter formatting, including date/time handling.
 - Geometry type support: For ClickHouse `25.11+`, where `Geometry` changed from a string alias to `Variant(Point, Ring, LineString, MultiLineString, Polygon, MultiPolygon)`, the client reads and writes `Geometry` values through generic records, binary readers, POJO binding, and SQL parameter formatting, using Java array dimensionality to represent the geometry shape.
 - Insert APIs: Supports inserting registered POJOs, raw streams, and callback-driven writers, with optional column lists and format selection.
@@ -39,6 +40,7 @@ Compatibility-sensitive traits:
 - `Geometry` handling is shape-sensitive: supported values are 1D through 4D Java arrays representing the nested geometry variants, and unsupported shapes or non-array values are rejected during serialization.
 - `Geometry` write inference is dimension-based rather than fully type-specific: point, ring/line string, polygon/multi-line string, and multi-polygon are selected from array depth, so writing `Geometry` cannot currently distinguish `Ring` from `LineString` or `Polygon` from `MultiLineString`.
 - Session precedence is part of the contract: client session defaults apply to each request, operation settings may override them, and only the client `session_id` is mutable at runtime while other client session properties remain fixed for the lifetime of the client.
+- JSONEachRow reading depends on the selected parser factory and request format settings: parser materialization determines Java value types, the reader infers minimal schema from the first row, and JSON-specific server settings are applied only when `QuerySettings` resolves to `ClickHouseFormat.JSONEachRow`.
 
 
 ## `jdbc-v2`
@@ -57,7 +59,7 @@ Compatibility-sensitive traits:
 - Prepared statements: Supports `?` parameters through client-side SQL rendering and validates that all parameters are bound before execution.
 - SQL parsing and classification: Classifies SQL to distinguish queries, updates, inserts, `USE`, and role-changing statements, with selectable parser backends.
 - JDBC escape processing: Translates supported JDBC escape syntax for dates, timestamps, and functions before execution.
-- Result set streaming: Streams result sets from ClickHouse binary formats, enforces max-row limits, and manages result-set lifecycle correctly.
+- Result set streaming: Streams result sets from ClickHouse binary formats and `FORMAT JSONEachRow`, enforces max-row limits, and manages result-set lifecycle correctly.
 - Result-set metadata: Exposes JDBC `ResultSetMetaData` backed by ClickHouse column schema.
 - Database metadata: Implements JDBC `DatabaseMetaData` for ClickHouse catalogs, schemas, tables, columns, and related capability reporting.
 - Parameter metadata: Reports prepared-statement parameter counts.
@@ -77,6 +79,7 @@ Compatibility-sensitive traits:
 - String-like ClickHouse values have stable JDBC expectations: `String`, `FixedString`, and `Enum` values are returned as strings, while `UUID` is available both as `getString()` and `getObject(..., UUID.class)`.
 - `Geometry` has a stable JDBC mapping: metadata reports SQL type `ARRAY` with type name `Geometry`, read paths return nested Java arrays rather than custom wrappers, and write paths depend on the caller preserving the intended point/array nesting shape.
 - JDBC `Geometry` writes share the same ambiguity as the client serializer: variant selection is inferred from nesting depth, so `Ring` versus `LineString` and `Polygon` versus `MultiLineString` are not currently distinguishable when writing through the generic `Geometry` path.
+- JDBC `FORMAT JSONEachRow` support is opt-in through the `jdbc_json_parser_factory` driver property, whose value must be a fully-qualified `JsonParserFactory` class name with a public no-argument constructor; JSONEachRow numeric and structured value behavior follows the selected parser and configured server output settings.
 - Binary parameters passed through `setBytes()` are encoded as ClickHouse `unhex(...)` expressions rather than text literals; empty byte arrays map to an empty string expression.
 - Stream and reader setters (`setAsciiStream`, `setUnicodeStream`, `setBinaryStream`, `setCharacterStream`, `setNCharacterStream`) are treated as text input encoded with the same string-escaping rules, including length-based truncation when a length is supplied.
 - `getString()` formatting for temporal values is stable output: `Date` uses `yyyy-MM-dd`, `DateTime` uses `yyyy-MM-dd HH:mm:ss`, and `DateTime64` preserves fractional precision, all interpreted in server timezone context where applicable.

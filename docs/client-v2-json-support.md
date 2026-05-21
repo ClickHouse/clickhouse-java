@@ -78,7 +78,7 @@ provides additional advantages beyond what the format alone delivers:
 - Modifies `StatementImpl.executeQuery(...)` to accept `JSONEachRow` as a
   valid output format. All other text formats remain unsupported.
 - Adds `DriverProperties.JSON_PARSER_FACTORY`
-  (key `jdbc_json_parser_factor`) for selecting the `JsonParserFactory`
+  (key `jdbc_json_parser_factory`) for selecting the `JsonParserFactory`
   implementation by fully-qualified class name.
 - Declares Jackson and Gson as `provided` dependencies, consistent with
   `client-v2`.
@@ -172,7 +172,7 @@ as `Map<String, Object>`.
 
 | Property key              | Value |
 | ------------------------- | ----- |
-| `jdbc_json_parser_factor` | Fully-qualified class name implementing `JsonParserFactory` |
+| `jdbc_json_parser_factory` | Fully-qualified class name implementing `JsonParserFactory` |
 
 The named class is loaded reflectively when the connection is created and must
 have a public no-argument constructor. There is no equivalent `client-v2`
@@ -298,7 +298,7 @@ Behavior:
   selected JSON parser (`Map`, `List`, or scalar), without an additional
   string round-trip.
 - The JSON processor is selected at the connection level through the
-  `jdbc_json_parser_factor` driver property. It cannot be changed per
+  `jdbc_json_parser_factory` driver property. It cannot be changed per
   statement, in line with the lifecycle of other connection options.
 - Because JDBC selects `JSONEachRow` through SQL text, set the JSON output
   server settings explicitly as connection properties when integer or decimal
@@ -482,7 +482,7 @@ For these types, callers should obtain the parsed value through
   `jdbc-v2`. Applications that previously inherited Jackson transitively from
   these modules in `test` scope must declare the chosen processor explicitly
   on their runtime classpath.
-- `jdbc_json_parser_factor` is a new JDBC driver property and is only needed
+- `jdbc_json_parser_factory` is a new JDBC driver property and is only needed
   by connections that execute `FORMAT JSONEachRow` queries.
 
 ## Examples

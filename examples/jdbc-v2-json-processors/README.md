@@ -12,7 +12,7 @@ through `jdbc-v2` with the two factories shipped under
 ### How the JDBC driver selects a factory
 
 The driver picks the parser factory **by fully-qualified class name** from
-the `JSON_PARSER_FACTORY` driver property (key: `jdbc_json_parser_factor`).
+the `jdbc_json_parser_factory` driver property.
 The value is the FQN of a class that implements `JsonParserFactory`; the
 driver loads it reflectively and instantiates it through a **public no-arg
 constructor**. There is no enum-style selector.
