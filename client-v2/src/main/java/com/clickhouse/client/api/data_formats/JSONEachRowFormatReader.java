@@ -167,6 +167,7 @@ public class JSONEachRowFormatReader implements ClickHouseTextFormatReader {
     @Override
     public BigDecimal getBigDecimal(String colName) {
         Object val = currentRow.get(colName);
+        if (val == null) return null;
         if (val instanceof BigDecimal) return (BigDecimal) val;
         return new BigDecimal(val.toString());
     }

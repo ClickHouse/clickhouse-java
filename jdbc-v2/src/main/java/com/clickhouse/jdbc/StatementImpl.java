@@ -181,6 +181,12 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
 
             ClickHouseFormatReader reader;
             if (response.getFormat() == ClickHouseFormat.JSONEachRow) {
+                if (connection.getJsonParserFactory() == null) {
+                    throw new SQLException("Response is in JSONEachRow format, but " +
+                            DriverProperties.JSON_PARSER_FACTORY.getKey() + " is not configured. Set " +
+                            DriverProperties.JSON_PARSER_FACTORY.getKey() + " to a JsonParserFactory implementation.",
+                            ExceptionUtils.SQL_STATE_CLIENT_ERROR);
+                }
                 reader = new JSONEachRowFormatReader(connection.getJsonParserFactory().createJsonParser(response.getInputStream()));
             } else if (!response.getFormat().isText()) {
                 reader = connection.getClient().newBinaryFormatReader(response);

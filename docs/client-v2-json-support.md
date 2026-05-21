@@ -294,9 +294,9 @@ Behavior:
   and `JSONEachRow` as output formats; any other text format causes
   `SQLException("Only RowBinaryWithNameAndTypes and JSONEachRow are supported
   for output format. ...")` to be thrown.
-- `ResultSet.getObject(...)` returns the value produced directly by the
-  selected JSON parser (`Map`, `List`, or scalar), without an additional
-  string round-trip.
+- `ResultSet.getObject(...)` returns parser-native `Map` and scalar values
+  without an additional string round-trip. JSON arrays are exposed as JDBC
+  `Array` values, wrapping the parser-produced list.
 - The JSON processor is selected at the connection level through the
   `jdbc_json_parser_factory` driver property. It cannot be changed per
   statement, in line with the lifecycle of other connection options.
@@ -397,11 +397,16 @@ maps each to a `ClickHouseDataType`:
 
 | Java type produced by the library                                      | Inferred ClickHouse type |
 | ---------------------------------------------------------------------- | ------------------------ |
-| `Integer`, `Long`, `BigInteger`                                        | `Int64`                  |
-| `Double`, `Float`, `BigDecimal` whose value has no fractional part within the `long` range | `Int64` |
-| Other `Number` subtypes                                                | `Float64`                |
+| `Integer`                                                              | `Int32`                  |
+| `Long`                                                                 | `Int64`                  |
+| `BigInteger`                                                           | `Int256`                 |
+| `Float`                                                                | `Float32`                |
+| `Double`                                                               | `Float64`                |
+| `BigDecimal`                                                           | `Decimal`                |
 | `Boolean`                                                              | `Bool`                   |
-| Any other value (`String`, `List`, `Map`, `null`, ...)                 | `String`                 |
+| `List` or Java array                                                   | `Array`                  |
+| `Map`                                                                  | `Map`                    |
+| Any other value (`String`, `null`, unsupported number subtypes, ...)   | `String`                 |
 
 Implications:
 
@@ -434,6 +439,13 @@ follows:
 | `getList`                                     | Returns the JSON array as `List<T>`.                          |
 | `getTuple`                                    | Returns the row value cast to `Object[]`.                     |
 | `getEnum8` / `getEnum16`                      | Delegates to `getByte` / `getShort`.                          |
+
+Accessor limitations to keep in mind:
+
+- `getTuple(...)` does not adapt parser-native `List` or `Map` values. Since
+  JSON arrays are usually materialized as `List` and JSON objects as `Map`,
+  callers should use `readValue(...)` for tuple-like JSON values and convert
+  them explicitly.
 
 The following accessors are not supported by the current implementation and
 throw `UnsupportedOperationException`:

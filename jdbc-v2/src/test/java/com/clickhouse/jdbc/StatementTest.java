@@ -737,6 +737,20 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
+    @Test(groups = {"integration"})
+    public void testJSONEachRowFormatRequiresParserFactory() throws Exception {
+        try (Connection conn = getJdbcConnection();
+             Statement stmt = conn.createStatement()) {
+            try {
+                stmt.executeQuery("SELECT 1 AS num FORMAT JSONEachRow");
+                fail("Expected SQLException");
+            } catch (SQLException e) {
+                assertTrue(e.getMessage().contains(DriverProperties.JSON_PARSER_FACTORY.getKey()),
+                        "Unexpected message: " + e.getMessage());
+            }
+        }
+    }
+
     @DataProvider
     public static Object[][] testJSONEachRowFormatDP() {
         return new Object[][] {
