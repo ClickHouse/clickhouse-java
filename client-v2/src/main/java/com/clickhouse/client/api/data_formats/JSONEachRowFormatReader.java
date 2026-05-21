@@ -1,8 +1,8 @@
 package com.clickhouse.client.api.data_formats;
 
+import com.clickhouse.client.api.internal.SchemaUtils;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.data.ClickHouseColumn;
-import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.value.ClickHouseBitmap;
 import com.clickhouse.data.value.ClickHouseGeoMultiPolygonValue;
 import com.clickhouse.data.value.ClickHouseGeoPointValue;
@@ -43,7 +43,7 @@ public class JSONEachRowFormatReader implements ClickHouseTextFormatReader {
                 for (String key : nextRow.keySet()) {
                     // For JSONEachRow we don't know the exact ClickHouse type, so we use a reasonable default.
                     // We can try to guess based on the value type in the first row.
-                    columns.add(ClickHouseColumn.of(key, guessDataType(nextRow.get(key)), false));
+                    columns.add(ClickHouseColumn.of(key, SchemaUtils.inferDataType(nextRow.get(key)), false));
                 }
                 this.schema = new TableSchema(columns);
             } else {
@@ -51,26 +51,6 @@ public class JSONEachRowFormatReader implements ClickHouseTextFormatReader {
             }
         } catch (Exception e) {
             throw new RuntimeException("Failed to initialize JSON reader", e);
-        }
-    }
-
-    private ClickHouseDataType guessDataType(Object value) {
-        if (value instanceof Number) {
-            if (value instanceof Integer || value instanceof Long || value instanceof BigInteger) {
-                return ClickHouseDataType.Int64;
-            } else if (value instanceof Double || value instanceof Float || value instanceof BigDecimal) {
-                double d = ((Number) value).doubleValue();
-                if (d == Math.floor(d) && !Double.isInfinite(d) && d <= Long.MAX_VALUE && d >= Long.MIN_VALUE) {
-                    return ClickHouseDataType.Int64;
-                }
-                return ClickHouseDataType.Float64;
-            } else {
-                return ClickHouseDataType.Float64;
-            }
-        } else if (value instanceof Boolean) {
-            return ClickHouseDataType.Bool;
-        } else {
-            return ClickHouseDataType.String;
         }
     }
 

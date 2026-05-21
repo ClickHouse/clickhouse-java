@@ -6,6 +6,8 @@ import org.testng.annotations.Test;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -57,26 +59,26 @@ public class JSONEachRowFormatReaderTest {
     }
 
     // ---------------------------------------------------------------------
-    // guessDataType
+    // Schema inference
     // ---------------------------------------------------------------------
 
     @Test
-    public void testGuessDataTypeForIntegerLikeValuesIsInt64() {
+    public void testSchemaInferenceForIntegerLikeValues() {
         JSONEachRowFormatReader reader = readerOf(row(
                 "as_integer", 1,
                 "as_long", 2L,
                 "as_big_integer", BigInteger.TEN));
 
         Assert.assertEquals(reader.getSchema().getColumnByName("as_integer").getDataType(),
-                ClickHouseDataType.Int64);
+                ClickHouseDataType.Int32);
         Assert.assertEquals(reader.getSchema().getColumnByName("as_long").getDataType(),
                 ClickHouseDataType.Int64);
         Assert.assertEquals(reader.getSchema().getColumnByName("as_big_integer").getDataType(),
-                ClickHouseDataType.Int64);
+                ClickHouseDataType.Int256);
     }
 
     @Test
-    public void testGuessDataTypeForFractionalDoubleIsFloat64() {
+    public void testSchemaInferenceForFractionalValues() {
         JSONEachRowFormatReader reader = readerOf(row(
                 "as_double", 1.5d,
                 "as_float", 2.5f,
@@ -85,24 +87,24 @@ public class JSONEachRowFormatReaderTest {
         Assert.assertEquals(reader.getSchema().getColumnByName("as_double").getDataType(),
                 ClickHouseDataType.Float64);
         Assert.assertEquals(reader.getSchema().getColumnByName("as_float").getDataType(),
-                ClickHouseDataType.Float64);
+                ClickHouseDataType.Float32);
         Assert.assertEquals(reader.getSchema().getColumnByName("as_big_decimal").getDataType(),
-                ClickHouseDataType.Float64);
+                ClickHouseDataType.Decimal);
     }
 
     @Test
-    public void testGuessDataTypeForWholeDoubleIsInt64() {
+    public void testSchemaInferenceUsesJavaTypeForWholeFractionalValues() {
         JSONEachRowFormatReader reader = readerOf(row(
                 "as_double_whole", 5.0d,
                 "as_float_whole", 7.0f,
                 "as_big_decimal_whole", new BigDecimal("42")));
 
         Assert.assertEquals(reader.getSchema().getColumnByName("as_double_whole").getDataType(),
-                ClickHouseDataType.Int64);
+                ClickHouseDataType.Float64);
         Assert.assertEquals(reader.getSchema().getColumnByName("as_float_whole").getDataType(),
-                ClickHouseDataType.Int64);
+                ClickHouseDataType.Float32);
         Assert.assertEquals(reader.getSchema().getColumnByName("as_big_decimal_whole").getDataType(),
-                ClickHouseDataType.Int64);
+                ClickHouseDataType.Decimal);
     }
 
     @Test
@@ -121,38 +123,47 @@ public class JSONEachRowFormatReaderTest {
     }
 
     @Test
-    public void testGuessDataTypeForOtherNumberSubtypesIsFloat64() {
-        // AtomicInteger is a Number that is neither Integer/Long/BigInteger
-        // nor Double/Float/BigDecimal, so it lands in the catch-all numeric
-        // branch.
+    public void testSchemaInferenceForUnsupportedNumberSubtypesUsesDefault() {
+        // AtomicInteger is a Number, but it is not part of ClickHouseDataType.DATA_TYPE_TO_CLASS.
         JSONEachRowFormatReader reader = readerOf(row("custom", new AtomicInteger(5)));
         Assert.assertEquals(reader.getSchema().getColumnByName("custom").getDataType(),
-                ClickHouseDataType.Float64);
+                ClickHouseDataType.String);
     }
 
     @Test
-    public void testGuessDataTypeForBooleanIsBool() {
+    public void testSchemaInferenceForBooleanIsBool() {
         JSONEachRowFormatReader reader = readerOf(row("flag", Boolean.TRUE));
         Assert.assertEquals(reader.getSchema().getColumnByName("flag").getDataType(),
                 ClickHouseDataType.Bool);
     }
 
     @Test
-    public void testGuessDataTypeDefaultBranchIsString() {
-        // Strings, lists, maps, and JSON null should all fall through to the
-        // catch-all branch and be reported as String columns.
+    public void testSchemaInferenceForStructuredAndSpecialValues() {
+        UUID uuid = UUID.fromString("11111111-2222-3333-4444-555555555555");
         JSONEachRowFormatReader reader = readerOf(row(
                 "as_string", "hello",
                 "as_list", Arrays.asList(1, 2, 3),
+                "as_array", new double[] {1.0d, 2.0d},
                 "as_map", Collections.singletonMap("k", "v"),
+                "as_uuid", uuid,
+                "as_date", LocalDate.of(2024, 1, 2),
+                "as_datetime", LocalDateTime.of(2024, 1, 2, 3, 4),
                 "as_null", null));
 
         Assert.assertEquals(reader.getSchema().getColumnByName("as_string").getDataType(),
                 ClickHouseDataType.String);
         Assert.assertEquals(reader.getSchema().getColumnByName("as_list").getDataType(),
-                ClickHouseDataType.String);
+                ClickHouseDataType.Array);
+        Assert.assertEquals(reader.getSchema().getColumnByName("as_array").getDataType(),
+                ClickHouseDataType.Array);
         Assert.assertEquals(reader.getSchema().getColumnByName("as_map").getDataType(),
-                ClickHouseDataType.String);
+                ClickHouseDataType.Map);
+        Assert.assertEquals(reader.getSchema().getColumnByName("as_uuid").getDataType(),
+                ClickHouseDataType.UUID);
+        Assert.assertEquals(reader.getSchema().getColumnByName("as_date").getDataType(),
+                ClickHouseDataType.Date);
+        Assert.assertEquals(reader.getSchema().getColumnByName("as_datetime").getDataType(),
+                ClickHouseDataType.DateTime64);
         Assert.assertEquals(reader.getSchema().getColumnByName("as_null").getDataType(),
                 ClickHouseDataType.String);
     }

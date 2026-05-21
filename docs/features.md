@@ -14,7 +14,7 @@ This document lists stable, user-visible behavior in `client-v2` and `jdbc-v2` t
 - Parameterized SQL: Accepts named query parameters and can send them through supported HTTP request encodings.
 - Result materialization helpers: Provides streaming `Records`, generic row access, and convenience APIs that materialize all rows into generic records or typed POJOs.
 - Binary format readers: Reads ClickHouse binary result formats including `Native`, `RowBinary`, `RowBinaryWithNames`, and `RowBinaryWithNamesAndTypes`.
-- JSONEachRow text reader: Can stream `JSONEachRow` responses through a caller-supplied `JsonParser`, with Jackson and Gson parser factory implementations available as optional classpath dependencies.
+- JSONEachRow text reader: Can stream `JSONEachRow` responses through a caller-supplied `JsonParser`, with Jackson and Gson parser factory implementations available as optional classpath dependencies, and infers a best-effort schema from the first row.
 - Data type conversion: Maps ClickHouse types to Java values for binary reads, POJO binding, and SQL parameter formatting, including date/time handling.
 - Geometry type support: For ClickHouse `25.11+`, where `Geometry` changed from a string alias to `Variant(Point, Ring, LineString, MultiLineString, Polygon, MultiPolygon)`, the client reads and writes `Geometry` values through generic records, binary readers, POJO binding, and SQL parameter formatting, using Java array dimensionality to represent the geometry shape.
 - Insert APIs: Supports inserting registered POJOs, raw streams, and callback-driven writers, with optional column lists and format selection.
@@ -41,6 +41,7 @@ Compatibility-sensitive traits:
 - `Geometry` write inference is dimension-based rather than fully type-specific: point, ring/line string, polygon/multi-line string, and multi-polygon are selected from array depth, so writing `Geometry` cannot currently distinguish `Ring` from `LineString` or `Polygon` from `MultiLineString`.
 - Session precedence is part of the contract: client session defaults apply to each request, operation settings may override them, and only the client `session_id` is mutable at runtime while other client session properties remain fixed for the lifetime of the client.
 - JSONEachRow reading depends on the selected parser factory and request format settings: parser materialization determines Java value types, the reader infers minimal schema from the first row, and JSON-specific server settings are applied only when `QuerySettings` resolves to `ClickHouseFormat.JSONEachRow`.
+- JSONEachRow schema inference is intentionally best-effort: scalar values use Java-to-ClickHouse type mappings, while JSON arrays and objects are identified structurally as `Array` and `Map`. For arrays, maps, and some nested or ambiguous values, the inferred type may not include the most specific element, key, value, or nested ClickHouse type.
 
 
 ## `jdbc-v2`
