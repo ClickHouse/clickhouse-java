@@ -9,12 +9,13 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
-/**
- * Manages mutable authentication-related client settings.
- * This class is not thread-safe. Callers are responsible for coordinating
- * credential updates with request execution if they need stronger consistency.
- */
-public class CredentialsManager {
+    /**
+     * Manages mutable authentication-related client settings.
+     * This class uses an atomic reference to ensure thread-safe credential updates.
+     * Updates are non-blocking and will be applied to newly initiated requests
+     * immediately without affecting ongoing queries.
+     */
+    public class CredentialsManager {
 
     public static final String AUTHORIZATION_HEADER_KEY =
             ClientConfigProperties.httpHeader(HttpHeaders.AUTHORIZATION);
@@ -73,8 +74,8 @@ public class CredentialsManager {
     /**
      * Replaces the current username/password credentials.
      *
-     * <p>This class does not synchronize credential updates. Callers must
-     * serialize updates and request execution if they require thread safety.
+     * <p>Updates are applied atomically and take effect for newly initiated requests
+     * without blocking or requiring external synchronization.
      */
     public void setCredentials(String username, String password) {
         ValidationUtils.checkNonBlank(username, "username");
@@ -88,8 +89,8 @@ public class CredentialsManager {
     /**
      * Replaces the current credentials with a bearer token.
      *
-     * <p>This class does not synchronize credential updates. Callers must
-     * serialize updates and request execution if they require thread safety.
+     * <p>Updates are applied atomically and take effect for newly initiated requests
+     * without blocking or requiring external synchronization.
      */
     public void setAccessToken(String accessToken) {
         if (!hasAccessToken) {

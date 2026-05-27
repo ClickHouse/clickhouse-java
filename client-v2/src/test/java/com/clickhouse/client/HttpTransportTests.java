@@ -31,6 +31,7 @@ import com.github.tomakehurst.wiremock.common.Slf4jNotifier;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import com.github.tomakehurst.wiremock.http.Fault;
 import com.github.tomakehurst.wiremock.http.trafficlistener.WiremockNetworkTrafficListener;
+import com.github.tomakehurst.wiremock.verification.LoggedRequest;
 import org.apache.hc.core5.http.ConnectionClosedException;
 import org.apache.hc.core5.http.ConnectionRequestTimeoutException;
 import org.apache.hc.core5.http.HttpHeaders;
@@ -48,16 +49,22 @@ import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -2011,6 +2018,70 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 "Expected ClientException in cause chain, but was: " + thrown);
         Assert.assertTrue(containsMessageInCauseChain(thrown, "Reading column "),
                 "Expected column information in failure message chain, but was: " + thrown);
+    }
+
+    @Test(groups = {"integration"})
+    public void testConcurrentTokenChange() throws Exception {
+        WireMockServer mockServer = new WireMockServer(WireMockConfiguration
+                .options().dynamicPort().notifier(new ConsoleNotifier(false)));
+        mockServer.start();
+
+        try (Client client = new Client.Builder()
+                .addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
+                .useBearerTokenAuth("token_0_predefined")
+                .compressServerResponse(false)
+                .build()) {
+
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .withHeader("Authorization", WireMock.matching("^(Bearer token_0_predefined|Bearer token_1_predefined)$"))
+                    .willReturn(WireMock.aResponse()
+                            .withStatus(HttpStatus.SC_OK)
+                            .withHeader("X-ClickHouse-Summary", "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}"))
+                    .build());
+
+            int threads = 2;
+            int iterations = 100;
+            ExecutorService executorService = Executors.newFixedThreadPool(threads);
+
+            List<Callable<Void>> tasks = new ArrayList<>();
+            for (int i = 0; i < threads; i++) {
+                final int threadId = i;
+                tasks.add(() -> {
+                    String token = "token_" + threadId + "_predefined";
+                    for (int j = 0; j < iterations; j++) {
+                        if (j % 2 == 0) {
+                            client.updateBearerToken(token);
+                        } else {
+                            client.updateAccessToken("Bearer " + token);
+                        }
+
+                        client.execute("SELECT 1").get();
+                    }
+                    return null;
+                });
+            }
+
+            for (java.util.concurrent.Future<Void> future : executorService.invokeAll(tasks)) {
+                future.get();
+            }
+            executorService.shutdown();
+
+            List<LoggedRequest> requests =
+                    mockServer.findAll(WireMock.postRequestedFor(WireMock.anyUrl()));
+            
+            Set<String> seenTokens = new HashSet<>();
+            for (LoggedRequest req : requests) {
+                seenTokens.add(req.getHeader("Authorization"));
+            }
+            
+            boolean seenThread0 = seenTokens.contains("Bearer token_0_predefined");
+            boolean seenThread1 = seenTokens.contains("Bearer token_1_predefined");
+
+            Assert.assertTrue(seenThread0, "Should have seen tokens from thread 0");
+            Assert.assertTrue(seenThread1, "Should have seen tokens from thread 1");
+        } finally {
+            mockServer.stop();
+        }
     }
 
     protected Client.Builder newClient() {

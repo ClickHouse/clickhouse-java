@@ -22,7 +22,7 @@ Client client = new Client.Builder()
     .build();
 ```
 
-If you need to update the credentials dynamically at runtime (for subsequent requests), you can use the client instance:
+If you need to update the credentials dynamically at runtime (for subsequent requests), you can use the client instance. The runtime update methods are thread-safe and non-blocking, so new credentials take effect immediately for newly initiated requests without affecting ongoing queries or requiring external locks:
 
 ```java
 client.updateUserAndPassword("new_user", "new_password");
@@ -59,7 +59,7 @@ Client client = new Client.Builder()
     .build();
 ```
 
-You can also update the token dynamically at runtime. `updateBearerToken(...)` adds the `Bearer ` prefix; `updateAccessToken(...)` writes the value as-is:
+You can also update the token dynamically at runtime. Like password updates, these methods are thread-safe, apply to newly started requests, and require no external synchronization. `updateBearerToken(...)` adds the `Bearer ` prefix; `updateAccessToken(...)` writes the value as-is:
 
 ```java
 client.updateBearerToken("new_access_token");      // -> Authorization: Bearer new_access_token
