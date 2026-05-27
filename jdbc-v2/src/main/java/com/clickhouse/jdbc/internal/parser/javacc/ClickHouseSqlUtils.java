@@ -65,7 +65,9 @@ public final class ClickHouseSqlUtils {
                 "CENTURY", "DECADE", "DOW", "DOY", "EPOCH", "ISODOW", "ISOYEAR", "MILLENNIUM", "NATURAL", "SOME",
                 "ZONE",
                 // Appended 04/10/2026
-                "PATH", "PLACING"
+                "PATH", "PLACING",
+                // Appended 05/27/2026
+                "CURSOR", "DETERMINISTIC", "ESCAPE", "SAMPLES", "STREAM", "UNKNOWN"
             );
     }
 
