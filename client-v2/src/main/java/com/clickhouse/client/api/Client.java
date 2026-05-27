@@ -16,6 +16,7 @@ import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.internal.ClientStatisticsHolder;
+import com.clickhouse.client.api.internal.CredentialsManager;
 import com.clickhouse.client.api.internal.HttpAPIClientHelper;
 import com.clickhouse.client.api.internal.MapUtils;
 import com.clickhouse.client.api.internal.TableSchemaParser;
@@ -44,7 +45,6 @@ import net.jpountz.lz4.LZ4Factory;
 import org.apache.hc.core5.concurrent.DefaultThreadFactory;
 import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.Header;
-import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -105,7 +105,8 @@ import java.util.stream.Collectors;
  *
  *
  *
- * <p>Client is thread-safe. It uses exclusive set of object to perform an operation.</p>
+ * <p>Client is thread-safe. It uses exclusive set of object to perform an operation.
+ * Exception is client global authentication configuration. Application should handle it in the way it is designed.</p>
  *
  */
 public class Client implements AutoCloseable {
@@ -140,11 +141,13 @@ public class Client implements AutoCloseable {
     private final int retries;
     private LZ4Factory lz4Factory = null;
     private final Supplier<String> queryIdGenerator;
+    private final CredentialsManager credentialsManager;
 
     private Client(Collection<Endpoint> endpoints, Map<String,String> configuration,
                    ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy,
-                   Object metricsRegistry, Supplier<String> queryIdGenerator) {
-        Map<String, Object> parsedConfiguration = ClientConfigProperties.parseConfigMap(configuration);
+                   Object metricsRegistry, Supplier<String> queryIdGenerator, CredentialsManager cManager) {
+        Map<String, Object> parsedConfiguration = new ConcurrentHashMap<>(ClientConfigProperties.parseConfigMap(configuration));
+        this.credentialsManager = cManager;
         this.session = Session.extractFrom(parsedConfiguration);
         this.configuration = new ConcurrentHashMap<>(parsedConfiguration);
         this.readOnlyConfig = Collections.unmodifiableMap(configuration);
@@ -1039,12 +1042,13 @@ public class Client implements AutoCloseable {
          * Specifies whether to use Bearer Authentication and what token to use.
          * The token will be sent as is, so it should be encoded before passing to this method.
          *
-         * @param bearerToken - token to use
+         * @param bearerToken - token to use (without {@code Bearer} prefix)
          * @return same instance of the builder
          */
         public Builder useBearerTokenAuth(String bearerToken) {
             // Most JWT libraries (https://jwt.io/libraries?language=Java) compact tokens in proper way
-            this.httpHeader(HttpHeaders.AUTHORIZATION, "Bearer " + bearerToken);
+            // Bearer token in subset of access token
+            setAccessToken(CredentialsManager.AUTH_HEADER_BEARER_PREFIX + bearerToken);
             return this;
         }
 
@@ -1128,28 +1132,12 @@ public class Client implements AutoCloseable {
             if (this.endpoints.isEmpty()) {
                 throw new IllegalArgumentException("At least one endpoint is required");
             }
-            // check if username and password are empty. so can not initiate client?
-            boolean useSslAuth = MapUtils.getFlag(this.configuration, ClientConfigProperties.SSL_AUTH.getKey());
-            boolean hasAccessToken = this.configuration.containsKey(ClientConfigProperties.ACCESS_TOKEN.getKey());
-            boolean hasUser = this.configuration.containsKey(ClientConfigProperties.USER.getKey());
-            boolean hasPassword = this.configuration.containsKey(ClientConfigProperties.PASSWORD.getKey());
-            boolean customHttpHeaders = this.configuration.containsKey(ClientConfigProperties.httpHeader(HttpHeaders.AUTHORIZATION));
 
-            if (!(useSslAuth || hasAccessToken || hasUser || hasPassword || customHttpHeaders)) {
-                throw new IllegalArgumentException("Username and password (or access token or SSL authentication or pre-define Authorization header) are required");
-            }
+            CredentialsManager cManager = new CredentialsManager(this.configuration);
 
-            if (useSslAuth && (hasAccessToken || hasPassword)) {
-                throw new IllegalArgumentException("Only one of password, access token or SSL authentication can be used per client.");
-            }
-
-            if (useSslAuth && !this.configuration.containsKey(ClientConfigProperties.SSL_CERTIFICATE.getKey())) {
-                throw new IllegalArgumentException("SSL authentication requires a client certificate");
-            }
-
-            if (this.configuration.containsKey(ClientConfigProperties.SSL_TRUST_STORE.getKey()) &&
-                this.configuration.containsKey(ClientConfigProperties.SSL_CERTIFICATE.getKey())) {
-                throw new IllegalArgumentException("Trust store and certificates cannot be used together");
+            if (configuration.containsKey(ClientConfigProperties.SSL_TRUST_STORE.getKey()) &&
+                    configuration.containsKey(ClientConfigProperties.SSL_CERTIFICATE.getKey())) {
+                throw new ClientMisconfigurationException("Trust store and certificates cannot be used together");
             }
 
             // Check timezone settings
@@ -1181,7 +1169,7 @@ public class Client implements AutoCloseable {
             }
 
             return new Client(this.endpoints, this.configuration, this.sharedOperationExecutor,
-                this.columnToMethodMatchingStrategy, this.metricRegistry, this.queryIdGenerator);
+                this.columnToMethodMatchingStrategy, this.metricRegistry, this.queryIdGenerator, cManager);
         }
     }
 
@@ -2113,7 +2101,8 @@ public class Client implements AutoCloseable {
     }
 
     /**
-     * Returns unmodifiable map of configuration options.
+     * Returns unmodifiable map of initial configuration options.
+     * As authentication configuration values can change this map doesn't reflect them.
      * @return - configuration options
      */
     public Map<String, String> getConfiguration() {
@@ -2193,8 +2182,44 @@ public class Client implements AutoCloseable {
         return unmodifiableDbRolesView;
     }
 
+
+    /**
+     * Updates Bearer token for other requests.
+     * This method is not thread-safe with respect to other credential updates
+     * or concurrent request execution. Applications must coordinate access if
+     * they require stronger consistency.
+     * Method doesn't allow to switch authentication type
+     * @param bearer - token to use without {@code "Bearer"} prefix.
+     */
     public void updateBearerToken(String bearer) {
-        this.configuration.put(ClientConfigProperties.httpHeader(HttpHeaders.AUTHORIZATION), "Bearer " + bearer);
+        ValidationUtils.checkNonBlank(bearer, "Bearer token");
+        updateAccessToken(CredentialsManager.AUTH_HEADER_BEARER_PREFIX + bearer);
+    }
+
+    /**
+     * Updates the user and password for all subsequential requests.
+     * This method is not thread-safe with respect to other credential updates
+     * or concurrent request execution. Applications must coordinate access if
+     * they require stronger consistency.
+     * Method doesn't allow to switch authentication type
+     * @param username user name
+     * @param password user password
+     * @throws ClientMisconfigurationException if another authentication type in use.
+     */
+    public void updateUserAndPassword(String username, String password) {
+        this.credentialsManager.setCredentials(username, password);
+    }
+
+    /**
+     * Updates access token for the client. Change will be applied to all following requests.
+     * This method is not thread-safe with respect to other credential updates
+     * or concurrent request execution. Applications must coordinate access if
+     * they require stronger consistency.
+     * Method doesn't allow to switch authentication type
+     * @param accessToken - plain text access token
+     */
+    public void updateAccessToken(String accessToken) {
+        this.credentialsManager.setAccessToken(accessToken);
     }
 
     private Endpoint getNextAliveNode() {
@@ -2212,6 +2237,7 @@ public class Client implements AutoCloseable {
     private Map<String, Object> buildRequestSettings(Map<String, Object> opSettings) {
         Map<String, Object> requestSettings = new HashMap<>(configuration);
         session.applyTo(requestSettings);
+        credentialsManager.applyCredentials(requestSettings);
         requestSettings.putAll(opSettings);
         return requestSettings;
     }

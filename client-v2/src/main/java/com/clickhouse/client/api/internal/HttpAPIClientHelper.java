@@ -529,7 +529,7 @@ public class HttpAPIClientHelper {
         return doPostRequest(requestConfig, req);
     }
 
-    public ClassicHttpResponse executeMultiPartRequest(Endpoint server, Map<String, Object> requestConfig, String sqlQuery) throws Exception {
+        public ClassicHttpResponse executeMultiPartRequest(Endpoint server, Map<String, Object> requestConfig, String sqlQuery) throws Exception {
 
         requestConfig.put(ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey(), false);
 
@@ -648,9 +648,6 @@ public class HttpAPIClientHelper {
         } else if (ClientConfigProperties.HTTP_USE_BASIC_AUTH.<Boolean>getOrDefault(requestConfig).booleanValue()) {
             String user = ClientConfigProperties.USER.getOrDefault(requestConfig);
             String password = ClientConfigProperties.PASSWORD.getOrDefault(requestConfig);
-            if (password == null) {
-                password = "";
-            }
             // Use as-is, no encoding allowed
             req.addHeader(
                 HttpHeaders.AUTHORIZATION,
