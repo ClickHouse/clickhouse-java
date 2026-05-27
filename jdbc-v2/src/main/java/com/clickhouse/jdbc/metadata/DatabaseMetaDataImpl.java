@@ -865,6 +865,13 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         map.put("SharedSummingMergeTree", TableType.TABLE.getTypeName());
         map.put("SharedVersionedCollapsingMergeTree", TableType.TABLE.getTypeName());
 
+        // Paimon (appended 05/27/2026)
+        map.put("Paimon", TableType.REMOTE_TABLE.getTypeName());
+        map.put("PaimonAzure", TableType.REMOTE_TABLE.getTypeName());
+        map.put("PaimonHDFS", TableType.REMOTE_TABLE.getTypeName());
+        map.put("PaimonLocal", TableType.REMOTE_TABLE.getTypeName());
+        map.put("PaimonS3", TableType.REMOTE_TABLE.getTypeName());
+
         // Special
         map.put("TimeSeries", TableType.TABLE.getTypeName());
         map.put("Null", TableType.TABLE.getTypeName());
