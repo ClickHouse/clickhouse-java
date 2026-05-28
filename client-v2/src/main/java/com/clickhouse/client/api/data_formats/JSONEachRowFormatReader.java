@@ -1,5 +1,7 @@
 package com.clickhouse.client.api.data_formats;
 
+import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.data_formats.internal.NumberConverter;
 import com.clickhouse.client.api.internal.SchemaUtils;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.data.ClickHouseColumn;
@@ -9,6 +11,7 @@ import com.clickhouse.data.value.ClickHouseGeoPointValue;
 import com.clickhouse.data.value.ClickHouseGeoPolygonValue;
 import com.clickhouse.data.value.ClickHouseGeoRingValue;
 
+import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
@@ -151,9 +154,21 @@ public class JSONEachRowFormatReader implements ClickHouseTextFormatReader {
     @Override
     public boolean getBoolean(String colName) {
         Object val = currentRow.get(colName);
-        if (val instanceof Boolean) return (Boolean) val;
-        if (val instanceof Number) return ((Number) val).intValue() != 0;
-        return Boolean.parseBoolean(val.toString());
+        if (val instanceof Boolean) {
+            return (Boolean) val;
+        }
+        if (val instanceof Number) {
+            // Match AbstractBinaryFormatReader (SerializerUtils.convertToBoolean):
+            // any non-zero integral value is true, zero is false. Fractional
+            // values keep the same behavior because they are truncated by
+            // longValue() before the zero check.
+            return ((Number) val).longValue() != 0;
+        }
+        if (val == null) {
+            throw new ClientException("Column '" + colName + "' has null value and cannot be converted to boolean");
+        }
+        throw new ClientException("Cannot convert value of type " + val.getClass().getName()
+                + " in column '" + colName + "' to boolean");
     }
 
     @Override
@@ -224,52 +239,150 @@ public class JSONEachRowFormatReader implements ClickHouseTextFormatReader {
 
     @Override
     public <T> List<T> getList(String colName) {
-        return (List<T>) currentRow.get(colName);
+        Object val = currentRow.get(colName);
+        if (val == null) {
+            return null;
+        }
+        if (!(val instanceof List<?>)) {
+            throw new ClientException("Column '" + colName + "' is not of array type (actual: "
+                    + val.getClass().getName() + ")");
+        }
+        return (List<T>) val;
     }
 
     @Override
     public byte[] getByteArray(String colName) {
-        throw new UnsupportedOperationException();
+        return getPrimitiveArray(colName, byte.class);
     }
 
     @Override
     public int[] getIntArray(String colName) {
-        throw new UnsupportedOperationException();
+        return getPrimitiveArray(colName, int.class);
     }
 
     @Override
     public long[] getLongArray(String colName) {
-        throw new UnsupportedOperationException();
+        return getPrimitiveArray(colName, long.class);
     }
 
     @Override
     public float[] getFloatArray(String colName) {
-        throw new UnsupportedOperationException();
+        return getPrimitiveArray(colName, float.class);
     }
 
     @Override
     public double[] getDoubleArray(String colName) {
-        throw new UnsupportedOperationException();
+        return getPrimitiveArray(colName, double.class);
     }
 
     @Override
     public boolean[] getBooleanArray(String colName) {
-        throw new UnsupportedOperationException();
+        return getPrimitiveArray(colName, boolean.class);
     }
 
     @Override
     public short[] getShortArray(String colName) {
-        throw new UnsupportedOperationException();
+        return getPrimitiveArray(colName, short.class);
     }
 
     @Override
     public String[] getStringArray(String colName) {
-        throw new UnsupportedOperationException();
+        List<?> list = asArrayList(colName);
+        if (list == null) {
+            return null;
+        }
+        String[] out = new String[list.size()];
+        for (int i = 0; i < list.size(); i++) {
+            Object el = list.get(i);
+            out[i] = el == null ? null : el.toString();
+        }
+        return out;
     }
 
     @Override
     public Object[] getObjectArray(String colName) {
-        throw new UnsupportedOperationException();
+        List<?> list = asArrayList(colName);
+        return list == null ? null : list.toArray(new Object[0]);
+    }
+
+    /**
+     * Returns the value of the given column as a {@code List}, or {@code null}
+     * if the value is missing. Throws {@link ClientException} when the column
+     * exists but is not an array.
+     */
+    private List<?> asArrayList(String colName) {
+        Object val = currentRow.get(colName);
+        if (val == null) {
+            return null;
+        }
+        if (!(val instanceof List<?>)) {
+            throw new ClientException("Column '" + colName + "' is not of array type (actual: "
+                    + val.getClass().getName() + ")");
+        }
+        return (List<?>) val;
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> T getPrimitiveArray(String colName, Class<?> componentType) {
+        List<?> list = asArrayList(colName);
+        if (list == null) {
+            return null;
+        }
+        try {
+            Object array = Array.newInstance(componentType, list.size());
+            for (int i = 0; i < list.size(); i++) {
+                Object el = list.get(i);
+                if (el == null) {
+                    throw new ClientException("Column '" + colName
+                            + "' contains a null element which cannot fit into an array of primitive "
+                            + componentType.getName());
+                }
+                Array.set(array, i, coerceToComponent(el, componentType));
+            }
+            return (T) array;
+        } catch (ClassCastException | IllegalArgumentException e) {
+            throw new ClientException("Value of column '" + colName
+                    + "' cannot be converted to an array of " + componentType.getName(), e);
+        }
+    }
+
+    /**
+     * Coerces a parsed JSON element to a boxed primitive type. JSON parsers
+     * may materialize numeric array elements as different boxed types
+     * (e.g. {@code Integer}, {@code Long}, {@code Double}, {@code BigDecimal}),
+     * so element-level conversion is necessary before populating a typed
+     * primitive array.
+     */
+    private static Object coerceToComponent(Object value, Class<?> componentType) {
+        if (componentType == byte.class) {
+            return NumberConverter.toByte(value);
+        }
+        if (componentType == short.class) {
+            return NumberConverter.toShort(value);
+        }
+        if (componentType == int.class) {
+            return NumberConverter.toInt(value);
+        }
+        if (componentType == long.class) {
+            return NumberConverter.toLong(value);
+        }
+        if (componentType == float.class) {
+            return NumberConverter.toFloat(value);
+        }
+        if (componentType == double.class) {
+            return NumberConverter.toDouble(value);
+        }
+        if (componentType == boolean.class) {
+            if (value instanceof Boolean) {
+                return value;
+            }
+            if (value instanceof Number) {
+                return ((Number) value).longValue() != 0;
+            }
+            throw new IllegalArgumentException(
+                    "Cannot convert " + value.getClass().getName() + " to boolean array element");
+        }
+        return value;
     }
 
     @Override

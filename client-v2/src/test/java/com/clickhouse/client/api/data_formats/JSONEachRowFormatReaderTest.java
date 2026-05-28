@@ -340,13 +340,56 @@ public class JSONEachRowFormatReaderTest {
                 "from_bool", Boolean.TRUE,
                 "from_zero", 0,
                 "from_nonzero", 1,
-                "from_string", "true"))) {
+                "from_long", 42L,
+                "from_big_int", new BigInteger("9000000000"),
+                "from_big_dec_zero", BigDecimal.ZERO))) {
             reader.next();
             Assert.assertTrue(reader.getBoolean("from_bool"));
             Assert.assertFalse(reader.getBoolean("from_zero"));
             Assert.assertTrue(reader.getBoolean("from_nonzero"));
-            Assert.assertTrue(reader.getBoolean("from_string"));
+            Assert.assertTrue(reader.getBoolean("from_long"));
+            Assert.assertTrue(reader.getBoolean("from_big_int"));
+            Assert.assertFalse(reader.getBoolean("from_big_dec_zero"));
             Assert.assertTrue(reader.getBoolean(1));
+        }
+    }
+
+    @Test
+    public void testBooleanAccessorRejectsStringValue() throws Exception {
+        // Aligning with AbstractBinaryFormatReader expectations: text values
+        // that are not numeric or boolean are rejected rather than silently
+        // funneled through Boolean.parseBoolean, which would silently treat
+        // any non-"true" string as false.
+        try (JSONEachRowFormatReader reader = readerOf(row("v", "true"))) {
+            reader.next();
+            try {
+                reader.getBoolean("v");
+                Assert.fail("Expected exception for string value");
+            } catch (RuntimeException expected) {
+                // ok
+            }
+            try {
+                reader.getBoolean(1);
+                Assert.fail("Expected exception for string value");
+            } catch (RuntimeException expected) {
+                // ok
+            }
+        }
+    }
+
+    @Test
+    public void testBooleanAccessorRejectsNullValue() throws Exception {
+        Map<String, Object> r = new LinkedHashMap<>();
+        r.put("v", null);
+        try (JSONEachRowFormatReader reader = new JSONEachRowFormatReader(
+                new StubJsonParser(Collections.singletonList(r)))) {
+            reader.next();
+            try {
+                reader.getBoolean("v");
+                Assert.fail("Expected exception for null value");
+            } catch (RuntimeException expected) {
+                // ok
+            }
         }
     }
 
@@ -444,28 +487,102 @@ public class JSONEachRowFormatReaderTest {
             assertUnsupported(() -> reader.getGeoPolygon(1));
             assertUnsupported(() -> reader.getGeoMultiPolygon("v"));
             assertUnsupported(() -> reader.getGeoMultiPolygon(1));
-            assertUnsupported(() -> reader.getByteArray("v"));
-            assertUnsupported(() -> reader.getByteArray(1));
-            assertUnsupported(() -> reader.getIntArray("v"));
-            assertUnsupported(() -> reader.getIntArray(1));
-            assertUnsupported(() -> reader.getLongArray("v"));
-            assertUnsupported(() -> reader.getLongArray(1));
-            assertUnsupported(() -> reader.getFloatArray("v"));
-            assertUnsupported(() -> reader.getFloatArray(1));
-            assertUnsupported(() -> reader.getDoubleArray("v"));
-            assertUnsupported(() -> reader.getDoubleArray(1));
-            assertUnsupported(() -> reader.getBooleanArray("v"));
-            assertUnsupported(() -> reader.getBooleanArray(1));
-            assertUnsupported(() -> reader.getShortArray("v"));
-            assertUnsupported(() -> reader.getShortArray(1));
-            assertUnsupported(() -> reader.getStringArray("v"));
-            assertUnsupported(() -> reader.getStringArray(1));
-            assertUnsupported(() -> reader.getObjectArray("v"));
-            assertUnsupported(() -> reader.getObjectArray(1));
             assertUnsupported(() -> reader.getClickHouseBitmap("v"));
             assertUnsupported(() -> reader.getClickHouseBitmap(1));
             assertUnsupported(() -> reader.getTemporalAmount("v"));
             assertUnsupported(() -> reader.getTemporalAmount(1));
+        }
+    }
+
+    @Test
+    public void testArrayAccessorsReturnNullForNullValue() throws Exception {
+        Map<String, Object> r = new LinkedHashMap<>();
+        r.put("v", null);
+        try (JSONEachRowFormatReader reader = new JSONEachRowFormatReader(
+                new StubJsonParser(Collections.singletonList(r)))) {
+            reader.next();
+            Assert.assertNull(reader.getList("v"));
+            Assert.assertNull(reader.getIntArray("v"));
+            Assert.assertNull(reader.getLongArray("v"));
+            Assert.assertNull(reader.getDoubleArray("v"));
+            Assert.assertNull(reader.getBooleanArray("v"));
+            Assert.assertNull(reader.getStringArray("v"));
+            Assert.assertNull(reader.getObjectArray("v"));
+        }
+    }
+
+    @Test
+    public void testArrayAccessorsRejectNonArrayValues() throws Exception {
+        try (JSONEachRowFormatReader reader = readerOf(row("v", "x"))) {
+            reader.next();
+            assertThrowsRuntime(() -> reader.getList("v"));
+            assertThrowsRuntime(() -> reader.getList(1));
+            assertThrowsRuntime(() -> reader.getIntArray("v"));
+            assertThrowsRuntime(() -> reader.getIntArray(1));
+            assertThrowsRuntime(() -> reader.getLongArray("v"));
+            assertThrowsRuntime(() -> reader.getLongArray(1));
+            assertThrowsRuntime(() -> reader.getShortArray("v"));
+            assertThrowsRuntime(() -> reader.getShortArray(1));
+            assertThrowsRuntime(() -> reader.getByteArray("v"));
+            assertThrowsRuntime(() -> reader.getByteArray(1));
+            assertThrowsRuntime(() -> reader.getFloatArray("v"));
+            assertThrowsRuntime(() -> reader.getFloatArray(1));
+            assertThrowsRuntime(() -> reader.getDoubleArray("v"));
+            assertThrowsRuntime(() -> reader.getDoubleArray(1));
+            assertThrowsRuntime(() -> reader.getBooleanArray("v"));
+            assertThrowsRuntime(() -> reader.getBooleanArray(1));
+            assertThrowsRuntime(() -> reader.getStringArray("v"));
+            assertThrowsRuntime(() -> reader.getStringArray(1));
+            assertThrowsRuntime(() -> reader.getObjectArray("v"));
+            assertThrowsRuntime(() -> reader.getObjectArray(1));
+        }
+    }
+
+    @Test
+    public void testArrayAccessorsCoercePrimitiveElements() throws Exception {
+        // Different parsers materialize numbers as different boxed types
+        // (Integer, Long, Double, BigDecimal). The reader must coerce each
+        // element to the requested primitive type without losing data.
+        try (JSONEachRowFormatReader reader = readerOf(row(
+                "ints", Arrays.asList(1, 2, 3),
+                "longs", Arrays.asList(10L, 20L, 30L),
+                "doubles", Arrays.asList(1.5d, 2.5d),
+                "floats", Arrays.asList(1.0f, 2.0f),
+                "shorts", Arrays.asList((short) 10, (short) 20),
+                "bytes", Arrays.asList((byte) 1, (byte) 2),
+                "bools", Arrays.asList(Boolean.TRUE, Boolean.FALSE, Boolean.TRUE),
+                "strs", Arrays.asList("a", "b"),
+                "big_decs", Arrays.asList(new BigDecimal("4"), new BigDecimal("5"))))) {
+            reader.next();
+
+            Assert.assertEquals(reader.getIntArray("ints"), new int[] {1, 2, 3});
+            Assert.assertEquals(reader.getLongArray("longs"), new long[] {10L, 20L, 30L});
+            Assert.assertEquals(reader.getDoubleArray("doubles"), new double[] {1.5d, 2.5d}, 1e-9);
+            Assert.assertEquals(reader.getFloatArray("floats"), new float[] {1.0f, 2.0f}, 1e-6f);
+            Assert.assertEquals(reader.getShortArray("shorts"), new short[] {(short) 10, (short) 20});
+            Assert.assertEquals(reader.getByteArray("bytes"), new byte[] {(byte) 1, (byte) 2});
+            Assert.assertEquals(reader.getBooleanArray("bools"), new boolean[] {true, false, true});
+            Assert.assertEquals(reader.getStringArray("strs"), new String[] {"a", "b"});
+
+            // BigDecimal -> int[] requires element-level coercion.
+            Assert.assertEquals(reader.getIntArray("big_decs"), new int[] {4, 5});
+
+            // getObjectArray preserves boxed element types.
+            Object[] objs = reader.getObjectArray("ints");
+            Assert.assertEquals(objs.length, 3);
+
+            // getList returns the parser-native list reference.
+            List<Integer> list = reader.getList("ints");
+            Assert.assertEquals(list, Arrays.asList(1, 2, 3));
+        }
+    }
+
+    private static void assertThrowsRuntime(Runnable r) {
+        try {
+            r.run();
+            Assert.fail("Expected RuntimeException");
+        } catch (RuntimeException expected) {
+            // ok
         }
     }
 

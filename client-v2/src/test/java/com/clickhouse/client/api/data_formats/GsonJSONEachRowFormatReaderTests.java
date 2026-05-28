@@ -12,6 +12,7 @@ import lombok.Data;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStreamWriter;
 import java.util.Collections;
 import java.util.Map;
@@ -26,6 +27,11 @@ public class GsonJSONEachRowFormatReaderTests extends AbstractJSONEachRowFormatR
     @Override
     protected ClickHouseTextFormatReader createReader(QueryResponse response) throws IOException {
         return new JSONEachRowFormatReader(parserFactory.createJsonParser(response.getInputStream()));
+    }
+
+    @Override
+    protected ClickHouseTextFormatReader createReader(InputStream input) throws IOException {
+        return new JSONEachRowFormatReader(parserFactory.createJsonParser(input));
     }
 
     @Test(groups = {"integration"})

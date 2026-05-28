@@ -18,9 +18,12 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -140,6 +143,13 @@ public abstract class AbstractJSONEachRowFormatReaderTests extends BaseIntegrati
     }
 
     protected abstract ClickHouseTextFormatReader createReader(QueryResponse response) throws IOException;
+
+    /**
+     * Builds a reader directly over the provided JSONEachRow byte stream, bypassing
+     * the server. This is used to exercise error paths (such as corrupted input)
+     * deterministically across both parser factories.
+     */
+    protected abstract ClickHouseTextFormatReader createReader(InputStream input) throws IOException;
 
     // ------------------------------------------------------------------
     // Parameterized primitive value tests
@@ -307,6 +317,168 @@ public abstract class AbstractJSONEachRowFormatReaderTests extends BaseIntegrati
 
         try (QueryResponse response = client.query(sql, newJsonEachRowSettings()).get()) {
             client.newBinaryFormatReader(response);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Corrupted-stream coverage for the readNextRow error path
+    // ------------------------------------------------------------------
+
+    /**
+     * Builds a reader directly over a hand-crafted JSONEachRow stream that
+     * contains a valid first object followed by malformed bytes. The first
+     * call to {@code next()} buffered row #1 in the constructor and then
+     * tries to read row #2, which is malformed; the reader must surface a
+     * {@link RuntimeException} and refuse to advance any further.
+     *
+     * <p>This is structured as a unit-style test so it does not depend on the
+     * server, but it stays in the {@code integration} group alongside the
+     * other reader tests because it is parser-factory specific.</p>
+     */
+    @Test(groups = {"integration"})
+    public void testCorruptedStreamFailsReadNextRow() throws Exception {
+        // The third "row" deliberately contains an unterminated string after
+        // a partial object so that lenient parsers cannot quietly accept it.
+        // The newline separation matches real JSONEachRow framing.
+        String body = "{\"id\":1,\"name\":\"first\"}\n"
+                + "{\"id\":2,\"name\":\"second\"}\n"
+                + "{\"id\":3,\"name\":\"unterminated";
+
+        try (InputStream input = new ByteArrayInputStream(body.getBytes(StandardCharsets.UTF_8));
+             ClickHouseTextFormatReader reader = createReader(input)) {
+
+            Assert.assertTrue(reader.hasNext(), "first row should be buffered");
+
+            Assert.assertNotNull(reader.next(), "row 1 should be readable");
+            Assert.assertEquals(reader.getString("name"), "first");
+
+            try {
+                reader.next();
+                Assert.fail("Expected RuntimeException reading malformed row");
+            } catch (RuntimeException expected) {
+                // any RuntimeException is acceptable - both Jackson and Gson
+                // surface different concrete exception types here, but the
+                // reader wraps them into a RuntimeException.
+            }
+
+            Assert.assertFalse(reader.hasNext(),
+                    "reader must report end-of-stream after a parse failure");
+            Assert.assertNull(reader.next(),
+                    "next() must return null after a parse failure, not retry the stream");
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Boolean accessor: numeric -> boolean coverage
+    // ------------------------------------------------------------------
+
+    /**
+     * Verifies that {@code getBoolean} converts numeric ClickHouse columns to
+     * boolean using the "non-zero is true" rule, mirroring
+     * {@code AbstractBinaryFormatReader} semantics. The test pushes literal
+     * 0/1 values through several integer widths and also exercises the
+     * native Bool column.
+     */
+    @Test(groups = {"integration"})
+    public void testGetBooleanFromNumericValues() throws Exception {
+        String sql = "SELECT "
+                + "toInt8(0) AS v_int8_zero, toInt8(1) AS v_int8_one, "
+                + "toInt32(0) AS v_int32_zero, toInt32(42) AS v_int32_nonzero, "
+                + "toInt64(0) AS v_int64_zero, toInt64(-7) AS v_int64_nonzero, "
+                + "toUInt64(1) AS v_uint64_one, "
+                + "true AS v_bool_true, false AS v_bool_false";
+
+        try (QueryResponse response =
+                     client.query(sql, newJsonEachRowSettingsForPrimitives()).get();
+             ClickHouseTextFormatReader reader = createReader(response)) {
+
+            Assert.assertNotNull(reader.next());
+
+            Assert.assertFalse(reader.getBoolean("v_int8_zero"));
+            Assert.assertTrue(reader.getBoolean("v_int8_one"));
+            Assert.assertFalse(reader.getBoolean("v_int32_zero"));
+            Assert.assertTrue(reader.getBoolean("v_int32_nonzero"));
+            Assert.assertFalse(reader.getBoolean("v_int64_zero"));
+            Assert.assertTrue(reader.getBoolean("v_int64_nonzero"));
+            Assert.assertTrue(reader.getBoolean("v_uint64_one"));
+            Assert.assertTrue(reader.getBoolean("v_bool_true"));
+            Assert.assertFalse(reader.getBoolean("v_bool_false"));
+
+            // The same values must also be readable by 1-based column index.
+            Assert.assertFalse(reader.getBoolean(1));
+            Assert.assertTrue(reader.getBoolean(2));
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Array accessor coverage
+    // ------------------------------------------------------------------
+
+    /**
+     * Exercises the typed Array accessors against a row of mixed Array(...)
+     * columns. Verifies that:
+     *
+     * <ul>
+     *   <li>{@code getList} returns the parser-native list.</li>
+     *   <li>The typed primitive accessors coerce parsed JSON numbers into the
+     *       requested primitive type, regardless of whether the parser
+     *       materialized elements as {@code Integer}, {@code Long},
+     *       {@code Double}, or {@code BigDecimal}.</li>
+     *   <li>The typed accessors throw on non-array columns.</li>
+     * </ul>
+     */
+    @Test(groups = {"integration"})
+    public void testArrayAccessors() throws Exception {
+        String sql = "SELECT "
+                + "[1, 2, 3]::Array(Int32) AS col_int_arr, "
+                + "[10, 20, 30]::Array(Int64) AS col_long_arr, "
+                + "[1, 2]::Array(Int16) AS col_short_arr, "
+                + "[7, 8]::Array(Int8) AS col_byte_arr, "
+                + "[1.5, 2.5]::Array(Float64) AS col_double_arr, "
+                + "[1.0, 2.0]::Array(Float32) AS col_float_arr, "
+                + "['a', 'b', 'c']::Array(String) AS col_string_arr, "
+                + "[true, false, true]::Array(Bool) AS col_bool_arr, "
+                + "toInt32(1) AS col_not_array";
+
+        try (QueryResponse response =
+                     client.query(sql, newJsonEachRowSettingsForPrimitives()).get();
+             ClickHouseTextFormatReader reader = createReader(response)) {
+
+            Assert.assertNotNull(reader.next());
+
+            List<Number> intList = reader.getList("col_int_arr");
+            Assert.assertNotNull(intList);
+            Assert.assertEquals(intList.size(), 3);
+
+            Assert.assertEquals(reader.getIntArray("col_int_arr"), new int[] {1, 2, 3});
+            Assert.assertEquals(reader.getIntArray(1), new int[] {1, 2, 3});
+            Assert.assertEquals(reader.getLongArray("col_long_arr"), new long[] {10L, 20L, 30L});
+            Assert.assertEquals(reader.getLongArray(2), new long[] {10L, 20L, 30L});
+            Assert.assertEquals(reader.getShortArray("col_short_arr"), new short[] {(short) 1, (short) 2});
+            Assert.assertEquals(reader.getByteArray("col_byte_arr"), new byte[] {(byte) 7, (byte) 8});
+            Assert.assertEquals(reader.getDoubleArray("col_double_arr"), new double[] {1.5d, 2.5d}, 1e-9);
+            Assert.assertEquals(reader.getFloatArray("col_float_arr"), new float[] {1.0f, 2.0f}, 1e-6f);
+            Assert.assertEquals(reader.getStringArray("col_string_arr"), new String[] {"a", "b", "c"});
+            Assert.assertEquals(reader.getBooleanArray("col_bool_arr"),
+                    new boolean[] {true, false, true});
+
+            Object[] objs = reader.getObjectArray("col_int_arr");
+            Assert.assertEquals(objs.length, 3);
+
+            // Non-array columns must surface a RuntimeException rather than
+            // silently returning null or a malformed array.
+            try {
+                reader.getIntArray("col_not_array");
+                Assert.fail("Expected exception on scalar column");
+            } catch (RuntimeException expected) {
+                // ok
+            }
+            try {
+                reader.getList("col_not_array");
+                Assert.fail("Expected exception on scalar column");
+            } catch (RuntimeException expected) {
+                // ok
+            }
         }
     }
 
@@ -559,6 +731,37 @@ public abstract class AbstractJSONEachRowFormatReaderTests extends BaseIntegrati
                 AbstractJSONEachRowFormatReaderTests::equalsByEquals,
                 incompatibleForUuidValue("col_uuid", 1)));
 
+        // ---- Enum8 / Enum16 ----------------------------------------------------
+        // ClickHouse serialises enum columns into JSONEachRow as their string
+        // labels (not as the underlying numeric value). The reader therefore
+        // exposes them through getString, while numeric and temporal accessors
+        // remain incompatible. The 1-based column index passed to the
+        // incompatible-accessor helper is always 1 because each parameterized
+        // run selects a single column.
+        List<String> enum8Values = Arrays.asList(
+                "red", "green", "blue", "red", "green");
+        cases.add(new PrimitiveTypeCase(
+                "col_enum8", "Enum8('red' = 1, 'green' = 2, 'blue' = 3)",
+                sqlLiteralsFromValues(enum8Values,
+                        AbstractJSONEachRowFormatReaderTests::toClickHouseStringLiteral),
+                toObjectList(enum8Values),
+                (r, n) -> r.getString(n),
+                (r, i) -> r.getString(i),
+                AbstractJSONEachRowFormatReaderTests::equalsByEquals,
+                incompatibleForEnumValue("col_enum8", 1)));
+
+        List<String> enum16Values = Arrays.asList(
+                "alpha", "beta", "gamma", "alpha", "beta");
+        cases.add(new PrimitiveTypeCase(
+                "col_enum16", "Enum16('alpha' = 100, 'beta' = 200, 'gamma' = 300)",
+                sqlLiteralsFromValues(enum16Values,
+                        AbstractJSONEachRowFormatReaderTests::toClickHouseStringLiteral),
+                toObjectList(enum16Values),
+                (r, n) -> r.getString(n),
+                (r, i) -> r.getString(i),
+                AbstractJSONEachRowFormatReaderTests::equalsByEquals,
+                incompatibleForEnumValue("col_enum16", 1)));
+
         return cases;
     }
 
@@ -719,7 +922,10 @@ public abstract class AbstractJSONEachRowFormatReaderTests extends BaseIntegrati
 
     private static List<IncompatibleAccessor> incompatibleForStringValue(String name, int index) {
         // String content here is not numeric, not a date, and not a UUID, so numeric
-        // and temporal accessors must throw.
+        // and temporal accessors must throw. getBoolean is also expected to throw
+        // because the JSONEachRow reader does not silently convert string content
+        // through Boolean.parseBoolean (matching AbstractBinaryFormatReader-style
+        // strictness about incompatible types).
         return Arrays.asList(
                 new IncompatibleAccessor("getByte",
                         r -> r.getByte(name),
@@ -733,6 +939,9 @@ public abstract class AbstractJSONEachRowFormatReaderTests extends BaseIntegrati
                 new IncompatibleAccessor("getDouble",
                         r -> r.getDouble(name),
                         r -> r.getDouble(index)),
+                new IncompatibleAccessor("getBoolean",
+                        r -> r.getBoolean(name),
+                        r -> r.getBoolean(index)),
                 new IncompatibleAccessor("getBigInteger",
                         r -> r.getBigInteger(name),
                         r -> r.getBigInteger(index)),
@@ -778,6 +987,51 @@ public abstract class AbstractJSONEachRowFormatReaderTests extends BaseIntegrati
                 new IncompatibleAccessor("getZonedDateTime",
                         r -> r.getZonedDateTime(name),
                         r -> r.getZonedDateTime(index)));
+    }
+
+    private static List<IncompatibleAccessor> incompatibleForEnumValue(String name, int index) {
+        // ClickHouse serialises Enum8/Enum16 columns as their string label in
+        // JSONEachRow output, so numeric and temporal accessors must throw and
+        // getBoolean must also throw (the reader does not silently parse
+        // string content into a boolean). getEnum8/getEnum16 forward to
+        // getByte/getShort, so they must throw on a string value as well.
+        return Arrays.asList(
+                new IncompatibleAccessor("getByte",
+                        r -> r.getByte(name),
+                        r -> r.getByte(index)),
+                new IncompatibleAccessor("getShort",
+                        r -> r.getShort(name),
+                        r -> r.getShort(index)),
+                new IncompatibleAccessor("getInteger",
+                        r -> r.getInteger(name),
+                        r -> r.getInteger(index)),
+                new IncompatibleAccessor("getLong",
+                        r -> r.getLong(name),
+                        r -> r.getLong(index)),
+                new IncompatibleAccessor("getDouble",
+                        r -> r.getDouble(name),
+                        r -> r.getDouble(index)),
+                new IncompatibleAccessor("getBoolean",
+                        r -> r.getBoolean(name),
+                        r -> r.getBoolean(index)),
+                new IncompatibleAccessor("getBigInteger",
+                        r -> r.getBigInteger(name),
+                        r -> r.getBigInteger(index)),
+                new IncompatibleAccessor("getBigDecimal",
+                        r -> r.getBigDecimal(name),
+                        r -> r.getBigDecimal(index)),
+                new IncompatibleAccessor("getEnum8",
+                        r -> r.getEnum8(name),
+                        r -> r.getEnum8(index)),
+                new IncompatibleAccessor("getEnum16",
+                        r -> r.getEnum16(name),
+                        r -> r.getEnum16(index)),
+                new IncompatibleAccessor("getLocalDate",
+                        r -> r.getLocalDate(name),
+                        r -> r.getLocalDate(index)),
+                new IncompatibleAccessor("getUUID",
+                        r -> r.getUUID(name),
+                        r -> r.getUUID(index)));
     }
 
     private static List<IncompatibleAccessor> incompatibleForUuidValue(String name, int index) {
