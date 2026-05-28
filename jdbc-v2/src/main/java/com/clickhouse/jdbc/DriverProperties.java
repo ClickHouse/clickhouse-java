@@ -129,6 +129,13 @@ public enum DriverProperties {
      */
     CLUSTER_NAME("jdbc_cluster_name", null),
 
+    /**
+     * Defines which {@link com.clickhouse.client.api.data_formats.JsonParserFactory} implementation the connection
+     * should use when the response is in {@code JSONEachRow} format. Value is the fully-qualified class name of
+     * the factory class.
+     */
+    JSON_PARSER_FACTORY("jdbc_json_parser_factory", null),
+
     ;
 
 

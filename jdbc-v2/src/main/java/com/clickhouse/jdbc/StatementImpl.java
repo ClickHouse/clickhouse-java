@@ -1,11 +1,13 @@
 package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.ClientConfigProperties;
-import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
+import com.clickhouse.client.api.data_formats.ClickHouseFormatReader;
+import com.clickhouse.client.api.data_formats.JSONEachRowFormatReader;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.sql.SQLUtils;
+import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.FeatureManager;
 import com.clickhouse.jdbc.internal.ParsedStatement;
@@ -177,11 +179,22 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
                 response = connection.getClient().query(lastStatementSql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS);
             }
 
-            if (response.getFormat().isText()) {
-                throw new SQLException("Only RowBinaryWithNameAndTypes is supported for output format. Please check your query.",
+            ClickHouseFormatReader reader;
+            if (response.getFormat() == ClickHouseFormat.JSONEachRow) {
+                if (connection.getJsonParserFactory() == null) {
+                    throw new SQLException("Response is in JSONEachRow format, but " +
+                            DriverProperties.JSON_PARSER_FACTORY.getKey() + " is not configured. Set " +
+                            DriverProperties.JSON_PARSER_FACTORY.getKey() + " to a JsonParserFactory implementation.",
+                            ExceptionUtils.SQL_STATE_CLIENT_ERROR);
+                }
+                reader = new JSONEachRowFormatReader(connection.getJsonParserFactory().createJsonParser(response.getInputStream()));
+            } else if (!response.getFormat().isText()) {
+                reader = connection.getClient().newBinaryFormatReader(response);
+            } else {
+                throw new SQLException("Only RowBinaryWithNameAndTypes and JSONEachRow are supported for output format. Please check your query.",
                         ExceptionUtils.SQL_STATE_CLIENT_ERROR);
             }
-            ClickHouseBinaryFormatReader reader = connection.getClient().newBinaryFormatReader(response);
+
             if (reader.getSchema() == null) {
                 long writtenRows = 0L;
                 try {

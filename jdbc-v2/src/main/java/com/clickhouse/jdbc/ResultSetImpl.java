@@ -1,7 +1,7 @@
 package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.DataTypeUtils;
-import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
+import com.clickhouse.client.api.data_formats.ClickHouseFormatReader;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.data.ClickHouseColumn;
@@ -44,6 +44,7 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Calendar;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -51,7 +52,7 @@ import java.util.function.Consumer;
 public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     private static final Logger log = LoggerFactory.getLogger(ResultSetImpl.class);
     private ResultSetMetaDataImpl metaData;
-    protected ClickHouseBinaryFormatReader reader;
+    protected ClickHouseFormatReader reader;
     private QueryResponse response;
     private boolean closed;
     private final StatementImpl parentStatement;
@@ -73,7 +74,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     private Consumer<Exception> onDataTransferException;
 
-    public ResultSetImpl(StatementImpl parentStatement, QueryResponse response, ClickHouseBinaryFormatReader reader,
+    public ResultSetImpl(StatementImpl parentStatement, QueryResponse response, ClickHouseFormatReader reader,
                          Consumer<Exception> onDataTransferException) throws SQLException {
         this.parentStatement = parentStatement;
         this.response = response;
@@ -1495,8 +1496,14 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
             if (reader.hasValue(columnLabel)) {
                 wasNull = false;
+                Object value = reader.readValue(columnLabel);
 
                 if (type == null) {
+                    if (column.getDataType() == com.clickhouse.data.ClickHouseDataType.Array
+                            && column.getArrayBaseColumn() == null) {
+                        return (T) value;
+                    }
+
                     switch (column.getDataType()) {
                         case Point:
                         case Ring:
@@ -1525,10 +1532,18 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 }
 
                 if (type == null) {//As a fallback, try to get the value as is
-                    return reader.readValue(columnLabel);
+                    return (T) value;
                 }
 
-                return (T) JdbcUtils.convert(reader.readValue(columnLabel), type, column);
+                if (type == java.sql.Array.class
+                        && column.getDataType() == com.clickhouse.data.ClickHouseDataType.Array
+                        && column.getArrayBaseColumn() == null
+                        && value instanceof List<?>) {
+                    throw new SQLException("JSONEachRow arrays are returned as parser-native List values. " +
+                            "Use getObject(...) to read this column.");
+                }
+
+                return (T) JdbcUtils.convert(value, type, column);
             } else {
                 wasNull = true;
                 return null;

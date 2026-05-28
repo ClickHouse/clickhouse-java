@@ -177,7 +177,7 @@ public enum ClickHouseDataType implements SQLType {
         return variantMapping;
     }
 
-    static final Map<ClickHouseDataType, Set<Class<?>>> DATA_TYPE_TO_CLASS = dataTypeClassMap();
+    public static final Map<ClickHouseDataType, Set<Class<?>>> DATA_TYPE_TO_CLASS = dataTypeClassMap();
     static Map<ClickHouseDataType, Set<Class<?>>> dataTypeClassMap() {
         Map<ClickHouseDataType, Set<Class<?>>> map = new HashMap<>();
 

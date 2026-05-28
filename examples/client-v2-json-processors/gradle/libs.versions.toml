@@ -1,0 +1,12 @@
+[versions]
+clickhouseClient = "0.9.8-SNAPSHOT"
+jackson = "2.18.6"
+gson = "2.10.1"
+slf4j = "2.0.17"
+
+[libraries]
+clickhouseClient = { module = "com.clickhouse:client-v2", version.ref = "clickhouseClient" }
+jacksonDatabind = { module = "com.fasterxml.jackson.core:jackson-databind", version.ref = "jackson" }
+gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
+slf4jApi = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
+slf4jSimple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4j" }

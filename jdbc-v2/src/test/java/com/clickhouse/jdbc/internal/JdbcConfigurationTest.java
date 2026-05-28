@@ -122,7 +122,8 @@ public class JdbcConfigurationTest {
     {
         JdbcConfiguration configuration = new JdbcConfiguration(jdbcURL, properties);
         assertEquals(configuration.getConnectionUrl(), connectionURL, "URL: " + jdbcURL);
-        assertEquals(configuration.clientProperties, expectedClientProps, "URL: " + jdbcURL);
+        assertEquals(configuration.clientProperties, expectedClientProps, "expected: " + expectedClientProps
+                + " actual: " + configuration.clientProperties);
         Client.Builder bob = new Client.Builder();
         configuration.applyClientProperties(bob);
         Client client = bob.build();

@@ -7,6 +7,7 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.command.CommandSettings;
@@ -377,6 +378,28 @@ public class QueryTests extends BaseIntegrationTest {
             }
         } catch (Exception e) {
             Assert.fail("failed to read response", e);
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testJsonEachRowNumberQuoteSettingsAreOptIn() throws Exception {
+        String sql = "SELECT toInt64(1234567890123) AS v";
+
+        QuerySettings settings = new QuerySettings()
+                .setFormat(ClickHouseFormat.JSONEachRow)
+                .serverSetting("output_format_json_quote_64bit_integers", "1");
+        try (QueryResponse response = client.query(sql, settings).get();
+             BufferedReader reader = new BufferedReader(new InputStreamReader(response.getInputStream()))) {
+            Assert.assertTrue(reader.readLine().contains("\"v\":\"1234567890123\""));
+        }
+
+        QuerySettings unquotedSettings = new QuerySettings()
+                .setFormat(ClickHouseFormat.JSONEachRow)
+                .serverSetting("output_format_json_quote_64bit_integers", "1")
+                .setOption(ClientConfigProperties.JSON_DISABLE_NUMBER_QUOTING.getKey(), true);
+        try (QueryResponse response = client.query(sql, unquotedSettings).get();
+             BufferedReader reader = new BufferedReader(new InputStreamReader(response.getInputStream()))) {
+            Assert.assertTrue(reader.readLine().contains("\"v\":1234567890123"));
         }
     }
 
