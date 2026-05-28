@@ -3,20 +3,22 @@ package com.clickhouse.client;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
-import com.clickhouse.client.api.Session;
 import com.clickhouse.client.api.ClientFaultCause;
+import com.clickhouse.client.api.ClientMisconfigurationException;
 import com.clickhouse.client.api.ConnectionInitiationException;
 import com.clickhouse.client.api.ConnectionReuseStrategy;
 import com.clickhouse.client.api.ServerException;
+import com.clickhouse.client.api.Session;
 import com.clickhouse.client.api.command.CommandResponse;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.enums.ProxyType;
-import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.insert.InsertResponse;
+import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.internal.DataTypeConverter;
 import com.clickhouse.client.api.internal.ServerSettings;
+import com.clickhouse.client.api.internal.ValidationUtils;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
@@ -29,6 +31,7 @@ import com.github.tomakehurst.wiremock.common.Slf4jNotifier;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import com.github.tomakehurst.wiremock.http.Fault;
 import com.github.tomakehurst.wiremock.http.trafficlistener.WiremockNetworkTrafficListener;
+import com.github.tomakehurst.wiremock.verification.LoggedRequest;
 import org.apache.hc.core5.http.ConnectionClosedException;
 import org.apache.hc.core5.http.ConnectionRequestTimeoutException;
 import org.apache.hc.core5.http.HttpHeaders;
@@ -46,16 +49,23 @@ import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
@@ -866,9 +876,8 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 .compressServerResponse(false)
                 .build()) {
             fail("Expected exception");
-        } catch (IllegalArgumentException e) {
-            e.printStackTrace();
-                Assert.assertTrue(e.getMessage().startsWith("Only one of password, access token or SSL authentication"));
+        } catch (ClientMisconfigurationException e) {
+            Assert.assertTrue(e.getMessage().startsWith("Only one of password, access token or SSL authentication"));
         }
     }
 
@@ -1047,8 +1056,9 @@ public class HttpTransportTests extends BaseIntegrationTest {
             return; // mocked server
         }
 
+        int randomPort = ThreadLocalRandom.current().nextInt(3000,65535);
         WireMockServer mockServer = new WireMockServer( WireMockConfiguration
-                .options().port(9090).notifier(new ConsoleNotifier(false)));
+                .options().port(randomPort).notifier(new ConsoleNotifier(false)));
         mockServer.start();
 
         try {
@@ -1108,13 +1118,94 @@ public class HttpTransportTests extends BaseIntegrationTest {
                         .build());
 
                 client.updateBearerToken(jwtToken2);
-
                 client.execute("SELECT 1").get();
+
+                Assert.expectThrows(ValidationUtils.SettingsValidationException.class, () -> client.updateBearerToken(null));
+                Assert.expectThrows(ValidationUtils.SettingsValidationException.class, () -> client.updateBearerToken(""));
             }
         } finally {
             mockServer.stop();
         }
     }
+
+    @Test(groups = { "integration" })
+    public void testAccessTokenAuth() throws Exception {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
+        int randomPort = ThreadLocalRandom.current().nextInt(3000,65535);
+        WireMockServer mockServer = new WireMockServer( WireMockConfiguration
+                .options().port(randomPort).notifier(new ConsoleNotifier(false)));
+        mockServer.start();
+
+        try {
+            String accessToken1 = Arrays.stream(
+                            new String[]{"header", "payload", "signature"})
+                    .map(s -> Base64.getEncoder().encodeToString(s.getBytes(StandardCharsets.UTF_8)))
+                    .reduce((s1, s2) -> s1 + "." + s2).get();
+            try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
+                    .setAccessToken(accessToken1)
+                    .compressServerResponse(false)
+                    .build()) {
+
+                mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                        .withHeader("Authorization", WireMock.equalTo(accessToken1))
+                        .willReturn(WireMock.aResponse()
+                                .withHeader("X-ClickHouse-Summary",
+                                        "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")).build());
+
+                try (QueryResponse response = client.query("SELECT 1").get(1, TimeUnit.SECONDS)) {
+                    Assert.assertEquals(response.getReadBytes(), 10);
+                } catch (Exception e) {
+                    Assert.fail("Unexpected exception", e);
+                }
+            }
+
+            String accessToken2 = Arrays.stream(
+                            new String[]{"header2", "payload2", "signature2"})
+                    .map(s -> Base64.getEncoder().encodeToString(s.getBytes(StandardCharsets.UTF_8)))
+                    .reduce((s1, s2) -> s1 + "." + s2).get();
+
+            mockServer.resetAll();
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .withHeader("Authorization", WireMock.equalTo(accessToken1))
+                    .willReturn(WireMock.aResponse()
+                            .withStatus(HttpStatus.SC_UNAUTHORIZED))
+                    .build());
+
+            try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
+                    .setAccessToken(accessToken1)
+                    .compressServerResponse(false)
+                    .build()) {
+
+                try {
+                    client.execute("SELECT 1").get();
+                    fail("Exception expected");
+                } catch (ServerException e) {
+                    Assert.assertEquals(e.getTransportProtocolCode(), HttpStatus.SC_UNAUTHORIZED);
+                }
+
+                mockServer.resetAll();
+                mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                        .withHeader("Authorization", WireMock.equalTo(accessToken2))
+                        .willReturn(WireMock.aResponse()
+                                .withHeader("X-ClickHouse-Summary",
+                                        "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}"))
+
+                        .build());
+
+                client.updateAccessToken(accessToken2);
+                client.execute("SELECT 1").get();
+
+                Assert.expectThrows(ValidationUtils.SettingsValidationException.class, () -> client.updateAccessToken(null));
+                Assert.expectThrows(ValidationUtils.SettingsValidationException.class, () -> client.updateAccessToken(""));
+            }
+        } finally {
+            mockServer.stop();
+        }
+    }
+
 
     @Test(groups = { "integration" })
     public void testUpdateSessionIdAtRuntime() throws Exception {
@@ -1207,6 +1298,59 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 } catch (Exception e) {
                     Assert.fail("Basic auth with no password should send empty password, not 'null'", e);
                 }
+            }
+        } finally {
+            mockServer.stop();
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testSetCredentialsAfterClientCreation() throws Exception {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
+        WireMockServer mockServer = new WireMockServer(WireMockConfiguration
+                .options().port(9090).notifier(new ConsoleNotifier(false)));
+        mockServer.start();
+
+        try {
+            String user1 = "default";
+            String password1 = "wrong-password";
+            String user2 = "runtime-user";
+            String password2 = "runtime-password";
+            String basicAuth2 = "Basic " + Base64.getEncoder().encodeToString(
+                    (user2 + ":" + password2).getBytes(StandardCharsets.UTF_8));
+
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .withHeader(HttpHeaders.AUTHORIZATION, WireMock.equalTo("Basic " + Base64.getEncoder().encodeToString(
+                            (user1 + ":" + password1).getBytes(StandardCharsets.UTF_8))))
+                    .willReturn(WireMock.aResponse()
+                            .withStatus(HttpStatus.SC_UNAUTHORIZED))
+                    .build());
+
+            try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
+                    .setUsername(user1)
+                    .setPassword(password1)
+                    .compressServerResponse(false)
+                    .build()) {
+                try {
+                    client.execute("SELECT 1").get();
+                    fail("Exception expected");
+                } catch (ServerException e) {
+                    Assert.assertEquals(e.getTransportProtocolCode(), HttpStatus.SC_UNAUTHORIZED);
+                }
+
+                mockServer.resetAll();
+                mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                        .withHeader(HttpHeaders.AUTHORIZATION, WireMock.equalTo(basicAuth2))
+                        .willReturn(WireMock.aResponse()
+                                .withHeader("X-ClickHouse-Summary",
+                                        "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}"))
+                        .build());
+
+                client.updateUserAndPassword(user2, password2);
+                client.execute("SELECT 1").get();
             }
         } finally {
             mockServer.stop();
@@ -1874,6 +2018,70 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 "Expected ClientException in cause chain, but was: " + thrown);
         Assert.assertTrue(containsMessageInCauseChain(thrown, "Reading column "),
                 "Expected column information in failure message chain, but was: " + thrown);
+    }
+
+    @Test(groups = {"integration"})
+    public void testConcurrentTokenChange() throws Exception {
+        WireMockServer mockServer = new WireMockServer(WireMockConfiguration
+                .options().dynamicPort().notifier(new ConsoleNotifier(false)));
+        mockServer.start();
+
+        try (Client client = new Client.Builder()
+                .addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
+                .useBearerTokenAuth("token_0_predefined")
+                .compressServerResponse(false)
+                .build()) {
+
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .withHeader("Authorization", WireMock.matching("^(Bearer token_0_predefined|Bearer token_1_predefined)$"))
+                    .willReturn(WireMock.aResponse()
+                            .withStatus(HttpStatus.SC_OK)
+                            .withHeader("X-ClickHouse-Summary", "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}"))
+                    .build());
+
+            int threads = 2;
+            int iterations = 100;
+            ExecutorService executorService = Executors.newFixedThreadPool(threads);
+
+            List<Callable<Void>> tasks = new ArrayList<>();
+            for (int i = 0; i < threads; i++) {
+                final int threadId = i;
+                tasks.add(() -> {
+                    String token = "token_" + threadId + "_predefined";
+                    for (int j = 0; j < iterations; j++) {
+                        if (j % 2 == 0) {
+                            client.updateBearerToken(token);
+                        } else {
+                            client.updateAccessToken("Bearer " + token);
+                        }
+
+                        client.execute("SELECT 1").get();
+                    }
+                    return null;
+                });
+            }
+
+            for (java.util.concurrent.Future<Void> future : executorService.invokeAll(tasks)) {
+                future.get();
+            }
+            executorService.shutdown();
+
+            List<LoggedRequest> requests =
+                    mockServer.findAll(WireMock.postRequestedFor(WireMock.anyUrl()));
+            
+            Set<String> seenTokens = new HashSet<>();
+            for (LoggedRequest req : requests) {
+                seenTokens.add(req.getHeader("Authorization"));
+            }
+            
+            boolean seenThread0 = seenTokens.contains("Bearer token_0_predefined");
+            boolean seenThread1 = seenTokens.contains("Bearer token_1_predefined");
+
+            Assert.assertTrue(seenThread0, "Should have seen tokens from thread 0");
+            Assert.assertTrue(seenThread1, "Should have seen tokens from thread 1");
+        } finally {
+            mockServer.stop();
+        }
     }
 
     protected Client.Builder newClient() {

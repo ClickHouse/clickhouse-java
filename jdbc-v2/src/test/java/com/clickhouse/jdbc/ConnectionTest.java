@@ -911,21 +911,31 @@ public class ConnectionTest extends JdbcIntegrationTest {
             mockServer.stop();
         }
     }
+
+    private static final String SAMPLE_JWT_TOKEN_FOR_TESTS = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c";
+
     @Test(groups = { "integration" })
     public void testJWTWithCloud() throws Exception {
-        if (!isCloud()) {
-            return; // only for cloud
-        }
 
-        String jwt = System.getenv("CLIENT_JWT");
+        final String jwt = isCloud() ? System.getenv("CLIENT_JWT") : SAMPLE_JWT_TOKEN_FOR_TESTS;
+        final String url = isCloud() ? "jdbc:ch:https://" + System.getenv("JWT_TEST_HOST") + "/default": getEndpointString();
+        Assert.assertTrue(jwt != null && !jwt.trim().isEmpty(), "CLIENT_JWT is not set.");
+        Assert.assertTrue(url != null && !url.trim().isEmpty(), "JWT_TEST_HOST is not set");
+
         Properties properties = new Properties();
-        properties.put("access_token", jwt);
-        try (Connection conn = getJdbcConnection(properties);
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery("SELECT 1")) {
-             Assert.assertTrue(rs.next());
+        properties.put(ClientConfigProperties.BEARERTOKEN_AUTH.getKey(), jwt);
+        properties.put(ClientConfigProperties.USER.getKey(), "default");
+
+        try (Connection conn = new ConnectionImpl(url, properties)) {
+            if (isCloud()) { // else check configuration only
+                try (Statement stmt = conn.createStatement();
+                     ResultSet rs = stmt.executeQuery("SELECT 1")) {
+                    Assert.assertTrue(rs.next());
+                }
+            }
         }
     }
+
     @Test(groups = { "integration" })
     public void testDisableExtraCallToServer() throws Exception {
         Properties properties = new Properties();
