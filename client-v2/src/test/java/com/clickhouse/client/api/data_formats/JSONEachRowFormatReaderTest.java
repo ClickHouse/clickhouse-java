@@ -501,13 +501,63 @@ public class JSONEachRowFormatReaderTest {
         try (JSONEachRowFormatReader reader = new JSONEachRowFormatReader(
                 new StubJsonParser(Collections.singletonList(r)))) {
             reader.next();
+
+            // By name: every array accessor must propagate the null cleanly
+            // rather than throw NullPointerException or fabricate an empty array.
             Assert.assertNull(reader.getList("v"));
+            Assert.assertNull(reader.getByteArray("v"));
+            Assert.assertNull(reader.getShortArray("v"));
             Assert.assertNull(reader.getIntArray("v"));
             Assert.assertNull(reader.getLongArray("v"));
+            Assert.assertNull(reader.getFloatArray("v"));
             Assert.assertNull(reader.getDoubleArray("v"));
             Assert.assertNull(reader.getBooleanArray("v"));
             Assert.assertNull(reader.getStringArray("v"));
             Assert.assertNull(reader.getObjectArray("v"));
+
+            // By 1-based index: the same null-propagation guarantee must hold
+            // for the index-based overloads, which delegate to the name-based
+            // implementations through the inferred schema.
+            Assert.assertNull(reader.getList(1));
+            Assert.assertNull(reader.getByteArray(1));
+            Assert.assertNull(reader.getShortArray(1));
+            Assert.assertNull(reader.getIntArray(1));
+            Assert.assertNull(reader.getLongArray(1));
+            Assert.assertNull(reader.getFloatArray(1));
+            Assert.assertNull(reader.getDoubleArray(1));
+            Assert.assertNull(reader.getBooleanArray(1));
+            Assert.assertNull(reader.getStringArray(1));
+            Assert.assertNull(reader.getObjectArray(1));
+        }
+    }
+
+    @Test
+    public void testArrayAccessorsRejectNullElement() throws Exception {
+        // A null element in a JSON array cannot be stored into a Java
+        // primitive array slot, so getPrimitiveArray must surface this rather
+        // than substitute a zero/false value silently. The String and Object
+        // overloads are allowed to keep the null element.
+        try (JSONEachRowFormatReader reader = readerOf(row(
+                "ints", Arrays.asList(1, null, 3),
+                "bools", Arrays.asList(Boolean.TRUE, null),
+                "strs", Arrays.asList("a", null, "c"),
+                "objs", Arrays.asList("x", null)))) {
+            reader.next();
+
+            assertThrowsRuntime(() -> reader.getIntArray("ints"));
+            assertThrowsRuntime(() -> reader.getIntArray(1));
+            assertThrowsRuntime(() -> reader.getLongArray("ints"));
+            assertThrowsRuntime(() -> reader.getShortArray("ints"));
+            assertThrowsRuntime(() -> reader.getByteArray("ints"));
+            assertThrowsRuntime(() -> reader.getFloatArray("ints"));
+            assertThrowsRuntime(() -> reader.getDoubleArray("ints"));
+            assertThrowsRuntime(() -> reader.getBooleanArray("bools"));
+
+            // The non-primitive container accessors keep nulls.
+            Assert.assertEquals(reader.getStringArray("strs"), new String[] {"a", null, "c"});
+            Object[] objs = reader.getObjectArray("objs");
+            Assert.assertEquals(objs.length, 2);
+            Assert.assertNull(objs[1]);
         }
     }
 
@@ -535,6 +585,76 @@ public class JSONEachRowFormatReaderTest {
             assertThrowsRuntime(() -> reader.getStringArray(1));
             assertThrowsRuntime(() -> reader.getObjectArray("v"));
             assertThrowsRuntime(() -> reader.getObjectArray(1));
+        }
+    }
+
+    @Test
+    public void testArrayAccessorsByIndex() throws Exception {
+        // Mirrors testArrayAccessorsCoercePrimitiveElements but addresses every
+        // typed array accessor through its 1-based column index. This ensures
+        // the index-based overloads delegate correctly through the inferred
+        // schema, even for arrays where the schema only records "Array" without
+        // a specific element type.
+        try (JSONEachRowFormatReader reader = readerOf(row(
+                "ints", Arrays.asList(1, 2, 3),
+                "longs", Arrays.asList(10L, 20L, 30L),
+                "shorts", Arrays.asList((short) 4, (short) 5),
+                "bytes", Arrays.asList((byte) 6, (byte) 7),
+                "doubles", Arrays.asList(1.5d, 2.5d),
+                "floats", Arrays.asList(1.0f, 2.0f),
+                "bools", Arrays.asList(Boolean.TRUE, Boolean.FALSE),
+                "strs", Arrays.asList("a", "b")))) {
+            reader.next();
+
+            Assert.assertEquals(reader.getIntArray(1), new int[] {1, 2, 3});
+            Assert.assertEquals(reader.getLongArray(2), new long[] {10L, 20L, 30L});
+            Assert.assertEquals(reader.getShortArray(3), new short[] {(short) 4, (short) 5});
+            Assert.assertEquals(reader.getByteArray(4), new byte[] {(byte) 6, (byte) 7});
+            Assert.assertEquals(reader.getDoubleArray(5), new double[] {1.5d, 2.5d}, 1e-9);
+            Assert.assertEquals(reader.getFloatArray(6), new float[] {1.0f, 2.0f}, 1e-6f);
+            Assert.assertEquals(reader.getBooleanArray(7), new boolean[] {true, false});
+            Assert.assertEquals(reader.getStringArray(8), new String[] {"a", "b"});
+
+            // getList and getObjectArray by index, on the first column.
+            List<Integer> list = reader.getList(1);
+            Assert.assertEquals(list, Arrays.asList(1, 2, 3));
+            Object[] objs = reader.getObjectArray(1);
+            Assert.assertEquals(objs.length, 3);
+        }
+    }
+
+    @Test
+    public void testGetBooleanArrayFromNumericList() throws Exception {
+        // Exercises the Number branch in coerceToComponent for boolean[]: the
+        // reader treats 0 as false and any non-zero value as true, regardless
+        // of whether the parser materialized the element as Integer, Long, or
+        // BigDecimal.
+        try (JSONEachRowFormatReader reader = readerOf(row(
+                "as_int", Arrays.asList(0, 1, 2, -1),
+                "as_long", Arrays.asList(0L, 5L),
+                "as_big_decimal", Arrays.asList(BigDecimal.ZERO, new BigDecimal("3"))))) {
+            reader.next();
+
+            Assert.assertEquals(reader.getBooleanArray("as_int"),
+                    new boolean[] {false, true, true, true});
+            Assert.assertEquals(reader.getBooleanArray("as_long"),
+                    new boolean[] {false, true});
+            Assert.assertEquals(reader.getBooleanArray("as_big_decimal"),
+                    new boolean[] {false, true});
+        }
+    }
+
+    @Test
+    public void testGetBooleanArrayRejectsNonBooleanNonNumberElements() throws Exception {
+        // String elements cannot be coerced into boolean[] (we don't accept
+        // string-to-boolean parsing on the scalar getBoolean accessor either),
+        // so getBooleanArray must surface a RuntimeException sourced from the
+        // illegal-coerce branch in coerceToComponent.
+        try (JSONEachRowFormatReader reader = readerOf(row(
+                "v", Arrays.asList("true", "false")))) {
+            reader.next();
+            assertThrowsRuntime(() -> reader.getBooleanArray("v"));
+            assertThrowsRuntime(() -> reader.getBooleanArray(1));
         }
     }
 

@@ -450,20 +450,33 @@ public abstract class AbstractJSONEachRowFormatReaderTests extends BaseIntegrati
             Assert.assertNotNull(intList);
             Assert.assertEquals(intList.size(), 3);
 
+            // Each typed accessor is exercised by name first and then by 1-based
+            // column index so the index-based overloads are also covered against
+            // the inferred schema produced from the first row.
             Assert.assertEquals(reader.getIntArray("col_int_arr"), new int[] {1, 2, 3});
             Assert.assertEquals(reader.getIntArray(1), new int[] {1, 2, 3});
             Assert.assertEquals(reader.getLongArray("col_long_arr"), new long[] {10L, 20L, 30L});
             Assert.assertEquals(reader.getLongArray(2), new long[] {10L, 20L, 30L});
-            Assert.assertEquals(reader.getShortArray("col_short_arr"), new short[] {(short) 1, (short) 2});
+            Assert.assertEquals(reader.getShortArray("col_short_arr"),
+                    new short[] {(short) 1, (short) 2});
+            Assert.assertEquals(reader.getShortArray(3), new short[] {(short) 1, (short) 2});
             Assert.assertEquals(reader.getByteArray("col_byte_arr"), new byte[] {(byte) 7, (byte) 8});
-            Assert.assertEquals(reader.getDoubleArray("col_double_arr"), new double[] {1.5d, 2.5d}, 1e-9);
-            Assert.assertEquals(reader.getFloatArray("col_float_arr"), new float[] {1.0f, 2.0f}, 1e-6f);
-            Assert.assertEquals(reader.getStringArray("col_string_arr"), new String[] {"a", "b", "c"});
+            Assert.assertEquals(reader.getByteArray(4), new byte[] {(byte) 7, (byte) 8});
+            Assert.assertEquals(reader.getDoubleArray("col_double_arr"),
+                    new double[] {1.5d, 2.5d}, 1e-9);
+            Assert.assertEquals(reader.getDoubleArray(5), new double[] {1.5d, 2.5d}, 1e-9);
+            Assert.assertEquals(reader.getFloatArray("col_float_arr"),
+                    new float[] {1.0f, 2.0f}, 1e-6f);
+            Assert.assertEquals(reader.getFloatArray(6), new float[] {1.0f, 2.0f}, 1e-6f);
+            Assert.assertEquals(reader.getStringArray("col_string_arr"),
+                    new String[] {"a", "b", "c"});
+            Assert.assertEquals(reader.getStringArray(7), new String[] {"a", "b", "c"});
             Assert.assertEquals(reader.getBooleanArray("col_bool_arr"),
                     new boolean[] {true, false, true});
+            Assert.assertEquals(reader.getBooleanArray(8), new boolean[] {true, false, true});
 
-            Object[] objs = reader.getObjectArray("col_int_arr");
-            Assert.assertEquals(objs.length, 3);
+            Assert.assertEquals(reader.getObjectArray("col_int_arr").length, 3);
+            Assert.assertEquals(reader.getObjectArray(1).length, 3);
 
             // Non-array columns must surface a RuntimeException rather than
             // silently returning null or a malformed array.
@@ -479,6 +492,55 @@ public abstract class AbstractJSONEachRowFormatReaderTests extends BaseIntegrati
             } catch (RuntimeException expected) {
                 // ok
             }
+        }
+    }
+
+    /**
+     * Locks in the contract that a {@code null} element coming from the server
+     * (e.g. through {@code Array(Nullable(...))}) cannot be silently turned
+     * into a zero/false slot of a Java primitive array. The reader must throw
+     * a {@link RuntimeException} so callers don't lose the distinction between
+     * "missing value" and "actual zero".
+     */
+    @Test(groups = {"integration"})
+    public void testArrayAccessorsRejectNullElementsFromServer() throws Exception {
+        String sql = "SELECT "
+                + "[1, NULL, 3]::Array(Nullable(Int32)) AS col_int_arr, "
+                + "[true, NULL]::Array(Nullable(Bool)) AS col_bool_arr, "
+                + "['x', NULL, 'z']::Array(Nullable(String)) AS col_string_arr";
+
+        try (QueryResponse response =
+                     client.query(sql, newJsonEachRowSettingsForPrimitives()).get();
+             ClickHouseTextFormatReader reader = createReader(response)) {
+
+            Assert.assertNotNull(reader.next());
+
+            try {
+                reader.getIntArray("col_int_arr");
+                Assert.fail("Expected exception on null element in primitive array");
+            } catch (RuntimeException expected) {
+                // ok
+            }
+            try {
+                reader.getBooleanArray("col_bool_arr");
+                Assert.fail("Expected exception on null element in primitive array");
+            } catch (RuntimeException expected) {
+                // ok
+            }
+
+            // getStringArray and getObjectArray preserve nulls because the
+            // resulting array can hold null references.
+            Assert.assertEquals(reader.getStringArray("col_string_arr"),
+                    new String[] {"x", null, "z"});
+            Object[] objs = reader.getObjectArray("col_string_arr");
+            Assert.assertEquals(objs.length, 3);
+            Assert.assertNull(objs[1]);
+
+            // getList must surface the raw list with the null element intact.
+            List<?> intList = reader.getList("col_int_arr");
+            Assert.assertNotNull(intList);
+            Assert.assertEquals(intList.size(), 3);
+            Assert.assertNull(intList.get(1));
         }
     }
 

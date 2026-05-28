@@ -351,7 +351,9 @@ public class JSONEachRowFormatReader implements ClickHouseTextFormatReader {
      * may materialize numeric array elements as different boxed types
      * (e.g. {@code Integer}, {@code Long}, {@code Double}, {@code BigDecimal}),
      * so element-level conversion is necessary before populating a typed
-     * primitive array.
+     * primitive array. The {@code componentType} is always one of the eight
+     * Java primitives passed by {@link #getPrimitiveArray}; unsupported
+     * component types are rejected explicitly to keep the helper total.
      */
     private static Object coerceToComponent(Object value, Class<?> componentType) {
         if (componentType == byte.class) {
@@ -382,7 +384,7 @@ public class JSONEachRowFormatReader implements ClickHouseTextFormatReader {
             throw new IllegalArgumentException(
                     "Cannot convert " + value.getClass().getName() + " to boolean array element");
         }
-        return value;
+        throw new IllegalArgumentException("Unsupported component type: " + componentType.getName());
     }
 
     @Override
