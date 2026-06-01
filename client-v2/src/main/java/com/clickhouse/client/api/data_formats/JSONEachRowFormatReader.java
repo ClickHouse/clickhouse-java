@@ -204,7 +204,8 @@ public class JSONEachRowFormatReader implements ClickHouseTextFormatReader {
 
     @Override
     public UUID getUUID(String colName) {
-        return UUID.fromString(currentRow.get(colName).toString());
+        Object val = currentRow.get(colName);
+        return val == null ? null : UUID.fromString(val.toString());
     }
 
     @Override
@@ -566,7 +567,8 @@ public class JSONEachRowFormatReader implements ClickHouseTextFormatReader {
 
     @Override
     public LocalDate getLocalDate(String colName) {
-        return LocalDate.parse(currentRow.get(colName).toString());
+        Object val = currentRow.get(colName);
+        return val == null ? null : LocalDate.parse(val.toString());
     }
 
     @Override
@@ -576,7 +578,8 @@ public class JSONEachRowFormatReader implements ClickHouseTextFormatReader {
 
     @Override
     public LocalTime getLocalTime(String colName) {
-        return LocalTime.parse(currentRow.get(colName).toString());
+        Object val = currentRow.get(colName);
+        return val == null ? null : LocalTime.parse(val.toString());
     }
 
     @Override
@@ -586,7 +589,8 @@ public class JSONEachRowFormatReader implements ClickHouseTextFormatReader {
 
     @Override
     public LocalDateTime getLocalDateTime(String colName) {
-        return LocalDateTime.parse(currentRow.get(colName).toString());
+        Object val = currentRow.get(colName);
+        return val == null ? null : LocalDateTime.parse(val.toString());
     }
 
     @Override
@@ -596,7 +600,8 @@ public class JSONEachRowFormatReader implements ClickHouseTextFormatReader {
 
     @Override
     public OffsetDateTime getOffsetDateTime(String colName) {
-        return OffsetDateTime.parse(currentRow.get(colName).toString());
+        Object val = currentRow.get(colName);
+        return val == null ? null : OffsetDateTime.parse(val.toString());
     }
 
     @Override

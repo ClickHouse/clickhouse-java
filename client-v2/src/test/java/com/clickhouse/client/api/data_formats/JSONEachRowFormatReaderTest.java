@@ -763,4 +763,33 @@ public class JSONEachRowFormatReaderTest {
             // ok
         }
     }
+
+    @Test
+    public void testParseOnReadAccessorsReturnNullForNullValue() throws Exception {
+        // Locks in null-tolerant behavior for accessors that parse the value out
+        // of its textual representation. A null cell must propagate cleanly
+        // rather than NPE while calling toString() on the missing value.
+        Map<String, Object> r = new LinkedHashMap<>();
+        r.put("u", null);
+        r.put("d", null);
+        r.put("t", null);
+        r.put("dt", null);
+        r.put("odt", null);
+
+        try (JSONEachRowFormatReader reader = new JSONEachRowFormatReader(
+                new StubJsonParser(Collections.singletonList(r)))) {
+            reader.next();
+
+            Assert.assertNull(reader.getUUID("u"));
+            Assert.assertNull(reader.getUUID(1));
+            Assert.assertNull(reader.getLocalDate("d"));
+            Assert.assertNull(reader.getLocalDate(2));
+            Assert.assertNull(reader.getLocalTime("t"));
+            Assert.assertNull(reader.getLocalTime(3));
+            Assert.assertNull(reader.getLocalDateTime("dt"));
+            Assert.assertNull(reader.getLocalDateTime(4));
+            Assert.assertNull(reader.getOffsetDateTime("odt"));
+            Assert.assertNull(reader.getOffsetDateTime(5));
+        }
+    }
 }
