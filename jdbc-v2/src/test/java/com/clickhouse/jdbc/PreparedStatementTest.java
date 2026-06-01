@@ -1,5 +1,6 @@
 package com.clickhouse.jdbc;
 
+import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.data.ClickHouseColumn;
@@ -564,6 +565,16 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                 count++;
             }
             assertEquals(10, count);
+        }
+    }
+
+    @Test(groups = {"integration"})
+    void testExecuteQueryTimeout() throws Exception {
+        final String sql = "SELECT sum(reinterpretAsUInt64(MD5(toString(number)))) FROM system.numbers LIMIT 1000000";
+        try (Connection conn = getJdbcConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setQueryTimeout(1);
+            assertThrows(SQLException.class, stmt::executeQuery);
         }
     }
 
