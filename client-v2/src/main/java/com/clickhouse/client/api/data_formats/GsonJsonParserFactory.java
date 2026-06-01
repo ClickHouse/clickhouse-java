@@ -2,6 +2,7 @@ package com.clickhouse.client.api.data_formats;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonElement;
 import com.google.gson.ToNumberPolicy;
 import com.google.gson.reflect.TypeToken;
 import com.google.gson.stream.JsonReader;
@@ -9,11 +10,14 @@ import com.google.gson.stream.JsonToken;
 
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 public class GsonJsonParserFactory implements JsonParserFactory {
     private final Gson gson;
+
+    private static final Type MAP_TYPE_TOKEN = new TypeToken<Map<String, Object>>() {}.getType();
 
     public GsonJsonParserFactory() {
         GsonBuilder builder = new GsonBuilder();
@@ -37,6 +41,8 @@ public class GsonJsonParserFactory implements JsonParserFactory {
 
         private final JsonReader reader;
 
+
+
         public JsonParserImpl(JsonReader jsonReader) {
             this.reader = jsonReader;
         }
@@ -52,8 +58,7 @@ public class GsonJsonParserFactory implements JsonParserFactory {
                 return null;
             }
 
-            return GsonJsonParserFactory.this.gson.fromJson(reader, new TypeToken<Map<String, Object>>() {
-            }.getType());
+            return GsonJsonParserFactory.this.gson.fromJson(reader, GsonJsonParserFactory.MAP_TYPE_TOKEN);
         }
 
         @Override

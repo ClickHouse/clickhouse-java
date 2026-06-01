@@ -460,6 +460,55 @@ public class JSONEachRowFormatReaderTest {
         }
     }
 
+    @Test
+    public void testGetTupleHandlesAllValueShapes() throws Exception {
+        // Covers every branch of getTuple in one row:
+        //   * "as_null"     -> null value: must propagate null instead of NPE
+        //     or fabricating an empty array.
+        //   * "as_list"     -> List value: must be copied to a new Object[]
+        //     (also exercised by testUuidAndListAccessors, kept here so the
+        //     three branches are visible side-by-side).
+        //   * "as_array"    -> Object[] value: must be returned as-is via the
+        //     (Object[]) cast rather than re-wrapped.
+        //   * "as_scalar"   -> incompatible scalar: the unchecked cast must
+        //     surface a ClassCastException so callers cannot silently
+        //     misinterpret a non-tuple value.
+        Object[] tupleArr = new Object[] {"a", 1, Boolean.TRUE};
+        Map<String, Object> r = new LinkedHashMap<>();
+        r.put("as_null", null);
+        r.put("as_list", Arrays.asList("x", 2));
+        r.put("as_array", tupleArr);
+        r.put("as_scalar", "not-a-tuple");
+
+        try (JSONEachRowFormatReader reader = new JSONEachRowFormatReader(
+                new StubJsonParser(Collections.singletonList(r)))) {
+            reader.next();
+
+            Assert.assertNull(reader.getTuple("as_null"));
+            Assert.assertNull(reader.getTuple(1));
+
+            Assert.assertEquals(reader.getTuple("as_list"), new Object[] {"x", 2});
+            Assert.assertEquals(reader.getTuple(2), new Object[] {"x", 2});
+
+            Object[] byName = reader.getTuple("as_array");
+            Assert.assertSame(byName, tupleArr,
+                    "Object[] values must be returned as-is, not re-wrapped");
+            Assert.assertSame(reader.getTuple(3), tupleArr,
+                    "Object[] values must be returned as-is via the index accessor too");
+
+            for (Runnable call : new Runnable[] {
+                    () -> reader.getTuple("as_scalar"),
+                    () -> reader.getTuple(4)}) {
+                try {
+                    call.run();
+                    Assert.fail("Expected ClassCastException for non-array scalar value");
+                } catch (ClassCastException expected) {
+                    // ok
+                }
+            }
+        }
+    }
+
     // ---------------------------------------------------------------------
     // Unsupported operations
     // ---------------------------------------------------------------------
