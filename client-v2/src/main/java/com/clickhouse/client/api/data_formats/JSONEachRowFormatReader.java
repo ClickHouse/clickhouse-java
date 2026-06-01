@@ -106,16 +106,6 @@ public class JSONEachRowFormatReader implements ClickHouseTextFormatReader {
     }
 
     @Override
-    public String currentRowAsString() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public Object currentRowAsObject() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public String getString(String colName) {
         Object val = currentRow.get(colName);
         return val == null ? null : val.toString();

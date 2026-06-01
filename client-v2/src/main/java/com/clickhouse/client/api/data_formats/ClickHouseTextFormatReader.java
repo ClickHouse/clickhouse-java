@@ -13,8 +13,4 @@ package com.clickhouse.client.api.data_formats;
  * {@link UnsupportedOperationException}.</p>
  */
 public interface ClickHouseTextFormatReader extends ClickHouseFormatReader {
-
-    String currentRowAsString();
-
-    Object currentRowAsObject();
 }

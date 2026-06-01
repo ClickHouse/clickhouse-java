@@ -44,6 +44,92 @@ provides additional advantages beyond what the format alone delivers:
   without changing application code that consumes the reader or the JDBC
   `ResultSet`.
 
+## Scope and non-goals
+
+This section defines, in one place, what the JSONEachRow support is built
+to do and what it intentionally leaves out.
+
+### The problem
+
+`JSONEachRow` itself is a simple line-oriented format, but mapping its
+contents to Java values is not. JSON has fewer primitive types than
+ClickHouse, applications disagree on how large integers, decimals, dates,
+and other domain values should surface in Java, and the two mainstream
+JSON libraries (Jackson and Gson) make different default choices for many
+of these mappings. Bundling a single fixed JSON-to-Java mapping in the
+client would force every application into one library's conventions and
+would re-implement work the application's existing JSON dependency
+already does.
+
+At the same time, application code that already consumes the binary
+readers should not have to fork into a separate read loop just because
+the result is in a text format.
+
+### Goals
+
+1. Provide a row-by-row reader over `JSONEachRow` that delegates parsing
+   and per-token type decisions to whichever JSON library the application
+   already runs.
+2. Let applications customize that mapping through the chosen library
+   (Jackson modules / features, Gson `TypeAdapter`s, number policies,
+   custom domain types) by extending the bundled factory and overriding
+   its single protected hook.
+3. Expose a single accessor surface (`ClickHouseFormatReader`) shared
+   with the binary readers so caller code can be format-agnostic.
+4. Keep the parser SPI (`JsonParser`, `JsonParserFactory`) narrow and
+   library-agnostic so applications with parser requirements outside
+   Jackson or Gson can plug in their own implementation without changes
+   to `client-v2`.
+
+### What is covered
+
+- Streaming row parsing of `JSONEachRow` through a pluggable
+  `JsonParserFactory`. Each row materializes as `Map<String, Object>`;
+  leaf value types are whatever the configured library chose.
+- Bundled `JacksonJsonParserFactory` and `GsonJsonParserFactory` with
+  sensible defaults and one protected hook each for customization
+  (`createMapper()` and `customize(GsonBuilder)`).
+- A common reader hierarchy — `ClickHouseFormatReader` for the shared
+  accessor surface, `ClickHouseTextFormatReader` as the text-format
+  family marker, and `JSONEachRowFormatReader` as the concrete reader.
+- An opt-in server-setting bundle that disables JSON number quoting for
+  `JSONEachRow` requests (see
+  [JSON number output settings](#json-number-output-settings)).
+- JDBC integration: `FORMAT JSONEachRow` is accepted by
+  `Statement.executeQuery(...)` in `jdbc-v2`, with parser-factory
+  selection through the `jdbc_json_parser_factory` connection property.
+
+### What is not covered
+
+- **Library-native row objects.** The reader does not expose Jackson's
+  `JsonNode` or Gson's `JsonElement` for the current row, and there is
+  no `currentRowAsObject` / `currentRowAsString` accessor on the reader
+  interface. The `Map<String, Object>` view is the contract.
+  Applications that need the library-native representation should
+  implement their own `JsonParserFactory` / `JsonParser` that retains
+  the native object internally and exposes it through their own
+  accessor — the SPI is intentionally narrow so this kind of extension
+  lives in application code rather than in `client-v2`.
+- **Uniform cross-library semantics.** The reader does not normalize Java
+  type choices across libraries. Jackson and Gson disagree on, for
+  example, whether an unquoted JSON integer larger than `2^53` is
+  materialized as an integral `Number` or as a `Double`. The reader
+  respects whatever the configured library chose; consistent behavior
+  across processors is the application's responsibility, via factory
+  customization or post-processing.
+- **A built-in JSON tokenizer.** The reader does not include its own
+  parser. At least one of the bundled libraries (Jackson or Gson) must
+  be on the runtime classpath, or the application must supply its own
+  `JsonParserFactory`, for `JSONEachRow` support to function.
+- **Full accessor parity with the binary readers.** Several advanced
+  accessors (temporal/inet/geo/bitmap families) are not implemented for
+  `JSONEachRow` and throw `UnsupportedOperationException`. See
+  [Typed accessors](#typed-accessors) for the current list. Callers
+  needing these conversions should read the value through
+  `readValue(...)` / `getList(...)` / `getString(...)` and convert at
+  the application boundary, or use the binary default format where
+  these accessors are natively supported.
+
 ## Summary of changes
 
 `client-v2`:
