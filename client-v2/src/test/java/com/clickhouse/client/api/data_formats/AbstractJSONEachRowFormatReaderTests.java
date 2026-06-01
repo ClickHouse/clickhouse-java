@@ -5,11 +5,14 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.enums.Protocol;
+import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.data.ClickHouseVersion;
 import org.testng.Assert;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.AfterMethod;
@@ -238,6 +241,15 @@ public abstract class AbstractJSONEachRowFormatReaderTests extends BaseIntegrati
     public void testSchemaInference() throws Exception {
         // Numeric inference depends on parser materialization, so this test checks
         // that numerics do not collapse to String and stable scalar types still map.
+        // The server default for `output_format_json_quote_64bit_integers` flipped from
+        // `1` to `0` in ClickHouse 25.8 (PR #74079, backward-incompatible change). With
+        // `newJsonEachRowSettings()` the client does not override the server default, so
+        // what the reader infers for `Int64` reflects what the server actually emits:
+        //   * pre-25.8: Int64 arrives as a quoted JSON string  -> inferred as String
+        //   * 25.8+   : Int64 arrives as a JSON number         -> inferred as a numeric
+        //                                                         (parser-specific) type
+        // The cross-version contract for forcing numeric output regardless of server
+        // default is exercised by testSchemaInferenceWithNumberQuotingDisabled below.
         String sql = "SELECT toInt64(42) as col_int, toFloat64(3.14) as col_float, " +
                      "true as col_bool, 'val' as col_str";
 
@@ -247,11 +259,60 @@ public abstract class AbstractJSONEachRowFormatReaderTests extends BaseIntegrati
             Assert.assertNotNull(reader.getSchema());
             Assert.assertEquals(reader.getSchema().getColumns().size(), 4);
 
-            Assert.assertNotEquals(reader.getSchema().getColumnByIndex(1).getDataType(), ClickHouseDataType.String);
+            ClickHouseDataType colIntType = reader.getSchema().getColumnByIndex(1).getDataType();
+            if (isVersionMatch("[25.8,)")) {
+                Assert.assertNotEquals(colIntType, ClickHouseDataType.String,
+                        "Int64 should not collapse to String on 25.8+ where the server emits unquoted numbers by default");
+            } else {
+                Assert.assertEquals(colIntType, ClickHouseDataType.String,
+                        "Int64 is emitted as a quoted JSON string by default on pre-25.8 servers");
+            }
             Assert.assertNotEquals(reader.getSchema().getColumnByIndex(2).getDataType(), ClickHouseDataType.String);
             Assert.assertEquals(reader.getSchema().getColumnByIndex(3).getDataType(), ClickHouseDataType.Bool);
             Assert.assertEquals(reader.getSchema().getColumnByIndex(4).getDataType(), ClickHouseDataType.String);
         }
+    }
+
+    /**
+     * Locks in the cross-version contract of {@link ClientConfigProperties#JSON_DISABLE_NUMBER_QUOTING}:
+     * when the option is enabled, the reader must always see {@code Int64}, {@code Float64} and
+     * {@code Decimal} as plain JSON numbers and infer non-{@code String} types, regardless of
+     * whether the server defaults to quoting 64-bit integers (pre-25.8) or not (25.8+).
+     */
+    @Test(groups = {"integration"})
+    public void testSchemaInferenceWithNumberQuotingDisabled() throws Exception {
+        String sql = "SELECT toInt64(42) as col_int, toFloat64(3.14) as col_float, " +
+                     "toDecimal64(1.5, 2) as col_dec";
+
+        QuerySettings settings = newJsonEachRowSettings()
+                .setOption(ClientConfigProperties.JSON_DISABLE_NUMBER_QUOTING.getKey(), true);
+
+        try (QueryResponse response = client.query(sql, settings).get();
+             ClickHouseTextFormatReader reader = createReader(response)) {
+
+            Assert.assertNotNull(reader.getSchema());
+            Assert.assertEquals(reader.getSchema().getColumns().size(), 3);
+
+            Assert.assertNotEquals(reader.getSchema().getColumnByIndex(1).getDataType(),
+                    ClickHouseDataType.String,
+                    "Int64 must not be inferred as String when JSON_DISABLE_NUMBER_QUOTING is on");
+            Assert.assertNotEquals(reader.getSchema().getColumnByIndex(2).getDataType(),
+                    ClickHouseDataType.String,
+                    "Float64 must not be inferred as String when JSON_DISABLE_NUMBER_QUOTING is on");
+            Assert.assertNotEquals(reader.getSchema().getColumnByIndex(3).getDataType(),
+                    ClickHouseDataType.String,
+                    "Decimal must not be inferred as String when JSON_DISABLE_NUMBER_QUOTING is on");
+
+            Assert.assertNotNull(reader.next());
+            Assert.assertEquals(reader.getLong("col_int"), 42L);
+            Assert.assertEquals(reader.getDouble("col_float"), 3.14d, 1e-9);
+            Assert.assertEquals(reader.getBigDecimal("col_dec").compareTo(new BigDecimal("1.50")), 0);
+        }
+    }
+
+    private boolean isVersionMatch(String versionExpression) {
+        List<GenericRecord> serverVersion = client.queryAll("SELECT version()");
+        return ClickHouseVersion.of(serverVersion.get(0).getString(1)).check(versionExpression);
     }
 
     @Test(groups = {"integration"})

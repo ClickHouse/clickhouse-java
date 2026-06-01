@@ -383,23 +383,39 @@ public class QueryTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testJsonEachRowNumberQuoteSettingsAreOptIn() throws Exception {
-        String sql = "SELECT toInt64(1234567890123) AS v";
+        // Pin all three numeric quoting flags (integers, floats, decimals) to `1` regardless
+        // of server defaults so the test exercises the same starting state on every supported
+        // ClickHouse version. The server default for 64-bit integers flipped from `1` to `0`
+        // in 25.8 (PR #74079); explicit overrides keep the assertions stable across versions.
+        String sql = "SELECT toInt64(1234567890123) AS i, toFloat64(3.14) AS f, toDecimal64(1.5, 2) AS d";
 
         QuerySettings settings = new QuerySettings()
                 .setFormat(ClickHouseFormat.JSONEachRow)
-                .serverSetting("output_format_json_quote_64bit_integers", "1");
+                .serverSetting("output_format_json_quote_64bit_integers", "1")
+                .serverSetting("output_format_json_quote_64bit_floats", "1")
+                .serverSetting("output_format_json_quote_decimals", "1");
         try (QueryResponse response = client.query(sql, settings).get();
              BufferedReader reader = new BufferedReader(new InputStreamReader(response.getInputStream()))) {
-            Assert.assertTrue(reader.readLine().contains("\"v\":\"1234567890123\""));
+            String line = reader.readLine();
+            Assert.assertTrue(line.contains("\"i\":\"1234567890123\""), "Int64 should be quoted: " + line);
+            Assert.assertTrue(line.contains("\"f\":\"3.14\""), "Float64 should be quoted: " + line);
+            // Decimal trailing-zero formatting differs across server versions; match the
+            // significant digits inside the quotes.
+            Assert.assertTrue(line.matches(".*\"d\":\"1\\.50?\".*"), "Decimal should be quoted: " + line);
         }
 
         QuerySettings unquotedSettings = new QuerySettings()
                 .setFormat(ClickHouseFormat.JSONEachRow)
                 .serverSetting("output_format_json_quote_64bit_integers", "1")
+                .serverSetting("output_format_json_quote_64bit_floats", "1")
+                .serverSetting("output_format_json_quote_decimals", "1")
                 .setOption(ClientConfigProperties.JSON_DISABLE_NUMBER_QUOTING.getKey(), true);
         try (QueryResponse response = client.query(sql, unquotedSettings).get();
              BufferedReader reader = new BufferedReader(new InputStreamReader(response.getInputStream()))) {
-            Assert.assertTrue(reader.readLine().contains("\"v\":1234567890123"));
+            String line = reader.readLine();
+            Assert.assertTrue(line.contains("\"i\":1234567890123"), "Int64 should be unquoted: " + line);
+            Assert.assertTrue(line.contains("\"f\":3.14"), "Float64 should be unquoted: " + line);
+            Assert.assertTrue(line.matches(".*\"d\":1\\.50?[,}].*"), "Decimal should be unquoted: " + line);
         }
     }
 
