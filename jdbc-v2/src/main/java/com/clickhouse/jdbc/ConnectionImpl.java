@@ -140,7 +140,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
                     "' is empty string but should be a FQN of factory class.");
         }
         try {
-            Class<?> factoryClass = this.getClass().getClassLoader().loadClass(className);
+            Class<?> factoryClass = loadFactoryClass(className);
             if (!JsonParserFactory.class.isAssignableFrom(factoryClass)) {
                 throw new SQLException("Class '" + className + "' should implement " + JsonParserFactory.class.getName());
             }
@@ -152,6 +152,32 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
         } catch (InvocationTargetException | InstantiationException | IllegalAccessException |
                  NoSuchMethodException e) {
             throw new SQLException("Failed to instantiate '" + className + "'. Check class implementation.", e);
+        }
+    }
+
+    /**
+     * Resolves a user-supplied factory class name. JDBC drivers are commonly deployed in a
+     * parent class loader (e.g. servlet container {@code lib/}) while caller-supplied classes
+     * live in the application class loader, so the thread context class loader is tried first
+     * and the driver's own class loader is used as a fallback.
+     */
+    private Class<?> loadFactoryClass(String className) throws ClassNotFoundException {
+        ClassNotFoundException firstFailure = null;
+        ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
+        if (contextClassLoader != null) {
+            try {
+                return contextClassLoader.loadClass(className);
+            } catch (ClassNotFoundException e) {
+                firstFailure = e;
+            }
+        }
+        try {
+            return this.getClass().getClassLoader().loadClass(className);
+        } catch (ClassNotFoundException e) {
+            if (firstFailure != null) {
+                e.addSuppressed(firstFailure);
+            }
+            throw e;
         }
     }
 
