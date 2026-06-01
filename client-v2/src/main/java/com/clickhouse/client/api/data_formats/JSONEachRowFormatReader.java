@@ -42,6 +42,10 @@ public class JSONEachRowFormatReader implements ClickHouseTextFormatReader {
             this.nextRow = parser.nextRow();
             this.hasNext = this.nextRow != null;
             if (nextRow != null) {
+                // The schema is inferred from the keys of the first row in
+                // iteration order. The supplied JsonParser must therefore
+                // return an order-preserving Map (e.g. LinkedHashMap); see
+                // JsonParser#nextRow for the contract relied on here.
                 List<ClickHouseColumn> columns = new ArrayList<>();
                 for (String key : nextRow.keySet()) {
                     // For JSONEachRow we don't know the exact ClickHouse type, so we use a reasonable default.
