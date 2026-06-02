@@ -525,6 +525,20 @@ public class ResultSetImplTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = {"integration"})
+    public void testGetObjectCustomMappingWithWrappedTypes() throws SQLException {
+        try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(
+                     "SELECT CAST(32 AS Nullable(Int32)) AS n")) {
+            assertTrue(rs.next());
+
+            Map<String, Class<?>> typeMap = new HashMap<>();
+            typeMap.put("Int32", Long.class);
+            Object n = rs.getObject("n", typeMap);
+            assertEquals(n, 32L, "Value was of " + n.getClass().getName() + " but should be Long");
+        }
+    }
+
+    @Test(groups = {"integration"})
     public void testGetObjectWithMixedTypeNameMap() throws SQLException {
         // Single typeMap mixing ClickHouseDataType names and SQLType names: CH-name lookup is tried
         // first, then SQLType-name lookup, so the user can address columns by either convention.
