@@ -245,13 +245,18 @@ public abstract class AbstractJSONEachRowFormatReaderTests extends BaseIntegrati
         // `1` to `0` in ClickHouse 25.8 (PR #74079, backward-incompatible change). With
         // `newJsonEachRowSettings()` the client does not override the server default, so
         // what the reader infers for `Int64` reflects what the server actually emits:
-        //   * pre-25.8: Int64 arrives as a quoted JSON string  -> inferred as String
-        //   * 25.8+   : Int64 arrives as a JSON number         -> inferred as a numeric
-        //                                                         (parser-specific) type
+        //   * pre-25.8 self-hosted: Int64 arrives as a quoted JSON string -> inferred as String
+        //   * 25.8+    self-hosted: Int64 arrives as a JSON number        -> inferred as a numeric
+        //                                                                    (parser-specific) type
+        //   * cloud               : the default may be overridden by the cloud profile, so the
+        //                           live value of `output_format_json_quote_64bit_integers` is
+        //                           queried from `system.settings` to decide which contract holds.
         // The cross-version contract for forcing numeric output regardless of server
         // default is exercised by testSchemaInferenceWithNumberQuotingDisabled below.
         String sql = "SELECT toInt64(42) as col_int, toFloat64(3.14) as col_float, " +
                      "true as col_bool, 'val' as col_str";
+
+        boolean int64InferredAsString = isInt64EmittedAsQuotedJsonString();
 
         try (QueryResponse response = client.query(sql, newJsonEachRowSettings()).get();
              ClickHouseTextFormatReader reader = createReader(response)) {
@@ -260,17 +265,35 @@ public abstract class AbstractJSONEachRowFormatReaderTests extends BaseIntegrati
             Assert.assertEquals(reader.getSchema().getColumns().size(), 4);
 
             ClickHouseDataType colIntType = reader.getSchema().getColumnByIndex(1).getDataType();
-            if (isVersionMatch("[25.8,)")) {
-                Assert.assertNotEquals(colIntType, ClickHouseDataType.String,
-                        "Int64 should not collapse to String on 25.8+ where the server emits unquoted numbers by default");
-            } else {
+            if (int64InferredAsString) {
                 Assert.assertEquals(colIntType, ClickHouseDataType.String,
-                        "Int64 is emitted as a quoted JSON string by default on pre-25.8 servers");
+                        "Int64 must be inferred as String when the server emits it as a quoted JSON string");
+            } else {
+                Assert.assertNotEquals(colIntType, ClickHouseDataType.String,
+                        "Int64 must not collapse to String when the server emits it as an unquoted JSON number");
             }
             Assert.assertNotEquals(reader.getSchema().getColumnByIndex(2).getDataType(), ClickHouseDataType.String);
             Assert.assertEquals(reader.getSchema().getColumnByIndex(3).getDataType(), ClickHouseDataType.Bool);
             Assert.assertEquals(reader.getSchema().getColumnByIndex(4).getDataType(), ClickHouseDataType.String);
         }
+    }
+
+    /**
+     * Returns whether the connected server currently emits {@code Int64} values as quoted JSON
+     * strings (rather than as unquoted JSON numbers) when {@code newJsonEachRowSettings()} is
+     * used as-is, without overriding {@code output_format_json_quote_64bit_integers}.
+     *
+     * <p>Self-hosted servers follow the well-known default flip in 25.8 (PR #74079). Cloud
+     * deployments may carry a profile-level override of the same setting, so we read the live
+     * value from {@code system.settings} instead of inferring it from the version string.</p>
+     */
+    private boolean isInt64EmittedAsQuotedJsonString() {
+        if (isCloud()) {
+            List<GenericRecord> records = client.queryAll(
+                    "SELECT value FROM system.settings WHERE name = 'output_format_json_quote_64bit_integers'");
+            return !records.isEmpty() && "1".equals(records.get(0).getString(1));
+        }
+        return !isVersionMatch("[25.8,)");
     }
 
     /**
