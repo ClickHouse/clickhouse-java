@@ -25,6 +25,10 @@ import java.sql.Statement;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Properties;
 
 import static org.testng.Assert.assertEquals;
@@ -479,6 +483,79 @@ public class ResultSetImplTest extends JdbcIntegrationTest {
                     Assert.assertEquals(rs2.getTimestamp(valueColumn), resultArray[i]);
                 }
             }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testGetObjectWithSqlTypeNameMap() throws SQLException {
+        try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT 1::Int32 AS i, toDateTime('2024-12-01 12:34:56') AS ts, " +
+                     "toDate('2024-12-01') AS d")) {
+            assertTrue(rs.next());
+
+            Map<String, Class<?>> sqlTypeMap = new HashMap<>();
+            sqlTypeMap.put(JDBCType.INTEGER.getName(), Long.class);
+            sqlTypeMap.put(JDBCType.TIMESTAMP.getName(), LocalDateTime.class);
+            sqlTypeMap.put(JDBCType.DATE.getName(), LocalDate.class);
+
+            assertEquals(rs.getObject("i", sqlTypeMap), 1L);
+            assertEquals(rs.getObject("ts", sqlTypeMap), LocalDateTime.of(2024, 12, 1, 12, 34, 56));
+            assertEquals(rs.getObject("d", sqlTypeMap), LocalDate.of(2024, 12, 1));
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testGetObjectWithClickHouseTypeNameMap() throws SQLException {
+        // typeMap keyed by ClickHouseDataType name (e.g. "Int32"): the V1-style direct lookup
+        // that ResultSetImpl#getObjectImpl now supports in addition to JDBC SQLType names.
+        try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT 1::Int32 AS i, 1::UInt64 AS u, " +
+                     "toDateTime('2024-12-01 12:34:56') AS ts")) {
+            assertTrue(rs.next());
+
+            Map<String, Class<?>> chTypeMap = new HashMap<>();
+            chTypeMap.put("Int32", Long.class);
+            chTypeMap.put("UInt64", String.class);
+            chTypeMap.put("DateTime", LocalDateTime.class);
+
+            assertEquals(rs.getObject("i", chTypeMap), 1L);
+            assertEquals(rs.getObject("u", chTypeMap), "1");
+            assertEquals(rs.getObject("ts", chTypeMap), LocalDateTime.of(2024, 12, 1, 12, 34, 56));
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testGetObjectWithMixedTypeNameMap() throws SQLException {
+        // Single typeMap mixing ClickHouseDataType names and SQLType names: CH-name lookup is tried
+        // first, then SQLType-name lookup, so the user can address columns by either convention.
+        try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT 1::Int32 AS i, 'abc'::String AS s")) {
+            assertTrue(rs.next());
+
+            Map<String, Class<?>> mixed = new HashMap<>();
+            mixed.put("Int32", Long.class);
+            mixed.put(JDBCType.VARCHAR.getName(), String.class);
+
+            assertEquals(rs.getObject("i", mixed), 1L);
+            assertEquals(rs.getObject("s", mixed), "abc");
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testGetObjectWithTypeMapMissingEntry() throws SQLException {
+        // typeMap that does not contain an entry for the column type: ResultSetImpl#getObjectImpl
+        // falls back to "read as is" (no conversion) as documented by JDBC.
+        try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT 1::Int32 AS i, 'abc'::String AS s")) {
+            assertTrue(rs.next());
+
+            Map<String, Class<?>> partial = new HashMap<>();
+            partial.put("Int32", Long.class);
+
+            assertEquals(rs.getObject("i", partial), 1L);
+            // String column has no entry: value comes back as the reader's native representation
+            // and is not coerced into the default Java class.
+            Assert.assertNotNull(rs.getObject("s", partial));
         }
     }
 }
