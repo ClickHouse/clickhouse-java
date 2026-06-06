@@ -129,6 +129,22 @@ public enum DriverProperties {
      */
     CLUSTER_NAME("jdbc_cluster_name", null),
 
+    /**
+     * Define custom type mappings for JDBC ResultSet#getObject() method.
+     * Format of the property is 'key=value'.
+     * Key is the ClickHouse type name.
+     * Value is the Java class name.
+     * Example: 'UInt64=java.lang.String'
+     */
+    JDBC_TYPE_MAPPINGS("jdbc_type_mappings", null),
+
+    /**
+     * Deprecated and will be removed.
+     * This property is here to keep backward compatibility with `typeMappings` property.
+     * Use `jdbc_type_mappings` instead
+     */
+    @Deprecated
+    TYPE_MAPPINGS("typeMappings", null),
     ;
 
 

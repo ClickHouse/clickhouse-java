@@ -572,4 +572,32 @@ public class ResultSetImplTest extends JdbcIntegrationTest {
             Assert.assertNotNull(rs.getObject("s", partial));
         }
     }
+
+    @Test(groups = {"integration"})
+    public void testCustomTypeMappingToResultSet() throws SQLException {
+        Properties properties = new Properties();
+        properties.setProperty(DriverProperties.JDBC_TYPE_MAPPINGS.getKey(),
+                "UInt64=String,UInt128=String,Int128=String,UInt256=String,Int256=String," +
+                "Float32=String,Float64=String,BFloat16=String,Decimal=String,Decimal32=String," +
+                "Decimal64=String,Decimal128=String,Decimal256=String");
+
+        try (Connection conn = getJdbcConnection(properties); Statement stmt = conn.createStatement()) {
+            try (ResultSet rs = stmt.executeQuery("SELECT " +
+                    "toUInt64(1) AS u64, " +
+                    "toUInt128(1) AS u128, " +
+                    "toInt128(1) AS i128, " +
+                    "toUInt256(1) AS u256, " +
+                    "toInt256(1) AS i256, " +
+                    "toFloat32(1.1) AS f32, " +
+                    "toFloat64(1.1) AS f64, " +
+                    "toDecimal32(1.1, 1) AS d32")) {
+                assertTrue(rs.next());
+
+                for (int i = 1; i <= rs.getMetaData().getColumnCount(); i++) {
+                    Object val = rs.getObject(i);
+                    assertTrue(val instanceof String, rs.getMetaData().getColumnName(i) + " should be mapped to String");
+                }
+            }
+        }
+    }
 }

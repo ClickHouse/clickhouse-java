@@ -10,6 +10,7 @@ import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Types;
+import java.util.Properties;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
@@ -290,6 +291,36 @@ public class ResultSetMetaDataImplTest extends JdbcIntegrationTest {
         assertEquals(types.length, metadata.getColumnCount());
         for (int i = 0; i < metadata.getColumnCount(); i++) {
             assertEquals(types[i], metadata.getColumnTypeName(i + 1));
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testCustomTypeMappingToMetaData() throws Exception {
+        Properties properties = new Properties();
+        properties.setProperty(com.clickhouse.jdbc.DriverProperties.JDBC_TYPE_MAPPINGS.getKey(),
+                "UInt64=String,UInt128=String,Int128=String,UInt256=String,Int256=String," +
+                "Float32=String,Float64=String,BFloat16=String,Decimal=String,Decimal32=String," +
+                "Decimal64=String,Decimal128=String,Decimal256=String");
+
+        try (Connection conn = getJdbcConnection(properties)) {
+            try (Statement stmt = conn.createStatement()) {
+                ResultSet rs = stmt.executeQuery("SELECT " +
+                    "toUInt64(1) AS u64, " +
+                    "toUInt128(1) AS u128, " +
+                    "toInt128(1) AS i128, " +
+                    "toUInt256(1) AS u256, " +
+                    "toInt256(1) AS i256, " +
+                    "toFloat32(1.1) AS f32, " +
+                    "toFloat64(1.1) AS f64, " +
+                    "toDecimal32(1.1, 1) AS d32");
+                
+                ResultSetMetaData rsmd = rs.getMetaData();
+                
+                for (int i = 1; i <= rsmd.getColumnCount(); i++) {
+                    assertEquals(rsmd.getColumnClassName(i), String.class.getName());
+                    assertEquals(rsmd.getColumnType(i), Types.VARCHAR);
+                }
+            }
         }
     }
 }
