@@ -165,7 +165,7 @@ public class ResultSetMetaDataImpl implements java.sql.ResultSetMetaData, JdbcV2
 
         Class<?> resolved = typeMap.get(dataType.name());
         if (resolved == null) {
-            resolved = typeMap.get(binding.getJdbcType().getName());
+            resolved = typeMap.getOrDefault(binding.getJdbcType().getName(), binding.getDefaultClass());
         }
         return resolved;
     }
