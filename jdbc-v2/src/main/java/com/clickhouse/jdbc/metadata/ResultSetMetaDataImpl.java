@@ -72,7 +72,7 @@ public class ResultSetMetaDataImpl implements java.sql.ResultSetMetaData, JdbcV2
                 columnClass = defaultClass != null ? defaultClass : Object.class;
                 columnType = jdbcType.getVendorTypeNumber();
             }
-            bindings.add(new ColumnTypeBinding(column, jdbcType, defaultClass, columnType, columnClass));
+            bindings.add(new ColumnTypeBinding(column, jdbcType, columnType, columnClass));
         }
         return bindings.build();
     }
@@ -86,15 +86,12 @@ public class ResultSetMetaDataImpl implements java.sql.ResultSetMetaData, JdbcV2
     private static final class ColumnTypeBinding {
         private final ClickHouseColumn column;
         private final SQLType jdbcType;
-        private final Class<?> defaultClass;
         private final int columnType;
         private final Class<?> columnClass;
 
-        ColumnTypeBinding(ClickHouseColumn column, SQLType jdbcType, Class<?> defaultClass,
-                          int columnType, Class<?> columnClass) {
+        ColumnTypeBinding(ClickHouseColumn column, SQLType jdbcType, int columnType, Class<?> columnClass) {
             this.column = column;
             this.jdbcType = jdbcType;
-            this.defaultClass = defaultClass;
             this.columnType = columnType;
             this.columnClass = columnClass;
         }
@@ -109,10 +106,6 @@ public class ResultSetMetaDataImpl implements java.sql.ResultSetMetaData, JdbcV2
 
         public Class<?> getColumnClass() {
             return columnClass;
-        }
-
-        public Class<?> getDefaultClass() {
-            return defaultClass;
         }
 
         public int getColumnType() {
@@ -160,12 +153,12 @@ public class ResultSetMetaDataImpl implements java.sql.ResultSetMetaData, JdbcV2
         }
 
         if (typeMap == null || typeMap.isEmpty()) {
-            return binding.getDefaultClass();
+            return binding.getColumnClass();
         }
 
         Class<?> resolved = typeMap.get(dataType.name());
         if (resolved == null) {
-            resolved = typeMap.getOrDefault(binding.getJdbcType().getName(), binding.getDefaultClass());
+            resolved = typeMap.getOrDefault(binding.getJdbcType().getName(), binding.getColumnClass());
         }
         return resolved;
     }
@@ -268,7 +261,7 @@ public class ResultSetMetaDataImpl implements java.sql.ResultSetMetaData, JdbcV2
 
     @Override
     public int getColumnType(int column) throws SQLException {
-        return getColumnTypeBinding(column).columnType;
+        return getColumnTypeBinding(column).getColumnType();
     }
 
     @Override
