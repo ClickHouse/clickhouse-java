@@ -68,7 +68,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     private Executor networkTimeoutExecutor;
 
     private final FeatureManager featureManager;
-    private volatile Map<String, Class<?>> typeMap;
+    private volatile ImmutableMap<String, Class<?>> typeMap;
 
     public ConnectionImpl(String url, Properties info) throws SQLException {
         try {
