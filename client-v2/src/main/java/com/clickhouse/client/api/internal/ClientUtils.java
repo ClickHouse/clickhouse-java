@@ -8,6 +8,10 @@ public final class ClientUtils {
     private ClientUtils() {}
 
     public static boolean isNotBlank(String str) {
-        return str != null && !str.trim().isEmpty();
+        return !isBlank(str);
+    }
+
+    public static boolean isBlank(String str) {
+        return str == null || str.trim().isEmpty();
     }
 }

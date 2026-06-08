@@ -13,6 +13,7 @@ import com.clickhouse.jdbc.internal.JdbcConfiguration;
 import com.clickhouse.jdbc.internal.ParsedPreparedStatement;
 import com.clickhouse.jdbc.internal.SqlParserFacade;
 import com.clickhouse.jdbc.metadata.DatabaseMetaDataImpl;
+import com.google.common.collect.ImmutableMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,7 +37,6 @@ import java.sql.Struct;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.Calendar;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Properties;
@@ -68,6 +68,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     private Executor networkTimeoutExecutor;
 
     private final FeatureManager featureManager;
+    private volatile ImmutableMap<String, Class<?>> typeMap;
 
     public ConnectionImpl(String url, Properties info) throws SQLException {
         try {
@@ -119,6 +120,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
             this.sqlParser = SqlParserFacade.getParser(config.getDriverProperty(DriverProperties.SQL_PARSER.getKey(),
                     DriverProperties.SQL_PARSER.getDefaultValue()), config);
             this.featureManager = new FeatureManager(this.config);
+            this.typeMap = ImmutableMap.<String, Class<?>>builder().putAll(this.config.getTypeMap()).buildKeepingLast();
         } catch (SQLException e) {
             throw e;
         } catch (Exception e) {
@@ -297,14 +299,16 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     @Override
     public Map<String, Class<?>> getTypeMap() throws SQLException {
         ensureOpen();
-        featureManager.unsupportedFeatureThrow("getTypeMap()");
-        return Collections.emptyMap();
+        return this.typeMap;
     }
 
     @Override
     public void setTypeMap(Map<String, Class<?>> map) throws SQLException {
         ensureOpen();
-        featureManager.unsupportedFeatureThrow("setTypeMap(Map<String, Class<?>>)");
+        if (map == null) {
+            throw new SQLException("Type map cannot be null", ExceptionUtils.SQL_STATE_CLIENT_ERROR);
+        }
+        this.typeMap = ImmutableMap.<String, Class<?>>builder().putAll(map).buildKeepingLast();
     }
 
     @Override

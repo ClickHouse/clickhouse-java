@@ -415,7 +415,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                     TableSchema tSchema = connection.getClient().getTableSchemaFromQuery(sql);
                     resultSetMetaData = new ResultSetMetaDataImpl(tSchema.getColumns(),
                             connection.getSchema(), connection.getCatalog(),
-                            tSchema.getTableName(), JdbcUtils.DATA_TYPE_CLASS_MAP);
+                            tSchema.getTableName(), JdbcUtils.DATA_TYPE_CLASS_MAP, connection.getTypeMap());
                 } catch (Exception e) {
                     LOG.warn("Failed to get schema for statement '{}'", originalSql);
                 }
@@ -427,7 +427,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                         .collect(Collectors.toList());
                 resultSetMetaData = new ResultSetMetaDataImpl(columns,
                         connection.getSchema(), connection.getCatalog(),
-                        "", JdbcUtils.DATA_TYPE_CLASS_MAP);
+                        "", JdbcUtils.DATA_TYPE_CLASS_MAP, connection.getTypeMap());
             }
         } else if (currentResultSet != null) {
             resultSetMetaData = currentResultSet.getMetaData();

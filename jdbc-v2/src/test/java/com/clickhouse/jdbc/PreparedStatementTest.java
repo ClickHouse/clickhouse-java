@@ -35,6 +35,7 @@ import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
@@ -651,6 +652,59 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                 {"SELECT * FROM `%s`", 3, null, 3},
                 {"SHOW TABLES", 0, null, 1}
         };
+    }
+
+    @Test(groups = { "integration" })
+    void testGetMetadataAppliesCustomTypeMapping() throws Exception {
+        // Custom mapping overrides the Java class / JDBC type reported for integer columns. The metadata
+        // returned by PreparedStatementImpl#getMetaData must honor this mapping both before the statement is
+        // executed (resolved from the parsed query schema) and after it is executed (resolved from the result set).
+        Properties properties = new Properties();
+        properties.setProperty(DriverProperties.JDBC_TYPE_MAPPINGS.getKey(), "Int32=Long,UInt64=String");
+
+        Consumer<ResultSetMetaData> verify = (metaData) -> {
+            try {
+                assertEquals(metaData.getColumnCount(), 3);
+
+                assertEquals(metaData.getColumnName(1), "i32");
+                assertEquals(metaData.getColumnClassName(1), Long.class.getName());
+                assertEquals(metaData.getColumnType(1), Types.BIGINT);
+
+                assertEquals(metaData.getColumnName(2), "u64");
+                assertEquals(metaData.getColumnClassName(2), String.class.getName());
+                assertEquals(metaData.getColumnType(2), Types.VARCHAR);
+
+                assertEquals(metaData.getColumnName(3), "u16");
+                assertEquals(metaData.getColumnClassName(3), Integer.class.getName());
+                assertEquals(metaData.getColumnType(3), Types.INTEGER);
+
+            } catch (SQLException e) {
+                fail("no exception expected", e);
+            }
+        };
+
+        try (Connection conn = getJdbcConnection(properties);
+             PreparedStatement stmt = conn.prepareStatement("SELECT toInt32(?) AS i32, toUInt64(?) AS u64, toUInt16(?) as u16")) {
+            // Before execution: metadata is derived from the query schema and must already reflect the mapping.
+            ResultSetMetaData beforeExec = stmt.getMetaData();
+            assertNotNull(beforeExec);
+
+            stmt.setInt(1, 42);
+            stmt.setLong(2, 7L);
+            stmt.setInt(3, 20);
+            try (ResultSet rs = stmt.executeQuery()) {
+                assertTrue(rs.next());
+                // Values are materialized using the same mapping.
+                assertTrue(rs.getObject("i32") instanceof Long, "i32 should be mapped to Long");
+                assertTrue(rs.getObject("u64") instanceof String, "u64 should be mapped to String");
+                assertTrue(rs.getObject("u16") instanceof Integer, "u16 should be mapped to Integer");
+
+                // After execution: metadata is taken from the result set but must stay in sync with the mapping.
+                ResultSetMetaData afterExec = stmt.getMetaData();
+                assertNotNull(afterExec);
+                verify.accept(afterExec);
+            }
+        }
     }
 
     @Test(groups = { "integration" })

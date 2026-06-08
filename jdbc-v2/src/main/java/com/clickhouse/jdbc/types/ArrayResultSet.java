@@ -68,7 +68,7 @@ public class ArrayResultSet implements ResultSet {
         ClickHouseColumn valueColumn = column.getArrayNestedLevel() == 1 ? column.getArrayBaseColumn() : nestedColumns.get(0);
         this.metadata = new ResultSetMetaDataImpl(Arrays.asList(INDEX_COLUMN, ClickHouseColumn.parse(VALUE_COLUMN + " "
         + valueColumn.getOriginalTypeName()).get(0))
-                , "", "", "", JdbcUtils.DATA_TYPE_CLASS_MAP);
+                , "", "", "", JdbcUtils.DATA_TYPE_CLASS_MAP, java.util.Collections.emptyMap());
         this.componentDataType = valueColumn.getDataType();
         this.defaultClass = JdbcUtils.DATA_TYPE_CLASS_MAP.get(componentDataType);
         indexConverterMap = defaultValueConverters.getConvertersForType(Integer.class);

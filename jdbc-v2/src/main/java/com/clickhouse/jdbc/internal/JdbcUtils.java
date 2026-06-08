@@ -163,6 +163,21 @@ public class JdbcUtils {
         return ImmutableMap.copyOf(map);
     }
 
+    // Reverse of SQL_TYPE_TO_CLASS_MAP. Used to resolve a JDBC type when a column's Java class has been
+    // overridden via a user supplied type map. Several SQL types share the same Java class, so a preferred
+    // SQL type is registered first for the ambiguous classes.
+    public static final Map<Class<?>, SQLType> CLASS_TO_SQL_TYPE_MAP = generateClassToSqlTypeMap();
+    private static Map<Class<?>, SQLType> generateClassToSqlTypeMap() {
+        Map<Class<?>, SQLType> map = new HashMap<>();
+        map.put(String.class, JDBCType.VARCHAR);
+        map.put(Float.class, JDBCType.FLOAT); // prefer FLOAT over REAL
+        map.put(byte[].class, JDBCType.VARBINARY);
+        for (Map.Entry<SQLType, Class<?>> entry : SQL_TYPE_TO_CLASS_MAP.entrySet()) {
+            map.putIfAbsent(entry.getValue(), entry.getKey());
+        }
+        return ImmutableMap.copyOf(map);
+    }
+
     public static final Set<ClickHouseDataType> INVALID_TARGET_TYPES = EnumSet.of(ClickHouseDataType.Nested, ClickHouseDataType.Enum8, ClickHouseDataType.Enum16, ClickHouseDataType.Enum,
             ClickHouseDataType.Tuple, ClickHouseDataType.Map, ClickHouseDataType.Nothing, ClickHouseDataType.Nullable, ClickHouseDataType.Variant);
 

@@ -3,6 +3,7 @@ package com.clickhouse.jdbc.internal;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 
+import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.DriverProperties;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
@@ -12,11 +13,14 @@ import java.sql.DriverPropertyInfo;
 import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
 
 import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertFalse;
+import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertThrows;
 import static org.testng.Assert.assertTrue;
 
@@ -163,6 +167,113 @@ public class JdbcConfigurationTest {
             .findAny()
             .orElseThrow();
         assertEquals(p.value, "default1");
+    }
+
+    @DataProvider(name = "typeMappingsPropertyKey")
+    public Object[][] typeMappingsPropertyKey() {
+        return new Object[][] {
+            { DriverProperties.JDBC_TYPE_MAPPINGS.getKey() }, // "jdbc_type_mappings"
+            { DriverProperties.TYPE_MAPPINGS.getKey() },      // deprecated alias "typeMappings"
+        };
+    }
+
+    /**
+     * Verifies that both {@code jdbc_type_mappings} and the deprecated {@code typeMappings}
+     * are accepted via {@link Properties} and URL parameters in the comma-separated {@code key=value} format
+     * (e.g. {@code UInt64=java.lang.String}), are recognized as driver properties (kept in
+     * driver properties and NOT leaked into client properties), and survive round-tripping
+     * untouched so downstream consumers can parse them with
+     * {@link ClientConfigProperties#toKeyValuePairs(String)}.
+     */
+    @SuppressWarnings("deprecation")
+    @Test(dataProvider = "typeMappingsPropertyKey")
+    public void testTypeMappingsPropertyAcceptsCommaSeparatedKeyValuePairs(String propertyKey)
+        throws SQLException
+    {
+        String[] stringMappedTypes = {
+            "UInt64", "UInt128", "Int128", "UInt256", "Int256",
+            "Float32", "Float64", "BFloat16",
+            "Decimal", "Decimal32", "Decimal64", "Decimal128", "Decimal256",
+            "DateTime64"
+        };
+
+        Map<String, String> expected = new LinkedHashMap<>();
+        for (String type : stringMappedTypes) {
+            expected.put(type, "String");
+        }
+        expected.put("Enum8", "Byte");
+        expected.put("UInt256", "String");
+
+        StringBuilder mappingValueBuilder = new StringBuilder();
+        for (Map.Entry<String, String> e : expected.entrySet()) {
+            if (mappingValueBuilder.length() > 0) {
+                mappingValueBuilder.append(',');
+            }
+            mappingValueBuilder.append(e.getKey()).append('=').append(e.getValue());
+        }
+        String mappingValue = mappingValueBuilder.toString();
+
+        // 1. Test via Properties object
+        Properties properties = new Properties();
+        properties.setProperty(propertyKey, mappingValue);
+        JdbcConfiguration configurationProp = new JdbcConfiguration("jdbc:clickhouse://localhost:8123", properties);
+        verifyConfiguration(configurationProp, propertyKey, mappingValue, expected);
+
+        // 2. Test via URL encoded value
+        String encodedMappingValue = java.net.URLEncoder.encode(mappingValue, java.nio.charset.StandardCharsets.UTF_8);
+        JdbcConfiguration configurationUrl = new JdbcConfiguration("jdbc:clickhouse://localhost:8123?" + propertyKey + "=" + encodedMappingValue, new Properties());
+        verifyConfiguration(configurationUrl, propertyKey, mappingValue, expected);
+
+        // 3. Test with raw (unencoded) value in URL which should also work due to how split("=", 2) works
+        JdbcConfiguration configurationRawUrl = new JdbcConfiguration("jdbc:clickhouse://localhost:8123?" + propertyKey + "=" + mappingValue, new Properties());
+        verifyConfiguration(configurationRawUrl, propertyKey, mappingValue, expected);
+    }
+
+    private void verifyConfiguration(JdbcConfiguration configuration, String propertyKey, String mappingValue, Map<String, String> expected) {
+        assertEquals(
+            configuration.getDriverProperty(propertyKey, null),
+            mappingValue,
+            "Driver property '" + propertyKey + "' should be preserved verbatim");
+
+        assertFalse(
+            configuration.getClientProperties().containsKey(propertyKey),
+            "Driver property '" + propertyKey + "' must not leak into client properties");
+
+        Map<String, String> parsed = ClientConfigProperties.toKeyValuePairs(
+            configuration.getDriverProperty(propertyKey, null));
+        assertEquals(parsed, expected, "Value should be parseable as CSV key=value pairs");
+
+        Map<String, Class<?>> expectedClasses = new HashMap<>();
+        expectedClasses.put("String", String.class);
+        expectedClasses.put("Byte", Byte.class);
+        expectedClasses.put("ClickHouseDataType", ClickHouseDataType.class);
+
+        Map<String, Class<?>> typeMap = configuration.getTypeMap();
+        for (String key : typeMap.keySet()) {
+            Class<?> expectedClass = expectedClasses.get(expected.get(key));
+            assertEquals(typeMap.get(key), expectedClass, "Type mapping for '" + key + "'");
+        }
+    }
+
+    @Test
+    public void testTypeMappingsThrowsIfBothPropertiesProvided() {
+        Properties properties = new Properties();
+        properties.setProperty(DriverProperties.JDBC_TYPE_MAPPINGS.getKey(), "UInt64=java.lang.String");
+        properties.setProperty(DriverProperties.TYPE_MAPPINGS.getKey(), "UInt64=java.lang.String");
+
+        assertThrows(SQLException.class, () -> 
+            new JdbcConfiguration("jdbc:clickhouse://localhost:8123", properties)
+        );
+    }
+
+    @Test
+    public void testTypeMappingsThrowsIfClassNotFound() {
+        Properties properties = new Properties();
+        properties.setProperty(DriverProperties.JDBC_TYPE_MAPPINGS.getKey(), "UInt64=java.lang.UnknownClassXXX");
+
+        assertThrows(SQLException.class, () -> 
+            new JdbcConfiguration("jdbc:clickhouse://localhost:8123", properties)
+        );
     }
 
     @DataProvider(name = "validURLTestData")

@@ -240,15 +240,19 @@ public class ConnectionTest extends JdbcIntegrationTest {
 
 
     @Test(groups = { "integration" })
-    public void getTypeMapTest() throws SQLException {
-        Connection localConnection = this.getJdbcConnection();
-        assertThrows(SQLFeatureNotSupportedException.class, localConnection::getTypeMap);
-    }
+    public void typeMapTest() throws SQLException {
+        try (Connection localConnection = this.getJdbcConnection()) {
+            java.util.Map<String, Class<?>> typeMap = localConnection.getTypeMap();
+            Assert.assertNotNull(typeMap);
 
-    @Test(groups = { "integration" })
-    public void setTypeMapTest() throws SQLException {
-        Connection localConnection = this.getJdbcConnection();
-        assertThrows(SQLFeatureNotSupportedException.class, () -> localConnection.setTypeMap(null));
+            java.util.Map<String, Class<?>> newMap = new java.util.HashMap<>(typeMap);
+            newMap.put("UInt64", String.class);
+            localConnection.setTypeMap(newMap);
+
+            Assert.assertEquals(localConnection.getTypeMap().get("UInt64"), String.class);
+            
+            assertThrows(SQLException.class, () -> localConnection.setTypeMap(null));
+        }
     }
 
     @Test(groups = { "integration" })

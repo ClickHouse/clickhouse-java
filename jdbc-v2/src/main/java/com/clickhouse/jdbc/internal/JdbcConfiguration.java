@@ -18,6 +18,8 @@ import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.sql.DriverPropertyInfo;
 import java.sql.SQLException;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -40,6 +42,31 @@ public class JdbcConfiguration {
         "[A-Za-z0-9!#$%&'*+\\.\\^_`\\|~-]+");
 
     private final boolean disableFrameworkDetection;
+    private final Map<String, Class<?>> typeMap;
+    private static final Map<String, Class<?>> COMMON_CLASSES;
+
+    static {
+        ImmutableMap.Builder<String, Class<?>> mapBuilder = ImmutableMap.builder();
+
+        Arrays.stream(new Class<?>[] {
+            String.class, Byte.class, Short.class, Integer.class, Long.class,
+            Float.class, Double.class, Boolean.class, Character.class, Object.class,
+            java.math.BigDecimal.class, java.math.BigInteger.class,
+            java.util.UUID.class, java.util.Date.class, java.util.Map.class, java.util.List.class,
+            java.time.LocalDate.class, java.time.LocalDateTime.class, java.time.LocalTime.class,
+            java.time.OffsetDateTime.class, java.time.ZonedDateTime.class,
+            com.clickhouse.data.ClickHouseDataType.class
+        }).forEach(c -> mapBuilder.put(c.getName(), c));
+
+
+        Arrays.stream(new Class<?>[] {
+                String.class, Byte.class, Short.class, Integer.class, Long.class,
+                Float.class, Double.class, Boolean.class,
+                java.math.BigDecimal.class, java.math.BigInteger.class,
+        }).forEach(c -> mapBuilder.put(c.getSimpleName(), c));
+
+        COMMON_CLASSES = mapBuilder.buildKeepingLast();
+    }
 
     final Map<String, String> clientProperties;
     public Map<String, String> getClientProperties() {
@@ -58,6 +85,10 @@ public class JdbcConfiguration {
 
     public boolean isIgnoreUnsupportedRequests() {
         return isIgnoreUnsupportedRequests;
+    }
+
+    public Map<String, Class<?>> getTypeMap() {
+        return typeMap;
     }
 
     private static final Set<String> DRIVER_PROP_KEYS;
@@ -102,6 +133,36 @@ public class JdbcConfiguration {
 
         this.connectionUrl = createConnectionURL(tmpConnectionUrl, useSSL);
         this.isIgnoreUnsupportedRequests = Boolean.parseBoolean(getDriverProperty(DriverProperties.IGNORE_UNSUPPORTED_VALUES.getKey(), "false"));
+
+        this.typeMap = loadTypeMap();
+    }
+
+    private Map<String, Class<?>> loadTypeMap() throws SQLException {
+        String typeMappings = driverProperties.get(DriverProperties.JDBC_TYPE_MAPPINGS.getKey());
+        String legacyTypeMappings = driverProperties.get(DriverProperties.TYPE_MAPPINGS.getKey());
+        if (typeMappings != null && legacyTypeMappings != null) {
+            throw new SQLException("Only one of " + DriverProperties.JDBC_TYPE_MAPPINGS.getKey() + " or " + DriverProperties.TYPE_MAPPINGS.getKey() + " can be specified.");
+        }
+        String mappingsStr = typeMappings != null ? typeMappings : legacyTypeMappings;
+        return (mappingsStr == null || mappingsStr.trim().isEmpty()) ? Collections.emptyMap() : parseTypeMappings(mappingsStr);
+    }
+
+    private Map<String, Class<?>> parseTypeMappings(String mappingsStr) throws SQLException {
+        Map<String, Class<?>> map = new HashMap<>();
+        Map<String, String> parsed = ClientConfigProperties.toKeyValuePairs(mappingsStr);
+        for (Map.Entry<String, String> entry : parsed.entrySet()) {
+            String className = entry.getValue();
+            Class<?> clazz = COMMON_CLASSES.get(className);
+            if (clazz == null) {
+                try {
+                    clazz = Class.forName(className);
+                } catch (ClassNotFoundException e) {
+                    throw new SQLException("Class not found for type mapping: " + className, e);
+                }
+            }
+            map.put(entry.getKey(), clazz);
+        }
+        return ImmutableMap.<String, Class<?>>builder().putAll(map).buildKeepingLast();
     }
 
     /**

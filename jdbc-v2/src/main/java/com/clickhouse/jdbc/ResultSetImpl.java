@@ -10,7 +10,6 @@ import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.FeatureManager;
 import com.clickhouse.jdbc.internal.JdbcUtils;
 import com.clickhouse.jdbc.metadata.ResultSetMetaDataImpl;
-import com.google.common.collect.ImmutableMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -69,7 +68,8 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     private final int maxRows;
 
     private Consumer<Exception> onDataTransferException;
-    private final Map<String, ColumnTypeBinding> columnTypeBindings;
+
+    private final Map<String, Class<?>> connTypeMap;
 
     public ResultSetImpl(StatementImpl parentStatement, QueryResponse response, ClickHouseBinaryFormatReader reader,
                          Consumer<Exception> onDataTransferException) throws SQLException {
@@ -84,15 +84,18 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         this.reader = reader;
         this.featureManager = new FeatureManager(parentStatement.getConnection().getJdbcConfig());
         TableSchema tableMetadata = reader.getSchema();
+        this.connTypeMap = parentStatement.getConnection().getTypeMap();
 
         final Map<ClickHouseDataType, Class<?>> resolvedDefaultTypeMap =
                 defaultTypeMap != null ? defaultTypeMap : JdbcUtils.DATA_TYPE_CLASS_MAP;
-        this.columnTypeBindings = buildColumnTypeBindings(tableMetadata, resolvedDefaultTypeMap);
 
         // Result set contains columns from one database (there is a special table engine 'Merge' to do cross DB queries)
+        // The metadata owns all column type bindings; this result set reuses them via resolveColumnClass(...).
+        // Use the single connection type map snapshot taken above so metadata binding and getObject(...) stay
+        // consistent even if the connection type map is replaced concurrently during iteration.
         this.metaData = new ResultSetMetaDataImpl(tableMetadata
                 .getColumns(), response.getSettings().getDatabase(), "", tableMetadata.getTableName(),
-                resolvedDefaultTypeMap);
+                resolvedDefaultTypeMap, this.connTypeMap);
         this.closed = false;
         this.wasNull = false;
         this.defaultCalendar = parentStatement.getConnection().defaultCalendar;
@@ -102,41 +105,6 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         this.maxFieldSize = parentStatement.getMaxFieldSize();
         this.maxRows = parentStatement.getMaxRows();
         this.onDataTransferException = onDataTransferException;
-    }
-
-    private static Map<String, ColumnTypeBinding> buildColumnTypeBindings(TableSchema schema,
-                                                                          Map<ClickHouseDataType, Class<?>> typeMap) {
-        ImmutableMap.Builder<String, ColumnTypeBinding> bindings = ImmutableMap.builder();
-
-        for (ClickHouseColumn column : schema.getColumns()) {
-            ClickHouseDataType dataType = column.getDataType();
-            bindings.put(column.getColumnName(), new ColumnTypeBinding(typeMap.get(dataType),
-                    JdbcUtils.convertToSqlType(dataType)));
-        }
-        return bindings.buildKeepingLast();
-    }
-
-    /**
-     * Immutable pair of pre-resolved values for a single column: the Java class to materialize when
-     * no typeMap is supplied, and the JDBC {@link SQLType} that corresponds to the column's ClickHouse
-     * data type (used as a secondary key when looking up a user-provided typeMap).
-     */
-    private static final class ColumnTypeBinding {
-        private final Class<?> aClass;
-        private final SQLType jdbcType;
-
-        ColumnTypeBinding(Class<?> aClass, SQLType jdbcType) {
-            this.aClass = aClass;
-            this.jdbcType = jdbcType;
-        }
-
-        public Class<?> getAClass() {
-            return aClass;
-        }
-
-        public SQLType getJdbcType() {
-            return jdbcType;
-        }
     }
 
     private void checkClosed() throws SQLException {
@@ -1502,7 +1470,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public Object getObject(String columnLabel) throws SQLException {
-        return getObjectImpl(columnLabel, null, Collections.emptyMap());
+        return getObjectImpl(columnLabel, null, connTypeMap);
     }
 
     @Override
@@ -1540,7 +1508,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 wasNull = false;
 
                 if (type == null) {
-                    type = resolveTargetType(columnLabel, column, typeMap);
+                    type = metaData.resolveColumnClass(columnLabel, typeMap);
                 } else {
                     ///  shortcut
                     if (type == Timestamp.class) {
@@ -1565,32 +1533,6 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
             throw ExceptionUtils.toSqlState(String.format("Method: getObject(\"%s\", %s) encountered an exception.", columnLabel, type),
                     String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
         }
-    }
-
-    private Class<?> resolveTargetType(String columnLabel, ClickHouseColumn column, Map<String, Class<?>> typeMap) {
-        switch (column.getDataType()) {
-            case Point:
-            case Ring:
-            case LineString:
-            case Polygon:
-            case MultiPolygon:
-            case MultiLineString:
-            case Geometry:
-                return null; // read as is
-            default:
-                break;
-        }
-
-        ColumnTypeBinding binding = columnTypeBindings.get(columnLabel);
-        if (typeMap == null || typeMap.isEmpty()) {
-            return binding.getAClass();
-        }
-
-        Class<?> resolved = typeMap.get(column.getDataType().name());
-        if (resolved == null) {
-            resolved = typeMap.get(binding.getJdbcType().getName());
-        }
-        return resolved;
     }
 
     @Override
