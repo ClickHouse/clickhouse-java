@@ -139,6 +139,11 @@ public class QuerySettings {
         return this;
     }
 
+    public QuerySettings clearSession() {
+        settings.clearSession();
+        return this;
+    }
+
     /**
      * Read buffer is used for reading data from a server. Size is in bytes.
      * Minimal value is {@value MINIMAL_READ_BUFFER_SIZE} bytes.

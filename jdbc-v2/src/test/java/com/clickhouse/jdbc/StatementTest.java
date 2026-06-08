@@ -9,7 +9,6 @@ import org.apache.commons.lang3.RandomStringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
-import org.testng.SkipException;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
@@ -29,6 +28,8 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
@@ -706,6 +707,126 @@ public class StatementTest extends JdbcIntegrationTest {
 
                     latch.await();
                     stmt.cancel();
+                }
+            }
+        }
+    }
+
+    /**
+     * Waits until the given query id appears in {@code system.processes}, so we know the operation has actually
+     * started on the server before attempting to cancel it. Uses a dedicated connection (no session) to observe.
+     */
+    private boolean waitForQueryToStart(String queryId, int timeoutSeconds) throws Exception {
+        if (queryId == null) {
+            return false;
+        }
+        long deadline = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(timeoutSeconds);
+        while (System.currentTimeMillis() < deadline) {
+            try (Connection conn = getJdbcConnection();
+                 Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery("SELECT count() FROM system.processes WHERE query_id = '" + queryId + "'")) {
+
+                if (rs.next() && rs.getLong(1) > 0) {
+                    return true;
+                }
+            }
+            Thread.sleep(200);
+        }
+        return false;
+    }
+
+    private String waitForQueryId(StatementImpl stmt, int timeoutSeconds) throws Exception {
+        long deadline = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(timeoutSeconds);
+        while (System.currentTimeMillis() < deadline) {
+            String queryId = stmt.getLastQueryId();
+            if (queryId != null && !queryId.isEmpty()) {
+                return queryId;
+            }
+            Thread.sleep(50);
+        }
+        return null;
+    }
+
+    @Test(groups = {"integration"})
+    public void testCancelQueryWithSession() throws Exception {
+        // Regression test for #2690: cancelling a query that runs inside a session must not fail with
+        // "Session is locked by a concurrent client" (SESSION_IS_LOCKED). The KILL QUERY request issued by
+        // cancel() must not carry the session id of the query being cancelled.
+        String sessionId = "test-session-" + UUID.randomUUID();
+        try (Connection conn = getJdbcConnection()) {
+            try (StatementImpl stmt = (StatementImpl) conn.createStatement()) {
+                stmt.getLocalSettings().setSessionId(sessionId);
+                stmt.setQueryTimeout(30); // safety net so a failed cancel cannot hang the test
+
+                final AtomicReference<Throwable> threadError = new AtomicReference<>();
+                final CountDownLatch started = new CountDownLatch(1);
+                Thread worker = new Thread(() -> {
+                    started.countDown();
+                    // Long-running query that only completes when killed.
+                    try (ResultSet rs = stmt.executeQuery("SELECT count() FROM system.numbers_mt")) {
+                        rs.next();
+                    } catch (Throwable t) {
+                        System.out.println("Error: " + t.getMessage());
+                        threadError.set(t);
+                    }
+                });
+                worker.start();
+                started.await();
+
+                String queryId = waitForQueryId(stmt, 15);
+                assertNotNull(queryId, "Query id was not assigned in time");
+                assertTrue(waitForQueryToStart(queryId, 15), "Query did not start on the server in time");
+
+                // Cancel from the main thread - must not throw SESSION_IS_LOCKED.
+                stmt.cancel();
+
+                worker.join(TimeUnit.SECONDS.toMillis(20));
+                assertFalse(worker.isAlive(), "Query was not cancelled and is still running");
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testCancelInsertWithSession() throws Exception {
+        // Regression test for #2690 covering a long-running INSERT executed inside a session.
+        String tableName = getDatabase() + ".cancel_insert_with_session";
+        String sessionId = "test-session-" + UUID.randomUUID();
+        try (Connection conn = getJdbcConnection(Map.of(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF))) {
+            try (Statement setup = conn.createStatement()) {
+                setup.execute("DROP TABLE IF EXISTS " + tableName);
+                setup.execute("CREATE TABLE " + tableName + " (num UInt64) ENGINE = MergeTree ORDER BY ()");
+            }
+
+            try (StatementImpl stmt = (StatementImpl) conn.createStatement()) {
+                stmt.getLocalSettings().setSessionId(sessionId);
+                stmt.setQueryTimeout(30); // safety net so a failed cancel cannot hang the test
+
+                final AtomicReference<Throwable> threadError = new AtomicReference<>();
+                final CountDownLatch started = new CountDownLatch(1);
+                Thread worker = new Thread(() -> {
+                    started.countDown();
+                    // Long-running insert that only completes when killed.
+                    try {
+                        stmt.executeUpdate("INSERT INTO " + tableName + " SELECT number FROM system.numbers_mt");
+                    } catch (Throwable t) {
+                        threadError.set(t);
+                    }
+                });
+                worker.start();
+                started.await();
+
+                String queryId = waitForQueryId(stmt, 15);
+                assertNotNull(queryId, "Query id was not assigned in time");
+                assertTrue(waitForQueryToStart(queryId, 15), "Insert did not start on the server in time");
+
+                // Cancel from the main thread - must not throw SESSION_IS_LOCKED.
+                stmt.cancel();
+
+                worker.join(TimeUnit.SECONDS.toMillis(20));
+                assertFalse(worker.isAlive(), "Insert was not cancelled and is still running");
+            } finally {
+                try (Statement cleanup = conn.createStatement()) {
+                    cleanup.execute("DROP TABLE IF EXISTS " + tableName);
                 }
             }
         }

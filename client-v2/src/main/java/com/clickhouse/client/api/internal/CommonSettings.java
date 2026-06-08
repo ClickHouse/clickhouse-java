@@ -139,6 +139,12 @@ public class CommonSettings {
         return this;
     }
 
+    public void clearSession() {
+        resetOption(ClientConfigProperties.serverSetting(ClickHouseHttpProto.QPARAM_SESSION_ID));
+        resetOption(ClientConfigProperties.serverSetting(ClickHouseHttpProto.QPARAM_SESSION_CHECK));
+        resetOption(ClientConfigProperties.serverSetting(ClickHouseHttpProto.QPARAM_SESSION_TIMEOUT));
+    }
+
     /**
      * Operation id. Used internally to register new operation.
      * Should not be called directly.

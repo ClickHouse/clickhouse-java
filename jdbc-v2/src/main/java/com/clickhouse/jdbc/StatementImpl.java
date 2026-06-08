@@ -2,6 +2,7 @@ package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
+import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
@@ -333,9 +334,12 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             return;
         }
 
+        // KILL QUERY must not run inside the same session as the query being cancelled otherwise it wil
+        // cause "Session is locked by a concurrent client" (SESSION_IS_LOCKED) error.
+        QuerySettings cancelSettings = QuerySettings.merge(getLocalSettings(), new QuerySettings()).clearSession();
         try (QueryResponse response = connection.getClient().query(String.format("KILL QUERY%sWHERE query_id = '%s'",
                 connection.onCluster ? " ON CLUSTER " + SQLUtils.enquoteIdentifier(connection.cluster, true) + ' ' : ' ',
-                lastQueryId), connection.getDefaultQuerySettings()).get()){
+                lastQueryId), cancelSettings).get()){
             LOG.debug("Query {} was killed by {}", lastQueryId, response.getQueryId());
         } catch (Exception e) {
             throw new SQLException(e);

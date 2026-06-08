@@ -4,6 +4,7 @@ import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.Session;
 import com.clickhouse.client.api.internal.CommonSettings;
+import com.clickhouse.client.api.query.QuerySettings;
 import org.apache.hc.core5.http.HttpHeaders;
 
 import java.time.temporal.ChronoUnit;
@@ -142,6 +143,11 @@ public class InsertSettings {
 
     public InsertSettings use(Session session) {
         settings.use(session);
+        return this;
+    }
+
+    public InsertSettings clearSession() {
+        settings.clearSession();
         return this;
     }
 
