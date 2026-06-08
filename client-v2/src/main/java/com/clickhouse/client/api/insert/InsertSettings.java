@@ -4,7 +4,6 @@ import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.Session;
 import com.clickhouse.client.api.internal.CommonSettings;
-import com.clickhouse.client.api.query.QuerySettings;
 import org.apache.hc.core5.http.HttpHeaders;
 
 import java.time.temporal.ChronoUnit;

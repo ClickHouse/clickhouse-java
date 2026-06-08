@@ -143,6 +143,7 @@ public class CommonSettings {
         resetOption(ClientConfigProperties.serverSetting(ClickHouseHttpProto.QPARAM_SESSION_ID));
         resetOption(ClientConfigProperties.serverSetting(ClickHouseHttpProto.QPARAM_SESSION_CHECK));
         resetOption(ClientConfigProperties.serverSetting(ClickHouseHttpProto.QPARAM_SESSION_TIMEOUT));
+        resetOption(ClientConfigProperties.serverSetting(ClickHouseHttpProto.QPARAM_SESSION_TIMEZONE));
     }
 
     /**
