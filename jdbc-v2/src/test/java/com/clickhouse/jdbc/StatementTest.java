@@ -9,6 +9,7 @@ import org.apache.commons.lang3.RandomStringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
+import org.testng.SkipException;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
@@ -749,6 +750,10 @@ public class StatementTest extends JdbcIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testCancelQueryWithSession() throws Exception {
+        if (isCloud()) {
+            throw new SkipException("Cloud + HTTP doesn't work well. Enough to test locally");
+        }
+
         // Regression test for #2690: cancelling a query that runs inside a session must not fail with
         // "Session is locked by a concurrent client" (SESSION_IS_LOCKED). The KILL QUERY request issued by
         // cancel() must not carry the session id of the query being cancelled.
@@ -788,6 +793,9 @@ public class StatementTest extends JdbcIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testCancelInsertWithSession() throws Exception {
+        if (isCloud()) {
+            throw new SkipException("Cloud + HTTP doesn't work well. Enough to test locally");
+        }
         // Regression test for #2690 covering a long-running INSERT executed inside a session.
         String tableName = getDatabase() + ".cancel_insert_with_session";
         String sessionId = "test-session-" + UUID.randomUUID();

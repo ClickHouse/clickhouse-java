@@ -34,6 +34,7 @@ public class CommandSettings extends QuerySettings {
         return this;
     }
 
+    @Override
     public CommandSettings clearSession() {
         super.clearSession();
         return this;
