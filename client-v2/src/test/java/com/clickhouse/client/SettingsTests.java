@@ -160,7 +160,9 @@ public class SettingsTests {
             Assert.assertNull(settings.getSessionId(), "clearSession() must remove session_id");
             Assert.assertNull(settings.getSessionCheck(), "clearSession() must remove session_check");
             Assert.assertNull(settings.getSessionTimeout(), "clearSession() must remove session_timeout");
-            Assert.assertNull(settings.getSessionTimezone(), "clearSession() must remove session_timezone");
+            // session_timezone is not session-management state; it is preserved across clearSession().
+            Assert.assertEquals(settings.getSessionTimezone(), "America/New_York",
+                    "clearSession() must not remove session_timezone");
 
             // Non-session settings are unaffected.
             settings.setDatabase("db1");
@@ -273,7 +275,9 @@ public class SettingsTests {
             Assert.assertNull(settings.getSessionId(), "clearSession() must remove session_id");
             Assert.assertNull(settings.getSessionCheck(), "clearSession() must remove session_check");
             Assert.assertNull(settings.getSessionTimeout(), "clearSession() must remove session_timeout");
-            Assert.assertNull(settings.getSessionTimezone(), "clearSession() must remove session_timezone");
+            // session_timezone is not session-management state; it is preserved across clearSession().
+            Assert.assertEquals(settings.getSessionTimezone(), "Asia/Tokyo",
+                    "clearSession() must not remove session_timezone");
 
             // Non-session settings are unaffected.
             settings.setDatabase("db2");
