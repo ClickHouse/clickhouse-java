@@ -14,6 +14,7 @@ import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.enums.ProxyType;
+import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.internal.DataTypeConverter;
@@ -2082,6 +2083,55 @@ public class HttpTransportTests extends BaseIntegrationTest {
         } finally {
             mockServer.stop();
         }
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "testErrorWhenResponseIsOk_Dp")
+    public void testErrorWhenResponseIsOk(boolean hasMsg) throws Exception {
+        WireMockServer mockServer = new WireMockServer(WireMockConfiguration
+                .options().port(9090).notifier(new ConsoleNotifier(false)));
+        mockServer.start();
+
+        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .build()) {
+
+            final String errorMsg = hasMsg ? "Code: 60. DB::Exception: Unknown table expression identifier" : "";
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .willReturn(WireMock.aResponse()
+                            .withStatus(HttpStatus.SC_OK)
+                            .withHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE, "60")
+                            .withBody(errorMsg))
+                    .build());
+
+
+            try (QueryResponse response = client.query("SELECT * FROM not_existing_table").get(1, TimeUnit.SECONDS)) {
+                Assert.fail("Expected exception");
+            } catch (Exception e) {
+                ServerException se = null;
+                if (e instanceof ServerException) {
+                    se = (ServerException) e;
+                } else if (e.getCause() instanceof ServerException) {
+                    se = (ServerException) e.getCause();
+                } else {
+                    Assert.fail("Unexpected exception type", e);
+                }
+
+                Assert.assertEquals(se.getCode(), 60);
+                if (hasMsg) {
+                    Assert.assertEquals(se.getMessage().substring(0, errorMsg.length()), errorMsg);
+                } else {
+                    Assert.assertTrue(se.getMessage().contains("<Unreadable error message>"), "Error message was " + se.getMessage());
+                }
+            }
+        } finally {
+            mockServer.stop();
+        }
+    }
+
+    @DataProvider
+    public static Object[][] testErrorWhenResponseIsOk_Dp() {
+        return new Object[][]{{true}, {false}};
     }
 
     protected Client.Builder newClient() {
