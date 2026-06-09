@@ -333,9 +333,12 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             return;
         }
 
+        // KILL QUERY must not run inside the same session as the query being canceled otherwise it will
+        // cause "Session is locked by a concurrent client" (SESSION_IS_LOCKED) error.
+        QuerySettings cancelSettings = QuerySettings.merge(getLocalSettings(), new QuerySettings()).clearSession();
         try (QueryResponse response = connection.getClient().query(String.format("KILL QUERY%sWHERE query_id = '%s'",
                 connection.onCluster ? " ON CLUSTER " + SQLUtils.enquoteIdentifier(connection.cluster, true) + ' ' : ' ',
-                lastQueryId), connection.getDefaultQuerySettings()).get()){
+                lastQueryId), cancelSettings).get()){
             LOG.debug("Query {} was killed by {}", lastQueryId, response.getQueryId());
         } catch (Exception e) {
             throw new SQLException(e);

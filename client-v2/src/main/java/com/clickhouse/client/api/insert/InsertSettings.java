@@ -145,6 +145,11 @@ public class InsertSettings {
         return this;
     }
 
+    public InsertSettings clearSession() {
+        settings.clearSession();
+        return this;
+    }
+
     public int getInputStreamCopyBufferSize() {
         return this.inputStreamCopyBufferSize;
     }

@@ -1,4 +1,4 @@
-## 0.10.9
+## 0.10.0
 
 ### Breaking Changes
 
@@ -38,6 +38,8 @@
 - **[jdbc-v2]** `ResultSet#getObject(int|String, Map<String, Class<?>>)` now accepts ClickHouse type names as map keys in addition to the JDBC `SQLType` names it has always accepted. Only unwrapped type names are used for the lookup — `Nullable(...)` and `LowCardinality(...)` wrappers are stripped and do not affect resolution, so a key like `"Int32"` matches both `Int32` and `Nullable(Int32)` columns; keys like `"Nullable(Int32)"` are not recognized. Lookup order is the `ClickHouseDataType` enum name (e.g. `"Int32"`, `"String"`, `"DateTime"`) then the JDBC `SQLType` name (e.g. `"INTEGER"`, `"VARCHAR"`, `"TIMESTAMP"`); a missing entry leaves the value uncoerced. The feature is supported for primitive ClickHouse types only — `Array`, `Tuple`, `Map`, `Nested`, and geometry types are not supported and continue to be returned in their native form regardless of the user-supplied map. Existing maps keyed only by JDBC `SQLType` names continue to work unchanged.
 
 ### Bug Fixes
+
+- **[jdbc-v2]** Fixed `Statement.cancel()` throwing `SESSION_IS_LOCKED` when the statement was running inside a ClickHouse session (e.g. via `clickhouse_setting_session_id`). The `KILL QUERY` request issued by `cancel()` now runs outside the session, so it no longer contends with the running query for the session lock. (https://github.com/ClickHouse/clickhouse-java/issues/2690)
 
 - **[client-v2]** Fixed inconsistent use of `executionTimeout` parameter in `Client` component. The timeout was previously set in milliseconds but mistakenly retrieved and used in seconds in some places. Now it correctly uses milliseconds consistently. (https://github.com/ClickHouse/clickhouse-java/issues/2358)
 

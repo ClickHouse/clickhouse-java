@@ -143,6 +143,32 @@ public class SettingsTests {
             Assert.assertEquals(settings.getSessionTimeout().intValue(), 45);
             Assert.assertEquals(settings.getSessionTimezone(), "Europe/Berlin");
         }
+
+        {
+            final QuerySettings settings = new QuerySettings();
+            settings.setSessionId("session-clear-1");
+            settings.setSessionCheck(true);
+            settings.setSessionTimeout(60);
+            settings.setSessionTimezone("America/New_York");
+            Assert.assertNotNull(settings.getSessionId());
+            Assert.assertNotNull(settings.getSessionCheck());
+            Assert.assertNotNull(settings.getSessionTimeout());
+            Assert.assertNotNull(settings.getSessionTimezone());
+
+            settings.clearSession();
+
+            Assert.assertNull(settings.getSessionId(), "clearSession() must remove session_id");
+            Assert.assertNull(settings.getSessionCheck(), "clearSession() must remove session_check");
+            Assert.assertNull(settings.getSessionTimeout(), "clearSession() must remove session_timeout");
+            // session_timezone is not session-management state; it is preserved across clearSession().
+            Assert.assertEquals(settings.getSessionTimezone(), "America/New_York",
+                    "clearSession() must not remove session_timezone");
+
+            // Non-session settings are unaffected.
+            settings.setDatabase("db1");
+            settings.clearSession();
+            Assert.assertEquals(settings.getDatabase(), "db1");
+        }
     }
 
     @Test
@@ -231,6 +257,32 @@ public class SettingsTests {
             Assert.assertFalse(settings.getSessionCheck());
             Assert.assertEquals(settings.getSessionTimeout().intValue(), 50);
             Assert.assertEquals(settings.getSessionTimezone(), "Europe/Paris");
+        }
+
+        {
+            final InsertSettings settings = new InsertSettings();
+            settings.setSessionId("session-clear-2");
+            settings.setSessionCheck(true);
+            settings.setSessionTimeout(90);
+            settings.setSessionTimezone("Asia/Tokyo");
+            Assert.assertNotNull(settings.getSessionId());
+            Assert.assertNotNull(settings.getSessionCheck());
+            Assert.assertNotNull(settings.getSessionTimeout());
+            Assert.assertNotNull(settings.getSessionTimezone());
+
+            settings.clearSession();
+
+            Assert.assertNull(settings.getSessionId(), "clearSession() must remove session_id");
+            Assert.assertNull(settings.getSessionCheck(), "clearSession() must remove session_check");
+            Assert.assertNull(settings.getSessionTimeout(), "clearSession() must remove session_timeout");
+            // session_timezone is not session-management state; it is preserved across clearSession().
+            Assert.assertEquals(settings.getSessionTimezone(), "Asia/Tokyo",
+                    "clearSession() must not remove session_timezone");
+
+            // Non-session settings are unaffected.
+            settings.setDatabase("db2");
+            settings.clearSession();
+            Assert.assertEquals(settings.getDatabase(), "db2");
         }
     }
 }
