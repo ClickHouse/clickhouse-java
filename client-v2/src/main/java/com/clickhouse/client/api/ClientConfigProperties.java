@@ -190,6 +190,11 @@ public enum ClientConfigProperties {
      */
     HTTP_SEND_PARAMS_IN_BODY("client.http.use_form_request_for_query", Boolean.class, "false"),
 
+    /**
+     * When enabled for JSONEachRow queries, asks ClickHouse to emit large integer,
+     * floating-point, and decimal values as JSON numbers instead of quoted strings.
+     */
+    JSON_DISABLE_NUMBER_QUOTING("json_disable_number_quoting", Boolean.class, "false"),
 
     /**
      *  Prefix for custom settings. Should be aligned with server configuration.
