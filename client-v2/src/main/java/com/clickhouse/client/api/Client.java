@@ -1651,6 +1651,7 @@ public class Client implements AutoCloseable {
         if (requestSettings.getFormat() == null) {
             requestSettings.setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
         }
+        applyFormatSpecificSettings(requestSettings);
         ClientStatisticsHolder clientStats = new ClientStatisticsHolder();
         clientStats.start(ClientMetrics.OP_DURATION);
 
@@ -2240,6 +2241,30 @@ public class Client implements AutoCloseable {
         credentialsManager.applyCredentials(requestSettings);
         requestSettings.putAll(opSettings);
         return requestSettings;
+    }
+
+    /**
+     * Applies format-specific server-side settings to the already merged request settings.
+     * Must be called after {@link #buildRequestSettings(Map)} and after the request format has been resolved
+     * (either provided by the caller or defaulted), so that the inspected format reflects the final value.
+     *
+     * <p>For {@link ClickHouseFormat#JSONEachRow}, callers may opt in to plain JSON numbers by setting
+     * {@link ClientConfigProperties#JSON_DISABLE_NUMBER_QUOTING}. Explicit server settings are otherwise
+     * left untouched.</p>
+     * <ul>
+     *     <li>{@code output_format_json_quote_64bit_integers}</li>
+     *     <li>{@code output_format_json_quote_64bit_floats}</li>
+     *     <li>{@code output_format_json_quote_decimals}</li>
+     * </ul>
+     */
+    private static void applyFormatSpecificSettings(QuerySettings requestSettings) {
+        boolean disableNumberQuoting = ClientConfigProperties.JSON_DISABLE_NUMBER_QUOTING
+                .getOrDefault(requestSettings.getAllSettings());
+        if (requestSettings.getFormat() == ClickHouseFormat.JSONEachRow && disableNumberQuoting) {
+            requestSettings.serverSetting("output_format_json_quote_64bit_integers", "0");
+            requestSettings.serverSetting("output_format_json_quote_64bit_floats", "0");
+            requestSettings.serverSetting("output_format_json_quote_decimals", "0");
+        }
     }
 
     private Duration durationSince(long sinceNanos) {
