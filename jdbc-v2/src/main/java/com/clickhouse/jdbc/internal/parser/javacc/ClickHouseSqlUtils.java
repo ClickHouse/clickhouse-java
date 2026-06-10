@@ -67,7 +67,9 @@ public final class ClickHouseSqlUtils {
                 // Appended 04/10/2026
                 "PATH", "PLACING",
                 // Appended 05/27/2026
-                "CURSOR", "DETERMINISTIC", "ESCAPE", "SAMPLES", "STREAM", "UNKNOWN"
+                "CURSOR", "DETERMINISTIC", "ESCAPE", "SAMPLES", "STREAM", "UNKNOWN",
+                // Appended 06/10/2026
+                "IPV4_PREFIX_BITS", "IPV6_PREFIX_BITS", "TIMEZONE_HOUR", "TIMEZONE_MINUTE"
             );
     }
 
