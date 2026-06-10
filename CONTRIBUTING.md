@@ -1,8 +1,21 @@
-# Contributing to ClickHouse Java
+# Contribution Guide
 
-Contributions are always welcome: issues, pull requests, questions, ideas, tests, documentation, and examples all help the project.
+## Preface
 
-ClickHouse Java is maintained by a team responsible for the stability and quality of released artifacts. Because this repository publishes client libraries and drivers used by applications, every contribution needs enough context and validation for maintainers to review its safety. At minimum, a code change should include a clear description and tests that prove the intended behavior.
+Libraries in this repository are used in many production systems. Users expect certain level of quality and active support (adding new features, fixing issues). 
+It is important to make all changes safe and swiftly. There we ask all contributors for tests and clear description of changes done in a PR. This expedites merge and
+quadruples value of your contribution.
+
+This document covers main important things related to the contributing. Here is very brief overview of them:
+- (Contribution Process)[#contribution-process] - describes how contribution is handled and what steps we expect. Specially pay attention if you want to implement 
+any feature or do big change. 
+- (Testing Expectations)[#testing-expectations] - test is requirement for mostly any change and tests have their quality measure, too. We value failure scenario tests
+and when tests cover veriaty of data. Here is where help mostly needed because every use-case or domain specific data examples significantly increase test quality.
+- (Pull Request Checklist)[#pull-request-checklist] - helps to prepare PR for review and make whole process faster. It is very important to run tests locally - we skip 
+PRs if CI is failing and will leave according comment.
+- (Restricted Changes)[#restricted-changes] - currently we restrict only changes in CI workflows and everything related to it.
+- (Technical Verification)[#technical-verification] - all kinds of instractions to run tests, examples and verifications. 
+
 
 ## Contribution Process
 
@@ -20,18 +33,19 @@ Feature work and big changes must be discussed through an issue, and the impleme
 - what tests will prove the behavior
 - whether documentation, `CHANGELOG.md`, or `docs/features.md` needs to change
 
-It is fine to use AI tools to draft an implementation proposal, explore design options, or prepare a first implementation. AI-generated code is welcome when the specification is detailed, the resulting code follows project patterns, and the tests clearly validate the expected behavior. Special attention should be paid to tests because they are the main guardrails for code changes.
+Please review our (AI Policy)[AI_POLICY.MD] if you are using AI tools. Special attention should be paid to tests because they are the main guardrails for code changes. 
 
 Some good ideas need time to design and implement. We are open to discussion and welcome collaboration in issues, even when the final implementation is not ready yet.
 
 ### Big Contributions
 
-Large changes are easier to review and merge when they are split into a few smaller pull requests. From our experience, it is often better to prepare the codebase first with focused cleanup, refactoring, or test-only PRs, and then add the feature or behavior change in a later PR.
+One logical change per PR: a feature, a bug fix, a refactor, or a doc update. Mixed-purpose PRs complicate reviews and increase the likelihood of unintended regressions.
 
-Avoid packing unrelated cleanup, infrastructure changes, test rewrites, and the feature itself into one large pull request. Smaller PRs help maintainers verify intent, reduce review time, and lower the risk of regressions.
+We all know that large PRs (400+ lines of code) are hard to review and it is more likely to miss a bug. Small changes are appreciated and take less time to verify them. If many changes are needed anyway (feature implementation, refactoring), please split them: something can be done as code preparation, cleanup or smaller improvement. It should take less time at sum as this repository is actively maintained. We will ask to split changes of 800+ LOC anyway.
 
-For significant changes, use the review and design guidance in:
+For a new feature, implement the smallest change that solves the problem. Polish, additional configuration, optimization, and extensions can be addressed in the follow-up PRs. 
 
+For self and AI review use following guids:
 - `docs/ai-review.md`
 - `docs/changes_checklist.md`
 - `docs/highlevel-changes-checklist.md`
@@ -55,16 +69,15 @@ Changes to CI workflows are currently restricted. Please discuss CI workflow cha
 
 Please make pull requests review-ready before requesting review. A PR may still take time to review and prepare for merge, especially when it changes public behavior or touches multiple modules.
 
-Every pull request should include:
-
-- a clear description of what changed and why
-- a link to the related issue, when one exists
-- an explanation of the user-visible behavior and compatibility impact
-- tests for the changed behavior, including integration tests when the change interacts with ClickHouse server behavior
-- the local test commands that were run
-- a `CHANGELOG.md` update for user-visible changes
-- a `docs/features.md` update when a `client-v2` or `jdbc-v2` feature is added, removed, or intentionally changed
-- documentation or examples when the change affects user-facing behavior
+Steps: 
+- Describe all changes in PR briefly so every human can read. There can be additional description appended to the main description.
+  - Include link to an issue. If issue is missing please create one.
+  - Describe any user-visible behavior especially if it was changed
+  - Include compatibility impact
+- Run self-review of the code (personally or by AI). This reduces PR time.
+- Run tests locally. IMPORTANT: We skip PR that has failed CI and ask to fix it.  
+- Update `CHANGELOG.md` shortly with what was the problem and how fixed. Add link to the issue. 
+- Update `docs/features.md` when `client-v2` or `jdbc-v2` feature was added, removed, or intentionally behaviour change. This file helps to review code. 
 
 Use `docs/review-template.md` as a reference for what reviewers will look for when assessing important changes.
 
@@ -161,7 +174,26 @@ proxyAddress=<host>:<port>
 
 TBD: document a dockerized development environment for running the standard local test suite.
 
-### 5. Optional Native Binary Check
+### 5. Run Coverage Verification
+
+To run tests and generate a code coverage report, use the `coverage` Maven profile. This will execute tests and produce JaCoCo coverage reports.
+
+```bash
+mvn clean verify -P coverage
+```
+
+For targeted module verification:
+
+```bash
+mvn -pl <module> -am clean verify -P coverage
+```
+
+The coverage reports will be generated in the `target/site/jacoco-aggregate` or module-specific `target/site/jacoco-ut` directories. You can view the HTML version of the coverage report by opening the `index.html` file in your browser:
+
+- Full repository report: `target/site/jacoco-aggregate/index.html`
+- Module-specific report: `<module>/target/site/jacoco-ut/index.html`
+
+### 6. Optional Native Binary Check
 
 To create a native binary of the JDBC driver for evaluation and testing:
 
@@ -179,7 +211,7 @@ mvn -DskipTests -Pnative clean package
 ./target/clickhouse-jdbc-bin
 ```
 
-### 6. Optional Benchmark Check
+### 7. Optional Benchmark Check
 
 Run benchmarks when the change may affect performance:
 
