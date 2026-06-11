@@ -2,6 +2,7 @@ package com.clickhouse.jdbc.internal;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.enums.SSLMode;
 
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.DriverProperties;
@@ -17,6 +18,8 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
@@ -167,6 +170,54 @@ public class JdbcConfigurationTest {
             .findAny()
             .orElseThrow();
         assertEquals(p.value, "default1");
+    }
+
+    @DataProvider(name = "sslModeValues")
+    public Object[][] sslModeValues() {
+        return new Object[][] {
+            // input value, expected client property value
+            { "none", SSLMode.Trust.name() }, // JDBC alias for the no-verification mode
+            { "NONE", SSLMode.Trust.name() },
+            { "disabled", SSLMode.Disabled.name() },
+            { "Disabled", SSLMode.Disabled.name() },
+            { "trust", SSLMode.Trust.name() },
+            { "Trust", SSLMode.Trust.name() },
+            { "verifyca", SSLMode.VerifyCa.name() },
+            { "VERIFYCA", SSLMode.VerifyCa.name() },
+            { "strict", SSLMode.Strict.name() },
+            { "Strict", SSLMode.Strict.name() },
+        };
+    }
+
+    @Test
+    public void testSSLModeDatasetCoversAllModes() {
+        Set<String> covered = Arrays.stream(sslModeValues())
+                .map(row -> (String) row[1])
+                .collect(Collectors.toSet());
+        Set<String> allModes = Arrays.stream(SSLMode.values())
+                .map(Enum::name)
+                .collect(Collectors.toSet());
+        assertEquals(covered, allModes,
+                "SSLMode constants changed - update the 'sslModeValues' dataset and the ssl_mode handling in JdbcConfiguration");
+    }
+
+    @Test(dataProvider = "sslModeValues")
+    public void testSSLModeProperty(String value, String expected) throws Exception {
+        // passed via Properties
+        Properties properties = new Properties();
+        properties.setProperty(ClientConfigProperties.SSL_MODE.getKey(), value);
+        JdbcConfiguration configuration = new JdbcConfiguration("jdbc:clickhouse://localhost:8123/", properties);
+        assertEquals(configuration.getClientProperties().get(ClientConfigProperties.SSL_MODE.getKey()), expected);
+
+        // passed as a URL parameter
+        configuration = new JdbcConfiguration("jdbc:clickhouse://localhost:8123/?ssl_mode=" + value, new Properties());
+        assertEquals(configuration.getClientProperties().get(ClientConfigProperties.SSL_MODE.getKey()), expected);
+    }
+
+    @Test
+    public void testSSLModeInvalidValue() {
+        assertThrows(SQLException.class,
+                () -> new JdbcConfiguration("jdbc:clickhouse://localhost:8123/?ssl_mode=insecure", new Properties()));
     }
 
     @DataProvider(name = "typeMappingsPropertyKey")

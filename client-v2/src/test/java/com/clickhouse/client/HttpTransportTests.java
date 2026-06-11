@@ -14,6 +14,7 @@ import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.enums.ProxyType;
+import com.clickhouse.client.api.enums.SSLMode;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
@@ -289,6 +290,123 @@ public class HttpTransportTests extends BaseIntegrationTest {
             e.printStackTrace();
             Assert.fail(e.getMessage());
         }
+    }
+
+    @Test(groups = { "integration" })
+    public void testSSLModeTrust() {
+        if (isCloud()) {
+            return; // test uses self-signed cert
+        }
+
+        ClickHouseNode secureServer = getSecureServer(ClickHouseProtocol.HTTP);
+
+        // Default mode (Strict) without any trust material - the self-signed certificate must be rejected
+        try (Client client = new Client.Builder()
+                .addEndpoint("https://localhost:" + secureServer.getPort())
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .build()) {
+            Assert.expectThrows(Exception.class, () -> client.queryAll("SELECT 1"));
+        }
+
+        // Trust mode - the same certificate is accepted without any trust material
+        try (Client client = new Client.Builder()
+                .addEndpoint("https://localhost:" + secureServer.getPort())
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .setOption(ClientConfigProperties.SSL_MODE.getKey(), SSLMode.Trust.name())
+                .build()) {
+            List<GenericRecord> records = client.queryAll("SELECT timezone()");
+            Assert.assertEquals(records.get(0).getString(1), "UTC");
+        } catch (Exception e) {
+            Assert.fail("Trust SSL mode should accept a self-signed certificate", e);
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testSSLModeVerifyCa() {
+        if (isCloud()) {
+            return; // test uses self-signed cert
+        }
+
+        ClickHouseNode secureServer = getSecureServer(ClickHouseProtocol.HTTP);
+        // server certificate has CN=localhost, so connecting via 127.0.0.1 fails hostname verification
+        final String endpointByIp = "https://127.0.0.1:" + secureServer.getPort();
+        final String serverCertificate = "containers/clickhouse-server/certs/localhost.crt";
+
+        // Strict mode (default): certificate chain is trusted, but the hostname does not match
+        try (Client client = new Client.Builder()
+                .addEndpoint(endpointByIp)
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .setRootCertificate(serverCertificate)
+                .build()) {
+            Assert.expectThrows(Exception.class, () -> client.queryAll("SELECT 1"));
+        }
+
+        // VerifyCa mode: certificate chain is validated, hostname mismatch is ignored
+        try (Client client = new Client.Builder()
+                .addEndpoint(endpointByIp)
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .setRootCertificate(serverCertificate)
+                .setSSLMode(SSLMode.VerifyCa)
+                .build()) {
+            List<GenericRecord> records = client.queryAll("SELECT timezone()");
+            Assert.assertEquals(records.get(0).getString(1), "UTC");
+        } catch (Exception e) {
+            Assert.fail("VerifyCa SSL mode should ignore hostname mismatch", e);
+        }
+
+        // VerifyCa mode still validates the certificate chain - without the CA it must fail
+        try (Client client = new Client.Builder()
+                .addEndpoint(endpointByIp)
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .setSSLMode(SSLMode.VerifyCa)
+                .build()) {
+            Assert.expectThrows(Exception.class, () -> client.queryAll("SELECT 1"));
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testSSLModeDisabled() {
+        if (isCloud()) {
+            return; // plain HTTP is not available in cloud
+        }
+
+        ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
+
+        // Disabled mode with a plain HTTP endpoint - SSL is simply not used
+        try (Client client = new Client.Builder()
+                .addEndpoint("http://" + server.getHost() + ":" + server.getPort())
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .setSSLMode(SSLMode.Disabled)
+                .build()) {
+            List<GenericRecord> records = client.queryAll("SELECT timezone()");
+            Assert.assertEquals(records.get(0).getString(1), "UTC");
+        } catch (Exception e) {
+            Assert.fail("Disabled SSL mode should work with a plain HTTP endpoint", e);
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testSSLModeStrictWithTrustStoreAndCaCertificate() {
+        if (isCloud()) {
+            return;
+        }
+
+        ClickHouseNode secureServer = getSecureServer(ClickHouseProtocol.HTTP);
+
+        // CA certificate cannot be combined with a trust store - it should be in the trust store already
+        Assert.expectThrows(ClientMisconfigurationException.class, () -> new Client.Builder()
+                .addEndpoint("https://localhost:" + secureServer.getPort())
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .setSSLTrustStore("containers/clickhouse-server/certs/KeyStore.jks")
+                .setRootCertificate("containers/clickhouse-server/certs/localhost.crt")
+                .build());
     }
 
     @Test(groups = { "integration" }, dataProvider = "NoResponseFailureProvider")
