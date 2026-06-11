@@ -78,10 +78,15 @@ Notes:
 
 ## SSL Examples
 
-`com.clickhouse.examples.client_v2.SSLExamples` shows how to connect securely to a server whose
-certificate is signed by a custom (private) CA. Only the CA certificate is passed to the client
-with `Client.Builder.setRootCertificate()` - no trust store configuration is required, and the JVM
-default trust store stays untouched.
+`com.clickhouse.examples.client_v2.SSLExamples` shows how to connect securely to a server:
+
+- **Custom CA certificate** - the server certificate is signed by a custom (private) CA. Only the
+  CA certificate is passed to the client with `Client.Builder.setRootCertificate()` (as a file path
+  or directly as a PEM string) - no trust store configuration is required, and the JVM default
+  trust store stays untouched.
+- **Self-signed certificate without verification** - `Client.Builder.setSSLMode(SSLMode.Trust)`
+  accepts any server certificate and skips hostname verification. The connection is encrypted, but
+  the server identity is not verified - use it only for testing or in fully trusted environments.
 
 The example runs in one of two modes.
 
@@ -113,7 +118,8 @@ mvn exec:java -Dexec.mainClass="com.clickhouse.examples.client_v2.SSLExamples" \
   -DchRootCert="/path/to/ca.crt"
 ```
 
-`-DchRootCert` is required in this mode and must point to the CA certificate in PEM format.
+`-DchRootCert` must point to the CA certificate in PEM format. When it is omitted, only the
+self-signed (`SSLMode.Trust`) example runs - useful when you do not have the CA certificate at hand.
 
 ### Setting up a Docker dev instance with a self-signed certificate manually
 
