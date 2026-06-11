@@ -1,6 +1,5 @@
 package com.clickhouse.client.api.internal;
 
-import com.clickhouse.client.ClickHouseSslContextProvider;
 import com.clickhouse.client.api.ClickHouseException;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
@@ -14,6 +13,7 @@ import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.transport.Endpoint;
+import com.clickhouse.client.config.ClickHouseDefaultSslContextProvider;
 import com.clickhouse.data.ClickHouseFormat;
 import net.jpountz.lz4.LZ4Factory;
 import org.apache.commons.compress.compressors.CompressorStreamFactory;
@@ -131,6 +131,8 @@ public class HttpAPIClientHelper {
 
     LZ4Factory lz4Factory;
 
+    private final ClickHouseDefaultSslContextProvider sslContextProvider = new ClickHouseDefaultSslContextProvider();
+
     public HttpAPIClientHelper(Map<String, Object> configuration, Object metricsRegistry, boolean initSslContext, LZ4Factory lz4Factory) {
         this.metricsRegistry = metricsRegistry;
         this.httpClient = createHttpClient(initSslContext, configuration);
@@ -163,8 +165,10 @@ public class HttpAPIClientHelper {
         } catch (NoSuchAlgorithmException e) {
             throw new ClientException("Failed to create default SSL context", e);
         }
-        ClickHouseSslContextProvider sslContextProvider = ClickHouseSslContextProvider.getProvider();
-        String trustStorePath = (String) configuration.get(ClientConfigProperties.SSL_TRUST_STORE.getKey());
+        final String trustStorePath = (String) configuration.get(ClientConfigProperties.SSL_TRUST_STORE.getKey());
+        final String caCertificate = (String) configuration.get(ClientConfigProperties.CA_CERTIFICATE.getKey());
+        final String sslCertificate = (String) configuration.get(ClientConfigProperties.SSL_CERTIFICATE.getKey());
+        final String sslKey = (String) configuration.get(ClientConfigProperties.SSL_KEY.getKey());
         if (trustStorePath != null) {
             try {
                 sslContext = sslContextProvider.getSslContextFromKeyStore(
@@ -175,16 +179,9 @@ public class HttpAPIClientHelper {
             } catch (SSLException e) {
                 throw new ClientMisconfigurationException("Failed to create SSL context from a keystore", e);
             }
-        } else if (configuration.get(ClientConfigProperties.CA_CERTIFICATE.getKey()) != null ||
-                configuration.get(ClientConfigProperties.SSL_CERTIFICATE.getKey()) != null ||
-                configuration.get(ClientConfigProperties.SSL_KEY.getKey()) != null) {
-
+        } else if (caCertificate != null || sslCertificate != null|| sslKey != null) {
             try {
-                sslContext = sslContextProvider.getSslContextFromCerts(
-                        (String) configuration.get(ClientConfigProperties.SSL_CERTIFICATE.getKey()),
-                        (String) configuration.get(ClientConfigProperties.SSL_KEY.getKey()),
-                        (String) configuration.get(ClientConfigProperties.CA_CERTIFICATE.getKey())
-                );
+                sslContext = sslContextProvider.getSslContextFromCerts(sslCertificate, sslKey, caCertificate);
             } catch (SSLException e) {
                 throw new ClientMisconfigurationException("Failed to create SSL context from certificates", e);
             }

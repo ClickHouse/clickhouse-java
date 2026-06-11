@@ -1,0 +1,120 @@
+package com.clickhouse.examples.jdbc;
+
+import com.clickhouse.client.api.ClientConfigProperties;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.Properties;
+
+/**
+ * Examples showing how to configure secure (TLS/HTTPS) connections with the JDBC driver.
+ *
+ * <p>Currently covered:</p>
+ * <ul>
+ *     <li>Connecting to a server whose certificate is signed by a custom (private) CA -
+ *     the CA certificate is passed with the {@code sslrootcert} connection property.
+ *     No trust store configuration is needed: the certificate is added to a trust store
+ *     used only by this connection, so the JVM default trust store stays untouched.</li>
+ * </ul>
+ *
+ * <p>More SSL examples (mTLS, trust stores, SNI) will be added to this class later.</p>
+ *
+ * <p>The example runs in one of two modes:</p>
+ * <ul>
+ *     <li><b>Local mode</b> (default, when {@code chUrl} is not set) - starts a local ClickHouse
+ *     server in Docker with a freshly generated self-signed certificate and verifies the whole
+ *     scenario end to end. Requires a running Docker daemon.</li>
+ *     <li><b>Standalone mode</b> (when {@code chUrl} is set) - connects to your own server using
+ *     the provided CA certificate. Use it to verify your own instance once the local scenario works.</li>
+ * </ul>
+ *
+ * <p>Supported startup properties:</p>
+ * <ul>
+ *     <li>{@code chUrl} - ClickHouse JDBC URL, e.g. {@code jdbc:clickhouse://my-host:8443/default}.
+ *     When set, standalone mode is used</li>
+ *     <li>{@code chUser} and {@code chPassword} - credentials (standalone mode)</li>
+ *     <li>{@code chRootCert} - path to the root CA certificate in PEM format (required in standalone mode)</li>
+ *     <li>{@code chImage} - Docker image for local mode, default {@code clickhouse/clickhouse-server:latest}</li>
+ * </ul>
+ */
+public class SSLExamples {
+    private static final Logger log = LoggerFactory.getLogger(SSLExamples.class);
+
+    public static void main(String[] args) {
+        final String url = trimToNull(System.getProperty("chUrl"));
+
+        if (url != null) {
+            // Standalone mode: verify a user-provided instance.
+            final String user = System.getProperty("chUser", "default");
+            final String password = System.getProperty("chPassword", "");
+            final String rootCert = trimToNull(System.getProperty("chRootCert"));
+            if (rootCert == null) {
+                log.error("chRootCert is required when chUrl is set. "
+                        + "Pass the path to the CA certificate (PEM) that signed the server certificate.");
+                return;
+            }
+
+            log.info("Running in standalone mode against {}", url);
+            try {
+                connectWithCustomRootCertificate(url, user, password, rootCert);
+            } catch (SQLException e) {
+                log.error("Secure connection with a custom root CA certificate failed", e);
+            }
+            return;
+        }
+
+        // Local mode: start a dockerized ClickHouse with a self-signed certificate and
+        // verify the whole scenario end to end.
+        final String image = System.getProperty("chImage", "clickhouse/clickhouse-server:latest");
+        log.info("Running in local mode (set -DchUrl to verify your own server)");
+        try (SecureServerSupport server = SecureServerSupport.start(image)) {
+            connectWithCustomRootCertificate(server.getJdbcUrl(),
+                    SecureServerSupport.USER, SecureServerSupport.PASSWORD, server.getCaCertPath());
+        } catch (Exception e) {
+            log.error("Failed to run the SSL example against a local Docker server", e);
+            Runtime.getRuntime().exit(-1);
+        }
+        // Explicit exit: testcontainers keeps non-daemon threads alive after the scenario is done.
+        Runtime.getRuntime().exit(0);
+    }
+
+    /**
+     * Connects to a ClickHouse server using a custom root CA certificate.
+     * Use this when the server certificate is signed by a private CA (corporate CA,
+     * self-managed Kubernetes CA, etc.) that is not present in the JVM default trust store.
+     */
+    static void connectWithCustomRootCertificate(String url, String user, String password, String rootCert)
+            throws SQLException {
+        log.info("Connecting to {} using root CA certificate from {}", url, rootCert);
+
+        Properties properties = new Properties();
+        properties.setProperty(ClientConfigProperties.USER.getKey(), user); // user
+        properties.setProperty(ClientConfigProperties.PASSWORD.getKey(), password); // password
+        properties.setProperty("ssl", "true"); // enable TLS even if the URL has no https scheme
+        // Only the CA certificate is required. The server certificate chain will be
+        // validated against it, and hostname verification stays enabled.
+        properties.setProperty(ClientConfigProperties.CA_CERTIFICATE.getKey(), rootCert); // sslrootcert
+
+        try (Connection connection = DriverManager.getConnection(url, properties);
+             Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT currentUser() AS user, version() AS version")) {
+            if (rs.next()) {
+                log.info("Connected securely as '{}' to ClickHouse {}", rs.getString("user"), rs.getString("version"));
+            }
+        }
+    }
+
+    private static String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+}
