@@ -88,3 +88,17 @@ jobs:
             clickhouse-r2dbc/target/clickhouse*.jar
             client-v2/target/client-v2*.jar
             jdbc-v2/target/jdbc-v2*.jar
+      # Tableau users install the latest JDBC driver manually, so a release
+      # regression hits them with no connector release in between - trigger the
+      # TDVT suite in ClickHouse/connectors on every release.
+      # https://github.com/ClickHouse/connectors/issues/71
+      - name: Trigger Tableau TDVT in connectors
+        if: success()
+        continue-on-error: true # a TDVT dispatch failure must never fail the release
+        env:
+          GH_TOKEN: ${{ secrets.CONNECTORS_DISPATCH_TOKEN }}
+        run: |
+          echo "Dispatching TDVT for clickhouse-jdbc ${{ github.event.inputs.version }}"
+          gh api repos/ClickHouse/connectors/dispatches \
+            -f event_type=jdbc-release \
+            -F "client_payload[jdbc_version]=${{ github.event.inputs.version }}"
