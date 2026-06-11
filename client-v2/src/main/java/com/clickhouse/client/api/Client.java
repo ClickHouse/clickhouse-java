@@ -12,6 +12,7 @@ import com.clickhouse.client.api.data_formats.internal.MapBackedRecord;
 import com.clickhouse.client.api.data_formats.internal.ProcessParser;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.enums.ProxyType;
+import com.clickhouse.client.api.enums.SSLMode;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
@@ -752,6 +753,33 @@ public class Client implements AutoCloseable {
          */
         public Builder setClientKey(String path) {
             this.configuration.put(ClientConfigProperties.SSL_KEY.getKey(), path);
+            return this;
+        }
+
+        /**
+         * Defines how strictly the client verifies a server identity on secure connections.
+         *
+         * <p>Supported modes:</p>
+         * <ul>
+         *     <li>{@link SSLMode#Disabled} - SSL is not used; only meaningful with plain protocols</li>
+         *     <li>{@link SSLMode#Trust} - encrypt, but accept any server certificate and skip
+         *     hostname verification</li>
+         *     <li>{@link SSLMode#VerifyCa} - validate the server certificate chain, but skip
+         *     hostname verification</li>
+         *     <li>{@link SSLMode#Strict} - full verification of the certificate chain and the
+         *     hostname (default)</li>
+         * </ul>
+         *
+         * <p>The mode applies only when a secure protocol is in use - for the HTTP transport that
+         * means an {@code https://} endpoint. Setting any mode does <b>not</b> make the client use
+         * encryption on a plain HTTP endpoint: the endpoint scheme always decides whether the
+         * connection is encrypted.</p>
+         *
+         * @param sslMode ssl mode
+         * @return same instance of the builder
+         */
+        public Builder setSSLMode(SSLMode sslMode) {
+            this.configuration.put(ClientConfigProperties.SSL_MODE.getKey(), sslMode.name());
             return this;
         }
 

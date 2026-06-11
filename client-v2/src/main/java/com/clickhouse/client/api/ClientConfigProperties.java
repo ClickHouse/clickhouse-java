@@ -1,6 +1,7 @@
 package com.clickhouse.client.api;
 
 import com.clickhouse.client.api.data_formats.internal.AbstractBinaryFormatReader;
+import com.clickhouse.client.api.enums.SSLMode;
 import com.clickhouse.client.api.internal.ClickHouseLZ4OutputStream;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
@@ -114,6 +115,8 @@ public enum ClientConfigProperties {
     CA_CERTIFICATE("sslrootcert", String.class),
 
     SSL_CERTIFICATE("sslcert", String.class),
+
+    SSL_MODE("ssl_mode", SSLMode.class, SSLMode.Strict.name()),
 
     RETRY_ON_FAILURE("retry", Integer.class, "3"),
 
