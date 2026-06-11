@@ -2186,7 +2186,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
     @DataProvider(name = "testCustomCaCertificateProvider")
     public static Object[][] testCustomCaCertificateProvider() {
         return new Object[][]{
-                // TODO: decide if we need to support certificates via string {true},
+                {true},
                 {false}};
     }
 
