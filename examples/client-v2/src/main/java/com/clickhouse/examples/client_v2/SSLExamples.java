@@ -71,10 +71,7 @@ public class SSLExamples {
                     SecureServerSupport.USER, SecureServerSupport.PASSWORD, server.getCaCertPath());
         } catch (Exception e) {
             log.error("Failed to run the SSL example against a local Docker server", e);
-            Runtime.getRuntime().exit(-1);
         }
-        // Explicit exit: testcontainers keeps non-daemon threads alive after the scenario is done.
-        Runtime.getRuntime().exit(0);
     }
 
     /**
