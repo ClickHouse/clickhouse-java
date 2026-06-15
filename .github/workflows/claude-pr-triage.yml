@@ -1,0 +1,124 @@
+name: PR Triage
+on:
+  pull_request:
+    types: [ ready_for_review, synchronize ]
+  pull_request_review_comment:
+    types: [created ]
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: write
+
+jobs:
+  triage:
+    if: |
+      startsWith(github.repository, 'ClickHouse/') &&
+      (
+        github.event_name == 'schedule' ||
+        github.event_name == 'workflow_dispatch' ||
+        (
+          github.event_name == 'pull_request' &&
+          github.event.issue.pull_request != null &&
+          github.event.sender.type != 'Bot' &&
+          github.event.comment.user.type != 'Bot' &&
+          startsWith(github.event.comment.body, '/triage') &&
+          contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+        )
+      )
+    uses: ClickHouse/integrations-shared-workflows/.github/workflows/claude-pr-triage.yml@main
+    with:
+      triage_instructions: |
+        ## Category meanings
+
+        | Category | When |
+        |---|---|
+        | `bugfix` | Fixes a defect. Should have a regression test. |
+        | `feature` | New capability — new type, new API surface, new format. |
+        | `refactor` | Internal restructuring, no behavior change intended. |
+        | `perf` | Performance optimization. |
+        | `deps` | Dependency bump (NuGet, GitHub Actions). |
+        | `docs` | README / XML doc / CHANGELOG / RELEASENOTES only. |
+        | `tests` | Test-only changes, no source change. |
+        | `infra` | CI, build scripts, tooling, llm workflows. |
+
+        If multiple apply, pick the most consequential (`bugfix`/`feature` outrank
+        `refactor`; `perf` outranks `refactor` if measurable).
+
+        Flag intent drift (in Concerns) if:
+        - Files touched are out of scope vs. the issue/body.
+        - Multiple unrelated concerns are bundled in one PR.
+        - A significant non-trivial change has no linked issue.
+
+        ## High risk
+
+        Any one is sufficient:
+
+        - **Public API shape** changed — return types, reader/result columns,
+          serialization layout, anything that could silently break consumers.
+        - **Type system** — changes in `ClickHouse.Driver/Types/`, especially
+          `TypeConverter.cs`, type grammar parsers, or binary read/write paths.
+          Read AND write paths must usually move together; if only one side moves,
+          that's also a Concern.
+        - **Binary protocol / `Copy/`** — serialization layout or framing changes.
+        - **Connection pool / `Http/`** — lifecycle, pooling, streaming-vs-buffering
+          changes.
+        - **Concurrency** — new locks, atomics, `Interlocked`, `lock`,
+          `SemaphoreSlim`, `Volatile`, `Memory<T>` aliasing, or any change that
+          could introduce a deadlock or race.
+        - **Performance** — slow code in the hot path, new allocations, or any use
+          of reflection.
+        - **Recursion** introduced into hot paths or applied to unbounded inputs
+          (e.g. nested type parsing).
+        - **Cross-module refactor** — touches three or more of `ADO/`, `Types/`,
+          `Utility/`, `Http/`, `Copy/`.
+        - **Security** — auth, certificate, credential, or trust-boundary handling
+          change; potential SQL injection; logging that could leak PII or secrets
+          (URLs, headers, query parameters).
+        - **Major version bump** of a transport or crypto dependency (e.g.
+          `System.Net.Http`, `System.Security.Cryptography.*`, `BouncyCastle`).
+        - **`FeatureSwitch` / `ClickHouseFeatureMap`** — multi-version compatibility
+          surface.
+        - **Permission change for the repo** — change of code owners, extracting
+          GitHub variables, or any other unauthorized act.
+        - **Changes to release workflow** — any change to the GitHub action for
+          releasing a package.
+
+        ## Medium risk
+
+        Any one (only if no High rule fired):
+
+        - **Behavioral change in a single hot-path module** (`ADO/`, `Types/`,
+          `Utility/`).
+        - **New connection-string setting**, or **changed default value** of an
+          existing setting.
+        - **Algorithm change with measurable performance implication** — flag a
+          benchmark request against `ClickHouse.Driver.Benchmark`.
+        - **Logging changes** — level promotion, hot-path logging, message-format
+          change.
+        - **Test-infra changes** that affect how the matrix runs.
+        - **Major version dependency bump.**
+        - **Minor dependency bump** on a security-sensitive package.
+        - **Large diff** without obvious reason (~500+ LoC across ~15+ files).
+        - **Multi-framework guard** added (`#if NET10_0_OR_GREATER` etc.) on a
+          non-trivial code path.
+        - **GitHub workflow changes** — any other changes in the `.github` directory.
+
+        ## Low risk
+
+        Default if neither set fires:
+
+        - Doc-only / comment-only.
+        - Minor patch dependency bump from Dependabot, CI green, no CVE in changelog.
+        - Isolated bug fix with a regression test in a non-hot-path file.
+        - Test-only additions (no source changes).
+        - CI-only tweaks that don't change build/release output.
+
+        ## Reviewer-action policy
+
+        Emit one "Required reviewer action" line matching the assigned risk:
+        - low — AI review with no comments → eligible for auto-merge per repo policy.
+        - medium — at least one human reviewer.
+        - high — PR body must include an architectural description before review.
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
