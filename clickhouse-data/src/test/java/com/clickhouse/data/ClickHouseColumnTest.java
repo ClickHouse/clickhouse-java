@@ -543,6 +543,13 @@ public class ClickHouseColumnTest {
                 0,
                 "Plain UTC must still resolve to 0 offset");
 
+        // Defensive fallback: an out-of-range Fixed/UTC offset (beyond ±18:00) makes
+        // ZoneOffset.of throw DateTimeException; resolveTimeZone must degrade gracefully
+        // to TimeZone.getTimeZone (which yields GMT) rather than propagate the exception.
+        Assert.assertEquals(ClickHouseColumn.resolveTimeZone("Fixed/UTC+19:00:00").getRawOffset(),
+                0,
+                "Out-of-range Fixed/UTC+19:00:00 must fall back to GMT, not throw");
+
         // Column-level: DateTime('Fixed/UTC+05:30:00') uses the timezone as the sole parameter.
         ClickHouseColumn dtCol = ClickHouseColumn.of("d", "DateTime('Fixed/UTC+05:30:00')");
         Assert.assertNotNull(dtCol.getTimeZone(),
@@ -563,6 +570,14 @@ public class ClickHouseColumnTest {
                 "DateTime32 column timezone must not be null");
         Assert.assertEquals(dt32Col.getTimeZone().getRawOffset(), plusFiveThirtyMs,
                 "DateTime32('Fixed/UTC+05:30:00') column timezone must be +05:30");
+
+        // DateTime with an explicit scale routes through the size>=2 arm (handled like
+        // DateTime64), where the timezone is the second parameter.
+        ClickHouseColumn dtScaleCol = ClickHouseColumn.of("d", "DateTime(3, 'Fixed/UTC+05:30:00')");
+        Assert.assertNotNull(dtScaleCol.getTimeZone(),
+                "DateTime(scale, tz) column timezone must not be null");
+        Assert.assertEquals(dtScaleCol.getTimeZone().getRawOffset(), plusFiveThirtyMs,
+                "DateTime(3, 'Fixed/UTC+05:30:00') column timezone must be +05:30");
 
         // Contrast: IANA-named DateTime column must be unchanged by the fix.
         ClickHouseColumn ianaCol = ClickHouseColumn.of("d", "DateTime('Asia/Kolkata')");
