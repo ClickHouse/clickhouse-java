@@ -140,8 +140,8 @@ public final class ClickHouseColumn implements Serializable {
      * converts the offset portion to a {@link ZoneOffset} before creating the
      * {@link TimeZone}, preserving the column's declared fixed offset.
      *
-     * @param tzName timezone name as emitted in ClickHouse column type metadata
-     * @return resolved {@link TimeZone}, never null
+     * @param tzName non-null timezone name as emitted in ClickHouse column type metadata
+     * @return resolved {@link TimeZone}; never null for a non-null {@code tzName}
      */
     static TimeZone resolveTimeZone(String tzName) {
         if (tzName != null && tzName.startsWith("Fixed/UTC")) {
