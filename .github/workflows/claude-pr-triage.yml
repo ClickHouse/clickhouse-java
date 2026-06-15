@@ -10,6 +10,9 @@ permissions:
   issues: read
   pull-requests: write
 
+concurrency:
+  group: claude-triage-${{ github.event.pull_request.number || github.event.inputs.pr_number }}
+
 jobs:
   triage:
     if: |
@@ -29,6 +32,7 @@ jobs:
       )
     uses: ClickHouse/integrations-shared-workflows/.github/workflows/claude-pr-triage.yml@main
     with:
+      pr_number: ${{ github.event.inputs.pr_number }}
       triage_instructions: |
         ## Category meanings
 
