@@ -1,6 +1,22 @@
 package com.clickhouse.client.config;
 
-import java.io.*;
+import com.clickhouse.client.ClickHouseConfig;
+import com.clickhouse.client.ClickHouseSslContextProvider;
+import com.clickhouse.data.ClickHouseUtils;
+
+import javax.net.ssl.KeyManager;
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLException;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.TrustManagerFactory;
+import javax.net.ssl.X509TrustManager;
+import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.security.KeyFactory;
 import java.security.KeyManagementException;
 import java.security.KeyStore;
@@ -18,23 +34,29 @@ import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.Base64;
 import java.util.Optional;
 
-import javax.net.ssl.KeyManager;
-import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLException;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.TrustManagerFactory;
-import javax.net.ssl.X509TrustManager;
-
-import com.clickhouse.client.ClickHouseConfig;
-import com.clickhouse.client.ClickHouseSslContextProvider;
-import com.clickhouse.data.ClickHouseUtils;
-
 @Deprecated
 public class ClickHouseDefaultSslContextProvider implements ClickHouseSslContextProvider {
     static final String PEM_HEADER_PREFIX = "---BEGIN ";
     static final String PEM_HEADER_SUFFIX = " PRIVATE KEY---";
     static final String PEM_FOOTER_PREFIX = "---END ";
+
+    /** Standard PEM encapsulation boundary (RFC 7468). Present in any PEM content, never in a file path. */
+    static final String PEM_BEGIN_MARKER = "-----BEGIN";
+
+    /**
+     * Opens a stream over PEM material that may be supplied either as a file path (also searched in the home
+     * directory and on the classpath) or directly as PEM content.
+     *
+     * @param certOrContent file path or PEM content of a certificate or a private key
+     * @return stream over the PEM content
+     * @throws IOException when the value is a path and the file cannot be opened
+     */
+    static InputStream getCertificateInputStream(String certOrContent) throws IOException {
+        if (certOrContent.contains(PEM_BEGIN_MARKER)) {
+            return new ByteArrayInputStream(certOrContent.getBytes(StandardCharsets.US_ASCII));
+        }
+        return ClickHouseUtils.getFileInputStream(certOrContent);
+    }
 
     /**
      * An insecure {@link javax.net.ssl.TrustManager}, that don't validate the
@@ -71,7 +93,7 @@ public class ClickHouseDefaultSslContextProvider implements ClickHouseSslContext
         String algorithm = (String) ClickHouseDefaults.SSL_KEY_ALGORITHM.getEffectiveDefaultValue();
         StringBuilder builder = new StringBuilder();
         try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(ClickHouseUtils.getFileInputStream(keyFile)))) {
+                new InputStreamReader(getCertificateInputStream(keyFile)))) {
             String line = reader.readLine();
             if (line != null) {
                 algorithm = getAlgorithm(line, algorithm);
@@ -102,7 +124,7 @@ public class ClickHouseDefaultSslContextProvider implements ClickHouseSslContext
                     ClickHouseUtils.format("%s KeyStore not available", KeyStore.getDefaultType()));
         }
 
-        try (InputStream in = ClickHouseUtils.getFileInputStream(cert)) {
+        try (InputStream in = getCertificateInputStream(cert)) {
             CertificateFactory factory = CertificateFactory
                     .getInstance((String) ClickHouseDefaults.SSL_CERTIFICATE_TYPE.getEffectiveDefaultValue());
             if (key == null || key.isEmpty()) {

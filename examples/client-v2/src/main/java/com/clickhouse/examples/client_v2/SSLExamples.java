@@ -4,6 +4,10 @@ import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.query.GenericRecord;
 import lombok.extern.slf4j.Slf4j;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.List;
 
 /**
@@ -15,6 +19,9 @@ import java.util.List;
  *     the CA certificate is passed with {@link Client.Builder#setRootCertificate(String)}.
  *     No trust store configuration is needed: the certificate is added to a trust store
  *     used only by this client, so the JVM default trust store stays untouched.</li>
+ *     <li>Passing the CA certificate as a PEM string instead of a file path - useful when the
+ *     certificate comes from an environment variable or a secret manager (typical for
+ *     Kubernetes/cloud deployments) and you do not want to write it to disk.</li>
  * </ul>
  *
  * <p>More SSL examples (mTLS, trust stores, SNI) will be added to this class later.</p>
@@ -58,7 +65,9 @@ public class SSLExamples {
             }
 
             log.info("Running in standalone mode against {}:{}", host, port);
-            connectWithCustomRootCertificate("https://" + host + ":" + port, database, user, password, rootCert);
+            String endpoint = "https://" + host + ":" + port;
+            connectWithCustomRootCertificate(endpoint, database, user, password, rootCert);
+            connectWithRootCertificateAsString(endpoint, database, user, password, rootCert);
             return;
         }
 
@@ -68,6 +77,8 @@ public class SSLExamples {
         log.info("Running in local mode (set -DchHost to verify your own server)");
         try (SecureServerSupport server = SecureServerSupport.start(image)) {
             connectWithCustomRootCertificate(server.getEndpoint(), database,
+                    SecureServerSupport.USER, SecureServerSupport.PASSWORD, server.getCaCertPath());
+            connectWithRootCertificateAsString(server.getEndpoint(), database,
                     SecureServerSupport.USER, SecureServerSupport.PASSWORD, server.getCaCertPath());
         } catch (Exception e) {
             log.error("Failed to run the SSL example against a local Docker server", e);
@@ -97,6 +108,50 @@ public class SSLExamples {
                     rows.get(0).getString("version"));
         } catch (Exception e) {
             log.error("Secure connection with a custom root CA certificate failed", e);
+        }
+    }
+
+    /**
+     * Same as {@link #connectWithCustomRootCertificate}, but the CA certificate is passed as PEM
+     * content instead of a file path. {@link Client.Builder#setRootCertificate(String)} accepts both:
+     * any value containing a {@code -----BEGIN ...-----} block is treated as PEM content.
+     *
+     * <p>This is handy when the certificate is delivered through an environment variable or
+     * a secret manager (e.g. a Kubernetes secret projected into {@code CLICKHOUSE_CA_CERT}),
+     * so the application never has to write it to disk:</p>
+     *
+     * <pre>{@code
+     * String caPem = System.getenv("CLICKHOUSE_CA_CERT");
+     * Client client = new Client.Builder().setRootCertificate(caPem)...
+     * }</pre>
+     */
+    static void connectWithRootCertificateAsString(String endpoint, String database, String user, String password,
+                                                   String rootCertPath) {
+        final String rootCertPem;
+        try {
+            // In a real application the PEM content would typically come from an env variable
+            // or a secret manager; here we simply read the file generated for this example.
+            rootCertPem = new String(Files.readAllBytes(Paths.get(rootCertPath)), StandardCharsets.US_ASCII);
+        } catch (IOException e) {
+            log.error("Failed to read the CA certificate from {}", rootCertPath, e);
+            return;
+        }
+
+        log.info("Connecting to {} using root CA certificate passed as a PEM string", endpoint);
+        try (Client client = new Client.Builder()
+                .addEndpoint(endpoint)
+                .setUsername(user)
+                .setPassword(password)
+                .setDefaultDatabase(database)
+                // PEM content, not a path - detected by the "-----BEGIN" marker.
+                .setRootCertificate(rootCertPem)
+                .build()) {
+
+            List<GenericRecord> rows = client.queryAll("SELECT currentUser() AS user, version() AS version");
+            log.info("Connected securely (CA cert as string) as '{}' to ClickHouse {}",
+                    rows.get(0).getString("user"), rows.get(0).getString("version"));
+        } catch (Exception e) {
+            log.error("Secure connection with a CA certificate passed as a string failed", e);
         }
     }
 

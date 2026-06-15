@@ -4,6 +4,10 @@ import com.clickhouse.client.api.ClientConfigProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -20,6 +24,9 @@ import java.util.Properties;
  *     the CA certificate is passed with the {@code sslrootcert} connection property.
  *     No trust store configuration is needed: the certificate is added to a trust store
  *     used only by this connection, so the JVM default trust store stays untouched.</li>
+ *     <li>Passing the CA certificate as a PEM string instead of a file path - useful when the
+ *     certificate comes from an environment variable or a secret manager (typical for
+ *     Kubernetes/cloud deployments) and you do not want to write it to disk.</li>
  * </ul>
  *
  * <p>More SSL examples (mTLS, trust stores, SNI) will be added to this class later.</p>
@@ -62,7 +69,8 @@ public class SSLExamples {
             log.info("Running in standalone mode against {}", url);
             try {
                 connectWithCustomRootCertificate(url, user, password, rootCert);
-            } catch (SQLException e) {
+                connectWithRootCertificateAsString(url, user, password, rootCert);
+            } catch (SQLException | IOException e) {
                 log.error("Secure connection with a custom root CA certificate failed", e);
             }
             return;
@@ -74,6 +82,8 @@ public class SSLExamples {
         log.info("Running in local mode (set -DchUrl to verify your own server)");
         try (SecureServerSupport server = SecureServerSupport.start(image)) {
             connectWithCustomRootCertificate(server.getJdbcUrl(),
+                    SecureServerSupport.USER, SecureServerSupport.PASSWORD, server.getCaCertPath());
+            connectWithRootCertificateAsString(server.getJdbcUrl(),
                     SecureServerSupport.USER, SecureServerSupport.PASSWORD, server.getCaCertPath());
         } catch (Exception e) {
             log.error("Failed to run the SSL example against a local Docker server", e);
@@ -105,6 +115,44 @@ public class SSLExamples {
              ResultSet rs = stmt.executeQuery("SELECT currentUser() AS user, version() AS version")) {
             if (rs.next()) {
                 log.info("Connected securely as '{}' to ClickHouse {}", rs.getString("user"), rs.getString("version"));
+            }
+        }
+    }
+
+    /**
+     * Same as {@link #connectWithCustomRootCertificate}, but the CA certificate is passed as PEM
+     * content instead of a file path. The {@code sslrootcert} property accepts both: any value
+     * containing a {@code -----BEGIN ...-----} block is treated as PEM content.
+     *
+     * <p>This is handy when the certificate is delivered through an environment variable or
+     * a secret manager (e.g. a Kubernetes secret projected into {@code CLICKHOUSE_CA_CERT}),
+     * so the application never has to write it to disk:</p>
+     *
+     * <pre>{@code
+     * properties.setProperty("sslrootcert", System.getenv("CLICKHOUSE_CA_CERT"));
+     * }</pre>
+     */
+    static void connectWithRootCertificateAsString(String url, String user, String password, String rootCertPath)
+            throws SQLException, IOException {
+        // In a real application the PEM content would typically come from an env variable
+        // or a secret manager; here we simply read the file generated for this example.
+        String rootCertPem = new String(Files.readAllBytes(Paths.get(rootCertPath)), StandardCharsets.US_ASCII);
+
+        log.info("Connecting to {} using root CA certificate passed as a PEM string", url);
+
+        Properties properties = new Properties();
+        properties.setProperty(ClientConfigProperties.USER.getKey(), user); // user
+        properties.setProperty(ClientConfigProperties.PASSWORD.getKey(), password); // password
+        properties.setProperty("ssl", "true"); // enable TLS even if the URL has no https scheme
+        // PEM content, not a path - detected by the "-----BEGIN" marker.
+        properties.setProperty(ClientConfigProperties.CA_CERTIFICATE.getKey(), rootCertPem); // sslrootcert
+
+        try (Connection connection = DriverManager.getConnection(url, properties);
+             Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT currentUser() AS user, version() AS version")) {
+            if (rs.next()) {
+                log.info("Connected securely (CA cert as string) as '{}' to ClickHouse {}",
+                        rs.getString("user"), rs.getString("version"));
             }
         }
     }
