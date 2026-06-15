@@ -389,6 +389,15 @@ public class HttpTransportTests extends BaseIntegrationTest {
         } catch (Exception e) {
             Assert.fail("Disabled SSL mode should work with a plain HTTP endpoint", e);
         }
+
+        ClickHouseNode secureServer = getSecureServer(ClickHouseProtocol.HTTP);
+        // Disabled mode contradicts a secure (https) endpoint - the scheme decides encryption, not the mode
+        Assert.expectThrows(ClientMisconfigurationException.class, () -> new Client.Builder()
+                .addEndpoint("https://localhost:" + secureServer.getPort())
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .setSSLMode(SSLMode.Disabled)
+                .build());
     }
 
     @Test(groups = { "integration" })

@@ -5,7 +5,8 @@ This document lists stable, user-visible behavior in `client-v2` and `jdbc-v2` t
 ## `client-v2`
 
 - HTTP and HTTPS connectivity: Connects to ClickHouse over HTTP(S), supports endpoint paths, and exposes a basic `ping` health check.
-- TLS configuration: Supports trust stores, client certificates/keys, SSL certificate authentication, and SNI for HTTPS connections.
+- TLS configuration: Supports trust stores, client certificates/keys, SSL certificate authentication, and SNI for HTTPS connections. Trust material (root CA and client certificate/key) can be supplied either as a file path or directly as PEM content.
+- SSL verification modes: `Client.Builder.setSSLMode(SSLMode)` (or the `ssl_mode` property) controls how strictly the server identity is verified on secure connections: `Disabled` (SSL not used; plain protocols only), `Trust` (encrypt but accept any server certificate and skip hostname verification, while still applying a client certificate/key for mTLS if configured), `VerifyCa` (validate the certificate chain but skip hostname verification), and `Strict` (full chain and hostname verification, default).
 - Authentication modes: Supports username/password credentials, ClickHouse auth headers, bearer tokens, and optional HTTP Basic authentication.
 - Runtime credential updates: Existing `Client` instances can update username/password or bearer-token credentials for subsequent requests without rebuilding the client.
 - Proxy support: Can send requests through configured HTTP proxies, including proxy credentials.
@@ -41,13 +42,15 @@ Compatibility-sensitive traits:
 - `Geometry` handling is shape-sensitive: supported values are 1D through 4D Java arrays representing the nested geometry variants, and unsupported shapes or non-array values are rejected during serialization.
 - `Geometry` write inference is dimension-based rather than fully type-specific: point, ring/line string, polygon/multi-line string, and multi-polygon are selected from array depth, so writing `Geometry` cannot currently distinguish `Ring` from `LineString` or `Polygon` from `MultiLineString`.
 - Session precedence is part of the contract: client session defaults apply to each request, operation settings may override them, and only the client `session_id` is mutable at runtime while other client session properties remain fixed for the lifetime of the client.
+- SSL mode behavior is compatibility-sensitive: the default is `Strict`. `ssl_mode` does not enable or disable encryption - the endpoint scheme decides that. `Disabled` is only valid with a plain `http://` endpoint; combining it with an `https://` endpoint throws `ClientMisconfigurationException`. A CA certificate and a trust store cannot be configured together (the CA certificate must be imported into the trust store), and that combination also throws `ClientMisconfigurationException`. When reading the `ssl_mode` value through the client configuration map, enum names are matched case-sensitively (`Disabled`, `Trust`, `VerifyCa`, `Strict`).
+- Certificate-as-content support is compatibility-sensitive: any certificate or key value containing a PEM begin marker (`-----BEGIN`) is treated as inline PEM content, otherwise it is treated as a file path (also searched in the home directory and on the classpath).
 
 
 ## `jdbc-v2`
 
 - JDBC driver registration: Registers through the standard JDBC service mechanism and is available through `DriverManager`.
 - JDBC URL parsing: Accepts `jdbc:clickhouse:` and `jdbc:ch:` URLs with host, port, optional HTTP path, optional database, and query parameters.
-- SSL URL support: Supports HTTPS connections through URL and property configuration, including default protocol and port handling.
+- SSL URL support: Supports HTTPS connections through URL and property configuration, including default protocol and port handling. The `ssl_mode` property selects the verification strictness (`disabled`, `trust`, `verifyca`, `strict`); values are case-insensitive and the traditional JDBC value `none` is accepted as an alias for `trust`. Root CA and client certificate/key may be supplied as a file path or as inline PEM content.
 - Driver and client properties: Separates JDBC-specific properties from passthrough client options used by the underlying `client-v2` transport.
 - DataSource support: Provides a JDBC `DataSource` implementation backed by the same driver configuration model.
 - Connection lifecycle: Supports connection close, validity checks, ping-based health checks, and network timeout management.
@@ -85,4 +88,5 @@ Compatibility-sensitive traits:
 - `getString()` formatting for temporal values is stable output: `Date` uses `yyyy-MM-dd`, `DateTime` uses `yyyy-MM-dd HH:mm:ss`, and `DateTime64` preserves fractional precision, all interpreted in server timezone context where applicable.
 - Date and timestamp setters with `Calendar` are timezone-sensitive by design. Preserving the current day-shift and instant-preserving behavior is important for compatibility.
 - `setObject()` temporal behavior is specific and should not drift: `LocalDateTime` and `Instant` are rendered through `fromUnixTimestamp64Nano(...)`, while `Timestamp` and `Date` use quoted textual forms.
+- JDBC `ssl_mode` handling is compatibility-sensitive: values are case-insensitive, `none` is aliased to `trust` (the no-verification mode), and an unrecognized value throws `SQLException` during connection configuration. The normalized canonical mode name is forwarded to the underlying `client-v2` transport.
 - INSERT result semantics depend on server-side `async_insert` and `wait_for_async_insert`. The driver does not override these settings, so it follows whatever the server profile or user configuration sets. When `async_insert=1` and `wait_for_async_insert=0`, `Statement.executeUpdate(...)` and `PreparedStatement.executeUpdate(...)` may return `0` (or an under-counted value), and parsing/data errors in the INSERT body may not be reported synchronously as a `SQLException`. Set `async_insert=0` (or `wait_for_async_insert=1`) per connection or statement to restore synchronous row counts and error reporting.

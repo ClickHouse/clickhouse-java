@@ -173,6 +173,13 @@ public class HttpAPIClientHelper {
         final String sslCertificate = (String) configuration.get(ClientConfigProperties.SSL_CERTIFICATE.getKey());
         final String sslKey = (String) configuration.get(ClientConfigProperties.SSL_KEY.getKey());
 
+        // This method is only reached when a secure (https) endpoint is configured, so SSLMode.Disabled
+        // contradicts the endpoint scheme. The mode does not turn encryption off - the scheme decides it.
+        if (sslMode == SSLMode.Disabled) {
+            throw new ClientMisconfigurationException("SSL mode '" + SSLMode.Disabled
+                    + "' cannot be used with a secure (https) endpoint. Use SSLMode.Trust to trust all certificates or use plain HTTP");
+        }
+
         if (sslMode == SSLMode.Trust) {
             // Server certificate is not validated. Trust material (trust store or CA certificate)
             // is not needed, but client certificate and key are still applied for mTLS.
