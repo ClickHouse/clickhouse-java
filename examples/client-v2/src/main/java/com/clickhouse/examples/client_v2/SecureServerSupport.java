@@ -82,7 +82,7 @@ public class SecureServerSupport implements AutoCloseable {
     public static SecureServerSupport start(String image) throws Exception {
         Path certDir = Files.createTempDirectory("ch-ssl-example-certs-");
         Path confDir = Files.createTempDirectory("ch-ssl-example-config-");
-        Path sslConfig = confDir.resolve("zzz_ssl.xml");
+        Path sslConfig = confDir.resolve("custom_ca_ssl.xml");
 
         log.info("Generating an ephemeral private CA and a server certificate in {}", certDir);
         generatePrivateCaAndServerCertificate(certDir);
@@ -100,7 +100,7 @@ public class SecureServerSupport implements AutoCloseable {
                 .withFileSystemBind(certDir.toAbsolutePath().toString(),
                         "/etc/clickhouse-server/certs", BindMode.READ_ONLY)
                 .withFileSystemBind(sslConfig.toAbsolutePath().toString(),
-                        "/etc/clickhouse-server/config.d/zzz_ssl.xml", BindMode.READ_ONLY)
+                        "/etc/clickhouse-server/config.d/custom_ca_ssl.xml", BindMode.READ_ONLY)
                 .waitingFor(Wait.forHttp("/ping")
                         .forPort(HTTP_PORT)
                         .forStatusCode(200)
