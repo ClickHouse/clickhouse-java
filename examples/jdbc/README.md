@@ -86,9 +86,12 @@ openssl req -newkey rsa:2048 -nodes \
 openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial \
   -days 365 -out server.crt \
   -extfile <(printf "subjectAltName=DNS:localhost,IP:127.0.0.1")
+  
+# Only for demo purpose we make key readable by all. On production should be readable only by owner, not even by group.^M
+chmod a+r server.key
 ```
 
-2. Create a `config.d` overlay enabling the HTTPS interface, e.g. `zzz_ssl.xml`:
+2. Create a `config.d` overlay enabling the HTTPS interface, e.g. `my_ssl.xml`:
 
 ```xml
 <clickhouse>
@@ -112,12 +115,22 @@ openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial \
 docker run -d --name clickhouse-ssl -p 8443:8443 \
   -v "$PWD/server.crt:/etc/clickhouse-server/certs/server.crt:ro" \
   -v "$PWD/server.key:/etc/clickhouse-server/certs/server.key:ro" \
-  -v "$PWD/zzz_ssl.xml:/etc/clickhouse-server/config.d/zzz_ssl.xml:ro" \
+  -v "$PWD/my_ssl.xml:/etc/clickhouse-server/config.d/my_ssl.xml:ro" \
+  -e CLICKHOUSE_PASSWORD="secret" \
   clickhouse/clickhouse-server:latest
 ```
 
 4. Run the example in standalone mode with
 `-DchUrl="jdbc:clickhouse://localhost:8443/default" -DchRootCert="$PWD/ca.crt"`.
+
+```shell
+mvn exec:java -Dexec.mainClass="com.clickhouse.examples.jdbc.SSLExamples" \
+  -DchUrl="jdbc:clickhouse:https://localhost:8443/default" \
+  -DchUser="default" \
+  -DchPassword="secret" \
+  -DchRootCert="$PWD/ca.crt"
+```
+
 
 The full description of the server-side TLS configuration is in the official documentation:
 [Configuring SSL-TLS](https://clickhouse.com/docs/en/guides/sre/configuring-ssl).
