@@ -56,6 +56,9 @@ public class ClickHouseDefaultSslContextProviderTest {
         PrivateKey fromContent = ClickHouseDefaultSslContextProvider
                 .getPrivateKey(readTestResource("pkey4test.pem"));
         Assert.assertEquals(fromContent, fromFile);
+        Assert.assertEquals(fromContent.getAlgorithm(), fromFile.getAlgorithm());
+        Assert.assertEquals(fromContent.getFormat(), fromFile.getFormat());
+        Assert.assertEquals(fromContent.getEncoded(), fromFile.getEncoded());
     }
 
     @Test(groups = { "unit" })
