@@ -1,28 +1,20 @@
 package com.clickhouse.client.config;
 
-import java.io.ByteArrayOutputStream;
+import com.clickhouse.data.ClickHouseUtils;
+import org.testng.Assert;
+import org.testng.annotations.Test;
+
 import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
 import java.security.PrivateKey;
 
-import com.clickhouse.data.ClickHouseUtils;
-
-import org.testng.Assert;
-import org.testng.annotations.Test;
-
 public class ClickHouseDefaultSslContextProviderTest {
     static String readTestResource(String name) throws Exception {
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
         try (InputStream in = ClickHouseUtils.getFileInputStream(name)) {
-            byte[] buffer = new byte[2048];
-            int read;
-            while ((read = in.read(buffer)) != -1) {
-                out.write(buffer, 0, read);
-            }
+            return new String(in.readAllBytes(), StandardCharsets.US_ASCII);
         }
-        return new String(out.toByteArray(), StandardCharsets.US_ASCII);
     }
 
     @Test(groups = { "unit" })
