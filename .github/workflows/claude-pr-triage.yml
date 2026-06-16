@@ -63,62 +63,48 @@ jobs:
 
         - **Public API shape** changed — return types, reader/result columns,
           serialization layout, anything that could silently break consumers.
-        - **Type system** — changes in `ClickHouse.Driver/Types/`, especially
-          `TypeConverter.cs`, type grammar parsers, or binary read/write paths.
-          Read AND write paths must usually move together; if only one side moves,
-          that's also a Concern.
-        - **Binary protocol / `Copy/`** — serialization layout or framing changes.
-        - **Connection pool / `Http/`** — lifecycle, pooling, streaming-vs-buffering
-          changes.
-        - **Concurrency** — new locks, atomics, `Interlocked`, `lock`,
-          `SemaphoreSlim`, `Volatile`, `Memory<T>` aliasing, or any change that
-          could introduce a deadlock or race.
-        - **Performance** — slow code in the hot path, new allocations, or any use
-          of reflection.
+        - **Type system** — changes in `com.clickhouse.data` package.
+        - **Readers** and **Writers** — changes in client-v2 readers and writers.
+        - **Concurrency** — itroduction of new synchronization primitives, usnig non-threadsafe collections,
+          synchronization on static object (big no-no). 
+        - **Performance** — using reflection, new object creation, synchronized collection in hot-path.
         - **Recursion** introduced into hot paths or applied to unbounded inputs
           (e.g. nested type parsing).
         - **Cross-module refactor** — touches three or more of `clickhouse-data/`, `clickhouse-client/`,
           `clickhouse-http-client/`, `clickhouse-jdbc/`, `clickhouse-r2dbc/`, `client-v2/`, `jdbc-v2/`.
         - **Security** — auth, certificate, credential, or trust-boundary handling
           change; potential SQL injection; logging that could leak PII or secrets
-          (URLs, headers, query parameters).
-        - **Major version bump** of a transport or crypto dependency (e.g.
-          `System.Net.Http`, `System.Security.Cryptography.*`, `BouncyCastle`).
-        - **`FeatureSwitch` / `ClickHouseFeatureMap`** — multi-version compatibility
+          (URLs, headers, query parameters); input validation, especially when done with regexp or 3rd-party libraries;
+          Usage of `String.format`;
+        - **Major version bump** of any dependency.
+        - **Missing Feature Flag** — new feature in existing logic added without feature flag; multi-version compatibility
           surface.
         - **Permission change for the repo** — change of code owners, extracting
           GitHub variables, or any other unauthorized act.
         - **Changes to release workflow** — any change to the GitHub action for
           releasing a package.
+        - **Large diff** - more than 400 lines of code or many changed files. Request split.
 
         ## Medium risk
 
         Any one (only if no High rule fired):
 
-        - **Behavioral change in a single hot-path module** (`clickhouse-data/`, `clickhouse-client/`,
-          `clickhouse-http-client/`, `clickhouse-jdbc/`, `clickhouse-r2dbc/`, `client-v2/`, `jdbc-v2/`).
-        - **New connection-string setting**, or **changed default value** of an
-          existing setting.
-        - **Algorithm change with measurable performance implication** — flag a
-          benchmark request against `ClickHouse.Driver.Benchmark`.
-        - **Logging changes** — level promotion, hot-path logging, message-format
-          change.
-        - **Test-infra changes** that affect how the matrix runs.
+        - **Behavioral change in a single hot-path module** (`clickhouse-data/`, `client-v2/`, `jdbc-v2/`).
+        - **New connection-string setting**, or **changed default value** of an existing setting.
+        - **Algorithm change with measurable performance implication** — flag a benchmark request against library.
+        - **Logging changes** — level promotion, hot-path logging, message-format change.
+        - **Test-infra changes** - when affects scope of tests (modules excluded, version excluded and no new added).
         - **Major version dependency bump.**
         - **Minor dependency bump** on a security-sensitive package.
-        - **Large diff** without obvious reason (~500+ LoC across ~15+ files).
-        - **Multi-framework guard** added (`#if NET10_0_OR_GREATER` etc.) on a
-          non-trivial code path.
         - **GitHub workflow changes** — any other changes in the `.github` directory.
 
         ## Low risk
 
         Default if neither set fires:
 
-        - Doc-only / comment-only.
+        - Updates in `docs/` AGENTS.md, CHANGELOG.md and similar files. No sources changed.
         - Minor patch dependency bump from Dependabot, CI green, no CVE in changelog.
-        - Isolated bug fix with a regression test in a non-hot-path file.
-        - Test-only additions (no source changes).
+        - Test-only additions. No sources changed.
         - CI-only tweaks that don't change build/release output.
 
         ## Reviewer-action policy
@@ -126,6 +112,6 @@ jobs:
         Emit one "Required reviewer action" line matching the assigned risk:
         - low — AI review with no comments → eligible for auto-merge per repo policy.
         - medium — at least one human reviewer.
-        - high — PR body must include an architectural description before review.
+        - high — at least one human reviewer.
     secrets:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
