@@ -8,10 +8,10 @@ Keep this map structural (modules, packages, entry points, label → location).
 Do not add line numbers or exhaustive class lists — they go stale. When a
 mapping below is wrong because the code moved, fix the boundary here.
 
-Maintenance: a drift check (`check-source-map.sh`, run in CI by
-`.github/workflows/triage-source-map-drift.yml`) verifies the directories and
-entry-point files referenced here still exist. If you move a boundary, update
-both this file and the manifest in that script.
+Maintenance: a drift check in `.github/workflows/triage-source-map-drift.yml`
+verifies the directories and entry-point files referenced here still exist. If
+you move a boundary, update both this file and the DIRS/FILES lists in that
+workflow.
 
 
 ## Modules at a glance

@@ -4,6 +4,10 @@ name: Triage source-map drift check
 # still matches the repo layout. The map hard-codes module/package boundaries and
 # entry-point classes; this guards against silent drift after refactors so the map
 # is updated deliberately. The check is deterministic (no Claude, no secrets).
+#
+# The manifest is inlined below (rather than a committed script) because the repo
+# .gitignore ignores *.sh, so a checked-out helper script would be missing in CI.
+# If you move a boundary in source-map.md, update the DIRS/FILES lists here.
 
 on:
   push:
@@ -36,4 +40,67 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
       - name: Validate triage source map
-        run: bash .cursor/skills/triage-issues/check-source-map.sh
+        run: |
+          set -euo pipefail
+
+          # Directories the map's module/area/package boundaries depend on.
+          DIRS=(
+            "client-v2/src/main/java/com/clickhouse/client/api"
+            "client-v2/src/main/java/com/clickhouse/client/api/insert"
+            "client-v2/src/main/java/com/clickhouse/client/api/query"
+            "client-v2/src/main/java/com/clickhouse/client/api/serde"
+            "client-v2/src/main/java/com/clickhouse/client/api/data_formats"
+            "client-v2/src/main/java/com/clickhouse/client/api/metadata"
+            "client-v2/src/main/java/com/clickhouse/client/api/transport"
+            "client-v2/src/main/java/com/clickhouse/client/api/http"
+            "clickhouse-client/src/main/java/com/clickhouse/client"
+            "clickhouse-http-client/src/main/java/com/clickhouse/client/http"
+            "clickhouse-data/src/main/java/com/clickhouse/data"
+            "clickhouse-data/src/main/java/com/clickhouse/data/format"
+            "clickhouse-data/src/main/java/com/clickhouse/data/compress"
+            "clickhouse-data/src/main/java/com/clickhouse/data/value"
+            "jdbc-v2/src/main/java/com/clickhouse/jdbc"
+            "jdbc-v2/src/main/java/com/clickhouse/jdbc/metadata"
+            "jdbc-v2/src/main/java/com/clickhouse/jdbc/internal/parser"
+            "jdbc-v2/src/main/java/com/clickhouse/jdbc/types"
+            "clickhouse-jdbc/src/main/java/com/clickhouse/jdbc"
+            "clickhouse-jdbc/src/main/java/com/clickhouse/jdbc/parser"
+            "clickhouse-r2dbc/src/main/java/com/clickhouse/r2dbc"
+            "packages/clickhouse-jdbc-all"
+          )
+
+          # Entry-point / disambiguation files the map names explicitly.
+          FILES=(
+            "client-v2/src/main/java/com/clickhouse/client/api/Client.java"
+            "client-v2/src/main/java/com/clickhouse/client/api/ClientConfigProperties.java"
+            "jdbc-v2/src/main/java/com/clickhouse/jdbc/Driver.java"
+            "jdbc-v2/src/main/java/com/clickhouse/jdbc/ConnectionImpl.java"
+            "jdbc-v2/src/main/java/com/clickhouse/jdbc/metadata/DatabaseMetaDataImpl.java"
+            "clickhouse-jdbc/src/main/java/com/clickhouse/jdbc/ClickHouseConnection.java"
+            "clickhouse-jdbc/src/main/java/com/clickhouse/jdbc/parser/ClickHouseSqlParser.java"
+            "clickhouse-data/src/main/java/com/clickhouse/data/ClickHouseDataProcessor.java"
+          )
+
+          missing=0
+          for d in "${DIRS[@]}"; do
+            if [ ! -d "$d" ]; then
+              echo "::error::source-map drift: directory no longer exists: $d"
+              missing=1
+            fi
+          done
+          for f in "${FILES[@]}"; do
+            if [ ! -f "$f" ]; then
+              echo "::error::source-map drift: file no longer exists: $f"
+              missing=1
+            fi
+          done
+
+          if [ "$missing" -ne 0 ]; then
+            echo
+            echo "The triage source map references paths that have moved or been removed."
+            echo "Update .cursor/skills/triage-issues/source-map.md and the DIRS/FILES"
+            echo "lists in this workflow to match the current layout."
+            exit 1
+          fi
+
+          echo "source-map OK: all ${#DIRS[@]} directories and ${#FILES[@]} files present."
