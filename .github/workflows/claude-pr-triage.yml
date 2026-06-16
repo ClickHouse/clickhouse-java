@@ -1,0 +1,117 @@
+name: PR Triage
+on:
+  pull_request:
+    types: [ ready_for_review, synchronize ]
+  issue_comment:
+    types: [ created ]
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: write
+
+concurrency:
+  group: claude-triage-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  triage:
+    if: |
+      startsWith(github.repository, 'ClickHouse/') &&
+      (
+        (
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.draft == false
+        ) ||
+        (
+          github.event_name == 'issue_comment' &&
+          github.event.issue.pull_request != null &&
+          github.event.sender.type != 'Bot' &&
+          github.event.comment.user.type != 'Bot' &&
+          startsWith(github.event.comment.body, '/triage') &&
+          contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+        )
+      )
+    uses: ClickHouse/integrations-shared-workflows/.github/workflows/claude-pr-triage.yml@3d91ad26a6d8e9164eb120fb0433ec2defd5c68a
+    with:
+      pr_number: ${{ github.event.pull_request.number || github.event.issue.number }}
+      triage_instructions: |
+        ## Category meanings
+
+        | Category | When |
+        |---|---|
+        | `bugfix` | Fixes a defect. Should have a regression test. |
+        | `feature` | New capability — new type, new API surface, new format. |
+        | `refactor` | Internal restructuring, no behavior change intended. |
+        | `perf` | Performance optimization. |
+        | `deps` | Dependency bump (NuGet, GitHub Actions). |
+        | `docs` | README / XML doc / CHANGELOG / RELEASENOTES only. |
+        | `tests` | Test-only changes, no source change. |
+        | `infra` | CI, build scripts, tooling, llm workflows. |
+
+        If multiple apply, pick the most consequential (`bugfix`/`feature` outrank
+        `refactor`; `perf` outranks `refactor` if measurable).
+
+        Flag intent drift (in Concerns) if:
+        - Files touched are out of scope vs. the issue/body.
+        - Multiple unrelated concerns are bundled in one PR.
+        - A significant non-trivial change has no linked issue.
+
+        ## High risk
+
+        Any one is sufficient:
+
+        - **Public API shape** changed — return types, reader/result columns,
+          serialization layout, anything that could silently break consumers.
+        - **Type system** — changes in `com.clickhouse.data` package.
+        - **Readers** and **Writers** — changes in client-v2 readers and writers.
+        - **Concurrency** — itroduction of new synchronization primitives, usnig non-threadsafe collections,
+          synchronization on static object (big no-no). 
+        - **Performance** — using reflection, new object creation, synchronized collection in hot-path.
+        - **Recursion** introduced into hot paths or applied to unbounded inputs
+          (e.g. nested type parsing).
+        - **Cross-module refactor** — touches three or more of `clickhouse-data/`, `clickhouse-client/`,
+          `clickhouse-http-client/`, `clickhouse-jdbc/`, `clickhouse-r2dbc/`, `client-v2/`, `jdbc-v2/`.
+        - **Security** — auth, certificate, credential, or trust-boundary handling
+          change; potential SQL injection; logging that could leak PII or secrets
+          (URLs, headers, query parameters); input validation, especially when done with regexp or 3rd-party libraries;
+          Usage of `String.format`;
+        - **Major version bump** of any dependency.
+        - **Missing Feature Flag** — new feature in existing logic added without feature flag; multi-version compatibility
+          surface.
+        - **Permission change for the repo** — change of code owners, extracting
+          GitHub variables, or any other unauthorized act.
+        - **Changes to release workflow** — any change to the GitHub action for
+          releasing a package.
+        - **Large diff** - more than 400 lines of code or many changed files. Request split.
+
+        ## Medium risk
+
+        Any one (only if no High rule fired):
+
+        - **Behavioral change in a single hot-path module** (`clickhouse-data/`, `client-v2/`, `jdbc-v2/`).
+        - **New connection-string setting**, or **changed default value** of an existing setting.
+        - **Algorithm change with measurable performance implication** — flag a benchmark request against library.
+        - **Logging changes** — level promotion, hot-path logging, message-format change.
+        - **Test-infra changes** - when affects scope of tests (modules excluded, version excluded and no new added).
+        - **Major version dependency bump.**
+        - **Minor dependency bump** on a security-sensitive package.
+        - **GitHub workflow changes** — any other changes in the `.github` directory.
+
+        ## Low risk
+
+        Default if neither set fires:
+
+        - Updates in `docs/` AGENTS.md, CHANGELOG.md and similar files. No sources changed.
+        - Minor patch dependency bump from Dependabot, CI green, no CVE in changelog.
+        - Test-only additions. No sources changed.
+        - CI-only tweaks that don't change build/release output.
+
+        ## Reviewer-action policy
+
+        Emit one "Required reviewer action" line matching the assigned risk:
+        - low — AI review with no comments → eligible for auto-merge per repo policy.
+        - medium — at least one human reviewer.
+        - high — at least one human reviewer.
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
