@@ -12,8 +12,9 @@ name: Triage issue with Claude
 #
 # Security: the issue body/comments are untrusted input. Triage is split across
 # two jobs so the writable token is never present while the model runs:
-#   * `triage` runs Claude with `contents: read` only — the GITHUB_TOKEN in its
-#     environment cannot write to issues. Claude also runs fully offline (no
+#   * `triage` runs Claude with read-only permissions (contents + issues read,
+#     to download the issue) — the GITHUB_TOKEN in its environment can read but
+#     cannot write to issues. Claude also runs fully offline (no
 #     WebFetch/WebSearch and no Bash), so it cannot follow links or exfiltrate
 #     anything. It only produces a local report file.
 #   * `comment` is a separate, deterministic job that holds `issues: write` and
@@ -32,6 +33,12 @@ on:
         description: "Issue number to triage"
         required: true
         type: string
+  # TEST ONLY: run the split workflow on push to the test branch so it can be
+  # exercised without opening an issue. Falls back to issue 2827 (see prep step).
+  # Remove this trigger before merging.
+  push:
+    branches:
+      - 06/15/26/triage_issue_wf
 
 # Least privilege by default; each job narrows or widens this as needed.
 permissions:
@@ -45,15 +52,20 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' ||
       github.event_name == 'issues' ||
+      github.event_name == 'push' ||
       (github.event_name == 'issue_comment' &&
        github.event.issue.pull_request == null &&
        startsWith(github.event.comment.body, '/triage') &&
        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    # Read-only: the token handed to Claude below cannot write to issues.
+    # Read-only. `issues: read` is needed because the prep step downloads the
+    # issue with `gh issue view`; with explicit permissions, unspecified scopes
+    # default to none. The token handed to Claude can read the issue but cannot
+    # write to it — the privileged `comment` job holds `issues: write`.
     permissions:
       contents: read
+      issues: read
     concurrency:
       group: claude-issue-triage-${{ github.repository }}-${{ github.event.inputs.issue_number || github.event.issue.number }}
       cancel-in-progress: true
@@ -81,6 +93,10 @@ jobs:
           # issue that triggered the event (opened issue or commented issue).
           ISSUE="${INPUT_ISSUE:-}"
           [ -z "$ISSUE" ] && ISSUE="${EVENT_ISSUE:-}"
+          # TEST ONLY: the push trigger has no issue context, so fall back to a
+          # known issue to exercise the split workflow. Remove with the push
+          # trigger before merging.
+          [ -z "$ISSUE" ] && ISSUE="2827"
           if [ -z "$ISSUE" ]; then
             echo "::error::no issue number — pass issue_number or trigger on issues/issue_comment"
             exit 1
@@ -122,7 +138,7 @@ jobs:
           # commands, or exfiltrate anything. It cannot edit repo files or post
           # comments — the separate `comment` job does that deterministically.
           claude_args: |
-            --allowedTools "Read,Glob,Grep,Write"
+            --allowedTools "Read,Glob,Grep,Write,Task"
             --disallowedTools "Edit,MultiEdit,NotebookEdit,WebFetch,WebSearch,Bash"
             --max-turns 40
           prompt: |
