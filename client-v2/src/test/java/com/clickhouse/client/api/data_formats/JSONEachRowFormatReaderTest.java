@@ -215,6 +215,9 @@ public class JSONEachRowFormatReaderTest {
             public void close() { }
         };
         try (JSONEachRowFormatReader reader = new JSONEachRowFormatReader(parser)) {
+            // The first (valid) row must be returned even though prefetching the
+            // next row fails; the wrapped error is deferred to the next call.
+            Assert.assertNotNull(reader.next(), "first valid row must not be dropped");
             try {
                 reader.next();
                 Assert.fail("Expected RuntimeException");

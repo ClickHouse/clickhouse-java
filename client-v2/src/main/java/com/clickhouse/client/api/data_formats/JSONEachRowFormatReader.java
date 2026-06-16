@@ -36,6 +36,7 @@ public class JSONEachRowFormatReader implements ClickHouseTextFormatReader {
     private Map<String, Object> currentRow;
     private Map<String, Object> nextRow;
     private boolean hasNext;
+    private RuntimeException pendingException;
 
     public JSONEachRowFormatReader(JsonParser parser) {
         this.parser = parser;
@@ -89,6 +90,17 @@ public class JSONEachRowFormatReader implements ClickHouseTextFormatReader {
 
     @Override
     public Map<String, Object> next() {
+        // A failed prefetch of the following row must not discard the row that was
+        // already buffered. The error is deferred here so the caller still receives
+        // the valid record before the exception surfaces on the subsequent call.
+        if (pendingException != null) {
+            RuntimeException e = pendingException;
+            pendingException = null;
+            hasNext = false;
+            currentRow = null;
+            throw e;
+        }
+
         if (!hasNext) {
             currentRow = null;
             return null;
@@ -104,9 +116,11 @@ public class JSONEachRowFormatReader implements ClickHouseTextFormatReader {
             nextRow = parser.nextRow();
             hasNext = nextRow != null;
         } catch (Exception e) {
-            hasNext = false;
             nextRow = null;
-            throw new RuntimeException("Failed to read next JSON row", e);
+            // Keep hasNext true so a hasNext()/next() loop calls next() again and
+            // observes the deferred error instead of silently stopping.
+            hasNext = true;
+            pendingException = new RuntimeException("Failed to read next JSON row", e);
         }
     }
 

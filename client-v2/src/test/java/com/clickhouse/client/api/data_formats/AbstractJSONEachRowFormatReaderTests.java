@@ -410,10 +410,12 @@ public abstract class AbstractJSONEachRowFormatReaderTests extends BaseIntegrati
 
     /**
      * Builds a reader directly over a hand-crafted JSONEachRow stream that
-     * contains a valid first object followed by malformed bytes. The first
-     * call to {@code next()} buffered row #1 in the constructor and then
-     * tries to read row #2, which is malformed; the reader must surface a
-     * {@link RuntimeException} and refuse to advance any further.
+     * contains two valid objects followed by malformed bytes. Because the
+     * reader prefetches the next row, the parse failure for the malformed
+     * third row is encountered while the second (valid) row is being returned.
+     * The reader must still hand back every valid record it managed to read
+     * and only surface the {@link RuntimeException} once those records have
+     * been consumed, instead of dropping the buffered valid row.
      *
      * <p>This is structured as a unit-style test so it does not depend on the
      * server, but it stays in the {@code integration} group alongside the
@@ -435,6 +437,11 @@ public abstract class AbstractJSONEachRowFormatReaderTests extends BaseIntegrati
 
             Assert.assertNotNull(reader.next(), "row 1 should be readable");
             Assert.assertEquals(reader.getString("name"), "first");
+
+            // The prefetch of the malformed third row fails here, but the
+            // second row is valid and must not be dropped.
+            Assert.assertNotNull(reader.next(), "row 2 should be readable");
+            Assert.assertEquals(reader.getString("name"), "second");
 
             try {
                 reader.next();
