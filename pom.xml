@@ -626,7 +626,7 @@
 
     <profiles>
         <profile>
-            <id>analysis</id>
+            <id>coverage</id>
             <build>
                 <plugins>
                     <plugin>
