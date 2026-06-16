@@ -27,6 +27,11 @@ on:
         description: "Issue number to triage"
         required: true
         type: string
+  # TEMP (remove before merging): lets this branch's version run on push so it
+  # can be tested without first landing on the default branch. Targets the
+  # hardcoded test issue below.
+  push:
+    branches: ["06/15/26/triage_issue_wf"]
 
 permissions:
   contents: read
@@ -71,6 +76,9 @@ jobs:
           # issue that triggered the event (opened issue or commented issue).
           ISSUE="${INPUT_ISSUE:-}"
           [ -z "$ISSUE" ] && ISSUE="${EVENT_ISSUE:-}"
+          # TEMP (remove before merging): fallback for `push` test runs, which
+          # carry no issue number.
+          [ -z "$ISSUE" ] && ISSUE="2839"
           if [ -z "$ISSUE" ]; then
             echo "::error::no issue number — pass issue_number or trigger on issues/issue_comment"
             exit 1
