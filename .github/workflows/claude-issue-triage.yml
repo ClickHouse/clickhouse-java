@@ -33,12 +33,13 @@ on:
         description: "Issue number to triage"
         required: true
         type: string
-  # TEST ONLY: run the split workflow on push to the test branch so it can be
-  # exercised without opening an issue. Falls back to issue 2827 (see prep step).
+  # TEST ONLY: run the split workflow on PRs so it can be exercised from a
+  # branch (a pull_request run uses the workflow file as it exists on the PR
+  # branch, and claude-code-action natively supports pull_request — unlike
+  # push). No issue context, so it falls back to issue 2827 (see prep step).
   # Remove this trigger before merging.
-  push:
-    branches:
-      - 06/15/26/triage_issue_wf
+  pull_request:
+    types: [opened, synchronize, reopened]
 
 # Least privilege by default; each job narrows or widens this as needed.
 permissions:
@@ -52,7 +53,7 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' ||
       github.event_name == 'issues' ||
-      github.event_name == 'push' ||
+      github.event_name == 'pull_request' ||
       (github.event_name == 'issue_comment' &&
        github.event.issue.pull_request == null &&
        startsWith(github.event.comment.body, '/triage') &&
@@ -66,6 +67,9 @@ jobs:
     permissions:
       contents: read
       issues: read
+      # TEST ONLY: claude-code-action reads PR context on pull_request events.
+      # Read-only; remove with the pull_request trigger before merging.
+      pull-requests: read
     concurrency:
       group: claude-issue-triage-${{ github.repository }}-${{ github.event.inputs.issue_number || github.event.issue.number }}
       cancel-in-progress: true
@@ -93,9 +97,9 @@ jobs:
           # issue that triggered the event (opened issue or commented issue).
           ISSUE="${INPUT_ISSUE:-}"
           [ -z "$ISSUE" ] && ISSUE="${EVENT_ISSUE:-}"
-          # TEST ONLY: the push trigger has no issue context, so fall back to a
-          # known issue to exercise the split workflow. Remove with the push
-          # trigger before merging.
+          # TEST ONLY: the pull_request trigger has no issue context, so fall
+          # back to a known issue to exercise the split workflow. Remove with the
+          # pull_request trigger before merging.
           [ -z "$ISSUE" ] && ISSUE="2827"
           if [ -z "$ISSUE" ]; then
             echo "::error::no issue number — pass issue_number or trigger on issues/issue_comment"
@@ -138,8 +142,8 @@ jobs:
           # commands, or exfiltrate anything. It cannot edit repo files or post
           # comments — the separate `comment` job does that deterministically.
           claude_args: |
-            --allowedTools "Read,Glob,Grep,Write,Task"
-            --disallowedTools "Edit,MultiEdit,NotebookEdit,WebFetch,WebSearch,Bash"
+            --allowedTools "Read,Glob,Grep,Write"
+            --disallowedTools "Edit,MultiEdit,NotebookEdit,WebFetch,WebSearch,Bash,Task"
             --max-turns 40
           prompt: |
             REPO: ${{ github.repository }}

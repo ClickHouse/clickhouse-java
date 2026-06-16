@@ -53,7 +53,7 @@ Every issue type has its own research approach.
 When finishing the analysis, outputs the findings using this exact template:
 ~~~
 ## Triage Report
-**Size**: [Tiny/Small/Medium/Large]
+**Effort to Fix**: [Tiny/Small/Medium/Large]
 **Type**: [Question/Bug]
 **Affected Module**: [Module Name]
 ### Summary

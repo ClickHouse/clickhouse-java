@@ -19,7 +19,7 @@ of the usecase. Sometimes there is a link to external demo project.
 
 # Minimal Issue Details
 
-- Issue type: potential bug, feature request,
+- Issue type: potential bug, feature request, chore
 - Affected component: language client or JDBC driver
 - Affected area: core functionality (data codecs, configuration validation, formats), special functionality (subset of core functionality or very specific feature) or general failure.
 
