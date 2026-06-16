@@ -27,11 +27,12 @@ on:
         description: "Issue number to triage"
         required: true
         type: string
-  # TEMP (remove before merging): lets this branch's version run on push so it
-  # can be tested without first landing on the default branch. Targets the
-  # hardcoded test issue below.
-  push:
-    branches: ["06/15/26/triage_issue_wf"]
+  # TEMP (remove before merging): lets this branch's version run from a PR so it
+  # can be tested without first landing on the default branch. `pull_request`
+  # runs the head branch's workflow file and is a supported event for
+  # claude-code-action (unlike `push`). Targets the hardcoded test issue below.
+  pull_request:
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: read
@@ -43,7 +44,7 @@ jobs:
     # Triage on: a newly opened issue, a `/triage` command from a maintainer
     # (not on pull requests), or a manual dispatch.
     if: >-
-      github.event_name == 'push' ||
+      github.event_name == 'pull_request' ||
       github.event_name == 'workflow_dispatch' ||
       github.event_name == 'issues' ||
       (github.event_name == 'issue_comment' &&
@@ -77,8 +78,8 @@ jobs:
           # issue that triggered the event (opened issue or commented issue).
           ISSUE="${INPUT_ISSUE:-}"
           [ -z "$ISSUE" ] && ISSUE="${EVENT_ISSUE:-}"
-          # TEMP (remove before merging): fallback for `push` test runs, which
-          # carry no issue number.
+          # TEMP (remove before merging): fallback for `pull_request` test runs,
+          # which carry no issue number.
           [ -z "$ISSUE" ] && ISSUE="2839"
           if [ -z "$ISSUE" ]; then
             echo "::error::no issue number — pass issue_number or trigger on issues/issue_comment"
