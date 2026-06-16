@@ -100,7 +100,7 @@ Example with custom connection properties:
 mvn compile exec:java \
   -DchEndpoint=http://localhost:8123 \
   -DchUser=default \
-  -DchPassword= \
+  -DchPassword=secret \
   -DchDatabase=default
 ```
 
