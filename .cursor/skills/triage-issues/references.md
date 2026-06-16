@@ -44,6 +44,11 @@ Read/Glob/Grep — do not follow external links):
 - client v1: `clickhouse-http-client/` (also `clickhouse-client/`, `clickhouse-data/`)
 - JDBC v1: `clickhouse-jdbc/`
 
+For a structural map (module/package boundaries, `area:*` label → source
+location, entry-point classes, and stacktrace → module heuristics) use
+[source-map.md](source-map.md). Consult it to locate the affected module/area
+before grepping the tree.
+
 
 # Labels
 

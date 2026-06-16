@@ -1,0 +1,39 @@
+name: Triage source-map drift check
+
+# Verifies that the triage source map (.cursor/skills/triage-issues/source-map.md)
+# still matches the repo layout. The map hard-codes module/package boundaries and
+# entry-point classes; this guards against silent drift after refactors so the map
+# is updated deliberately. The check is deterministic (no Claude, no secrets).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**/src/main/java/**"
+      - ".cursor/skills/triage-issues/**"
+      - ".github/workflows/triage-source-map-drift.yml"
+  pull_request:
+    paths:
+      - "**/src/main/java/**"
+      - ".cursor/skills/triage-issues/**"
+      - ".github/workflows/triage-source-map-drift.yml"
+  schedule:
+    # Weekly safety net to catch drift from merges that didn't touch the paths above.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Check source map
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Validate triage source map
+        run: bash .cursor/skills/triage-issues/check-source-map.sh

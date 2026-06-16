@@ -18,6 +18,11 @@ disable-model-invocation: true
 
 ## Stage 2: Research
 
+Before exploring the tree, use [source-map.md](source-map.md) to locate the
+affected module and `area:*` labels (module/package boundaries, label → source
+location, entry-point classes, and stacktrace → module heuristics). Only grep
+the source once the map has narrowed the scope.
+
 Every issue type has its own research approach.
 
 ### Question
