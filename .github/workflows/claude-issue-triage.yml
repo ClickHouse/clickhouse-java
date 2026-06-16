@@ -43,6 +43,7 @@ jobs:
     # Triage on: a newly opened issue, a `/triage` command from a maintainer
     # (not on pull requests), or a manual dispatch.
     if: >-
+      github.event_name == 'push' ||
       github.event_name == 'workflow_dispatch' ||
       github.event_name == 'issues' ||
       (github.event_name == 'issue_comment' &&
