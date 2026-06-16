@@ -80,7 +80,7 @@ jobs:
           [ -z "$ISSUE" ] && ISSUE="${EVENT_ISSUE:-}"
           # TEMP (remove before merging): fallback for `pull_request` test runs,
           # which carry no issue number.
-          [ -z "$ISSUE" ] && ISSUE="2839"
+          [ -z "$ISSUE" ] && ISSUE="2846"
           if [ -z "$ISSUE" ]; then
             echo "::error::no issue number — pass issue_number or trigger on issues/issue_comment"
             exit 1
