@@ -51,7 +51,7 @@ Every issue type has its own research approach.
 ## Stage 3: Summary
 
 When finishing the analysis, outputs the findings using this exact template:
-```markdown
+~~~
 ## Triage Report
 **Size**: [Tiny/Small/Medium/Large]
 **Type**: [Question/Bug]
@@ -75,4 +75,4 @@ When finishing the analysis, outputs the findings using this exact template:
 ```
 // code
 ```
-```
+~~~

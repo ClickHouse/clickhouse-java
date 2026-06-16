@@ -10,11 +10,16 @@ name: Triage issue with Claude
 # triage it using only local information — the skill plus the checked-out source.
 # It then posts the resulting report back onto the issue as a sticky comment.
 #
-# Security: the issue body/comments are untrusted input. Claude runs fully
-# offline for triage — no WebFetch/WebSearch and no Bash, so it cannot follow
-# links or exfiltrate anything. It only produces a local report file; a separate
-# deterministic step (which holds the issues:write permission) posts the comment,
-# so a successful prompt injection cannot post a tampered comment on its own.
+# Security: the issue body/comments are untrusted input. Triage is split across
+# two jobs so the writable token is never present while the model runs:
+#   * `triage` runs Claude with `contents: read` only — the GITHUB_TOKEN in its
+#     environment cannot write to issues. Claude also runs fully offline (no
+#     WebFetch/WebSearch and no Bash), so it cannot follow links or exfiltrate
+#     anything. It only produces a local report file.
+#   * `comment` is a separate, deterministic job that holds `issues: write` and
+#     does nothing but post the report. It never runs the model.
+# So even a successful prompt injection has no write-capable token to abuse and
+# cannot post a tampered comment on its own.
 
 on:
   issues:
@@ -28,9 +33,9 @@ on:
         required: true
         type: string
 
+# Least privilege by default; each job narrows or widens this as needed.
 permissions:
   contents: read
-  issues: write   # only the final step uses this, to upsert the triage comment
 
 jobs:
   triage:
@@ -46,13 +51,18 @@ jobs:
        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # Read-only: the token handed to Claude below cannot write to issues.
+    permissions:
+      contents: read
     concurrency:
       group: claude-issue-triage-${{ github.repository }}-${{ github.event.inputs.issue_number || github.event.issue.number }}
       cancel-in-progress: true
+    outputs:
+      issue: ${{ steps.prep.outputs.issue }}
     steps:
       # Check out the repo so the triage skill (.cursor/skills/triage-issues/)
       # and the module source are available locally for offline triage.
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 1
           persist-credentials: false
@@ -102,13 +112,15 @@ jobs:
         uses: anthropics/claude-code-action@fefa07e9c665b7320f08c3b525980457f22f58aa # v1.0.111
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          # Use the runner-injected GITHUB_TOKEN rather than minting one via OIDC.
+          # Use the runner-injected GITHUB_TOKEN. Because this job's permissions
+          # are `contents: read`, this token is read-only and cannot post
+          # comments or edit issues even if the model is manipulated.
           github_token: ${{ github.token }}
           # Local-only triage. Claude may read the checked-out repo (skill +
           # source) and write only the local report file. No network tools
           # (WebFetch/WebSearch) and no Bash, so it cannot follow links, run
           # commands, or exfiltrate anything. It cannot edit repo files or post
-          # comments — the next workflow step does that deterministically.
+          # comments — the separate `comment` job does that deterministically.
           claude_args: |
             --allowedTools "Read,Glob,Grep,Write"
             --disallowedTools "Edit,MultiEdit,NotebookEdit,WebFetch,WebSearch,Bash"
@@ -152,17 +164,53 @@ jobs:
             put open items under "Missing Information / Questions for User". Write only the
             report to that file — no extra commentary.
 
+      - name: Ensure triage report was produced
+        run: |
+          set -euo pipefail
+          REPORT_FILE="triage/triage-report.md"
+          if [ ! -s "$REPORT_FILE" ]; then
+            echo "::error::Claude did not produce $REPORT_FILE"
+            exit 1
+          fi
+
+      # Hand the report to the privileged job via an artifact. Nothing with a
+      # writable token has run up to this point.
+      - name: Upload triage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: triage-report
+          path: triage/triage-report.md
+          if-no-files-found: error
+          retention-days: 1
+
+  comment:
+    name: Post triage comment
+    needs: triage
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # The only job that can write to issues. It runs no model — it just posts
+    # the report produced by the read-only `triage` job.
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Download triage report
+        uses: actions/download-artifact@v4
+        with:
+          name: triage-report
+          path: triage
+
       - name: Post triage report as an issue comment
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          ISSUE: ${{ steps.prep.outputs.issue }}
+          ISSUE: ${{ needs.triage.outputs.issue }}
         run: |
           set -euo pipefail
 
           REPORT_FILE="triage/triage-report.md"
           if [ ! -s "$REPORT_FILE" ]; then
-            echo "::error::Claude did not produce $REPORT_FILE"
+            echo "::error::missing $REPORT_FILE artifact from triage job"
             exit 1
           fi
 
