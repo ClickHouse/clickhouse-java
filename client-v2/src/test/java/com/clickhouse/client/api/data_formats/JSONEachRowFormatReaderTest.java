@@ -1,5 +1,6 @@
 package com.clickhouse.client.api.data_formats;
 
+import com.clickhouse.client.api.query.NullValueException;
 import com.clickhouse.data.ClickHouseDataType;
 import org.testng.Assert;
 import org.testng.annotations.Test;
@@ -390,6 +391,35 @@ public class JSONEachRowFormatReaderTest {
             } catch (RuntimeException expected) {
                 // ok
             }
+        }
+    }
+
+    @Test
+    public void testPrimitiveAccessorsThrowNullValueExceptionOnNull() throws Exception {
+        // A JSON null in a column read through a primitive accessor cannot be
+        // represented as a primitive, so the reader must surface a typed
+        // NullValueException instead of a raw NullPointerException. Verified for
+        // both name- and index-based accessors.
+        Map<String, Object> r = new LinkedHashMap<>();
+        r.put("v", null);
+        try (JSONEachRowFormatReader reader = new JSONEachRowFormatReader(
+                new StubJsonParser(Collections.singletonList(r)))) {
+            reader.next();
+
+            Assert.expectThrows(NullValueException.class, () -> reader.getByte("v"));
+            Assert.expectThrows(NullValueException.class, () -> reader.getByte(1));
+            Assert.expectThrows(NullValueException.class, () -> reader.getShort("v"));
+            Assert.expectThrows(NullValueException.class, () -> reader.getShort(1));
+            Assert.expectThrows(NullValueException.class, () -> reader.getInteger("v"));
+            Assert.expectThrows(NullValueException.class, () -> reader.getInteger(1));
+            Assert.expectThrows(NullValueException.class, () -> reader.getLong("v"));
+            Assert.expectThrows(NullValueException.class, () -> reader.getLong(1));
+            Assert.expectThrows(NullValueException.class, () -> reader.getFloat("v"));
+            Assert.expectThrows(NullValueException.class, () -> reader.getFloat(1));
+            Assert.expectThrows(NullValueException.class, () -> reader.getDouble("v"));
+            Assert.expectThrows(NullValueException.class, () -> reader.getDouble(1));
+            Assert.expectThrows(NullValueException.class, () -> reader.getBoolean("v"));
+            Assert.expectThrows(NullValueException.class, () -> reader.getBoolean(1));
         }
     }
 

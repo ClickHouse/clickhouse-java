@@ -4,6 +4,7 @@ import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.data_formats.internal.NumberConverter;
 import com.clickhouse.client.api.internal.SchemaUtils;
 import com.clickhouse.client.api.metadata.TableSchema;
+import com.clickhouse.client.api.query.NullValueException;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.value.ClickHouseBitmap;
 import com.clickhouse.data.value.ClickHouseGeoMultiPolygonValue;
@@ -117,32 +118,32 @@ public class JSONEachRowFormatReader implements ClickHouseTextFormatReader {
 
     @Override
     public byte getByte(String colName) {
-        return ((Number) currentRow.get(colName)).byteValue();
+        return ((Number) requireNonNull(colName, "byte")).byteValue();
     }
 
     @Override
     public short getShort(String colName) {
-        return ((Number) currentRow.get(colName)).shortValue();
+        return ((Number) requireNonNull(colName, "short")).shortValue();
     }
 
     @Override
     public int getInteger(String colName) {
-        return ((Number) currentRow.get(colName)).intValue();
+        return ((Number) requireNonNull(colName, "int")).intValue();
     }
 
     @Override
     public long getLong(String colName) {
-        return ((Number) currentRow.get(colName)).longValue();
+        return ((Number) requireNonNull(colName, "long")).longValue();
     }
 
     @Override
     public float getFloat(String colName) {
-        return ((Number) currentRow.get(colName)).floatValue();
+        return ((Number) requireNonNull(colName, "float")).floatValue();
     }
 
     @Override
     public double getDouble(String colName) {
-        return ((Number) currentRow.get(colName)).doubleValue();
+        return ((Number) requireNonNull(colName, "double")).doubleValue();
     }
 
     @Override
@@ -159,10 +160,25 @@ public class JSONEachRowFormatReader implements ClickHouseTextFormatReader {
             return ((Number) val).longValue() != 0;
         }
         if (val == null) {
-            throw new ClientException("Column '" + colName + "' has null value and cannot be converted to boolean");
+            throw new NullValueException("Column " + colName + " has null value and it cannot be cast to boolean");
         }
         throw new ClientException("Cannot convert value of type " + val.getClass().getName()
                 + " in column '" + colName + "' to boolean");
+    }
+
+    /**
+     * Returns the value for {@code colName}, throwing {@link NullValueException} when it is
+     * {@code null} so that primitive accessors fail with a meaningful error instead of an
+     * {@link NullPointerException}. A non-null value of an incompatible type is intentionally
+     * left to fail with {@link ClassCastException} at the call site, since that indicates a
+     * programmatic misuse rather than a data-driven condition.
+     */
+    private Object requireNonNull(String colName, String targetType) {
+        Object val = currentRow.get(colName);
+        if (val == null) {
+            throw new NullValueException("Column " + colName + " has null value and it cannot be cast to " + targetType);
+        }
+        return val;
     }
 
     @Override
