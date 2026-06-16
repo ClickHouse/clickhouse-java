@@ -140,7 +140,7 @@ more than receiving integer tokens as `Long`.
 From this directory:
 
 ```shell
-gradle run
+mvn compile exec:java
 ```
 
 Connection properties can be supplied as system properties:
@@ -152,7 +152,7 @@ Connection properties can be supplied as system properties:
 Example with custom connection properties:
 
 ```shell
-gradle run \
+mvn compile exec:java \
   -DchUrl=jdbc:clickhouse://localhost:8123/default \
   -DchUser=default \
   -DchPassword=
