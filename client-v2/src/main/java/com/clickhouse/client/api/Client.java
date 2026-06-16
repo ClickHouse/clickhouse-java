@@ -1556,6 +1556,13 @@ public class Client implements AutoCloseable {
                     if (httpResponse.getCode() == HttpStatus.SC_SERVICE_UNAVAILABLE) {
                         LOG.warn("Failed to get response. Server returned {}. Retrying. (Duration: {})", httpResponse.getCode(), durationSince(startTime));
                         selectedEndpoint = getNextAliveNode(selectedEndpoint);
+                        if (i < retries) {
+                            try {
+                                writer.onRetry();
+                            } catch (IOException ioe) {
+                                throw new ClientException("Failed to reset stream before next attempt", ioe);
+                            }
+                        }
                         continue;
                     }
 
