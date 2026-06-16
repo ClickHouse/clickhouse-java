@@ -127,8 +127,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
             this.typeMap = ImmutableMap.<String, Class<?>>builder().putAll(this.config.getTypeMap()).buildKeepingLast();
 
             final String jsonParserFactoryName = config.getDriverProperty(DriverProperties.JSON_PARSER_FACTORY.getKey(), null);
-            this.jsonParserFactory = jsonParserFactoryName == null ? null : instantiateJsonParserFactory(
-                    config.getDriverProperty(DriverProperties.JSON_PARSER_FACTORY.getKey(), null));
+            this.jsonParserFactory = jsonParserFactoryName == null ? null : instantiateJsonParserFactory(jsonParserFactoryName);
         } catch (SQLException e) {
             throw e;
         } catch (Exception e) {

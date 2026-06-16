@@ -118,32 +118,32 @@ public class JSONEachRowFormatReader implements ClickHouseTextFormatReader {
 
     @Override
     public byte getByte(String colName) {
-        return ((Number) requireNonNull(colName, "byte")).byteValue();
+        return ((Number) readPrimitiveNonNull(colName, "byte")).byteValue();
     }
 
     @Override
     public short getShort(String colName) {
-        return ((Number) requireNonNull(colName, "short")).shortValue();
+        return ((Number) readPrimitiveNonNull(colName, "short")).shortValue();
     }
 
     @Override
     public int getInteger(String colName) {
-        return ((Number) requireNonNull(colName, "int")).intValue();
+        return ((Number) readPrimitiveNonNull(colName, "int")).intValue();
     }
 
     @Override
     public long getLong(String colName) {
-        return ((Number) requireNonNull(colName, "long")).longValue();
+        return ((Number) readPrimitiveNonNull(colName, "long")).longValue();
     }
 
     @Override
     public float getFloat(String colName) {
-        return ((Number) requireNonNull(colName, "float")).floatValue();
+        return ((Number) readPrimitiveNonNull(colName, "float")).floatValue();
     }
 
     @Override
     public double getDouble(String colName) {
-        return ((Number) requireNonNull(colName, "double")).doubleValue();
+        return ((Number) readPrimitiveNonNull(colName, "double")).doubleValue();
     }
 
     @Override
@@ -173,7 +173,7 @@ public class JSONEachRowFormatReader implements ClickHouseTextFormatReader {
      * left to fail with {@link ClassCastException} at the call site, since that indicates a
      * programmatic misuse rather than a data-driven condition.
      */
-    private Object requireNonNull(String colName, String targetType) {
+    private Object readPrimitiveNonNull(String colName, String targetType) {
         Object val = currentRow.get(colName);
         if (val == null) {
             throw new NullValueException("Column " + colName + " has null value and it cannot be cast to " + targetType);
