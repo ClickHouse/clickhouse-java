@@ -1172,14 +1172,29 @@ public class Client implements AutoCloseable {
             // A trust store and a CA certificate are not rejected here: for VERIFY_CA/STRICT the trust
             // store takes precedence and the CA certificate is ignored with a warning (see createSSLContext).
 
-            // SSLMode.DISABLED does not turn encryption off - the endpoint scheme decides that. So it
-            // contradicts a secure (https) endpoint and must be rejected here, before the client is created.
-            if (SSLMode.DISABLED.name().equals(configuration.get(ClientConfigProperties.SSL_MODE.getKey()))) {
-                for (Endpoint endpoint : this.endpoints) {
-                    if ("https".equalsIgnoreCase(endpoint.getURI().getScheme())) {
-                        throw new ClientMisconfigurationException("SSL mode '" + SSLMode.DISABLED
-                                + "' cannot be used with a secure (https) endpoint. Use '" + SSLMode.TRUST
-                                + "' to trust all certificates or use plain HTTP.");
+            // Resolve ssl_mode case-insensitively and normalize it to the canonical enum name so that
+            // downstream parsing is consistent and an unknown value is reported as a misconfiguration
+            // here instead of failing later with a generic enum-parsing error.
+            String sslModeValue = configuration.get(ClientConfigProperties.SSL_MODE.getKey());
+            if (sslModeValue != null) {
+                SSLMode sslMode;
+                try {
+                    sslMode = SSLMode.fromValue(sslModeValue);
+                } catch (IllegalArgumentException e) {
+                    throw new ClientMisconfigurationException("Invalid value '" + sslModeValue + "' for '"
+                            + ClientConfigProperties.SSL_MODE.getKey() + "'", e);
+                }
+                configuration.put(ClientConfigProperties.SSL_MODE.getKey(), sslMode.name());
+
+                // SSLMode.DISABLED does not turn encryption off - the endpoint scheme decides that. So it
+                // contradicts a secure (https) endpoint and must be rejected here, before the client is created.
+                if (sslMode == SSLMode.DISABLED) {
+                    for (Endpoint endpoint : this.endpoints) {
+                        if ("https".equalsIgnoreCase(endpoint.getURI().getScheme())) {
+                            throw new ClientMisconfigurationException("SSL mode '" + SSLMode.DISABLED
+                                    + "' cannot be used with a secure (https) endpoint. Use '" + SSLMode.TRUST
+                                    + "' to trust all certificates or use plain HTTP.");
+                        }
                     }
                 }
             }
