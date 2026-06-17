@@ -13,6 +13,7 @@ import com.github.tomakehurst.wiremock.client.WireMock;
 import com.github.tomakehurst.wiremock.common.ConsoleNotifier;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import org.testng.Assert;
+import org.testng.SkipException;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
@@ -766,7 +767,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
     @Test(groups = { "integration" })
     public void testSSLModeTrust() throws Exception {
         if (isCloud()) {
-            return; // this test uses self-signed cert
+            throw new SkipException("Test uses a self-signed certificate, not applicable to cloud");
         }
         ClickHouseNode secureServer = getSecureServer(ClickHouseProtocol.HTTP);
         String jdbcUrl = "jdbc:clickhouse:" + secureServer.getBaseUri();
@@ -803,7 +804,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
     @Test(groups = { "integration" })
     public void testSSLModeVerifyCa() throws Exception {
         if (isCloud()) {
-            return; // this test uses self-signed cert
+            throw new SkipException("Test uses a self-signed certificate, not applicable to cloud");
         }
         ClickHouseNode secureServer = getSecureServer(ClickHouseProtocol.HTTP);
         // server certificate has CN=localhost, so connecting via 127.0.0.1 fails hostname verification
@@ -824,7 +825,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
         });
 
         // verify_ca: certificate chain is validated, hostname mismatch is ignored
-        properties.put(ClientConfigProperties.SSL_MODE.getKey(), "verifyca");
+        properties.put(ClientConfigProperties.SSL_MODE.getKey(), "verify_ca");
         try (Connection conn = new ConnectionImpl(jdbcUrl, properties);
              Statement stmt = conn.createStatement();
              ResultSet rs = stmt.executeQuery("SELECT number FROM system.numbers LIMIT 10")) {

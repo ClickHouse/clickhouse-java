@@ -24,7 +24,7 @@ import java.util.List;
  *     certificate comes from an environment variable or a secret manager (typical for
  *     Kubernetes/cloud deployments) and you do not want to write it to disk.</li>
  *     <li>Connecting to a server with a self-signed certificate without any trust material -
- *     {@link SSLMode#Trust} accepts any server certificate and skips hostname verification.
+ *     {@link SSLMode#TRUST} accepts any server certificate and skips hostname verification.
  *     Use it only for testing or in fully trusted environments.</li>
  * </ul>
  *
@@ -46,7 +46,7 @@ import java.util.List;
  *     <li>{@code chDatabase} - database name, default {@code default}</li>
  *     <li>{@code chUser} and {@code chPassword} - credentials (standalone mode)</li>
  *     <li>{@code chRootCert} - path to the root CA certificate in PEM format. When omitted in
- *     standalone mode, only the self-signed (Trust) example runs</li>
+ *     standalone mode, only the self-signed (TRUST) example runs
  *     <li>{@code chImage} - Docker image for local mode, default {@code clickhouse/clickhouse-server:latest}</li>
  * </ul>
  */
@@ -95,7 +95,7 @@ public class SSLExamples {
 
     /**
      * Connects to a ClickHouse server with a self-signed certificate without providing
-     * any trust material. {@link SSLMode#Trust} makes the client accept any server
+     * any trust material. {@link SSLMode#TRUST} makes the client accept any server
      * certificate and skip hostname verification.
      *
      * <p><b>Warning:</b> the connection is encrypted, but the server identity is NOT verified,
@@ -104,21 +104,21 @@ public class SSLExamples {
      * with the signing CA certificate whenever possible.</p>
      */
     static void connectToSelfSignedServer(String endpoint, String database, String user, String password) {
-        log.info("Connecting to {} accepting any server certificate (SSLMode.Trust)", endpoint);
+        log.info("Connecting to {} accepting any server certificate (SSLMode.TRUST)", endpoint);
         try (Client client = new Client.Builder()
                 .addEndpoint(endpoint)
                 .setUsername(user)
                 .setPassword(password)
                 .setDefaultDatabase(database)
                 // Accept the self-signed certificate and skip hostname verification.
-                .setSSLMode(SSLMode.Trust)
+                .setSSLMode(SSLMode.TRUST)
                 .build()) {
 
             List<GenericRecord> rows = client.queryAll("SELECT currentUser() AS user, version() AS version");
             log.info("Connected (server certificate not verified) as '{}' to ClickHouse {}",
                     rows.get(0).getString("user"), rows.get(0).getString("version"));
         } catch (Exception e) {
-            log.error("Connection with SSLMode.Trust failed", e);
+            log.error("Connection with SSLMode.TRUST failed", e);
         }
     }
 

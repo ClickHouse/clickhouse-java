@@ -176,16 +176,16 @@ public class JdbcConfigurationTest {
     public Object[][] sslModeValues() {
         return new Object[][] {
             // input value, expected client property value
-            { "none", SSLMode.Trust.name() }, // JDBC alias for the no-verification mode
-            { "NONE", SSLMode.Trust.name() },
-            { "disabled", SSLMode.Disabled.name() },
-            { "Disabled", SSLMode.Disabled.name() },
-            { "trust", SSLMode.Trust.name() },
-            { "Trust", SSLMode.Trust.name() },
-            { "verifyca", SSLMode.VerifyCa.name() },
-            { "VERIFYCA", SSLMode.VerifyCa.name() },
-            { "strict", SSLMode.Strict.name() },
-            { "Strict", SSLMode.Strict.name() },
+            { "none", SSLMode.TRUST.name() }, // JDBC alias for the no-verification mode
+            { "NONE", SSLMode.TRUST.name() },
+            { "disabled", SSLMode.DISABLED.name() },
+            { "Disabled", SSLMode.DISABLED.name() },
+            { "trust", SSLMode.TRUST.name() },
+            { "Trust", SSLMode.TRUST.name() },
+            { "verify_ca", SSLMode.VERIFY_CA.name() },
+            { "VERIFY_CA", SSLMode.VERIFY_CA.name() },
+            { "strict", SSLMode.STRICT.name() },
+            { "Strict", SSLMode.STRICT.name() },
         };
     }
 

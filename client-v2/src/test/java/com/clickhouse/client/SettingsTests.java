@@ -1,13 +1,21 @@
 package com.clickhouse.client;
 
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.ClientMisconfigurationException;
 import com.clickhouse.client.api.Session;
+import com.clickhouse.client.api.enums.SSLMode;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.internal.ServerSettings;
+import com.clickhouse.client.api.internal.SslContextProvider;
 import com.clickhouse.client.api.query.QuerySettings;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
+import javax.net.ssl.SSLContext;
+import java.io.File;
+import java.io.OutputStream;
+import java.nio.file.Files;
+import java.security.KeyStore;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Collections;
@@ -23,6 +31,65 @@ public class SettingsTests {
         String listA = ClientConfigProperties.commaSeparated(source);
         List<String> listB = ClientConfigProperties.valuesFromCommaSeparated(listA);
         Assert.assertEquals(listB, source);
+    }
+
+    @Test
+    void testSSLModeFromValue() {
+        // Every constant resolves from its exact name and is case-insensitive.
+        for (SSLMode mode : SSLMode.values()) {
+            Assert.assertEquals(SSLMode.fromValue(mode.name()), mode);
+            Assert.assertEquals(SSLMode.fromValue(mode.name().toLowerCase()), mode);
+            Assert.assertEquals(SSLMode.fromValue(mode.name().toUpperCase()), mode);
+        }
+
+        // VERIFY_CA matches only with the underscore - matching does not normalize separators.
+        Assert.assertEquals(SSLMode.fromValue("verify_ca"), SSLMode.VERIFY_CA);
+        Assert.assertEquals(SSLMode.fromValue("Verify_Ca"), SSLMode.VERIFY_CA);
+        Assert.assertThrows(IllegalArgumentException.class, () -> SSLMode.fromValue("verifyca"));
+
+        // Unknown and null values are rejected.
+        Assert.assertThrows(IllegalArgumentException.class, () -> SSLMode.fromValue("insecure"));
+        Assert.assertThrows(IllegalArgumentException.class, () -> SSLMode.fromValue(""));
+        Assert.assertThrows(IllegalArgumentException.class, () -> SSLMode.fromValue(null));
+    }
+
+    @Test
+    void testSslContextFromKeyStore() throws Exception {
+        SslContextProvider provider = new SslContextProvider();
+        final String type = "PKCS12";
+        final String password = "secret";
+        File trustStore = createEmptyTrustStore(type, password);
+        try {
+            // Happy path: a readable trust store with the right password yields a usable TLS context.
+            SSLContext ctx = provider.builder().trustStore(trustStore.getAbsolutePath(), password, type).build();
+            Assert.assertNotNull(ctx);
+            Assert.assertEquals(ctx.getProtocol(), "TLS");
+
+            // Wrong password fails the integrity check.
+            Assert.assertThrows(ClientMisconfigurationException.class,
+                    () -> provider.builder().trustStore(trustStore.getAbsolutePath(), "wrong", type).build());
+
+            // Missing file.
+            Assert.assertThrows(ClientMisconfigurationException.class,
+                    () -> provider.builder().trustStore(trustStore.getAbsolutePath() + ".missing", password, type).build());
+
+            // Unknown keystore type.
+            Assert.assertThrows(ClientMisconfigurationException.class,
+                    () -> provider.builder().trustStore(trustStore.getAbsolutePath(), password, "NOT_A_TYPE").build());
+        } finally {
+            Files.deleteIfExists(trustStore.toPath());
+        }
+    }
+
+    private static File createEmptyTrustStore(String type, String password) throws Exception {
+        KeyStore ks = KeyStore.getInstance(type);
+        ks.load(null, null);
+        File file = File.createTempFile("client-v2-truststore", "." + type.toLowerCase());
+        file.deleteOnExit();
+        try (OutputStream out = Files.newOutputStream(file.toPath())) {
+            ks.store(out, password.toCharArray());
+        }
+        return file;
     }
 
     @Test

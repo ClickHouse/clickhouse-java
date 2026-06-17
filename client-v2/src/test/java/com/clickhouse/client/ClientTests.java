@@ -389,7 +389,7 @@ public class ClientTests extends BaseIntegrationTest {
             Assert.assertEquals(config.get(ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey()), "20000");
             Assert.assertEquals(config.get(ClientConfigProperties.SOCKET_RCVBUF_OPT.getKey()), "100000");
             Assert.assertEquals(config.get(ClientConfigProperties.SOCKET_SNDBUF_OPT.getKey()), "100000");
-            Assert.assertEquals(config.get(ClientConfigProperties.SSL_MODE.getKey()), "Strict");
+            Assert.assertEquals(config.get(ClientConfigProperties.SSL_MODE.getKey()), "STRICT");
         }
     }
 

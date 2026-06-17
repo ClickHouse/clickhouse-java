@@ -84,7 +84,7 @@ Notes:
   CA certificate is passed to the client with `Client.Builder.setRootCertificate()` (as a file path
   or directly as a PEM string) - no trust store configuration is required, and the JVM default
   trust store stays untouched.
-- **Self-signed certificate without verification** - `Client.Builder.setSSLMode(SSLMode.Trust)`
+- **Self-signed certificate without verification** - `Client.Builder.setSSLMode(SSLMode.TRUST)`
   accepts any server certificate and skips hostname verification. The connection is encrypted, but
   the server identity is not verified - use it only for testing or in fully trusted environments.
 
@@ -119,7 +119,7 @@ mvn exec:java -Dexec.mainClass="com.clickhouse.examples.client_v2.SSLExamples" \
 ```
 
 `-DchRootCert` must point to the CA certificate in PEM format. When it is omitted, only the
-self-signed (`SSLMode.Trust`) example runs - useful when you do not have the CA certificate at hand.
+self-signed (`SSLMode.TRUST`) example runs - useful when you do not have the CA certificate at hand.
 
 ### Setting up a Docker dev instance with a self-signed certificate manually
 

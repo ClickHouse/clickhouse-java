@@ -9,40 +9,43 @@ package com.clickhouse.client.api.enums;
  *
  * <p>Modes from the least to the most strict:</p>
  * <ul>
- *     <li>{@link #Disabled} - SSL is not used. Plain protocols only.</li>
- *     <li>{@link #Trust} - encryption is used, but the server certificate chain is not validated
- *     and the hostname is not verified. Susceptible to MITM attacks - use only for testing or in
- *     fully trusted environments.</li>
- *     <li>{@link #VerifyCa} - the server certificate chain is validated against the trust material
+ *     <li>{@link #DISABLED} - SSL is not used. Plain protocols only.</li>
+ *     <li>{@link #TRUST} - the hostname is not verified and any server certificate is accepted, which
+ *     is susceptible to MITM attacks - use that only for testing or in fully trusted environments. A
+ *     configured trust store or CA certificate has no effect in this mode and is ignored (a warning is
+ *     logged); a configured client certificate/key is still applied for mTLS.</li>
+ *     <li>{@link #VERIFY_CA} - the server certificate chain is validated against the trust material
  *     (default JVM trust store, configured trust store, or a CA certificate), but the hostname is
  *     not checked against the certificate.</li>
- *     <li>{@link #Strict} - full verification (default): certificate chain is validated and the
+ *     <li>{@link #STRICT} - full verification (default): certificate chain is validated and the
  *     hostname must match the certificate.</li>
  * </ul>
  */
 public enum SSLMode {
 
     /**
-     * SSL is not used. Connection is not encrypted.
+     * SSL is not used. Connection is not encrypted. Doesn't work with HTTPS.
+     * Reserved for TCP where protocol doesn't define encryption.
      */
-    Disabled,
+    DISABLED,
 
     /**
-     * Encryption without verification: any server certificate is accepted and
-     * the hostname is not verified.
+     * The hostname is not verified and any server certificate is accepted. A configured trust store or
+     * CA certificate has no effect in this mode and is ignored (a warning is logged). A configured
+     * client certificate/key is still applied for mTLS.
      */
-    Trust,
+    TRUST,
 
     /**
      * Server certificate chain is validated, but the hostname is not verified.
      */
-    VerifyCa,
+    VERIFY_CA,
 
     /**
      * Full verification: certificate chain is validated and the hostname must match
-     * the certificate. Default mode.
+     * the certificate. Default mode for HTTPs.
      */
-    Strict;
+    STRICT;
 
     /**
      * Case-insensitive variant of {@link #valueOf(String)}.

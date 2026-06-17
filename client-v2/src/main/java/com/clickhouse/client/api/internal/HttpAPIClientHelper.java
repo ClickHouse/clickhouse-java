@@ -12,10 +12,8 @@ import com.clickhouse.client.api.DataTransferException;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.enums.SSLMode;
-import com.clickhouse.client.config.ClickHouseSslMode;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.transport.Endpoint;
-import com.clickhouse.client.config.ClickHouseDefaultSslContextProvider;
 import com.clickhouse.data.ClickHouseFormat;
 import net.jpountz.lz4.LZ4Factory;
 import org.apache.commons.compress.compressors.CompressorStreamFactory;
@@ -69,7 +67,6 @@ import org.slf4j.LoggerFactory;
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SNIHostName;
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLSocket;
 import java.io.IOException;
@@ -87,7 +84,6 @@ import java.net.URISyntaxException;
 import java.net.URLEncoder;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
-import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
@@ -133,7 +129,7 @@ public class HttpAPIClientHelper {
 
     LZ4Factory lz4Factory;
 
-    private final ClickHouseDefaultSslContextProvider sslContextProvider = new ClickHouseDefaultSslContextProvider();
+    private final SslContextProvider sslContextProvider = new SslContextProvider();
 
     public HttpAPIClientHelper(Map<String, Object> configuration, Object metricsRegistry, boolean initSslContext, LZ4Factory lz4Factory) {
         this.metricsRegistry = metricsRegistry;
@@ -161,56 +157,46 @@ public class HttpAPIClientHelper {
      * @return SSLContext
      */
     public SSLContext createSSLContext(Map<String, Object> configuration) {
-        SSLContext sslContext;
-        try {
-            sslContext = SSLContext.getDefault();
-        } catch (NoSuchAlgorithmException e) {
-            throw new ClientException("Failed to create default SSL context", e);
-        }
         final SSLMode sslMode = ClientConfigProperties.SSL_MODE.getOrDefault(configuration);
         final String trustStorePath = (String) configuration.get(ClientConfigProperties.SSL_TRUST_STORE.getKey());
         final String caCertificate = (String) configuration.get(ClientConfigProperties.CA_CERTIFICATE.getKey());
         final String sslCertificate = (String) configuration.get(ClientConfigProperties.SSL_CERTIFICATE.getKey());
         final String sslKey = (String) configuration.get(ClientConfigProperties.SSL_KEY.getKey());
 
-        // This method is only reached when a secure (https) endpoint is configured, so SSLMode.Disabled
-        // contradicts the endpoint scheme. The mode does not turn encryption off - the scheme decides it.
-        if (sslMode == SSLMode.Disabled) {
-            throw new ClientMisconfigurationException("SSL mode '" + SSLMode.Disabled
-                    + "' cannot be used with a secure (https) endpoint. Use SSLMode.Trust to trust all certificates or use plain HTTP");
+        SslContextProvider.Builder builder = sslContextProvider.builder();
+
+        // The client certificate/key (mTLS) are independent of how the server certificate is verified,
+        // so they are applied whenever configured, regardless of the SSL mode.
+        if (sslCertificate != null && !sslCertificate.isEmpty()) {
+            builder.clientCertificate(sslCertificate, sslKey);
         }
 
-        if (sslMode == SSLMode.Trust) {
-            // Server certificate is not validated. Trust material (trust store or CA certificate)
-            // is not needed, but client certificate and key are still applied for mTLS.
-            try {
-                sslContext = sslContextProvider.getSslContextFromCerts(ClickHouseSslMode.NONE,
-                        sslCertificate, sslKey, null);
-            } catch (SSLException e) {
-                throw new ClientMisconfigurationException("Failed to create SSL context for the Trust SSL mode", e);
+        if (sslMode == SSLMode.TRUST) {
+            // TRUST accepts any server certificate and skips the hostname check (the latter is applied
+            // where the connection socket factory is created). A configured trust store or CA
+            // certificate has no effect in this mode and is ignored with a warning.
+            if (trustStorePath != null || caCertificate != null) {
+                LOG.warn("SSL mode '{}' trusts any server certificate; the configured {} is ignored.",
+                        SSLMode.TRUST, trustStorePath != null ? "trust store" : "CA certificate");
             }
+            builder.trustAllCertificates();
         } else if (trustStorePath != null) {
+            // VERIFY_CA / STRICT: validate against the trust store. A trust store and a CA certificate
+            // cannot both take effect, so the CA certificate is ignored with a warning.
             if (caCertificate != null) {
-                throw new ClientMisconfigurationException("CA certificate cannot be used together with a trust store."
-                        + " The CA certificate should be imported into the trust store instead.");
+                LOG.warn("Both a trust store and a CA certificate are configured; using the trust store and"
+                        + " ignoring the CA certificate. Import the CA certificate into the trust store instead.");
             }
-            try {
-                sslContext = sslContextProvider.getSslContextFromKeyStore(
-                        trustStorePath,
-                        (String) configuration.get(ClientConfigProperties.SSL_KEY_STORE_PASSWORD.getKey()),
-                        (String) configuration.get(ClientConfigProperties.SSL_KEYSTORE_TYPE.getKey())
-                );
-            } catch (SSLException e) {
-                throw new ClientMisconfigurationException("Failed to create SSL context from a keystore", e);
-            }
-        } else if (caCertificate != null || sslCertificate != null|| sslKey != null) {
-            try {
-                sslContext = sslContextProvider.getSslContextFromCerts(sslCertificate, sslKey, caCertificate);
-            } catch (SSLException e) {
-                throw new ClientMisconfigurationException("Failed to create SSL context from certificates", e);
-            }
+            builder.trustStore(trustStorePath,
+                    (String) configuration.get(ClientConfigProperties.SSL_KEY_STORE_PASSWORD.getKey()),
+                    (String) configuration.get(ClientConfigProperties.SSL_KEYSTORE_TYPE.getKey()));
+        } else if (caCertificate != null) {
+            // VERIFY_CA / STRICT: validate against the CA certificate.
+            builder.rootCertificate(caCertificate);
         }
-        return sslContext;
+        // else VERIFY_CA / STRICT with no trust material: the JVM default trust store is used.
+
+        return builder.build();
     }
 
     private static final long CONNECTION_INACTIVITY_CHECK = 5000L;
@@ -299,7 +285,7 @@ public class HttpAPIClientHelper {
             SSLMode sslMode = ClientConfigProperties.SSL_MODE.getOrDefault(configuration);
             // Trust and VerifyCa skip hostname verification. The same applies when a custom SNI is
             // set because the connection hostname will not match the certificate.
-            boolean trustAllHostnames = sslMode == SSLMode.Trust || sslMode == SSLMode.VerifyCa;
+            boolean trustAllHostnames = sslMode == SSLMode.TRUST || sslMode == SSLMode.VERIFY_CA;
             if (socketSNI != null && !socketSNI.trim().isEmpty() || trustAllHostnames) {
                 sslConnectionSocketFactory = new CustomSSLConnectionFactory(socketSNI, sslContext, (hostname, session) -> true);
             } else {

@@ -385,7 +385,7 @@ public class JdbcConfiguration {
         if (sslMode != null) {
             if ("none".equalsIgnoreCase(sslMode)) {
                 // JDBC drivers traditionally use 'none' for the no-verification SSL mode - alias it to 'trust'
-                clientProperties.put(ClientConfigProperties.SSL_MODE.getKey(), SSLMode.Trust.name());
+                clientProperties.put(ClientConfigProperties.SSL_MODE.getKey(), SSLMode.TRUST.name());
             } else {
                 try {
                     // values are case-insensitive in JDBC - normalize before passing to the client

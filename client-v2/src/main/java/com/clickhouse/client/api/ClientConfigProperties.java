@@ -116,7 +116,7 @@ public enum ClientConfigProperties {
 
     SSL_CERTIFICATE("sslcert", String.class),
 
-    SSL_MODE("ssl_mode", SSLMode.class, SSLMode.Strict.name()),
+    SSL_MODE("ssl_mode", SSLMode.class, SSLMode.STRICT.name()),
 
     RETRY_ON_FAILURE("retry", Integer.class, "3"),
 
