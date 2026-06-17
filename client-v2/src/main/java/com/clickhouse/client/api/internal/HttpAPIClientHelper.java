@@ -67,6 +67,7 @@ import org.slf4j.LoggerFactory;
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SNIHostName;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLSocket;
 import java.io.IOException;
@@ -892,6 +893,10 @@ public class HttpAPIClientHelper {
     public RuntimeException wrapException(String message, Exception cause, String queryId) {
         if (cause instanceof ClientException || cause instanceof ServerException) {
             return (RuntimeException) cause;
+        }
+
+        if (cause instanceof SSLException) {
+            return new ClickHouseException("SSL Problem", cause, queryId);
         }
 
         if (cause instanceof ConnectionRequestTimeoutException ||

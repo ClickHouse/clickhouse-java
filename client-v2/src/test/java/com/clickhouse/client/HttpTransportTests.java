@@ -1,5 +1,6 @@
 package com.clickhouse.client;
 
+import com.clickhouse.client.api.ClickHouseException;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
@@ -7,6 +8,7 @@ import com.clickhouse.client.api.ClientFaultCause;
 import com.clickhouse.client.api.ClientMisconfigurationException;
 import com.clickhouse.client.api.ConnectionInitiationException;
 import com.clickhouse.client.api.ConnectionReuseStrategy;
+import com.clickhouse.client.api.DataTransferException;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.Session;
 import com.clickhouse.client.api.command.CommandResponse;
@@ -59,6 +61,7 @@ import org.testng.SkipException;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
+import javax.net.ssl.SSLHandshakeException;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.StringWriter;
@@ -437,6 +440,18 @@ public class HttpTransportTests extends BaseIntegrationTest {
         }
 
         ClickHouseNode secureServer = getSecureServer(ClickHouseProtocol.HTTP);
+        // A trust store and a CA certificate cannot both take effect: the trust store is used and the
+        // CA certificate is ignored (a warning is logged). The connection still succeeds via the trust store.
+        try (Client client = new Client.Builder()
+                .addEndpoint("https://localhost:" + secureServer.getPort())
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .build()) {
+            ClientException ex = Assert.expectThrows(ClientException.class, () -> client.queryAll("SELECT timezone()"));
+
+            Assert.assertTrue(ex.getCause() instanceof ClickHouseException);
+            Assert.assertTrue(ex.getCause().getMessage().startsWith("SSL Problem"));
+        }
 
         // A trust store and a CA certificate cannot both take effect: the trust store is used and the
         // CA certificate is ignored (a warning is logged). The connection still succeeds via the trust store.
