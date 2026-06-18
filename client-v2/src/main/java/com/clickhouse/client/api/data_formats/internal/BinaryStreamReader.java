@@ -2,6 +2,7 @@ package com.clickhouse.client.api.data_formats.internal;
 
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.DataTypeUtils;
+import com.clickhouse.client.api.data_formats.StringValue;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseEnum;
@@ -55,6 +56,8 @@ public class BinaryStreamReader {
 
     private final Class<?> arrayDefaultTypeHint;
 
+    private final boolean stringAsBinaryDefault;
+
     private static final int SB_INIT_SIZE = 100;
 
     private ClickHouseColumn lastDataColumn = null;
@@ -69,7 +72,7 @@ public class BinaryStreamReader {
      * @param jsonAsString - use string to serialize/deserialize JSON columns
      * @param typeHintMapping - what type use as hint if hint is not set or may not be known.
      */
-    BinaryStreamReader(InputStream input, TimeZone timeZone, Logger log, ByteBufferAllocator bufferAllocator, boolean jsonAsString, Map<ClickHouseDataType, Class<?>> typeHintMapping) {
+    public BinaryStreamReader(InputStream input, TimeZone timeZone, Logger log, ByteBufferAllocator bufferAllocator, boolean jsonAsString, Map<ClickHouseDataType, Class<?>> typeHintMapping) {
         this.log = log == null ? NOPLogger.NOP_LOGGER : log;
         this.timeZone = timeZone;
         this.input = input;
@@ -78,6 +81,26 @@ public class BinaryStreamReader {
 
         this.arrayDefaultTypeHint = typeHintMapping == null ||
                 typeHintMapping.isEmpty()? NO_TYPE_HINT : typeHintMapping.get(ClickHouseDataType.Array);
+        this.stringAsBinaryDefault = typeHintMapping != null &&
+                typeHintMapping.get(ClickHouseDataType.String) == StringValue.class;
+    }
+
+    /**
+     * Decides whether a {@code String}/{@code FixedString} value should be read as a {@link StringValue}
+     * (preserving raw bytes) instead of a {@link String}. A per-call type hint takes precedence over the
+     * default type hint mapping configured for the reader.
+     *
+     * @param typeHint per-call type hint or {@code null}
+     * @return {@code true} when the value should be read as {@link StringValue}
+     */
+    private boolean readStringAsBinary(Class<?> typeHint) {
+        if (typeHint == StringValue.class) {
+            return true;
+        }
+        if (typeHint == String.class) {
+            return false;
+        }
+        return stringAsBinaryDefault;
     }
 
     /**
@@ -121,12 +144,18 @@ public class BinaryStreamReader {
             switch (dataType) {
                 // Primitives
                 case FixedString: {
+                    if (readStringAsBinary(typeHint)) {
+                        return (T) new StringValue(readStringBytes(input, precision));
+                    }
                     byte[] bytes = precision > STRING_BUFF.length ?
                             new byte[precision] : STRING_BUFF;
                     readNBytes(input, bytes, 0, precision);
                     return (T) new String(bytes, 0, precision, StandardCharsets.UTF_8);
                 }
                 case String: {
+                    if (readStringAsBinary(typeHint)) {
+                        return (T) readStringValue();
+                    }
                     return (T) readString();
                 }
                 case Int8:
@@ -1119,17 +1148,41 @@ public class BinaryStreamReader {
     }
 
     /**
-     * Reads a decimal value from input stream.
+     * Reads a string from the internal input stream preserving the raw bytes as a {@link StringValue}.
+     * Unlike {@link #readString()} this does not decode bytes into a {@link String} and never reuses the
+     * shared buffer, so the value is safe to keep after the next read.
+     *
+     * @return string value holding the raw bytes
+     * @throws IOException when IO error occurs
+     */
+    public StringValue readStringValue() throws IOException {
+        return new StringValue(readStringBytes(input, readVarInt(input)));
+    }
+
+    /**
+     * Reads the raw bytes of a string from the input stream given its length.
+     *
+     * @param input - source of bytes
+     * @param len - number of bytes to read
+     * @return byte[] containing the raw string bytes
+     * @throws IOException when IO error occurs
+     */
+    public static byte[] readStringBytes(InputStream input, int len) throws IOException {
+        if (len == 0) {
+            return new byte[0];
+        }
+        return readNBytes(input, len);
+    }
+
+    /**
+     * Reads a string value from input stream.
      * @param input - source of bytes
      * @return String
      * @throws IOException when IO error occurs
      */
     public static String readString(InputStream input) throws IOException {
-        int len = readVarInt(input);
-        if (len == 0) {
-            return "";
-        }
-        return new String(readNBytes(input, len), StandardCharsets.UTF_8);
+        byte[] bytes = readStringBytes(input, readVarInt(input));
+        return bytes.length == 0 ? "" : new String(bytes, StandardCharsets.UTF_8);
     }
 
     public static int readByteOrEOF(InputStream input) throws IOException {

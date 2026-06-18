@@ -63,6 +63,7 @@ public class SamplePOJO {
 
     private String string;
     private String fixedString;
+    private byte[] binaryString;
 
     private LocalDate date;
     private LocalDate date32;
@@ -145,6 +146,7 @@ public class SamplePOJO {
 
         string = RandomStringUtils.randomAlphabetic(1, 256);
         fixedString = RandomStringUtils.randomAlphabetic(3);
+        binaryString = new byte[] { (byte) 0xDE, (byte) 0xAD, (byte) 0xBE, (byte) 0xEF };
 
         date = LocalDate.now();
         date32 = LocalDate.now();
@@ -308,6 +310,7 @@ public class SamplePOJO {
 //                "boxedBool UInt8, " +
                 "string String, " +
                 "fixedString FixedString(3), " +
+                "binaryString String, " +
                 "date Date, " +
                 "date32 Date, " +
                 "dateTime DateTime, " +

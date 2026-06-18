@@ -2,6 +2,7 @@ package com.clickhouse.client.api.data_formats.internal;
 
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.DataTypeUtils;
+import com.clickhouse.client.api.data_formats.StringValue;
 import com.clickhouse.client.api.internal.DataTypeConverter;
 import com.clickhouse.client.api.metadata.NoSuchColumnException;
 import com.clickhouse.client.api.metadata.TableSchema;
@@ -276,6 +277,14 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public byte[] getByteArray(String colName) {
+        Object value = readValue(colName);
+        if (value == null) {
+            return null;
+        }
+        byte[] bytes = AbstractBinaryFormatReader.stringLikeToBytes(value);
+        if (bytes != null) {
+            return bytes;
+        }
         return getPrimitiveArray(colName);
     }
 
@@ -319,6 +328,10 @@ public class MapBackedRecord implements GenericRecord {
             BinaryStreamReader.ArrayValue array = (BinaryStreamReader.ArrayValue) value;
             if (array.itemType == String.class) {
                 return (String[]) array.getArray();
+            } else if (array.itemType == StringValue.class) {
+                StringValue[] stringValues = (StringValue[]) array.getArray();
+                return Arrays.stream(stringValues)
+                        .map(sv -> sv == null ? null : sv.asString()).toArray(String[]::new);
             } else if (array.itemType == BinaryStreamReader.EnumValue.class) {
                 BinaryStreamReader.EnumValue[] enumValues = (BinaryStreamReader.EnumValue[]) array.getArray();
                 return Arrays.stream(enumValues).map(BinaryStreamReader.EnumValue::getName).toArray(String[]::new);

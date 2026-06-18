@@ -2,6 +2,7 @@ package com.clickhouse.client.api.data_formats.internal;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.data_formats.StringValue;
 import com.clickhouse.client.api.serde.POJOFieldDeserializer;
 import com.clickhouse.data.ClickHouseAggregateFunction;
 import com.clickhouse.data.ClickHouseColumn;
@@ -552,10 +553,22 @@ public class SerializerUtils {
                 BinaryStreamUtils.writeBoolean(stream, (Boolean) value);
                 break;
             case String:
-                BinaryStreamUtils.writeString(stream, convertToString(value));
+                if (value instanceof byte[]) {
+                    BinaryStreamUtils.writeString(stream, (byte[]) value);
+                } else if (value instanceof StringValue) {
+                    BinaryStreamUtils.writeString(stream, ((StringValue) value).toByteArray());
+                } else {
+                    BinaryStreamUtils.writeString(stream, convertToString(value));
+                }
                 break;
             case FixedString:
-                BinaryStreamUtils.writeFixedString(stream, convertToString(value), column.getPrecision());
+                if (value instanceof byte[]) {
+                    writeFixedStringBytes(stream, (byte[]) value, column.getPrecision());
+                } else if (value instanceof StringValue) {
+                    writeFixedStringBytes(stream, ((StringValue) value).toByteArray(), column.getPrecision());
+                } else {
+                    BinaryStreamUtils.writeFixedString(stream, convertToString(value), column.getPrecision());
+                }
                 break;
             case Date:
                 writeDate(stream, value, ZoneId.of("UTC")); // TODO: check
@@ -910,6 +923,26 @@ public class SerializerUtils {
 
     public static String convertToString(Object value) {
         return java.lang.String.valueOf(value);
+    }
+
+    /**
+     * Writes raw bytes as a ClickHouse {@code FixedString(length)} value. The bytes are written as-is and
+     * right-padded with zero bytes when shorter than {@code length}.
+     *
+     * @param stream output stream
+     * @param value  raw bytes
+     * @param length fixed string length
+     * @throws IOException when failed to write to the stream
+     */
+    public static void writeFixedStringBytes(OutputStream stream, byte[] value, int length) throws IOException {
+        if (value.length > length) {
+            throw new IllegalArgumentException("Value of length " + value.length +
+                    " is longer than FixedString(" + length + ")");
+        }
+        stream.write(value);
+        for (int i = value.length; i < length; i++) {
+            stream.write(0);
+        }
     }
 
     public static <T extends Enum<T>> Set<T> parseEnumList(String value, Class<T> enumType) {

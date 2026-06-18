@@ -7,6 +7,7 @@ import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
+import com.clickhouse.client.api.data_formats.StringValue;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
@@ -572,4 +573,78 @@ public class BaseReaderTests extends BaseIntegrationTest {
                 .setPassword(ClickHouseServerForTest.getPassword());
     }
 
+    @Test(groups = {"integration"})
+    public void testReadingStringValue() throws Exception {
+        final String table = "test_reading_stringvalue";
+
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        client.execute("CREATE TABLE " + table + " (id Int32, s String, fs FixedString(5), e FixedString(1)) ENGINE = Memory").get();
+        client.execute("INSERT INTO " + table + " VALUES (1, 'hello', 'world', 'a'), (2, 'ClickHouse', 'Rocks', 'b')").get();
+
+        java.util.Map<ClickHouseDataType, Class<?>> typeHints = new java.util.HashMap<>();
+        typeHints.put(ClickHouseDataType.String, StringValue.class);
+        typeHints.put(ClickHouseDataType.FixedString, StringValue.class);
+
+        Client customClient = newClient()
+                .typeHintMapping(typeHints)
+                .build();
+
+        try {
+            try (QueryResponse response = customClient.query("SELECT * FROM " + table + " ORDER BY id").get()) {
+                ClickHouseBinaryFormatReader reader = customClient.newBinaryFormatReader(response);
+
+                // Test reading multiple strings in a row and check that their content differs
+                Assert.assertNotNull(reader.next());
+                Assert.assertEquals(reader.getInteger("id"), 1);
+                StringValue s1 = (StringValue) reader.readValue("s");
+                StringValue fs1 = (StringValue) reader.readValue("fs");
+                StringValue e1 = (StringValue) reader.readValue("e");
+
+                Assert.assertEquals(s1.asString(), "hello");
+                Assert.assertEquals(fs1.asString(), "world");
+                Assert.assertEquals(e1.asString(), "a");
+
+                // Test getting read value multiple times
+                Assert.assertSame(s1, reader.readValue("s"), "Consecutive reads for the same row should return the same instance or equal value");
+                Assert.assertEquals(reader.getString("s"), "hello");
+                // Test reading byte[] from String columns
+                Assert.assertEquals(reader.getByteArray("s"), "hello".getBytes());
+                Assert.assertEquals(reader.getByteArray("fs"), "world".getBytes());
+                Assert.assertEquals(reader.getByteArray("e"), "a".getBytes());
+
+                Assert.assertNotNull(reader.next());
+                Assert.assertEquals(reader.getInteger("id"), 2);
+                StringValue s2 = (StringValue) reader.readValue("s");
+                StringValue fs2 = (StringValue) reader.readValue("fs");
+                StringValue e2 = (StringValue) reader.readValue("e");
+
+                Assert.assertEquals(s2.asString(), "ClickHouse");
+                Assert.assertEquals(fs2.asString(), "Rocks");
+                Assert.assertEquals(e2.asString(), "b");
+
+                Assert.assertNotEquals(s1.asString(), s2.asString());
+                Assert.assertNotEquals(fs1.asString(), fs2.asString());
+            }
+
+            // test queryAll with string value
+            List<GenericRecord> records = customClient.queryAll("SELECT * FROM " + table + " ORDER BY id");
+            Assert.assertEquals(records.size(), 2);
+
+            Assert.assertEquals(records.get(0).getInteger("id"), 1);
+            Assert.assertEquals(records.get(0).getString("s"), "hello");
+            Assert.assertEquals(records.get(0).getString("fs"), "world");
+            Assert.assertEquals(records.get(0).getByteArray("s"), "hello".getBytes());
+            Assert.assertEquals(records.get(0).getByteArray("fs"), "world".getBytes());
+            Assert.assertEquals(records.get(0).getByteArray("e"), "a".getBytes());
+
+            Assert.assertEquals(records.get(1).getInteger("id"), 2);
+            Assert.assertEquals(records.get(1).getString("s"), "ClickHouse");
+            Assert.assertEquals(records.get(1).getString("fs"), "Rocks");
+            Assert.assertEquals(records.get(1).getByteArray("s"), "ClickHouse".getBytes());
+            Assert.assertEquals(records.get(1).getByteArray("fs"), "Rocks".getBytes());
+            Assert.assertEquals(records.get(1).getByteArray("e"), "b".getBytes());
+        } finally {
+            customClient.close();
+        }
+    }
 }

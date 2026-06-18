@@ -126,8 +126,16 @@ public class RowBinaryFormatSerializer {
         BinaryStreamUtils.writeString(out, value);
     }
 
+    public void writeString(byte[] value) throws IOException {
+        BinaryStreamUtils.writeString(out, value);
+    }
+
     public void writeFixedString(String value, int len) throws IOException {
         BinaryStreamUtils.writeFixedString(out, value, len);
+    }
+
+    public void writeFixedString(byte[] value, int len) throws IOException {
+        SerializerUtils.writeFixedStringBytes(out, value, len);
     }
 
     public void writeDate(ZonedDateTime value) throws IOException {

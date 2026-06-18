@@ -4,6 +4,7 @@ import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
+import com.clickhouse.client.api.data_formats.StringValue;
 import com.clickhouse.client.api.internal.DataTypeConverter;
 import com.clickhouse.client.api.internal.MapUtils;
 import com.clickhouse.client.api.internal.ServerSettings;
@@ -532,8 +533,9 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                 }
                 return (T)array;
             } else if (componentType == byte.class) {
-                if (value instanceof String) {
-                    return (T) ((String) value).getBytes(StandardCharsets.UTF_8);
+                byte[] bytes = stringLikeToBytes(value);
+                if (bytes != null) {
+                    return (T) bytes;
                 } else if (value instanceof InetAddress) {
                     return (T) ((InetAddress) value).getAddress();
                 }
@@ -674,6 +676,24 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                 break;
         }
         throw new ClientException("Column of type " + column.getDataType() + " cannot be converted to Instant");
+    }
+
+    /**
+     * Converts a string-like value into its raw bytes. For a {@link StringValue} the original bytes are
+     * returned without re-encoding (so binary content is preserved). For a {@link String} the bytes are
+     * produced using UTF-8, matching the historical behaviour. Returns {@code null} when the value is not
+     * a string-like type so callers can fall back to other handling.
+     *
+     * @param value value to convert
+     * @return raw bytes or {@code null} if the value is not string-like
+     */
+    public static byte[] stringLikeToBytes(Object value) {
+        if (value instanceof StringValue) {
+            return ((StringValue) value).toByteArray();
+        } else if (value instanceof String) {
+            return ((String) value).getBytes(StandardCharsets.UTF_8);
+        }
+        return null;
     }
 
     static Instant objectToInstant(Object value) {
@@ -866,6 +886,10 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
             BinaryStreamReader.ArrayValue array = (BinaryStreamReader.ArrayValue) value;
             if (array.itemType == String.class) {
                 return (String[]) array.getArray();
+            } else if (array.itemType == StringValue.class) {
+                StringValue[] stringValues = (StringValue[]) array.getArray();
+                return Arrays.stream(stringValues)
+                        .map(sv -> sv == null ? null : sv.asString()).toArray(String[]::new);
             } else if (array.itemType == BinaryStreamReader.EnumValue.class) {
                 BinaryStreamReader.EnumValue[] enumValues = (BinaryStreamReader.EnumValue[]) array.getArray();
                 return Arrays.stream(enumValues).map(BinaryStreamReader.EnumValue::getName).toArray(String[]::new);

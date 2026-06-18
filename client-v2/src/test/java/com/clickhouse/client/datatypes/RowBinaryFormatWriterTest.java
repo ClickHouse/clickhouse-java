@@ -158,6 +158,11 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
             expected = ((BigDecimal) expected).stripTrailingZeros();
         }
 
+        if (actual instanceof byte[] && expected instanceof byte[]) {
+            org.testng.Assert.assertEquals((byte[]) actual, (byte[]) expected);
+            return;
+        }
+
         assertEquals(String.valueOf(actual), String.valueOf(expected));
     }
 
@@ -376,6 +381,68 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
         writeTest(tableName, tableCreate, rows);
     }
 
+    @Test (groups = { "integration" })
+    public void writeBinaryStringsTest() throws Exception {
+        String tableName = "rowBinaryFormatWriterTest_writeBinaryStringsTests_" + UUID.randomUUID().toString().replace('-', '_');
+        String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
+                " (id Int32, " +
+                "  string String, " +
+                "  fixed_string FixedString(5), " +
+                "  fixed_string_one FixedString(1) " +
+                "  ) Engine = MergeTree ORDER BY id";
+
+        byte[] binaryData = new byte[]{(byte) 0xDE, (byte) 0xAD, (byte) 0xBE, (byte) 0xEF, (byte) 0x00, (byte) 0xFF, (byte) 0x80};
+        byte[] fixedStringData = new byte[]{(byte) 0xAA, (byte) 0xBB, (byte) 0xCC, (byte) 0xDD, (byte) 0xEE};
+        byte[] fixedStringOneData = new byte[]{(byte) 0x7F};
+
+        // Instead of writeTest which reads back using default string decoding, we write manually
+        // and query back using typeHintMapping to preserve raw bytes
+        initTable(tableName, tableCreate, new CommandSettings());
+        TableSchema schema = client.getTableSchema(tableName);
+
+        ClickHouseFormat format = ClickHouseFormat.RowBinaryWithDefaults;
+        try (InsertResponse response = client.insert(tableName, out -> {
+            RowBinaryFormatWriter w = new RowBinaryFormatWriter(out, schema, format);
+            w.setValue(schema.nameToColumnIndex("id"), 1);
+            w.setValue(schema.nameToColumnIndex("string"), binaryData);
+            w.setValue(schema.nameToColumnIndex("fixed_string"), fixedStringData);
+            w.setValue(schema.nameToColumnIndex("fixed_string_one"), fixedStringOneData);
+            w.commitRow();
+        }, format, settings).get()) {
+            System.out.println("Rows written (Field-like): " + response.getWrittenRows());
+        }
+
+        // Also test inserting with byte[] directly via RowBinaryFormatWriter
+        try (InsertResponse response = client.insert(tableName, out -> {
+            RowBinaryFormatWriter w = new RowBinaryFormatWriter(out, schema, format);
+            w.setValue(schema.nameToColumnIndex("id"), 2);
+            w.setString("string", binaryData);
+            w.setString("fixed_string", fixedStringData);
+            w.setString("fixed_string_one", fixedStringOneData);
+            w.commitRow();
+        }, format, settings).get()) {
+            System.out.println("Rows written (manual): " + response.getWrittenRows());
+        }
+        
+        java.util.Map<com.clickhouse.data.ClickHouseDataType, Class<?>> typeHints = new java.util.HashMap<>();
+        typeHints.put(com.clickhouse.data.ClickHouseDataType.String, com.clickhouse.client.api.data_formats.StringValue.class);
+        typeHints.put(com.clickhouse.data.ClickHouseDataType.FixedString, com.clickhouse.client.api.data_formats.StringValue.class);
+
+        Client customClient = newClient()
+                .typeHintMapping(typeHints)
+                .build();
+                
+        List<GenericRecord> records = customClient.queryAll("SELECT * FROM \"" + tableName  + "\" ORDER BY id" );
+        assertEquals(records.size(), 2);
+        
+        for (GenericRecord record : records) {
+            org.testng.Assert.assertEquals(record.getByteArray("string"), binaryData);
+            org.testng.Assert.assertEquals(record.getByteArray("fixed_string"), fixedStringData);
+            org.testng.Assert.assertEquals(record.getByteArray("fixed_string_one"), fixedStringOneData);
+        }
+        
+        customClient.close();
+    }
 
     @Test (groups = { "integration" })
     public void writeDatetimeTests() throws Exception {
