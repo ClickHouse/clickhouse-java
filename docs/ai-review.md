@@ -138,7 +138,9 @@ Prefer the smallest safe optimization that preserves behavior.
 ## Tests and docs
 
 **Note**: carefully evaluate tests that involve creating database, users and deal with `GRANT` operations. If user is created within test 
-it must have secure random password. This password should never be logged or accessible externally. User should be deleted in the `finally` block. If `GRANT` is executted then it must be against test database only. Question if `GRANT ALL` should be used. Test can be run against cloud instance and it is crucial to review what is created in database. Flag any unusuall things in queries.
+it must have secure random password. This password should never be logged or accessible externally. User should be deleted in the `finally` block. 
+If `GRANT` is executed then it must be against test database only. Question if `GRANT ALL` should be used. Test can be run against cloud instance, 
+and it is crucial to review what is created in database. Flag any unusual things in queries.
 
 Call out missing focused tests when a change affects:
 
