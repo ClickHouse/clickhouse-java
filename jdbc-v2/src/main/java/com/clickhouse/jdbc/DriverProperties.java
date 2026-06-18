@@ -130,6 +130,20 @@ public enum DriverProperties {
     CLUSTER_NAME("jdbc_cluster_name", null),
 
     /**
+     * When enabled the driver reads ClickHouse {@code String} and {@code FixedString} columns as raw
+     * bytes (wrapped in {@code com.clickhouse.client.api.data_formats.StringValue}) instead of eagerly
+     * decoding them as UTF-8 {@link String}.
+     * <p>
+     * This preserves arbitrary binary content (for example hashes or serialized blobs that are not valid
+     * UTF-8) so that {@code ResultSet#getBytes()} and {@code ResultSet#getBinaryStream()} return the exact
+     * server bytes, and avoids allocating a {@link String} for large values until one is actually
+     * requested. {@code ResultSet#getString()} still returns a UTF-8 decoded value.
+     * <p>
+     * Default: {@code false} to preserve the historical behavior of returning {@code String} values.
+     */
+    BINARY_STRING("jdbc_binary_string", String.valueOf(Boolean.FALSE)),
+
+    /**
      * Define custom type mappings for JDBC ResultSet#getObject() method.
      * Format of the property is 'key=value'.
      * Key is the ClickHouse type name.

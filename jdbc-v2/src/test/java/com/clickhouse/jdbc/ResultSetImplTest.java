@@ -600,4 +600,62 @@ public class ResultSetImplTest extends JdbcIntegrationTest {
             }
         }
     }
+
+    @Test(groups = "integration")
+    public void testGetBinaryStreamAndCharacterStream() throws Exception {
+        runQuery("DROP TABLE IF EXISTS rs_binary_stream");
+        runQuery("CREATE TABLE rs_binary_stream (id UInt32, data String) ENGINE = MergeTree ORDER BY id");
+        runQuery("INSERT INTO rs_binary_stream VALUES (1, 'hello world')");
+
+        try (Connection conn = getJdbcConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT data FROM rs_binary_stream WHERE id = 1")) {
+            assertTrue(rs.next());
+
+            try (InputStream is = rs.getBinaryStream(1)) {
+                assertEquals(readAllBytes(is), "hello world".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            }
+            try (InputStream is = rs.getBinaryStream("data")) {
+                assertEquals(readAllBytes(is), "hello world".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            }
+            try (Reader reader = rs.getCharacterStream(1)) {
+                char[] buff = new char[32];
+                int n = reader.read(buff);
+                assertEquals(new String(buff, 0, n), "hello world");
+            }
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testBinaryStringModePreservesRawBytes() throws Exception {
+        runQuery("DROP TABLE IF EXISTS rs_binary_string");
+        runQuery("CREATE TABLE rs_binary_string (id UInt32, data String) ENGINE = MergeTree ORDER BY id");
+        // 0xDEADBEEF00FF80 is not valid UTF-8 - reading as a UTF-8 String would be lossy.
+        runQuery("INSERT INTO rs_binary_string VALUES (1, unhex('DEADBEEF00FF80'))");
+        byte[] expected = new byte[]{(byte) 0xDE, (byte) 0xAD, (byte) 0xBE, (byte) 0xEF,
+                (byte) 0x00, (byte) 0xFF, (byte) 0x80};
+
+        Properties props = new Properties();
+        props.setProperty(DriverProperties.BINARY_STRING.getKey(), "true");
+
+        try (Connection conn = getJdbcConnection(props);
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT data FROM rs_binary_string WHERE id = 1")) {
+            assertTrue(rs.next());
+            assertEquals(rs.getBytes(1), expected, "getBytes() must return the exact server bytes in binary string mode");
+            try (InputStream is = rs.getBinaryStream(1)) {
+                assertEquals(readAllBytes(is), expected, "getBinaryStream() must return the exact server bytes");
+            }
+        }
+    }
+
+    private static byte[] readAllBytes(InputStream is) throws Exception {
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        byte[] buff = new byte[1024];
+        int n;
+        while ((n = is.read(buff)) != -1) {
+            out.write(buff, 0, n);
+        }
+        return out.toByteArray();
+    }
 }

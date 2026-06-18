@@ -456,9 +456,18 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public InputStream getAsciiStream(String columnLabel) throws SQLException {
         checkClosed();
-        featureManager.unsupportedFeatureThrow("getAsciiStream");
-
-        return null;
+        try {
+            if (reader.hasValue(columnLabel)) {
+                wasNull = false;
+                String value = reader.getString(columnLabel);
+                return value == null ? null : new ByteArrayInputStream(value.getBytes(StandardCharsets.US_ASCII));
+            } else {
+                wasNull = true;
+                return null;
+            }
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(String.format("Method: getAsciiStream(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
+        }
     }
 
     @Override
@@ -470,9 +479,18 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public InputStream getBinaryStream(String columnLabel) throws SQLException {
         checkClosed();
-        featureManager.unsupportedFeatureThrow("getBinaryStream");
-
-        return null;
+        try {
+            if (reader.hasValue(columnLabel)) {
+                wasNull = false;
+                byte[] bytes = reader.getByteArray(columnLabel);
+                return bytes == null ? null : new ByteArrayInputStream(bytes);
+            } else {
+                wasNull = true;
+                return null;
+            }
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(String.format("Method: getBinaryStream(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
+        }
     }
 
     @Override
@@ -515,18 +533,24 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public Reader getCharacterStream(int columnIndex) throws SQLException {
-        checkClosed();
-        featureManager.unsupportedFeatureThrow("getCharacterStream");
-
-        return null;
+        return getCharacterStream(columnIndexToName(columnIndex));
     }
 
     @Override
     public Reader getCharacterStream(String columnLabel) throws SQLException {
         checkClosed();
-        featureManager.unsupportedFeatureThrow("getCharacterStream");
-
-        return null;
+        try {
+            if (reader.hasValue(columnLabel)) {
+                wasNull = false;
+                String value = reader.getString(columnLabel);
+                return value == null ? null : new StringReader(value);
+            } else {
+                wasNull = true;
+                return null;
+            }
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(String.format("Method: getCharacterStream(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
+        }
     }
 
     @Override

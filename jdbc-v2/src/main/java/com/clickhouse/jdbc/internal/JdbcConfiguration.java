@@ -2,6 +2,7 @@ package com.clickhouse.jdbc.internal;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.data_formats.StringValue;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.Driver;
@@ -454,6 +455,10 @@ public class JdbcConfiguration {
     private Map<ClickHouseDataType, Class<?>> defaultTypeHintMapping() {
         Map<ClickHouseDataType, Class<?>> mapping = new HashMap<>();
         mapping.put(ClickHouseDataType.Array, List.class);
+        if (isFlagSet(DriverProperties.BINARY_STRING)) {
+            mapping.put(ClickHouseDataType.String, StringValue.class);
+            mapping.put(ClickHouseDataType.FixedString, StringValue.class);
+        }
         return mapping;
     }
 

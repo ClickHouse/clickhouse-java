@@ -386,6 +386,8 @@ public class JdbcUtils {
                 } else if (type == java.sql.Time.class) {
                     return java.sql.Time.valueOf(LocalTime.from(temporalValue));
                 }
+            } else if (type == byte[].class && value instanceof com.clickhouse.client.api.data_formats.StringValue) {
+                return ((com.clickhouse.client.api.data_formats.StringValue) value).toByteArray();
             } else if (type == Time.class && value instanceof Integer) { // Time
                 return new Time((Integer) value * 1000L);
             } else if (type == Time.class && value instanceof Long) { // Time64
