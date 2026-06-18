@@ -24,13 +24,15 @@ public class ReadonlyProfileTest extends JdbcIntegrationTest {
         com.clickhouse.client.ClickHouseServerForTest.beforeSuite();
         try (Connection conn = getJdbcConnection();
              Statement stmt = conn.createStatement()) {
-            stmt.execute("CREATE SETTINGS PROFILE IF NOT EXISTS profile_readonly_1 SETTINGS readonly=1");
-            stmt.execute("CREATE SETTINGS PROFILE IF NOT EXISTS profile_readonly_2 SETTINGS readonly=2");
-            stmt.execute("CREATE USER IF NOT EXISTS user_readonly_1 IDENTIFIED WITH plaintext_password BY '" + password + "' SETTINGS PROFILE profile_readonly_1");
-            stmt.execute("CREATE USER IF NOT EXISTS user_readonly_2 IDENTIFIED WITH plaintext_password BY '" + password + "' SETTINGS PROFILE profile_readonly_2");
+            stmt.execute("CREATE SETTINGS PROFILE IF NOT EXISTS jdbc_test_profile_readonly_1 SETTINGS readonly=1");
+            stmt.execute("CREATE SETTINGS PROFILE IF NOT EXISTS jdbc_test_profile_readonly_2 SETTINGS readonly=2");
+            stmt.execute("DROP USER IF EXISTS jdbc_test_user_readonly_1");
+            stmt.execute("DROP USER IF EXISTS jdbc_test_user_readonly_2");
+            stmt.execute("CREATE USER jdbc_test_user_readonly_1 IDENTIFIED WITH plaintext_password BY '" + password + "' SETTINGS PROFILE jdbc_test_profile_readonly_1");
+            stmt.execute("CREATE USER jdbc_test_user_readonly_2 IDENTIFIED WITH plaintext_password BY '" + password + "' SETTINGS PROFILE jdbc_test_profile_readonly_2");
             String db = getDatabase();
-            stmt.execute("GRANT SELECT ON " + db + ".* TO user_readonly_1");
-            stmt.execute("GRANT SELECT ON " + db + ".* TO user_readonly_2");
+            stmt.execute("GRANT SELECT ON " + db + ".* TO jdbc_test_user_readonly_1");
+            stmt.execute("GRANT SELECT ON " + db + ".* TO jdbc_test_user_readonly_2");
         }
     }
 
@@ -38,17 +40,17 @@ public class ReadonlyProfileTest extends JdbcIntegrationTest {
     public void teardown() throws SQLException {
         try (Connection conn = getJdbcConnection();
              Statement stmt = conn.createStatement()) {
-            stmt.execute("DROP USER IF EXISTS user_readonly_1");
-            stmt.execute("DROP USER IF EXISTS user_readonly_2");
-            stmt.execute("DROP SETTINGS PROFILE IF EXISTS profile_readonly_1");
-            stmt.execute("DROP SETTINGS PROFILE IF EXISTS profile_readonly_2");
+            stmt.execute("DROP USER IF EXISTS jdbc_test_user_readonly_1");
+            stmt.execute("DROP USER IF EXISTS jdbc_test_user_readonly_2");
+            stmt.execute("DROP SETTINGS PROFILE IF EXISTS jdbc_test_profile_readonly_1");
+            stmt.execute("DROP SETTINGS PROFILE IF EXISTS jdbc_test_profile_readonly_2");
         }
     }
 
     @Test(groups = { "integration" })
     public void testReadonly1CannotChangeSettings() throws Exception {
         Properties properties = new Properties();
-        properties.setProperty("user", "user_readonly_1");
+        properties.setProperty("user", "jdbc_test_user_readonly_1");
         properties.setProperty("password", password);
         properties.put(ClientConfigProperties.serverSetting(ServerSettings.OUTPUT_FORMAT_BINARY_WRITE_JSON_AS_STRING), "1");
         
@@ -69,7 +71,7 @@ public class ReadonlyProfileTest extends JdbcIntegrationTest {
         }
 
         Properties properties = new Properties();
-        properties.setProperty("user", "user_readonly_2");
+        properties.setProperty("user", "jdbc_test_user_readonly_2");
         properties.setProperty("password", password);
         properties.put(ClientConfigProperties.serverSetting(ServerSettings.OUTPUT_FORMAT_BINARY_WRITE_JSON_AS_STRING), "1");
         properties.put(ClientConfigProperties.serverSetting("allow_experimental_json_type"), "1");
