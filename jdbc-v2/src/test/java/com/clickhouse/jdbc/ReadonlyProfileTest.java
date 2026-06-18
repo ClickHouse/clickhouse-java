@@ -3,6 +3,7 @@ package com.clickhouse.jdbc;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.internal.ServerSettings;
 import org.testng.Assert;
+import org.testng.SkipException;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
@@ -51,6 +52,9 @@ public class ReadonlyProfileTest extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testReadonly1CannotChangeSettings() throws Exception {
+        if (isCloud()) {
+            throw new SkipException("Should not be tested in cloud because creates users and profiles");
+        }
         Properties properties = new Properties();
         properties.setProperty("user", "jdbc_test_user_readonly_1");
         properties.setProperty("password", password);
@@ -68,8 +72,11 @@ public class ReadonlyProfileTest extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testReadonly2CanChangeSettings() throws Exception {
+        if (isCloud()) {
+            throw new SkipException("Should not be tested in cloud because creates users and profiles");
+        }
         if (isVersionMatch("(,24.8]")) {
-            return; // JSON was introduced in 24.10
+            throw new SkipException("Old versions do not support JSON");
         }
 
         Properties properties = new Properties();
