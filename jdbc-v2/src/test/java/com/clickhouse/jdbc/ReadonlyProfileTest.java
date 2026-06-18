@@ -21,6 +21,9 @@ public class ReadonlyProfileTest extends JdbcIntegrationTest {
 
     @BeforeClass(groups = { "integration" })
     public void setup() throws SQLException {
+        if (isCloud()) {
+            return;
+        }
         // Append fixed character classes so the random password satisfies server
         // password-complexity policies (uppercase, lowercase, digit, special).
         password = UUID.randomUUID().toString() + "Aa1!";
@@ -41,6 +44,9 @@ public class ReadonlyProfileTest extends JdbcIntegrationTest {
 
     @AfterClass(groups = { "integration" })
     public void teardown() throws SQLException {
+        if (isCloud()) {
+            return;
+        }
         try (Connection conn = getJdbcConnection();
              Statement stmt = conn.createStatement()) {
             stmt.execute("DROP USER IF EXISTS jdbc_test_user_readonly_1");
