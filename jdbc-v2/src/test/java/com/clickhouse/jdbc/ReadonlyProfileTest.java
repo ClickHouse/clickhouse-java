@@ -12,20 +12,25 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Properties;
+import java.util.UUID;
 
 public class ReadonlyProfileTest extends JdbcIntegrationTest {
 
+    private String password;
+
     @BeforeClass(groups = { "integration" })
     public void setup() throws SQLException {
+        password = UUID.randomUUID().toString();
         com.clickhouse.client.ClickHouseServerForTest.beforeSuite();
         try (Connection conn = getJdbcConnection();
              Statement stmt = conn.createStatement()) {
             stmt.execute("CREATE SETTINGS PROFILE IF NOT EXISTS profile_readonly_1 SETTINGS readonly=1");
             stmt.execute("CREATE SETTINGS PROFILE IF NOT EXISTS profile_readonly_2 SETTINGS readonly=2");
-            stmt.execute("CREATE USER IF NOT EXISTS user_readonly_1 IDENTIFIED WITH no_password SETTINGS PROFILE profile_readonly_1");
-            stmt.execute("CREATE USER IF NOT EXISTS user_readonly_2 IDENTIFIED WITH no_password SETTINGS PROFILE profile_readonly_2");
-            stmt.execute("GRANT SELECT ON *.* TO user_readonly_1");
-            stmt.execute("GRANT SELECT ON *.* TO user_readonly_2");
+            stmt.execute("CREATE USER IF NOT EXISTS user_readonly_1 IDENTIFIED WITH plaintext_password BY '" + password + "' SETTINGS PROFILE profile_readonly_1");
+            stmt.execute("CREATE USER IF NOT EXISTS user_readonly_2 IDENTIFIED WITH plaintext_password BY '" + password + "' SETTINGS PROFILE profile_readonly_2");
+            String db = getDatabase();
+            stmt.execute("GRANT SELECT ON " + db + ".* TO user_readonly_1");
+            stmt.execute("GRANT SELECT ON " + db + ".* TO user_readonly_2");
         }
     }
 
@@ -44,7 +49,7 @@ public class ReadonlyProfileTest extends JdbcIntegrationTest {
     public void testReadonly1CannotChangeSettings() throws Exception {
         Properties properties = new Properties();
         properties.setProperty("user", "user_readonly_1");
-        properties.setProperty("password", "");
+        properties.setProperty("password", password);
         properties.put(ClientConfigProperties.serverSetting(ServerSettings.OUTPUT_FORMAT_BINARY_WRITE_JSON_AS_STRING), "1");
         
         try (Connection conn = getJdbcConnection(properties)) {
@@ -65,7 +70,7 @@ public class ReadonlyProfileTest extends JdbcIntegrationTest {
 
         Properties properties = new Properties();
         properties.setProperty("user", "user_readonly_2");
-        properties.setProperty("password", "");
+        properties.setProperty("password", password);
         properties.put(ClientConfigProperties.serverSetting(ServerSettings.OUTPUT_FORMAT_BINARY_WRITE_JSON_AS_STRING), "1");
         properties.put(ClientConfigProperties.serverSetting("allow_experimental_json_type"), "1");
         
