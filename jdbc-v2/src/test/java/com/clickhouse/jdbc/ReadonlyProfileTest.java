@@ -20,7 +20,9 @@ public class ReadonlyProfileTest extends JdbcIntegrationTest {
 
     @BeforeClass(groups = { "integration" })
     public void setup() throws SQLException {
-        password = UUID.randomUUID().toString();
+        // Append fixed character classes so the random password satisfies server
+        // password-complexity policies (uppercase, lowercase, digit, special).
+        password = UUID.randomUUID().toString() + "Aa1!";
         com.clickhouse.client.ClickHouseServerForTest.beforeSuite();
         try (Connection conn = getJdbcConnection();
              Statement stmt = conn.createStatement()) {
