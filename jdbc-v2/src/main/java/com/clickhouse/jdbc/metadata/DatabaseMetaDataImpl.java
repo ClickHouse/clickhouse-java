@@ -13,6 +13,7 @@ import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.JdbcUtils;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
+import com.google.common.collect.ImmutableMap;
 
 import java.sql.Connection;
 import java.sql.JDBCType;
@@ -1344,9 +1345,129 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         row.put("DATA_TYPE", type.getVendorTypeNumber());
     };
 
+    private static class TypeLiteralInfo {
+        private final String prefix;
+        private final String suffix;
+        TypeLiteralInfo(String prefix, String suffix){
+            this.prefix = prefix;
+            this.suffix = suffix;
+        }
+
+        public String getPrefix() {
+            return prefix;
+        }
+
+        public String getSuffix() {
+            return suffix;
+        }
+    }
+
+    private static final Map<String, TypeLiteralInfo> TYPE_LITERAL_INFO_MAP;
+    static {
+        ImmutableMap.Builder<String, TypeLiteralInfo> mBuilder = ImmutableMap.builder();
+        // ---------------------------------------------------------
+        // Core String, Text & Binary Types
+        // ---------------------------------------------------------
+        mBuilder.put("String", new TypeLiteralInfo("'", "'"));
+        mBuilder.put("FixedString", new TypeLiteralInfo("'", "'"));
+        mBuilder.put("UUID", new TypeLiteralInfo("'", "'"));
+
+        // Aliased String/Binary Types from your list
+        mBuilder.put("BINARY", new TypeLiteralInfo("'", "'"));
+        mBuilder.put("NATIONAL CHAR VARYING", new TypeLiteralInfo("'", "'"));
+        mBuilder.put("BINARY VARYING", new TypeLiteralInfo("'", "'"));
+        mBuilder.put("NCHAR LARGE OBJECT", new TypeLiteralInfo("'", "'"));
+        mBuilder.put("NATIONAL CHARACTER VARYING", new TypeLiteralInfo("'", "'"));
+        mBuilder.put("NATIONAL CHARACTER LARGE OBJECT", new TypeLiteralInfo("'", "'"));
+        mBuilder.put("NATIONAL CHAR", new TypeLiteralInfo("'", "'"));
+        mBuilder.put("CHAR LARGE OBJECT", new TypeLiteralInfo("'", "'"));
+        mBuilder.put("CHARACTER VARYING", new TypeLiteralInfo("'", "'"));
+        mBuilder.put("NATIONAL CHARACTER", new TypeLiteralInfo("'", "'"));
+        mBuilder.put("LONGBLOB", new TypeLiteralInfo("'", "'"));
+        mBuilder.put("CHAR VARYING", new TypeLiteralInfo("'", "'"));
+        mBuilder.put("MEDIUMBLOB", new TypeLiteralInfo("'", "'"));
+        mBuilder.put("CLOB", new TypeLiteralInfo("'", "'"));
+        mBuilder.put("LONGTEXT", new TypeLiteralInfo("'", "'"));
+        mBuilder.put("MEDIUMTEXT", new TypeLiteralInfo("'", "'"));
+        mBuilder.put("TINYTEXT", new TypeLiteralInfo("'", "'"));
+        mBuilder.put("NVARCHAR", new TypeLiteralInfo("'", "'"));
+        mBuilder.put("TINYBLOB", new TypeLiteralInfo("'", "'"));
+        mBuilder.put("CHARACTER", new TypeLiteralInfo("'", "'"));
+        mBuilder.put("CHAR", new TypeLiteralInfo("'", "'"));
+        mBuilder.put("BLOB", new TypeLiteralInfo("'", "'"));
+        mBuilder.put("VARCHAR2", new TypeLiteralInfo("'", "'"));
+        mBuilder.put("TEXT", new TypeLiteralInfo("'", "'"));
+        mBuilder.put("NCHAR", new TypeLiteralInfo("'", "'"));
+        mBuilder.put("NCHAR VARYING", new TypeLiteralInfo("'", "'"));
+        mBuilder.put("BINARY LARGE OBJECT", new TypeLiteralInfo("'", "'"));
+        mBuilder.put("VARBINARY", new TypeLiteralInfo("'", "'"));
+        mBuilder.put("BYTEA", new TypeLiteralInfo("'", "'"));
+        mBuilder.put("VARCHAR", new TypeLiteralInfo("'", "'"));
+
+        // ---------------------------------------------------------
+        // Date & Time Types (including aliases)
+        // ---------------------------------------------------------
+        mBuilder.put("DateTime", new TypeLiteralInfo("'", "'"));
+        mBuilder.put("DateTime32", new TypeLiteralInfo("'", "'"));
+        mBuilder.put("DateTime64", new TypeLiteralInfo("'", "'"));
+        mBuilder.put("Date", new TypeLiteralInfo("'", "'"));
+        mBuilder.put("Date32", new TypeLiteralInfo("'", "'"));
+        mBuilder.put("Time", new TypeLiteralInfo("'", "'"));
+        mBuilder.put("Time64", new TypeLiteralInfo("'", "'"));
+        mBuilder.put("TIMESTAMP", new TypeLiteralInfo("'", "'"));
+
+        // ---------------------------------------------------------
+        // Network Types (including aliases)
+        // ---------------------------------------------------------
+        mBuilder.put("IPv4", new TypeLiteralInfo("'", "'"));
+        mBuilder.put("IPv6", new TypeLiteralInfo("'", "'"));
+        mBuilder.put("INET4", new TypeLiteralInfo("'", "'"));
+        mBuilder.put("INET6", new TypeLiteralInfo("'", "'"));
+
+        // ---------------------------------------------------------
+        // Enum Types (including aliases)
+        // ---------------------------------------------------------
+        mBuilder.put("Enum", new TypeLiteralInfo("'", "'"));
+        mBuilder.put("Enum8", new TypeLiteralInfo("'", "'"));
+        mBuilder.put("Enum16", new TypeLiteralInfo("'", "'"));
+        mBuilder.put("ENUM", new TypeLiteralInfo("'", "'"));
+
+        // ---------------------------------------------------------
+        // Complex / Collection Types
+        // ---------------------------------------------------------
+        mBuilder.put("Array", new TypeLiteralInfo("[", "]"));
+        mBuilder.put("Map", new TypeLiteralInfo("{", "}"));
+        mBuilder.put("Tuple", new TypeLiteralInfo("(", ")"));
+        mBuilder.put("AggregateFunction", new TypeLiteralInfo("(", ")"));
+        mBuilder.put("SimpleAggregateFunction", new TypeLiteralInfo("(", ")"));
+
+        // ---------------------------------------------------------
+        // Geo Types
+        // ---------------------------------------------------------
+        mBuilder.put("Point", new TypeLiteralInfo("(", ")"));
+        mBuilder.put("Ring", new TypeLiteralInfo("[", "]"));
+        mBuilder.put("Polygon", new TypeLiteralInfo("[", "]"));
+        mBuilder.put("MultiPolygon", new TypeLiteralInfo("[", "]"));
+        mBuilder.put("LineString", new TypeLiteralInfo("[", "]"));
+        mBuilder.put("MultiLineString", new TypeLiteralInfo("[", "]"));
+
+        TYPE_LITERAL_INFO_MAP = mBuilder.buildKeepingLast();
+    }
+
+    private static final Consumer<Map<String, Object>> TYPE_INFO_LITERAL_FUNCTION = row -> {
+        String typeName = (String) row.get("TYPE_NAME");
+
+        TypeLiteralInfo literalInfo = TYPE_LITERAL_INFO_MAP.get(typeName);
+        if (literalInfo != null) {
+            row.put("LITERAL_PREFIX", literalInfo.prefix);
+            row.put("LITERAL_SUFFIX", literalInfo.suffix);
+        }
+    };
+
     private static final List<Consumer<Map<String, Object>>> GET_TYPE_INFO_MUTATORS = Arrays.asList(
             TYPE_INFO_VALUE_FUNCTION,
-            NULLABILITY_VALUE_FUNCTION
+            NULLABILITY_VALUE_FUNCTION,
+            TYPE_INFO_LITERAL_FUNCTION
     );
 
     private static final String DATA_TYPE_INFO_SQL = getDataTypeInfoSql();
