@@ -3,7 +3,6 @@ package com.clickhouse.client.api;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.internal.ValidationUtils;
 
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -93,7 +92,7 @@ public class Session {
         putIfSet(requestSettings, ClickHouseHttpProto.QPARAM_SESSION_TIMEZONE, sessionTimezone);
     }
 
-    public static void clearSession(HashMap<String, Object> settings) {
+    public static void clearSession(Map<String, Object> settings) {
         settings.put(ClientConfigProperties.serverSetting(ClickHouseHttpProto.QPARAM_SESSION_ID), null);
         settings.put(ClientConfigProperties.serverSetting(ClickHouseHttpProto.QPARAM_SESSION_TIMEOUT), null);
         settings.put(ClientConfigProperties.serverSetting(ClickHouseHttpProto.QPARAM_SESSION_CHECK), null);

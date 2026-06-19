@@ -29,7 +29,7 @@
 
 ### New Features
 
-- **[client-v2]** Added `Session` API to encapsulate and manage ClickHouse session settings (`session_id`, `session_check`, `session_timeout`, `session_timezone`) as a reusable object. The `Session` instance can be applied to any request settings using `applyTo()`, and session state can be cleared via `clearSession()`. Additionally, added `resetOption(String)` and `suppressOption(String)` to `InsertSettings`, `QuerySettings`, and `CommonSettings` to allow removing or suppressing specific settings. Suppressed settings (set to `null`) will not be sent to the server, which is useful for overriding global settings.
+- **[client-v2]** Added `Session` API to encapsulate and manage ClickHouse session settings (`session_id`, `session_check`, `session_timeout`, `session_timezone`) as a reusable object. The `Session` instance can be applied to any request settings using `applyTo()`, and session state can be cleared via `clearSession()`. Additionally, added `resetOption(String)` to `InsertSettings`, `QuerySettings`, and `CommonSettings` to allow removing specific settings. Settings explicitly set to `null` will not be sent to the server, which is useful for overriding global settings.
 
 - **[client-v2]** Added runtime credential update APIs on `Client`: `updateUserAndPassword(String, String)`, `updateAccessToken(String)`, and `updateBearerToken(String)`. Subsequent requests on the same `Client` instance use the new credentials without rebuilding the client. The authentication method is fixed at construction time; calling a runtime updater that does not match the configured method throws `ClientMisconfigurationException`. See `docs/authentication.md` for details and migration guidance.
 

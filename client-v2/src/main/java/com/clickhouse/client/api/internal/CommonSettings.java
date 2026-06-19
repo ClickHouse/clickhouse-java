@@ -20,7 +20,7 @@ public class CommonSettings {
 
     private String operationId;
     private String logComment;
-    protected HashMap<String, Object> settings; // using hashmap to store null values
+    protected Map<String, Object> settings;
 
     public CommonSettings() {
         settings = new HashMap<>();
@@ -66,24 +66,8 @@ public class CommonSettings {
         return this;
     }
 
-    /**
-     * Removes option from the setting
-     * @param option - option key
-     * @return current settings instance
-     */
     public CommonSettings resetOption(String option) {
         settings.remove(option);
-        return this;
-    }
-
-    /**
-     * Makes option value to null that makes agent to remove it from final collection.
-     * This is useful to override even global settings when they need to be removed.
-     * @param option - option key
-     * @return current settings instance
-     */
-    public CommonSettings suppressOption(String option) {
-        settings.put(option, null);
         return this;
     }
 

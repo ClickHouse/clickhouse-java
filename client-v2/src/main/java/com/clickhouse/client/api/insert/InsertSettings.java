@@ -70,17 +70,6 @@ public class InsertSettings {
     }
 
     /**
-     * Makes option value to null that makes agent to remove it from final collection.
-     * This is useful to override even global settings when they need to be removed.
-     * @param option - option key
-     * @return current settings instance
-     */
-    public InsertSettings suppressOption(String option) {
-        settings.suppressOption(option);
-        return this;
-    }
-
-    /**
      * Get all settings as an unmodifiable map.
      *
      * @return all settings

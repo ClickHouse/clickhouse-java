@@ -50,23 +50,8 @@ public class QuerySettings {
         return this;
     }
 
-    /**
-     * Removes options from the settings.
-     * @param option - configuration option name
-     */
     public QuerySettings resetOption(String option) {
         settings.resetOption(option);
-        return this;
-    }
-
-    /**
-     * Makes option value to null that makes agent to remove it from final collection.
-     * This is useful to override even global settings when they need to be removed.
-     * @param option - option key
-     * @return current settings instance
-     */
-    public QuerySettings suppressOption(String option) {
-        settings.suppressOption(option);
         return this;
     }
 
