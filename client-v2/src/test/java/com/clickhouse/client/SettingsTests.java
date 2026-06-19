@@ -177,6 +177,8 @@ public class SettingsTests {
             final InsertSettings settings = new InsertSettings();
             settings.setDatabase("test_db1");
             Assert.assertEquals(settings.getDatabase(), "test_db1");
+            settings.resetOption(ClientConfigProperties.DATABASE.getKey());
+            Assert.assertNull(settings.getDatabase());
         }
 
         {
