@@ -29,6 +29,8 @@
 
 ### New Features
 
+- **[client-v2]** Added `Session` API to encapsulate and manage ClickHouse session settings (`session_id`, `session_check`, `session_timeout`, `session_timezone`) as a reusable object. The `Session` instance can be applied to any request settings using `applyTo()`, and session state can be cleared via `clearSession()`. Additionally, added `resetOption(String)` and `suppressOption(String)` to `InsertSettings`, `QuerySettings`, and `CommonSettings` to allow removing or suppressing specific settings. Suppressed settings (set to `null`) will not be sent to the server, which is useful for overriding global settings.
+
 - **[client-v2]** Added runtime credential update APIs on `Client`: `updateUserAndPassword(String, String)`, `updateAccessToken(String)`, and `updateBearerToken(String)`. Subsequent requests on the same `Client` instance use the new credentials without rebuilding the client. The authentication method is fixed at construction time; calling a runtime updater that does not match the configured method throws `ClientMisconfigurationException`. See `docs/authentication.md` for details and migration guidance.
 
 - **[jdbc-v2]** Added `cluster_name` configuration property to specify a target cluster for statements like `KILL QUERY` that require an `ON CLUSTER` clause to execute across all nodes. (https://github.com/ClickHouse/clickhouse-java/issues/2837)
@@ -39,7 +41,7 @@
 
 ### Bug Fixes
 
-- **[jdbc-v2]** Fixed `Statement.cancel()` throwing `SESSION_IS_LOCKED` when the statement was running inside a ClickHouse session (e.g. via `clickhouse_setting_session_id`). The `KILL QUERY` request issued by `cancel()` now runs outside the session, so it no longer contends with the running query for the session lock. (https://github.com/ClickHouse/clickhouse-java/issues/2690)
+- **[jdbc-v2]** Fixed `Statement.cancel()` throwing `SESSION_IS_LOCKED` when the statement was running inside a ClickHouse session. The driver now accepts `session_id`, `session_check`, and `session_timeout` as first-class connection properties and correctly suppresses them when issuing a `KILL QUERY` during cancellation. This ensures the cancellation request runs outside the session and no longer contends with the running query for the session lock. (https://github.com/ClickHouse/clickhouse-java/issues/2690, https://github.com/ClickHouse/clickhouse-java/issues/2881)
 
 - **[client-v2]** Fixed inconsistent use of `executionTimeout` parameter in `Client` component. The timeout was previously set in milliseconds but mistakenly retrieved and used in seconds in some places. Now it correctly uses milliseconds consistently. (https://github.com/ClickHouse/clickhouse-java/issues/2358)
 

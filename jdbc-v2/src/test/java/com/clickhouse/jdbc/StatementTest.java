@@ -1,6 +1,7 @@
 package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.Session;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.data.ClickHouseVersion;
@@ -758,7 +759,11 @@ public class StatementTest extends JdbcIntegrationTest {
         // "Session is locked by a concurrent client" (SESSION_IS_LOCKED). The KILL QUERY request issued by
         // cancel() must not carry the session id of the query being cancelled.
         String sessionId = "test-session-" + UUID.randomUUID();
-        try (Connection conn = getJdbcConnection()) {
+        Properties properties = new Properties();
+        Session session = new Session();
+        session.setSessionId(sessionId);
+        session.applyTo(properties);
+        try (Connection conn = getJdbcConnection(properties)) {
             try (StatementImpl stmt = (StatementImpl) conn.createStatement()) {
                 stmt.getLocalSettings().setSessionId(sessionId);
                 stmt.setQueryTimeout(30); // safety net so a failed cancel cannot hang the test
@@ -799,7 +804,12 @@ public class StatementTest extends JdbcIntegrationTest {
         // Regression test for #2690 covering a long-running INSERT executed inside a session.
         String tableName = getDatabase() + ".cancel_insert_with_session";
         String sessionId = "test-session-" + UUID.randomUUID();
-        try (Connection conn = getJdbcConnection(Map.of(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF))) {
+        Properties properties = new Properties();
+        properties.put(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF);
+        Session session = new Session();
+        session.setSessionId(sessionId);
+        session.applyTo(properties);
+        try (Connection conn = getJdbcConnection(properties)) {
             try (Statement setup = conn.createStatement()) {
                 setup.execute("DROP TABLE IF EXISTS " + tableName);
                 setup.execute("CREATE TABLE " + tableName + " (num UInt64) ENGINE = MergeTree ORDER BY ()");

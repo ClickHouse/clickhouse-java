@@ -20,7 +20,7 @@ public class CommonSettings {
 
     private String operationId;
     private String logComment;
-    protected Map<String, Object> settings;
+    protected HashMap<String, Object> settings; // using hashmap to store null values
 
     public CommonSettings() {
         settings = new HashMap<>();
@@ -66,8 +66,24 @@ public class CommonSettings {
         return this;
     }
 
+    /**
+     * Removes option from the setting
+     * @param option - option key
+     * @return current settings instance
+     */
     public CommonSettings resetOption(String option) {
         settings.remove(option);
+        return this;
+    }
+
+    /**
+     * Makes option value to null that makes agent to remove it from final collection.
+     * This is useful to override even global settings when they need to be removed.
+     * @param option - option key
+     * @return current settings instance
+     */
+    public CommonSettings suppressOption(String option) {
+        settings.put(option, null);
         return this;
     }
 
@@ -140,11 +156,7 @@ public class CommonSettings {
     }
 
     public void clearSession() {
-        resetOption(ClientConfigProperties.serverSetting(ClickHouseHttpProto.QPARAM_SESSION_ID));
-        resetOption(ClientConfigProperties.serverSetting(ClickHouseHttpProto.QPARAM_SESSION_CHECK));
-        resetOption(ClientConfigProperties.serverSetting(ClickHouseHttpProto.QPARAM_SESSION_TIMEOUT));
-        // Do not clean `session_timezone` setting because it is not related to session management and used to
-        // set timezone for consequent queries in some multi-user applications.
+        Session.clearSession(settings);
     }
 
     /**
