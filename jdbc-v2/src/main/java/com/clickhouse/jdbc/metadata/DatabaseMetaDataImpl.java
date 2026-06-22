@@ -1451,7 +1451,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         mBuilder.put("LineString", new TypeLiteralInfo("[", "]"));
         mBuilder.put("MultiLineString", new TypeLiteralInfo("[", "]"));
 
-        TYPE_LITERAL_INFO_MAP = mBuilder.buildKeepingLast();
+        TYPE_LITERAL_INFO_MAP = mBuilder.buildOrThrow();
     }
 
     private static final Consumer<Map<String, Object>> TYPE_INFO_LITERAL_FUNCTION = row -> {
@@ -1459,8 +1459,8 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
 
         TypeLiteralInfo literalInfo = TYPE_LITERAL_INFO_MAP.get(typeName);
         if (literalInfo != null) {
-            row.put("LITERAL_PREFIX", literalInfo.prefix);
-            row.put("LITERAL_SUFFIX", literalInfo.suffix);
+            row.put("LITERAL_PREFIX", literalInfo.getPrefix());
+            row.put("LITERAL_SUFFIX", literalInfo.getSuffix());
         }
     };
 
