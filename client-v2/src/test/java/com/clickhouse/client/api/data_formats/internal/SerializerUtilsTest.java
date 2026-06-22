@@ -9,7 +9,9 @@ import org.testng.annotations.Test;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.TimeZone;
 
 @Test(groups = {"unit"})
@@ -132,6 +134,74 @@ public class SerializerUtilsTest {
                 () -> SerializerUtils.serializeData(new ByteArrayOutputStream(),
                         Arrays.asList(Arrays.asList(1D, 2D, 3D)),
                         ClickHouseColumn.of("v", "Geometry")));
+    }
+
+    @Test
+    public void testTupleWithNullableElementsRoundTrip() throws Exception {
+        // Regression for #2721: a Nullable element nested inside a Tuple must be prefixed with its
+        // null-marker byte (0x00 present, 0x01 null). Before the fix the present-value marker was
+        // missing, so the reader mis-parsed the bytes that followed. The non-nullable sibling element
+        // must keep being written without a marker.
+        ClickHouseColumn column = ClickHouseColumn.of("v", "Tuple(Nullable(String), String)");
+
+        ByteArrayOutputStream present = new ByteArrayOutputStream();
+        SerializerUtils.serializeData(present, Arrays.asList("optional-value", "value-2"), column);
+        Assert.assertEquals((Object[]) newReader(present.toByteArray()).readValue(column),
+                new Object[] {"optional-value", "value-2"});
+
+        ByteArrayOutputStream absent = new ByteArrayOutputStream();
+        SerializerUtils.serializeData(absent, Arrays.asList(null, "value-2"), column);
+        Assert.assertEquals((Object[]) newReader(absent.toByteArray()).readValue(column),
+                new Object[] {null, "value-2"});
+    }
+
+    @Test
+    public void testMapWithNullableValuesRoundTrip() throws Exception {
+        // Regression for #2721: a Nullable Map value must be prefixed with its null-marker byte.
+        ClickHouseColumn column = ClickHouseColumn.of("v", "Map(String, Nullable(String))");
+        Map<String, String> value = new LinkedHashMap<>();
+        value.put("k1", "v1");
+        value.put("k2", null);
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        SerializerUtils.serializeData(out, value, column);
+
+        Map<?, ?> result = newReader(out.toByteArray()).readValue(column);
+        Assert.assertEquals(result, value);
+    }
+
+    @Test
+    public void testTupleWithNullableFixedWidthElementsRoundTrip() throws Exception {
+        // #2721 is about the marker byte, not the element type: a fixed-width Nullable element
+        // (here Int32) must also get its marker so the following value bytes are not misaligned.
+        // Also covers an all-null tuple.
+        ClickHouseColumn column = ClickHouseColumn.of("v", "Tuple(Nullable(Int32), Nullable(String))");
+
+        ByteArrayOutputStream present = new ByteArrayOutputStream();
+        SerializerUtils.serializeData(present, Arrays.asList(42, "x"), column);
+        Assert.assertEquals((Object[]) newReader(present.toByteArray()).readValue(column),
+                new Object[] {42, "x"});
+
+        ByteArrayOutputStream allNull = new ByteArrayOutputStream();
+        SerializerUtils.serializeData(allNull, Arrays.asList(null, null), column);
+        Assert.assertEquals((Object[]) newReader(allNull.toByteArray()).readValue(column),
+                new Object[] {null, null});
+    }
+
+    @Test
+    public void testNestedContainerWithNullableRoundTrip() throws Exception {
+        // #2721: the marker handling must compose through nested containers — here a Map carrying a
+        // Nullable value sits inside a Tuple, exercising serializeTupleData -> serializeMapData.
+        ClickHouseColumn column = ClickHouseColumn.of("v", "Tuple(String, Map(String, Nullable(String)))");
+        Map<String, String> inner = new LinkedHashMap<>();
+        inner.put("k1", "v1");
+        inner.put("k2", null);
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        SerializerUtils.serializeData(out, Arrays.asList("id", inner), column);
+
+        Assert.assertEquals((Object[]) newReader(out.toByteArray()).readValue(column),
+                new Object[] {"id", inner});
     }
 
     private void assertCustomGeoTypeTag(String typeName) throws Exception {
