@@ -11,7 +11,7 @@ This document lists stable, user-visible behavior in `client-v2` and `jdbc-v2` t
 - Proxy support: Can send requests through configured HTTP proxies, including proxy credentials.
 - Connection and socket tuning: Exposes pool sizing, keep-alive, reuse strategy, connect/request/socket timeouts, and low-level socket options.
 - Query execution: Executes SQL asynchronously and returns streaming query responses with response metadata and metrics.
-- Query settings: Supports per-query database selection, output format, execution limits, roles, log comments, headers, reusable `Session` objects, session settings, server settings, and network timeout overrides.
+- Query settings: Supports per-query database selection, output format, execution limits, roles, log comments, headers, reusable `Session` objects, session settings, server settings, and network timeout overrides. Settings explicitly set to `null` will not be sent to the server.
 - Parameterized SQL: Accepts named query parameters and can send them through supported HTTP request encodings.
 - Result materialization helpers: Provides streaming `Records`, generic row access, and convenience APIs that materialize all rows into generic records or typed POJOs.
 - Binary format readers: Reads ClickHouse binary result formats including `Native`, `RowBinary`, `RowBinaryWithNames`, and `RowBinaryWithNamesAndTypes`.

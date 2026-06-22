@@ -83,7 +83,7 @@ public class Session {
         setSessionId(sessionId);
     }
 
-    public synchronized void applyTo(Map<String, Object> requestSettings) {
+    public synchronized void applyTo(Map<? super String, Object> requestSettings) {
         putIfSet(requestSettings, ClickHouseHttpProto.QPARAM_SESSION_ID, sessionId);
         putIfSet(requestSettings, ClickHouseHttpProto.QPARAM_SESSION_CHECK,
                 sessionCheck == null ? null : (sessionCheck ? "1" : "0"));
@@ -92,7 +92,15 @@ public class Session {
         putIfSet(requestSettings, ClickHouseHttpProto.QPARAM_SESSION_TIMEZONE, sessionTimezone);
     }
 
-    private static void putIfSet(Map<String, Object> settings, String key, String value) {
+    public static void clearSession(Map<String, Object> settings) {
+        settings.put(ClientConfigProperties.serverSetting(ClickHouseHttpProto.QPARAM_SESSION_ID), null);
+        settings.put(ClientConfigProperties.serverSetting(ClickHouseHttpProto.QPARAM_SESSION_TIMEOUT), null);
+        settings.put(ClientConfigProperties.serverSetting(ClickHouseHttpProto.QPARAM_SESSION_CHECK), null);
+        // Do not clean `session_timezone` setting because it is not related to session management and used to
+        // set timezone for consequent queries in some multi-user applications.
+    }
+
+    private static void putIfSet(Map<? super String, Object> settings, String key, String value) {
         if (value != null) {
             settings.put(ClientConfigProperties.serverSetting(key), value);
         }
