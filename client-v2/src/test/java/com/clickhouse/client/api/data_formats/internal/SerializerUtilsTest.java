@@ -4,15 +4,22 @@ import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.value.ClickHouseGeoPolygonValue;
 import org.testng.Assert;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.net.InetAddress;
+import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TimeZone;
+import java.util.UUID;
 
 @Test(groups = {"unit"})
 public class SerializerUtilsTest {
@@ -136,72 +143,104 @@ public class SerializerUtilsTest {
                         ClickHouseColumn.of("v", "Geometry")));
     }
 
-    @Test
-    public void testTupleWithNullableElementsRoundTrip() throws Exception {
-        // Regression for #2721: a Nullable element nested inside a Tuple must be prefixed with its
-        // null-marker byte (0x00 present, 0x01 null). Before the fix the present-value marker was
-        // missing, so the reader mis-parsed the bytes that followed. The non-nullable sibling element
-        // must keep being written without a marker.
-        ClickHouseColumn column = ClickHouseColumn.of("v", "Tuple(Nullable(String), String)");
-
-        ByteArrayOutputStream present = new ByteArrayOutputStream();
-        SerializerUtils.serializeData(present, Arrays.asList("optional-value", "value-2"), column);
-        Assert.assertEquals((Object[]) newReader(present.toByteArray()).readValue(column),
-                new Object[] {"optional-value", "value-2"});
-
-        ByteArrayOutputStream absent = new ByteArrayOutputStream();
-        SerializerUtils.serializeData(absent, Arrays.asList(null, "value-2"), column);
-        Assert.assertEquals((Object[]) newReader(absent.toByteArray()).readValue(column),
-                new Object[] {null, "value-2"});
-    }
-
-    @Test
-    public void testMapWithNullableValuesRoundTrip() throws Exception {
-        // Regression for #2721: a Nullable Map value must be prefixed with its null-marker byte.
-        ClickHouseColumn column = ClickHouseColumn.of("v", "Map(String, Nullable(String))");
-        Map<String, String> value = new LinkedHashMap<>();
-        value.put("k1", "v1");
-        value.put("k2", null);
+    @Test(dataProvider = "nestedNullableData")
+    public void testNestedNullableRoundTrip(String typeName, Object value) throws Exception {
+        ClickHouseColumn column = ClickHouseColumn.of("v", typeName);
 
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         SerializerUtils.serializeData(out, value, column);
 
-        Map<?, ?> result = newReader(out.toByteArray()).readValue(column);
-        Assert.assertEquals(result, value);
+        Object actual = newReader(out.toByteArray()).readValue(column);
+        Assert.assertEquals(normalize(actual), normalize(value));
     }
 
-    @Test
-    public void testTupleWithNullableFixedWidthElementsRoundTrip() throws Exception {
-        // #2721 is about the marker byte, not the element type: a fixed-width Nullable element
-        // (here Int32) must also get its marker so the following value bytes are not misaligned.
-        // Also covers an all-null tuple.
-        ClickHouseColumn column = ClickHouseColumn.of("v", "Tuple(Nullable(Int32), Nullable(String))");
+    @DataProvider(name = "nestedNullableData")
+    private Object[][] nestedNullableData() throws Exception {
+        UUID uuid = UUID.fromString("61f0c404-5cb3-11e7-907b-a6006ad3dba0");
+        InetAddress ipv4 = InetAddress.getByName("1.2.3.4");
+        return new Object[][] {
+                // A present Nullable element of each datatype nested in a Tuple, with a trailing
+                // non-nullable sibling whose bytes misalign if the present-marker is dropped.
+                {"Tuple(Nullable(String), String)", Arrays.asList("opt", "tail")},
+                {"Tuple(Nullable(FixedString(3)), String)", Arrays.asList("abc", "tail")},
+                {"Tuple(Nullable(Int8), String)", Arrays.asList((byte) -5, "tail")},
+                {"Tuple(Nullable(UInt8), String)", Arrays.asList((short) 200, "tail")},
+                {"Tuple(Nullable(Int16), String)", Arrays.asList((short) -1600, "tail")},
+                {"Tuple(Nullable(UInt16), String)", Arrays.asList(40000, "tail")},
+                {"Tuple(Nullable(Int32), String)", Arrays.asList(42, "tail")},
+                {"Tuple(Nullable(UInt32), String)", Arrays.asList(4_000_000_000L, "tail")},
+                {"Tuple(Nullable(Int64), String)", Arrays.asList(-64L, "tail")},
+                {"Tuple(Nullable(UInt64), String)", Arrays.asList(BigInteger.valueOf(64), "tail")},
+                {"Tuple(Nullable(Float32), String)", Arrays.asList(1.5f, "tail")},
+                {"Tuple(Nullable(Float64), String)", Arrays.asList(2.5d, "tail")},
+                {"Tuple(Nullable(Bool), String)", Arrays.asList(true, "tail")},
+                {"Tuple(Nullable(UUID), String)", Arrays.asList(uuid, "tail")},
+                {"Tuple(Nullable(Date), String)", Arrays.asList(LocalDate.of(2021, 2, 3), "tail")},
+                {"Tuple(Nullable(Decimal64(4)), String)", Arrays.asList(new BigDecimal("1.2345"), "tail")},
+                {"Tuple(Nullable(IPv4), String)", Arrays.asList(ipv4, "tail")},
 
-        ByteArrayOutputStream present = new ByteArrayOutputStream();
-        SerializerUtils.serializeData(present, Arrays.asList(42, "x"), column);
-        Assert.assertEquals((Object[]) newReader(present.toByteArray()).readValue(column),
-                new Object[] {42, "x"});
+                // A Tuple value given as a Java array (not a List) takes the other branch of
+                // serializeTupleData, which is routed through the same nested-marker path.
+                {"Tuple(Nullable(String), String)", new Object[] {"opt", "tail"}},
 
-        ByteArrayOutputStream allNull = new ByteArrayOutputStream();
-        SerializerUtils.serializeData(allNull, Arrays.asList(null, null), column);
-        Assert.assertEquals((Object[]) newReader(allNull.toByteArray()).readValue(column),
-                new Object[] {null, null});
+                // The same marker handling on the Map value path, across a range of widths.
+                {"Map(String, Nullable(String))", newMap("k", "v")},
+                {"Map(String, Nullable(Int32))", newMap("k", 32)},
+                {"Map(String, Nullable(Float64))", newMap("k", 2.5d)},
+                {"Map(String, Nullable(UUID))", newMap("k", uuid)},
+
+                // Null elements/values still serialize a single null-marker byte.
+                {"Tuple(Nullable(String), String)", Arrays.asList(null, "tail")},
+                {"Tuple(Nullable(Int32), String)", Arrays.asList(null, "tail")},
+                {"Tuple(Nullable(Int32), Nullable(String))", Arrays.asList(null, null)},
+                {"Map(String, Nullable(String))", newMap("k", null)},
+
+                // Containers compose: marker handling threads through nested Tuple/Map/Array,
+                // including Array(Tuple(Nullable)) which is how Nested columns are encoded.
+                {"Tuple(String, Map(String, Nullable(String)))", Arrays.asList("id", newMap("k1", "v1", "k2", null))},
+                {"Tuple(Nullable(String), Map(String, Nullable(Int32)))", Arrays.asList("opt", newMap("k", 7))},
+                {"Array(Tuple(Nullable(String), String))", Arrays.asList(Arrays.asList("a", "b"), Arrays.asList(null, "c"))},
+                {"Tuple(Array(Nullable(Int32)), String)", Arrays.asList(Arrays.asList(1, null, 3), "tail")},
+
+                // Contrast: non-nullable nested elements must keep serializing without a marker.
+                {"Tuple(Int32, String)", Arrays.asList(7, "tail")},
+                {"Map(String, String)", newMap("k", "v")},
+        };
     }
 
-    @Test
-    public void testNestedContainerWithNullableRoundTrip() throws Exception {
-        // #2721: the marker handling must compose through nested containers — here a Map carrying a
-        // Nullable value sits inside a Tuple, exercising serializeTupleData -> serializeMapData.
-        ClickHouseColumn column = ClickHouseColumn.of("v", "Tuple(String, Map(String, Nullable(String)))");
-        Map<String, String> inner = new LinkedHashMap<>();
-        inner.put("k1", "v1");
-        inner.put("k2", null);
+    // Normalizes Tuple (Object[]) and Array (ArrayValue / List) results to nested Lists so
+    // round-tripped values compare structurally regardless of the container representation the
+    // reader returns.
+    @SuppressWarnings("unchecked")
+    private static Object normalize(Object value) {
+        if (value instanceof BinaryStreamReader.ArrayValue) {
+            return normalizeList(((BinaryStreamReader.ArrayValue) value).asList());
+        } else if (value instanceof Object[]) {
+            return normalizeList(Arrays.asList((Object[]) value));
+        } else if (value instanceof List) {
+            return normalizeList((List<Object>) value);
+        } else if (value instanceof Map) {
+            Map<Object, Object> result = new LinkedHashMap<>();
+            ((Map<Object, Object>) value).forEach((k, v) -> result.put(k, normalize(v)));
+            return result;
+        }
+        return value;
+    }
 
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        SerializerUtils.serializeData(out, Arrays.asList("id", inner), column);
+    private static List<Object> normalizeList(List<Object> values) {
+        List<Object> result = new ArrayList<>(values.size());
+        for (Object v : values) {
+            result.add(normalize(v));
+        }
+        return result;
+    }
 
-        Assert.assertEquals((Object[]) newReader(out.toByteArray()).readValue(column),
-                new Object[] {"id", inner});
+    private static Map<Object, Object> newMap(Object... kv) {
+        Map<Object, Object> map = new LinkedHashMap<>();
+        for (int i = 0; i < kv.length; i += 2) {
+            map.put(kv[i], kv[i + 1]);
+        }
+        return map;
     }
 
     private void assertCustomGeoTypeTag(String typeName) throws Exception {
