@@ -516,35 +516,36 @@ public class HttpAPIClientHelper {
     public ClassicHttpResponse executeRequest(Endpoint server, Map<String, Object> requestConfig,
                                               String body) throws Exception {
 
-        final URI uri = createRequestURI(server, requestConfig, true);
-        final HttpPost req = createPostRequest(uri, requestConfig);
-        final String contentEncoding = req.containsHeader(HttpHeaders.CONTENT_ENCODING) ? req.getHeader(HttpHeaders.CONTENT_ENCODING).getValue() : null;
+        boolean useMultipart = ClientConfigProperties.HTTP_SEND_PARAMS_IN_BODY.<Boolean>getOrDefault(requestConfig) &&
+                requestConfig.containsKey(HttpAPIClientHelper.KEY_STATEMENT_PARAMS);
 
-        HttpEntity httpEntity = new ByteArrayEntity(body.getBytes(StandardCharsets.UTF_8.name()), CONTENT_TYPE, contentEncoding);
-        req.setEntity(wrapRequestEntity(httpEntity, requestConfig));
+        // adjust configuration
+        if (useMultipart) {
+            requestConfig.put(ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey(), false); // turn-off client-req compression
+        }
 
-        return doPostRequest(requestConfig, req);
-    }
-
-        public ClassicHttpResponse executeMultiPartRequest(Endpoint server, Map<String, Object> requestConfig, String sqlQuery) throws Exception {
-
-        requestConfig.put(ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey(), false);
-
-        final URI uri = createRequestURI(server, requestConfig, false);
+        // create configuration dependent objects
+        final URI uri = createRequestURI(server, requestConfig, !useMultipart);
         final HttpPost req = createPostRequest(uri, requestConfig);
 
-        MultipartEntityBuilder multipartEntityBuilder = MultipartEntityBuilder.create();
-        addStatementParams(requestConfig, multipartEntityBuilder::addTextBody);
-        multipartEntityBuilder.addTextBody(ClickHouseHttpProto.QPARAM_QUERY_STMT, sqlQuery);
+        if (useMultipart) {
+            MultipartEntityBuilder multipartEntityBuilder = MultipartEntityBuilder.create();
+            addStatementParams(requestConfig, multipartEntityBuilder::addTextBody);
+            multipartEntityBuilder.addTextBody(ClickHouseHttpProto.QPARAM_QUERY_STMT, body);
 
+            HttpEntity httpEntity = multipartEntityBuilder.build();
+            req.setHeader(HttpHeaders.CONTENT_TYPE, httpEntity.getContentType()); // set proper content type with generated boundary value
+            req.setEntity(wrapRequestEntity(httpEntity, requestConfig));
 
-        HttpEntity httpEntity = multipartEntityBuilder.build();
-        req.setHeader(HttpHeaders.CONTENT_TYPE, httpEntity.getContentType()); // set proper content type with generated boundary value
-        req.setEntity(wrapRequestEntity(httpEntity, requestConfig));
+        } else {
+            final String contentEncoding = req.containsHeader(HttpHeaders.CONTENT_ENCODING) ? req.getHeader(HttpHeaders.CONTENT_ENCODING).getValue() : null;
 
+            HttpEntity httpEntity = new ByteArrayEntity(body.getBytes(StandardCharsets.UTF_8.name()), CONTENT_TYPE, contentEncoding);
+            req.setEntity(wrapRequestEntity(httpEntity, requestConfig));
+        }
+
+        // execute
         return doPostRequest(requestConfig, req);
-
-
     }
 
     public ClassicHttpResponse executeRequest(Endpoint server, Map<String, Object> requestConfig,

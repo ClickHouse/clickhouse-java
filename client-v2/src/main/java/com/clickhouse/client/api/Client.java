@@ -1670,15 +1670,9 @@ public class Client implements AutoCloseable {
                 for (int i = 0; i <= retries; i++) {
                     ClassicHttpResponse httpResponse = null;
                     try {
-                        boolean  useMultipart = ClientConfigProperties.HTTP_SEND_PARAMS_IN_BODY.getOrDefault(requestSettings.getAllSettings());
-                        if (queryParams != null && useMultipart) {
-                            httpResponse = httpClientHelper.executeMultiPartRequest(selectedEndpoint,
-                                    requestSettings.getAllSettings(), sqlQuery);
-                        } else {
-                            httpResponse = httpClientHelper.executeRequest(selectedEndpoint,
+                        httpResponse = httpClientHelper.executeRequest(selectedEndpoint,
                                     requestSettings.getAllSettings(),
                                     sqlQuery);
-                        }
                         // Check response
                         if (httpResponse.getCode() == HttpStatus.SC_SERVICE_UNAVAILABLE) {
                             LOG.warn("Failed to get response. Server returned {}. Retrying. (Duration: {})", httpResponse.getCode(), durationSince(startTime));
