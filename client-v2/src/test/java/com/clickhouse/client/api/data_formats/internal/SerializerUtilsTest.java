@@ -159,52 +159,61 @@ public class SerializerUtilsTest {
         UUID uuid = UUID.fromString("61f0c404-5cb3-11e7-907b-a6006ad3dba0");
         InetAddress ipv4 = InetAddress.getByName("1.2.3.4");
         return new Object[][] {
-                // A present Nullable element of each datatype nested in a Tuple, with a trailing
-                // non-nullable sibling whose bytes misalign if the present-marker is dropped.
-                {"Tuple(Nullable(String), String)", Arrays.asList("opt", "tail")},
-                {"Tuple(Nullable(FixedString(3)), String)", Arrays.asList("abc", "tail")},
-                {"Tuple(Nullable(Int8), String)", Arrays.asList((byte) -5, "tail")},
-                {"Tuple(Nullable(UInt8), String)", Arrays.asList((short) 200, "tail")},
-                {"Tuple(Nullable(Int16), String)", Arrays.asList((short) -1600, "tail")},
-                {"Tuple(Nullable(UInt16), String)", Arrays.asList(40000, "tail")},
-                {"Tuple(Nullable(Int32), String)", Arrays.asList(42, "tail")},
-                {"Tuple(Nullable(UInt32), String)", Arrays.asList(4_000_000_000L, "tail")},
-                {"Tuple(Nullable(Int64), String)", Arrays.asList(-64L, "tail")},
-                {"Tuple(Nullable(UInt64), String)", Arrays.asList(BigInteger.valueOf(64), "tail")},
-                {"Tuple(Nullable(Float32), String)", Arrays.asList(1.5f, "tail")},
-                {"Tuple(Nullable(Float64), String)", Arrays.asList(2.5d, "tail")},
-                {"Tuple(Nullable(Bool), String)", Arrays.asList(true, "tail")},
-                {"Tuple(Nullable(UUID), String)", Arrays.asList(uuid, "tail")},
-                {"Tuple(Nullable(Date), String)", Arrays.asList(LocalDate.of(2021, 2, 3), "tail")},
-                {"Tuple(Nullable(Decimal64(4)), String)", Arrays.asList(new BigDecimal("1.2345"), "tail")},
-                {"Tuple(Nullable(IPv4), String)", Arrays.asList(ipv4, "tail")},
+                // Each present Nullable element sits in the MIDDLE of the schema: a non-nullable
+                // leading column, the Nullable, then a trailing non-nullable Float64. If the
+                // present-marker byte is dropped, every following byte shifts and the trailing
+                // Float64 reads a wrong value, so a faulty serialization is detected positionally
+                // rather than only by running out of bytes. The assertion compares the whole row.
+                {"Tuple(Int32, Nullable(String), Float64)", Arrays.asList(7, "opt", 9.5d)},
+                {"Tuple(Int32, Nullable(FixedString(3)), Float64)", Arrays.asList(7, "abc", 9.5d)},
+                {"Tuple(Int32, Nullable(Int8), Float64)", Arrays.asList(7, (byte) -5, 9.5d)},
+                {"Tuple(Int32, Nullable(UInt8), Float64)", Arrays.asList(7, (short) 200, 9.5d)},
+                {"Tuple(Int32, Nullable(Int16), Float64)", Arrays.asList(7, (short) -1600, 9.5d)},
+                {"Tuple(Int32, Nullable(UInt16), Float64)", Arrays.asList(7, 40000, 9.5d)},
+                {"Tuple(Int32, Nullable(Int32), Float64)", Arrays.asList(7, 42, 9.5d)},
+                {"Tuple(Int32, Nullable(UInt32), Float64)", Arrays.asList(7, 4_000_000_000L, 9.5d)},
+                {"Tuple(Int32, Nullable(Int64), Float64)", Arrays.asList(7, -64L, 9.5d)},
+                {"Tuple(Int32, Nullable(UInt64), Float64)", Arrays.asList(7, BigInteger.valueOf(64), 9.5d)},
+                {"Tuple(Int32, Nullable(Float32), Float64)", Arrays.asList(7, 1.5f, 9.5d)},
+                {"Tuple(Int32, Nullable(Float64), Float64)", Arrays.asList(7, 2.5d, 9.5d)},
+                {"Tuple(Int32, Nullable(Bool), Float64)", Arrays.asList(7, true, 9.5d)},
+                {"Tuple(Int32, Nullable(UUID), Float64)", Arrays.asList(7, uuid, 9.5d)},
+                {"Tuple(Int32, Nullable(Date), Float64)", Arrays.asList(7, LocalDate.of(2021, 2, 3), 9.5d)},
+                {"Tuple(Int32, Nullable(Decimal64(4)), Float64)", Arrays.asList(7, new BigDecimal("1.2345"), 9.5d)},
+                {"Tuple(Int32, Nullable(IPv4), Float64)", Arrays.asList(7, ipv4, 9.5d)},
 
                 // A Tuple value given as a Java array (not a List) takes the other branch of
-                // serializeTupleData, which is routed through the same nested-marker path.
-                {"Tuple(Nullable(String), String)", new Object[] {"opt", "tail"}},
+                // serializeTupleData, which is routed through the same nested-marker path, for
+                // both a present value and a null.
+                {"Tuple(Int32, Nullable(String), Float64)", new Object[] {7, "opt", 9.5d}},
+                {"Tuple(Int32, Nullable(String), Float64)", new Object[] {7, null, 9.5d}},
 
-                // The same marker handling on the Map value path, across a range of widths.
-                {"Map(String, Nullable(String))", newMap("k", "v")},
-                {"Map(String, Nullable(Int32))", newMap("k", 32)},
-                {"Map(String, Nullable(Float64))", newMap("k", 2.5d)},
-                {"Map(String, Nullable(UUID))", newMap("k", uuid)},
+                // The Map value path: the Nullable map value sits between the key and a trailing
+                // Float64, so a dropped value-marker misaligns the float.
+                {"Tuple(Int32, Map(String, Nullable(String)), Float64)", Arrays.asList(7, newMap("k", "v"), 9.5d)},
+                {"Tuple(Int32, Map(String, Nullable(Int32)), Float64)", Arrays.asList(7, newMap("k", 32), 9.5d)},
+                {"Tuple(Int32, Map(String, Nullable(Float64)), Float64)", Arrays.asList(7, newMap("k", 2.5d), 9.5d)},
+                {"Tuple(Int32, Map(String, Nullable(UUID)), Float64)", Arrays.asList(7, newMap("k", uuid), 9.5d)},
 
-                // Null elements/values still serialize a single null-marker byte.
-                {"Tuple(Nullable(String), String)", Arrays.asList(null, "tail")},
-                {"Tuple(Nullable(Int32), String)", Arrays.asList(null, "tail")},
-                {"Tuple(Nullable(Int32), Nullable(String))", Arrays.asList(null, null)},
-                {"Map(String, Nullable(String))", newMap("k", null)},
+                // Null elements/values still serialize a single null-marker byte; the trailing
+                // Float64 confirms the following data stays aligned.
+                {"Tuple(Int32, Nullable(String), Float64)", Arrays.asList(7, null, 9.5d)},
+                {"Tuple(Int32, Nullable(Int32), Nullable(String), Float64)", Arrays.asList(7, null, null, 9.5d)},
+                {"Tuple(Int32, Map(String, Nullable(String)), Float64)", Arrays.asList(7, newMap("k", null), 9.5d)},
 
                 // Containers compose: marker handling threads through nested Tuple/Map/Array,
-                // including Array(Tuple(Nullable)) which is how Nested columns are encoded.
-                {"Tuple(String, Map(String, Nullable(String)))", Arrays.asList("id", newMap("k1", "v1", "k2", null))},
-                {"Tuple(Nullable(String), Map(String, Nullable(Int32)))", Arrays.asList("opt", newMap("k", 7))},
-                {"Array(Tuple(Nullable(String), String))", Arrays.asList(Arrays.asList("a", "b"), Arrays.asList(null, "c"))},
-                {"Tuple(Array(Nullable(Int32)), String)", Arrays.asList(Arrays.asList(1, null, 3), "tail")},
+                // including Array(Tuple(Nullable)) which is how Nested columns are encoded. A
+                // trailing Float64 after each nested container detects misalignment.
+                {"Array(Tuple(Int32, Nullable(String), Float64))",
+                        Arrays.asList(Arrays.asList(7, "a", 9.5d), Arrays.asList(7, null, 8.5d))},
+                {"Tuple(String, Map(String, Nullable(Int32)), Float64)",
+                        Arrays.asList("id", newMap("k1", 7, "k2", null), 9.5d)},
+                {"Tuple(Array(Nullable(Int32)), Float64)", Arrays.asList(Arrays.asList(1, null, 3), 9.5d)},
 
-                // Contrast: non-nullable nested elements must keep serializing without a marker.
-                {"Tuple(Int32, String)", Arrays.asList(7, "tail")},
-                {"Map(String, String)", newMap("k", "v")},
+                // Contrast: non-nullable nested elements must keep serializing without a marker,
+                // so these rows round-trip identically with or without the fix.
+                {"Tuple(Int32, String, Float64)", Arrays.asList(7, "tail", 9.5d)},
+                {"Tuple(Int32, Map(String, String), Float64)", Arrays.asList(7, newMap("k", "v"), 9.5d)},
         };
     }
 
