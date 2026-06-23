@@ -27,6 +27,10 @@ import java.util.Properties;
  *     <li>Passing the CA certificate as a PEM string instead of a file path - useful when the
  *     certificate comes from an environment variable or a secret manager (typical for
  *     Kubernetes/cloud deployments) and you do not want to write it to disk.</li>
+ *     <li>Connecting to a server with a self-signed certificate without any trust material -
+ *     the {@code ssl_mode=trust} connection property accepts any server certificate and skips
+ *     hostname verification ({@code ssl_mode=none} is accepted as an alias). Use it only for
+ *     testing or in fully trusted environments.</li>
  * </ul>
  *
  * <p>More SSL examples (mTLS, trust stores, SNI) will be added to this class later.</p>
@@ -45,7 +49,8 @@ import java.util.Properties;
  *     <li>{@code chUrl} - ClickHouse JDBC URL, e.g. {@code jdbc:clickhouse://my-host:8443/default}.
  *     When set, standalone mode is used</li>
  *     <li>{@code chUser} and {@code chPassword} - credentials (standalone mode)</li>
- *     <li>{@code chRootCert} - path to the root CA certificate in PEM format (required in standalone mode)</li>
+ *     <li>{@code chRootCert} - path to the root CA certificate in PEM format. When omitted in
+ *     standalone mode, only the self-signed (trust) example runs</li>
  *     <li>{@code chImage} - Docker image for local mode, default {@code clickhouse/clickhouse-server:latest}</li>
  * </ul>
  */
@@ -60,18 +65,19 @@ public class SSLExamples {
             final String user = System.getProperty("chUser", "default");
             final String password = System.getProperty("chPassword", "");
             final String rootCert = trimToNull(System.getProperty("chRootCert"));
-            if (rootCert == null) {
-                log.error("chRootCert is required when chUrl is set. "
-                        + "Pass the path to the CA certificate (PEM) that signed the server certificate.");
-                return;
-            }
 
             log.info("Running in standalone mode against {}", url);
             try {
-                connectWithCustomRootCertificate(url, user, password, rootCert);
-                connectWithRootCertificateAsString(url, user, password, rootCert);
+                connectToSelfSignedServer(url, user, password);
+                if (rootCert != null) {
+                    connectWithCustomRootCertificate(url, user, password, rootCert);
+                    connectWithRootCertificateAsString(url, user, password, rootCert);
+                } else {
+                    log.info("chRootCert is not set - skipping the custom CA certificate examples. "
+                            + "Pass the path to the CA certificate (PEM) that signed the server certificate to run them.");
+                }
             } catch (SQLException | IOException e) {
-                log.error("Secure connection with a custom root CA certificate failed", e);
+                log.error("Secure connection failed", e);
             }
             return;
         }
@@ -81,6 +87,8 @@ public class SSLExamples {
         final String image = System.getProperty("chImage", "clickhouse/clickhouse-server:latest");
         log.info("Running in local mode (set -DchUrl to verify your own server)");
         try (SecureServerSupport server = SecureServerSupport.start(image)) {
+            connectToSelfSignedServer(server.getJdbcUrl(),
+                    SecureServerSupport.USER, SecureServerSupport.PASSWORD);
             connectWithCustomRootCertificate(server.getJdbcUrl(),
                     SecureServerSupport.USER, SecureServerSupport.PASSWORD, server.getCaCertPath());
             connectWithRootCertificateAsString(server.getJdbcUrl(),
@@ -91,6 +99,37 @@ public class SSLExamples {
         }
         // Explicit exit: testcontainers keeps non-daemon threads alive after the scenario is done.
         Runtime.getRuntime().exit(0);
+    }
+
+    /**
+     * Connects to a ClickHouse server with a self-signed certificate without providing
+     * any trust material. The {@code ssl_mode=trust} connection property makes the driver
+     * accept any server certificate and skip hostname verification. The traditional JDBC
+     * value {@code ssl_mode=none} is accepted as an alias.
+     *
+     * <p><b>Warning:</b> the connection is encrypted, but the server identity is NOT verified,
+     * which makes it susceptible to man-in-the-middle attacks. Use this mode only for testing
+     * or in fully trusted environments. Prefer {@code sslrootcert} with the signing CA
+     * certificate whenever possible.</p>
+     */
+    static void connectToSelfSignedServer(String url, String user, String password) throws SQLException {
+        log.info("Connecting to {} accepting any server certificate (ssl_mode=trust)", url);
+
+        Properties properties = new Properties();
+        properties.setProperty(ClientConfigProperties.USER.getKey(), user); // user
+        properties.setProperty(ClientConfigProperties.PASSWORD.getKey(), password); // password
+        properties.setProperty("ssl", "true"); // enable TLS even if the URL has no https scheme
+        // Accept the self-signed certificate and skip hostname verification.
+        properties.setProperty(ClientConfigProperties.SSL_MODE.getKey(), "trust"); // ssl_mode
+
+        try (Connection connection = DriverManager.getConnection(url, properties);
+             Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT currentUser() AS user, version() AS version")) {
+            if (rs.next()) {
+                log.info("Connected (server certificate not verified) as '{}' to ClickHouse {}",
+                        rs.getString("user"), rs.getString("version"));
+            }
+        }
     }
 
     /**

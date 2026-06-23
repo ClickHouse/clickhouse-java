@@ -1,5 +1,6 @@
 package com.clickhouse.client;
 
+import com.clickhouse.client.api.ClickHouseException;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
@@ -7,6 +8,7 @@ import com.clickhouse.client.api.ClientFaultCause;
 import com.clickhouse.client.api.ClientMisconfigurationException;
 import com.clickhouse.client.api.ConnectionInitiationException;
 import com.clickhouse.client.api.ConnectionReuseStrategy;
+import com.clickhouse.client.api.DataTransferException;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.Session;
 import com.clickhouse.client.api.command.CommandResponse;
@@ -14,6 +16,7 @@ import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.enums.ProxyType;
+import com.clickhouse.client.api.enums.SSLMode;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
@@ -54,9 +57,11 @@ import org.bouncycastle.operator.ContentSigner;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.testcontainers.utility.ThrowingFunction;
 import org.testng.Assert;
+import org.testng.SkipException;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
+import javax.net.ssl.SSLHandshakeException;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.StringWriter;
@@ -288,6 +293,180 @@ public class HttpTransportTests extends BaseIntegrationTest {
         } catch (Exception e) {
             e.printStackTrace();
             Assert.fail(e.getMessage());
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testSSLModeTrust() {
+        if (isCloud()) {
+            throw new SkipException("Test uses a self-signed certificate, not applicable to cloud");
+        }
+
+        ClickHouseNode secureServer = getSecureServer(ClickHouseProtocol.HTTP);
+
+        // Default mode (Strict) without any trust material - the self-signed certificate must be rejected
+        try (Client client = new Client.Builder()
+                .addEndpoint("https://localhost:" + secureServer.getPort())
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .build()) {
+            Assert.expectThrows(Exception.class, () -> client.queryAll("SELECT 1"));
+        }
+
+        // Trust mode - the same certificate is accepted without any trust material
+        try (Client client = new Client.Builder()
+                .addEndpoint("https://localhost:" + secureServer.getPort())
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .setOption(ClientConfigProperties.SSL_MODE.getKey(), SSLMode.TRUST.name())
+                .build()) {
+            List<GenericRecord> records = client.queryAll("SELECT timezone()");
+            Assert.assertEquals(records.get(0).getString(1), "UTC");
+        } catch (Exception e) {
+            Assert.fail("Trust SSL mode should accept a self-signed certificate", e);
+        }
+
+        // Trust mode ignores a configured trust store (a warning is logged). A non-existent path proves
+        // the trust store is never loaded - the connection still succeeds by trusting any certificate.
+        try (Client client = new Client.Builder()
+                .addEndpoint("https://localhost:" + secureServer.getPort())
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .setSSLMode(SSLMode.TRUST)
+                .setSSLTrustStore("non-existent-trust-store.jks")
+                .build()) {
+            List<GenericRecord> records = client.queryAll("SELECT timezone()");
+            Assert.assertEquals(records.get(0).getString(1), "UTC");
+        } catch (Exception e) {
+            Assert.fail("Trust SSL mode should ignore a configured trust store", e);
+        }
+
+        // Trust mode ignores a configured CA certificate as well (a warning is logged).
+        try (Client client = new Client.Builder()
+                .addEndpoint("https://localhost:" + secureServer.getPort())
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .setSSLMode(SSLMode.TRUST)
+                .setRootCertificate("non-existent-ca.crt")
+                .build()) {
+            List<GenericRecord> records = client.queryAll("SELECT timezone()");
+            Assert.assertEquals(records.get(0).getString(1), "UTC");
+        } catch (Exception e) {
+            Assert.fail("Trust SSL mode should ignore a configured CA certificate", e);
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testSSLModeVerifyCa() {
+        if (isCloud()) {
+            throw new SkipException("Test uses a self-signed certificate, not applicable to cloud");
+        }
+
+        ClickHouseNode secureServer = getSecureServer(ClickHouseProtocol.HTTP);
+        // server certificate has CN=localhost, so connecting via 127.0.0.1 fails hostname verification
+        final String endpointByIp = "https://127.0.0.1:" + secureServer.getPort();
+        final String serverCertificate = "containers/clickhouse-server/certs/localhost.crt";
+
+        // Strict mode (default): certificate chain is trusted, but the hostname does not match
+        try (Client client = new Client.Builder()
+                .addEndpoint(endpointByIp)
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .setRootCertificate(serverCertificate)
+                .build()) {
+            Assert.expectThrows(Exception.class, () -> client.queryAll("SELECT 1"));
+        }
+
+        // VerifyCa mode: certificate chain is validated, hostname mismatch is ignored
+        try (Client client = new Client.Builder()
+                .addEndpoint(endpointByIp)
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .setRootCertificate(serverCertificate)
+                .setSSLMode(SSLMode.VERIFY_CA)
+                .build()) {
+            List<GenericRecord> records = client.queryAll("SELECT timezone()");
+            Assert.assertEquals(records.get(0).getString(1), "UTC");
+        } catch (Exception e) {
+            Assert.fail("VerifyCa SSL mode should ignore hostname mismatch", e);
+        }
+
+        // VerifyCa mode still validates the certificate chain - without the CA it must fail
+        try (Client client = new Client.Builder()
+                .addEndpoint(endpointByIp)
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .setSSLMode(SSLMode.VERIFY_CA)
+                .build()) {
+            Assert.expectThrows(Exception.class, () -> client.queryAll("SELECT 1"));
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testSSLModeDisabled() {
+        if (isCloud()) {
+            throw new SkipException("Plain HTTP is not available on cloud");
+        }
+
+        ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
+
+        // Disabled mode with a plain HTTP endpoint - SSL is simply not used
+        try (Client client = new Client.Builder()
+                .addEndpoint("http://" + server.getHost() + ":" + server.getPort())
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .setSSLMode(SSLMode.DISABLED)
+                .build()) {
+            List<GenericRecord> records = client.queryAll("SELECT timezone()");
+            Assert.assertEquals(records.get(0).getString(1), "UTC");
+        } catch (Exception e) {
+            Assert.fail("Disabled SSL mode should work with a plain HTTP endpoint", e);
+        }
+
+        ClickHouseNode secureServer = getSecureServer(ClickHouseProtocol.HTTP);
+        // Disabled mode contradicts a secure (https) endpoint - the scheme decides encryption, not the mode
+        Assert.expectThrows(ClientMisconfigurationException.class, () -> new Client.Builder()
+                .addEndpoint("https://localhost:" + secureServer.getPort())
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .setSSLMode(SSLMode.DISABLED)
+                .build());
+    }
+
+    @Test(groups = { "integration" })
+    public void testSSLModeStrictWithTrustStoreAndCaCertificate() {
+        if (isCloud()) {
+            throw new SkipException("Test uses a self-signed certificate, not applicable to cloud");
+        }
+
+        ClickHouseNode secureServer = getSecureServer(ClickHouseProtocol.HTTP);
+        // A trust store and a CA certificate cannot both take effect: the trust store is used and the
+        // CA certificate is ignored (a warning is logged). The connection still succeeds via the trust store.
+        try (Client client = new Client.Builder()
+                .addEndpoint("https://localhost:" + secureServer.getPort())
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .build()) {
+            ClientException ex = Assert.expectThrows(ClientException.class, () -> client.queryAll("SELECT timezone()"));
+
+            Assert.assertTrue(ex.getCause() instanceof ClickHouseException);
+            Assert.assertTrue(ex.getCause().getMessage().startsWith("SSL Problem"));
+        }
+
+        // A trust store and a CA certificate cannot both take effect: the trust store is used and the
+        // CA certificate is ignored (a warning is logged). The connection still succeeds via the trust store.
+        try (Client client = new Client.Builder()
+                .addEndpoint("https://localhost:" + secureServer.getPort())
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .setSSLTrustStore("containers/clickhouse-server/certs/KeyStore.jks")
+                .setSSLTrustStorePassword("iloveclickhouse")
+                .setRootCertificate("containers/clickhouse-server/certs/localhost.crt")
+                .build()) {
+            List<GenericRecord> records = client.queryAll("SELECT timezone()");
+            Assert.assertEquals(records.get(0).getString(1), "UTC");
+        } catch (Exception e) {
+            Assert.fail("Trust store should be used when a CA certificate is also configured", e);
         }
     }
 
