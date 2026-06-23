@@ -12,6 +12,7 @@ import com.clickhouse.client.api.data_formats.internal.MapBackedRecord;
 import com.clickhouse.client.api.data_formats.internal.ProcessParser;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.enums.ProxyType;
+import com.clickhouse.client.api.enums.SSLMode;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
@@ -756,6 +757,34 @@ public class Client implements AutoCloseable {
         }
 
         /**
+         * Defines how strictly the client verifies a server identity on secure connections.
+         *
+         * <p>Supported modes:</p>
+         * <ul>
+         *     <li>{@link SSLMode#DISABLED} - SSL is not used; only meaningful with plain protocols</li>
+         *     <li>{@link SSLMode#TRUST} - encrypt, but accept any server certificate and skip
+         *     hostname verification; a configured trust store or CA certificate is ignored (a warning
+         *     is logged), while a client certificate/key is still applied for mTLS</li>
+         *     <li>{@link SSLMode#VERIFY_CA} - validate the server certificate chain, but skip
+         *     hostname verification</li>
+         *     <li>{@link SSLMode#STRICT} - full verification of the certificate chain and the
+         *     hostname (default)</li>
+         * </ul>
+         *
+         * <p>The mode applies only when a secure protocol is in use - for the HTTP transport that
+         * means an {@code https://} endpoint. Setting any mode does <b>not</b> make the client use
+         * encryption on a plain HTTP endpoint: the endpoint scheme always decides whether the
+         * connection is encrypted.</p>
+         *
+         * @param sslMode ssl mode
+         * @return same instance of the builder
+         */
+        public Builder setSSLMode(SSLMode sslMode) {
+            this.configuration.put(ClientConfigProperties.SSL_MODE.getKey(), sslMode.name());
+            return this;
+        }
+
+        /**
          * Configure client to use server timezone for date/datetime columns. Default is true.
          * If this options is selected then server timezone should be set as well.
          *
@@ -1138,6 +1167,36 @@ public class Client implements AutoCloseable {
             if (configuration.containsKey(ClientConfigProperties.SSL_TRUST_STORE.getKey()) &&
                     configuration.containsKey(ClientConfigProperties.SSL_CERTIFICATE.getKey())) {
                 throw new ClientMisconfigurationException("Trust store and certificates cannot be used together");
+            }
+
+            // A trust store and a CA certificate are not rejected here: for VERIFY_CA/STRICT the trust
+            // store takes precedence and the CA certificate is ignored with a warning (see createSSLContext).
+
+            // Resolve ssl_mode case-insensitively and normalize it to the canonical enum name so that
+            // downstream parsing is consistent and an unknown value is reported as a misconfiguration
+            // here instead of failing later with a generic enum-parsing error.
+            String sslModeValue = configuration.get(ClientConfigProperties.SSL_MODE.getKey());
+            if (sslModeValue != null) {
+                SSLMode sslMode;
+                try {
+                    sslMode = SSLMode.fromValue(sslModeValue);
+                } catch (IllegalArgumentException e) {
+                    throw new ClientMisconfigurationException("Invalid value '" + sslModeValue + "' for '"
+                            + ClientConfigProperties.SSL_MODE.getKey() + "'", e);
+                }
+                configuration.put(ClientConfigProperties.SSL_MODE.getKey(), sslMode.name());
+
+                // SSLMode.DISABLED does not turn encryption off - the endpoint scheme decides that. So it
+                // contradicts a secure (https) endpoint and must be rejected here, before the client is created.
+                if (sslMode == SSLMode.DISABLED) {
+                    for (Endpoint endpoint : this.endpoints) {
+                        if ("https".equalsIgnoreCase(endpoint.getURI().getScheme())) {
+                            throw new ClientMisconfigurationException("SSL mode '" + SSLMode.DISABLED
+                                    + "' cannot be used with a secure (https) endpoint. Use '" + SSLMode.TRUST
+                                    + "' to trust all certificates or use plain HTTP.");
+                        }
+                    }
+                }
             }
 
             // Check timezone settings
@@ -1671,15 +1730,9 @@ public class Client implements AutoCloseable {
                 for (int i = 0; i <= retries; i++) {
                     ClassicHttpResponse httpResponse = null;
                     try {
-                        boolean  useMultipart = ClientConfigProperties.HTTP_SEND_PARAMS_IN_BODY.getOrDefault(requestSettings.getAllSettings());
-                        if (queryParams != null && useMultipart) {
-                            httpResponse = httpClientHelper.executeMultiPartRequest(selectedEndpoint,
-                                    requestSettings.getAllSettings(), sqlQuery);
-                        } else {
-                            httpResponse = httpClientHelper.executeRequest(selectedEndpoint,
+                        httpResponse = httpClientHelper.executeRequest(selectedEndpoint,
                                     requestSettings.getAllSettings(),
                                     sqlQuery);
-                        }
                         // Check response
                         if (httpResponse.getCode() == HttpStatus.SC_SERVICE_UNAVAILABLE) {
                             LOG.warn("Failed to get response. Server returned {}. Retrying. (Duration: {})", httpResponse.getCode(), durationSince(startTime));

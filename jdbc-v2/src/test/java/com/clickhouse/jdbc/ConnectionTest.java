@@ -13,6 +13,7 @@ import com.github.tomakehurst.wiremock.client.WireMock;
 import com.github.tomakehurst.wiremock.common.ConsoleNotifier;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import org.testng.Assert;
+import org.testng.SkipException;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
@@ -759,6 +760,78 @@ public class ConnectionTest extends JdbcIntegrationTest {
 
             int count = 0;
             while (rs.next()) { count ++ ; }
+            Assert.assertEquals(count, 10);
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testSSLModeTrust() throws Exception {
+        if (isCloud()) {
+            throw new SkipException("Test uses a self-signed certificate, not applicable to cloud");
+        }
+        ClickHouseNode secureServer = getSecureServer(ClickHouseProtocol.HTTP);
+        String jdbcUrl = "jdbc:clickhouse:" + secureServer.getBaseUri();
+
+        Properties properties = new Properties();
+        properties.put(ClientConfigProperties.USER.getKey(), "default");
+        properties.put(ClientConfigProperties.PASSWORD.getKey(), ClickHouseServerForTest.getPassword());
+
+        // Default mode (strict) without any trust material - the self-signed certificate must be rejected
+        Assert.expectThrows(Exception.class, () -> {
+            try (Connection conn = new ConnectionImpl(jdbcUrl, properties);
+                 Statement stmt = conn.createStatement()) {
+                stmt.executeQuery("SELECT 1");
+            }
+        });
+
+        // 'none' is a JDBC alias for the 'trust' mode
+        for (String mode : new String[] { "none", "trust", "Trust" }) {
+            Properties trustProperties = new Properties();
+            trustProperties.putAll(properties);
+            trustProperties.put(ClientConfigProperties.SSL_MODE.getKey(), mode);
+
+            try (Connection conn = new ConnectionImpl(jdbcUrl, trustProperties);
+                 Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery("SELECT number FROM system.numbers LIMIT 10")) {
+
+                int count = 0;
+                while (rs.next()) { count++; }
+                Assert.assertEquals(count, 10, "Failed for ssl_mode '" + mode + "'");
+            }
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testSSLModeVerifyCa() throws Exception {
+        if (isCloud()) {
+            throw new SkipException("Test uses a self-signed certificate, not applicable to cloud");
+        }
+        ClickHouseNode secureServer = getSecureServer(ClickHouseProtocol.HTTP);
+        // server certificate has CN=localhost, so connecting via 127.0.0.1 fails hostname verification
+        String jdbcUrl = "jdbc:clickhouse://127.0.0.1:" + secureServer.getPort() + "/";
+
+        Properties properties = new Properties();
+        properties.put(ClientConfigProperties.USER.getKey(), "default");
+        properties.put(ClientConfigProperties.PASSWORD.getKey(), ClickHouseServerForTest.getPassword());
+        properties.put(DriverProperties.SECURE_CONNECTION.getKey(), "true");
+        properties.put(ClientConfigProperties.CA_CERTIFICATE.getKey(), "containers/clickhouse-server/certs/localhost.crt");
+
+        // Default mode (strict): certificate chain is trusted, but the hostname does not match
+        Assert.expectThrows(Exception.class, () -> {
+            try (Connection conn = new ConnectionImpl(jdbcUrl, properties);
+                 Statement stmt = conn.createStatement()) {
+                stmt.executeQuery("SELECT 1");
+            }
+        });
+
+        // verify_ca: certificate chain is validated, hostname mismatch is ignored
+        properties.put(ClientConfigProperties.SSL_MODE.getKey(), "verify_ca");
+        try (Connection conn = new ConnectionImpl(jdbcUrl, properties);
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT number FROM system.numbers LIMIT 10")) {
+
+            int count = 0;
+            while (rs.next()) { count++; }
             Assert.assertEquals(count, 10);
         }
     }

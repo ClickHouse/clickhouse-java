@@ -140,11 +140,7 @@ public class CommonSettings {
     }
 
     public void clearSession() {
-        resetOption(ClientConfigProperties.serverSetting(ClickHouseHttpProto.QPARAM_SESSION_ID));
-        resetOption(ClientConfigProperties.serverSetting(ClickHouseHttpProto.QPARAM_SESSION_CHECK));
-        resetOption(ClientConfigProperties.serverSetting(ClickHouseHttpProto.QPARAM_SESSION_TIMEOUT));
-        // Do not clean `session_timezone` setting because it is not related to session management and used to
-        // set timezone for consequent queries in some multi-user applications.
+        Session.clearSession(settings);
     }
 
     /**
