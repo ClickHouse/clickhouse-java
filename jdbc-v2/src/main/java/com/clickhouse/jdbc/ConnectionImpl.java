@@ -2,6 +2,7 @@ package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.data_formats.JsonParserFactory;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QuerySettings;
@@ -17,6 +18,7 @@ import com.google.common.collect.ImmutableMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.lang.reflect.InvocationTargetException;
 import java.sql.Array;
 import java.sql.Blob;
 import java.sql.CallableStatement;
@@ -70,6 +72,8 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     private final FeatureManager featureManager;
     private volatile ImmutableMap<String, Class<?>> typeMap;
 
+    private final JsonParserFactory jsonParserFactory;
+
     public ConnectionImpl(String url, Properties info) throws SQLException {
         try {
             this.url = url;//Raw URL
@@ -121,11 +125,65 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
                     DriverProperties.SQL_PARSER.getDefaultValue()), config);
             this.featureManager = new FeatureManager(this.config);
             this.typeMap = ImmutableMap.<String, Class<?>>builder().putAll(this.config.getTypeMap()).buildKeepingLast();
+
+            final String jsonParserFactoryName = config.getDriverProperty(DriverProperties.JSON_PARSER_FACTORY.getKey(), null);
+            this.jsonParserFactory = jsonParserFactoryName == null ? null : instantiateJsonParserFactory(jsonParserFactoryName);
         } catch (SQLException e) {
             throw e;
         } catch (Exception e) {
             throw new SQLException("Failed to create connection", ExceptionUtils.SQL_STATE_CONNECTION_EXCEPTION, e);
         }
+    }
+
+    private JsonParserFactory instantiateJsonParserFactory(String className) throws SQLException {
+        if (className == null || className.trim().isEmpty()) {
+            throw new SQLException("Value of '" + DriverProperties.JSON_PARSER_FACTORY.getKey() +
+                    "' is empty string but should be a FQN of factory class.");
+        }
+        try {
+            Class<?> factoryClass = loadFactoryClass(className);
+            if (!JsonParserFactory.class.isAssignableFrom(factoryClass)) {
+                throw new SQLException("Class '" + className + "' should implement " + JsonParserFactory.class.getName());
+            }
+
+            return (JsonParserFactory) factoryClass.getDeclaredConstructor().newInstance();
+        } catch (ClassNotFoundException e) {
+            throw new SQLException("Class '" + className + "' (implementing JsonParserFactory ) not found. Check " +
+                    DriverProperties.JSON_PARSER_FACTORY.getKey() + " property", e);
+        } catch (InvocationTargetException | InstantiationException | IllegalAccessException |
+                 NoSuchMethodException e) {
+            throw new SQLException("Failed to instantiate '" + className + "'. Check class implementation.", e);
+        }
+    }
+
+    /**
+     * Resolves a user-supplied factory class name. JDBC drivers are commonly deployed in a
+     * parent class loader (e.g. servlet container {@code lib/}) while caller-supplied classes
+     * live in the application class loader, so the thread context class loader is tried first
+     * and the driver's own class loader is used as a fallback.
+     */
+    private Class<?> loadFactoryClass(String className) throws ClassNotFoundException {
+        ClassNotFoundException firstFailure = null;
+        ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
+        if (contextClassLoader != null) {
+            try {
+                return contextClassLoader.loadClass(className);
+            } catch (ClassNotFoundException e) {
+                firstFailure = e;
+            }
+        }
+        try {
+            return this.getClass().getClassLoader().loadClass(className);
+        } catch (ClassNotFoundException e) {
+            if (firstFailure != null) {
+                e.addSuppressed(firstFailure);
+            }
+            throw e;
+        }
+    }
+
+    public JsonParserFactory getJsonParserFactory() {
+        return jsonParserFactory;
     }
 
     public SqlParserFacade getSqlParser() {
@@ -538,7 +596,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
      * Creating multilevel arrays may be confusing.
      * Spec doesn't tell much about it so there may be different variants.
      * Note: createArrayOf() expect type name be for element of the array and for
-     * Array(Array(Int8)) it should be Int8 according to spec. However element type
+     * Array(Array(Int8)) it should be Int8 according to spec. However, element type
      * of 1st level array is Array(Int8)
      * @param typeName the SQL name of the type the elements of the array map to. The typeName is a
      * database-specific name which may be the name of a built-in type, a user-defined type or a standard  SQL type supported by this database. This

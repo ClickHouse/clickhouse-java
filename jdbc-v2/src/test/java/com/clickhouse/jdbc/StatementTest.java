@@ -2,6 +2,9 @@ package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.Session;
+import com.clickhouse.client.api.data_formats.GsonJsonParserFactory;
+import com.clickhouse.client.api.data_formats.JacksonJsonParserFactory;
+import com.clickhouse.client.api.data_formats.JsonParserFactory;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.data.ClickHouseVersion;
@@ -864,6 +867,44 @@ public class StatementTest extends JdbcIntegrationTest {
              Statement stmt = conn.createStatement()) {
             Assert.expectThrows(SQLException.class, () -> stmt.executeQuery("SELECT 1 FORMAT JSON"));
         }
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "testJSONEachRowFormatDP")
+    public void testJSONEachRowFormat(Class<JsonParserFactory> parserFactory) throws Exception {
+        Properties properties = new Properties();
+        properties.setProperty(DriverProperties.JSON_PARSER_FACTORY.getKey(), parserFactory.getName());
+        try (Connection conn = getJdbcConnection(properties)) {
+            try (Statement stmt = conn.createStatement()) {
+                try (ResultSet rs = stmt.executeQuery("SELECT 1 AS num, 'test' AS str FORMAT JSONEachRow")) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getInt("num"), 1);
+                    assertEquals(rs.getString("str"), "test");
+                    assertFalse(rs.next());
+                }
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testJSONEachRowFormatRequiresParserFactory() throws Exception {
+        try (Connection conn = getJdbcConnection();
+             Statement stmt = conn.createStatement()) {
+            try {
+                stmt.executeQuery("SELECT 1 AS num FORMAT JSONEachRow");
+                fail("Expected SQLException");
+            } catch (SQLException e) {
+                assertTrue(e.getMessage().contains(DriverProperties.JSON_PARSER_FACTORY.getKey()),
+                        "Unexpected message: " + e.getMessage());
+            }
+        }
+    }
+
+    @DataProvider
+    public static Object[][] testJSONEachRowFormatDP() {
+        return new Object[][] {
+                {JacksonJsonParserFactory.class},
+                {GsonJsonParserFactory.class},
+        };
     }
 
     @Test(groups = "integration")
