@@ -647,4 +647,47 @@ public class BaseReaderTests extends BaseIntegrationTest {
             customClient.close();
         }
     }
+
+    /**
+     * Regression test for https://github.com/ClickHouse/clickhouse-java/issues/1397: a String value that holds
+     * arbitrary binary content (here a SHA-512 hash, which is almost never valid UTF-8) must be read back byte
+     * for byte instead of being mangled by lossy UTF-8 decoding.
+     */
+    @Test(groups = {"integration"})
+    public void testReadingBinaryStringFromHash() throws Exception {
+        final String message = "abc";
+        final byte[] expectedHash = java.security.MessageDigest.getInstance("SHA-512")
+                .digest(message.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        Assert.assertEquals(expectedHash.length, 64);
+
+        java.util.Map<ClickHouseDataType, Class<?>> typeHints = new java.util.HashMap<>();
+        typeHints.put(ClickHouseDataType.String, StringValue.class);
+        typeHints.put(ClickHouseDataType.FixedString, StringValue.class);
+
+        Client customClient = newClient()
+                .typeHintMapping(typeHints)
+                .build();
+
+        final String query = "SELECT SHA512('" + message + "') AS hash";
+        try {
+            try (QueryResponse response = customClient.query(query).get()) {
+                ClickHouseBinaryFormatReader reader = customClient.newBinaryFormatReader(response);
+                Assert.assertNotNull(reader.next());
+
+                StringValue hash = (StringValue) reader.readValue("hash");
+                Assert.assertEquals(hash.size(), expectedHash.length);
+                Assert.assertEquals(hash.toByteArray(), expectedHash,
+                        "Binary hash bytes must be preserved exactly");
+                // getByteArray must agree with the raw StringValue bytes
+                Assert.assertEquals(reader.getByteArray("hash"), expectedHash);
+            }
+
+            List<GenericRecord> records = customClient.queryAll(query);
+            Assert.assertEquals(records.size(), 1);
+            Assert.assertEquals(records.get(0).getByteArray("hash"), expectedHash,
+                    "Binary hash read via queryAll must match the locally computed digest");
+        } finally {
+            customClient.close();
+        }
+    }
 }

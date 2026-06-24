@@ -13,7 +13,6 @@ import org.testng.annotations.Test;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -46,12 +45,14 @@ public class StringValueTests {
     }
 
     @Test
-    public void testToByteArrayReturnsIndependentCopy() {
+    public void testToByteArrayReturnsBackingArrayReference() {
         byte[] bytes = {1, 2, 3, 4};
         StringValue sv = new StringValue(bytes);
-        byte[] copy = sv.toByteArray();
-        copy[0] = 42;
-        Assert.assertEquals(sv.toByteArray()[0], 1, "Mutating the returned array must not affect the value");
+        byte[] backing = sv.toByteArray();
+        // No copy is made: the returned array is the live backing storage and mutating it mutates the value.
+        Assert.assertSame(backing, bytes, "toByteArray() must return the backing array without copying");
+        backing[0] = 42;
+        Assert.assertEquals(sv.toByteArray()[0], 42, "Mutating the returned array mutates the value (no copy)");
     }
 
     @Test
@@ -78,32 +79,68 @@ public class StringValueTests {
     }
 
     @Test
-    public void testAsInputStream() throws IOException {
-        byte[] bytes = {(byte) 0x00, (byte) 0xFF, (byte) 0x10, (byte) 0x7F};
-        StringValue sv = new StringValue(bytes);
-        try (InputStream is = sv.asInputStream()) {
-            byte[] read = new byte[bytes.length];
-            int n = is.read(read);
-            Assert.assertEquals(n, bytes.length);
-            Assert.assertEquals(read, bytes);
-        }
-    }
-
-    @Test
     public void testEqualsAndHashCode() {
-        StringValue a = StringValue.of("abc");
+        StringValue a = new StringValue("abc".getBytes(StandardCharsets.UTF_8));
         StringValue b = new StringValue("abc".getBytes(StandardCharsets.UTF_8));
-        StringValue c = StringValue.of("abd");
+        StringValue c = new StringValue("abd".getBytes(StandardCharsets.UTF_8));
+
+        // Reflexive
+        Assert.assertEquals(a, a);
+        // Equal content -> equal value and equal hash code
         Assert.assertEquals(a, b);
+        Assert.assertEquals(b, a, "equals must be symmetric");
         Assert.assertEquals(a.hashCode(), b.hashCode());
+        // Different content -> not equal
         Assert.assertNotEquals(a, c);
     }
 
     @Test
-    public void testOfStringCachesValue() {
-        StringValue sv = StringValue.of("preset");
-        Assert.assertSame(sv.asString(), sv.asString());
-        Assert.assertEquals(sv.asString(), "preset");
+    public void testEqualsRejectsNullAndOtherTypes() {
+        StringValue a = new StringValue("abc".getBytes(StandardCharsets.UTF_8));
+        Assert.assertFalse(a.equals(null), "A value must never equal null");
+        Assert.assertFalse(a.equals("abc"), "A value must not equal a raw String of the same text");
+        Assert.assertNotEquals(a, new Object());
+    }
+
+    @Test
+    public void testEqualsIgnoresDefaultCharset() {
+        // equals/hashCode are defined on the raw bytes, so the default charset must not affect them.
+        byte[] bytes = "abc".getBytes(StandardCharsets.UTF_8);
+        StringValue utf8 = new StringValue(bytes, StandardCharsets.UTF_8);
+        StringValue latin1 = new StringValue("abc".getBytes(StandardCharsets.UTF_8), StandardCharsets.ISO_8859_1);
+        Assert.assertEquals(utf8, latin1, "Values with identical bytes must be equal regardless of default charset");
+        Assert.assertEquals(utf8.hashCode(), latin1.hashCode());
+    }
+
+    @Test
+    public void testEqualsDistinguishesByContentAndLength() {
+        StringValue ab = new StringValue(new byte[]{1, 2});
+        StringValue abc = new StringValue(new byte[]{1, 2, 3});
+        StringValue empty = new StringValue(new byte[0]);
+
+        // Same prefix but different length must not be equal.
+        Assert.assertNotEquals(ab, abc);
+        Assert.assertNotEquals(abc, ab);
+        // Empty values are only equal to other empty values.
+        Assert.assertEquals(empty, new StringValue(new byte[0]));
+        Assert.assertNotEquals(empty, ab);
+    }
+
+    @Test
+    public void testEqualsIsConsistentWithBinaryReads() throws IOException {
+        // Two independently read StringValues over the same bytes must compare equal.
+        byte[] binary = new byte[]{(byte) 0x00, (byte) 0xFF, (byte) 0x80, (byte) 0x7F};
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        BinaryStreamUtils.writeString(baos, binary);
+        byte[] wire = baos.toByteArray();
+
+        ClickHouseColumn column = ClickHouseColumn.of("s", "String");
+        StringValue first = reader(wire, STRING_AS_BINARY).readValue(column);
+        StringValue second = reader(wire, STRING_AS_BINARY).readValue(column);
+
+        Assert.assertEquals(first, second);
+        Assert.assertEquals(first.hashCode(), second.hashCode());
+        Assert.assertEquals(first, new StringValue(binary));
     }
 
     @Test
@@ -171,6 +208,77 @@ public class StringValueTests {
 
         Assert.assertTrue(read instanceof StringValue);
         Assert.assertEquals(((StringValue) read).toByteArray(), binary);
+    }
+
+    @Test
+    public void testReadStringArrayAsStringValue() throws IOException {
+        // Array(String) elements must be preserved as StringValue (including non-UTF-8 content).
+        byte[][] elements = {
+                "plain".getBytes(StandardCharsets.UTF_8),
+                "Привет".getBytes(StandardCharsets.UTF_8),
+                new byte[]{(byte) 0xDE, (byte) 0xAD, (byte) 0xBE, (byte) 0xEF},
+                new byte[0],
+        };
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        BinaryStreamUtils.writeVarInt(baos, elements.length);
+        for (byte[] element : elements) {
+            BinaryStreamUtils.writeString(baos, element);
+        }
+
+        ClickHouseColumn column = ClickHouseColumn.of("a", "Array(String)");
+        Object read = reader(baos.toByteArray(), STRING_AS_BINARY).readValue(column);
+
+        Assert.assertTrue(read instanceof BinaryStreamReader.ArrayValue,
+                "Expected ArrayValue but got " + read.getClass());
+        BinaryStreamReader.ArrayValue array = (BinaryStreamReader.ArrayValue) read;
+        Assert.assertEquals(array.length(), elements.length);
+
+        Object raw = array.getArray();
+        Assert.assertTrue(raw instanceof StringValue[], "Array items must be StringValue, got " + raw.getClass());
+        StringValue[] values = (StringValue[]) raw;
+        for (int i = 0; i < elements.length; i++) {
+            Assert.assertEquals(values[i].toByteArray(), elements[i], "Element " + i + " bytes must be preserved");
+        }
+    }
+
+    @Test
+    public void testReadStringMapAsStringValue() throws IOException {
+        // Map(String, String) keys and values must be preserved as StringValue.
+        byte[][] keys = {
+                "k1".getBytes(StandardCharsets.UTF_8),
+                "ключ".getBytes(StandardCharsets.UTF_8),
+        };
+        byte[][] vals = {
+                "v1".getBytes(StandardCharsets.UTF_8),
+                new byte[]{(byte) 0x00, (byte) 0xFF, (byte) 0x80},
+        };
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        BinaryStreamUtils.writeVarInt(baos, keys.length);
+        for (int i = 0; i < keys.length; i++) {
+            BinaryStreamUtils.writeString(baos, keys[i]);
+            BinaryStreamUtils.writeString(baos, vals[i]);
+        }
+
+        ClickHouseColumn column = ClickHouseColumn.of("m", "Map(String, String)");
+        Object read = reader(baos.toByteArray(), STRING_AS_BINARY).readValue(column);
+
+        Assert.assertTrue(read instanceof Map, "Expected Map but got " + read.getClass());
+        Map<?, ?> map = (Map<?, ?>) read;
+        Assert.assertEquals(map.size(), keys.length);
+
+        int i = 0;
+        for (Map.Entry<?, ?> entry : map.entrySet()) {
+            Assert.assertTrue(entry.getKey() instanceof StringValue, "Map key must be a StringValue");
+            Assert.assertTrue(entry.getValue() instanceof StringValue, "Map value must be a StringValue");
+            Assert.assertEquals(((StringValue) entry.getKey()).toByteArray(), keys[i], "Key " + i + " bytes");
+            Assert.assertEquals(((StringValue) entry.getValue()).toByteArray(), vals[i], "Value " + i + " bytes");
+            i++;
+        }
+
+        // Lookup by an equal StringValue key must work (relies on equals/hashCode over raw bytes).
+        Assert.assertEquals(((StringValue) map.get(new StringValue(keys[0]))).toByteArray(), vals[0]);
     }
 
     @Test

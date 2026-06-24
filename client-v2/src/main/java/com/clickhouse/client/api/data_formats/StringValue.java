@@ -1,33 +1,28 @@
 package com.clickhouse.client.api.data_formats;
 
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
+import java.util.Objects;
 
 /**
- * Holder for a ClickHouse {@code String} (or {@code FixedString}) value that keeps the original bytes
- * as they were received from the server instead of eagerly decoding them into a {@link String}.
+ * Holder for ClickHouse {@code String} or {@code FixedString} values that preserves raw bytes
+ * to avoid lossy decoding and unnecessary allocations.
  * <p>
- * ClickHouse {@code String} columns are arbitrary byte sequences and are not guaranteed to be valid
- * text in any particular encoding (for example a {@code String} may store a hash, a serialized blob or
- * text in a non UTF-8 charset). Decoding such values as UTF-8 is lossy. This class preserves the raw
- * bytes so that:
- * <ul>
- *     <li>binary content can be read back exactly via {@link #toByteArray()} or {@link #asByteBuffer()};</li>
- *     <li>text content can be decoded with the charset the caller knows about via {@link #asString(Charset)};</li>
- *     <li>large values are not duplicated into a {@link String} unless the caller actually needs one.</li>
- * </ul>
+ * <b>This is a mutable structure and must be used with care.</b> To avoid copying, it does not
+ * duplicate the bytes it is given: the constructor wraps the supplied array/buffer instead of
+ * copying it, and {@link #toByteArray()} returns a direct reference to the backing array rather
+ * than a defensive copy. Consequently, mutating the source array, the array returned by
+ * {@link #toByteArray()}, or reading the same value concurrently while it is being modified will
+ * change the observed value. Callers that need an independent snapshot must copy the bytes
+ * themselves.
  * <p>
- * The value is backed by a {@link ByteBuffer} which exposes a richer API to callers and allows the
- * implementation to use direct (off-heap) memory in the future without changing this contract.
- * Instances are immutable: the backing buffer is never mutated and callers receive read-only views or
- * copies. The {@link String} produced by {@link #asString()} is cached so repeated access (for example
- * inside a row loop) does not allocate a new object every time.
+ * Backed by a {@link ByteBuffer} for a richer API and future off-heap memory support. Only heap
+ * buffers (with an accessible backing array) are supported today; constructing a value from a
+ * direct (off-heap) buffer is rejected. The decoded {@link String} produced by {@link #asString()}
+ * is cached.
  */
-public final class StringValue {
+public class StringValue {
 
     /** Charset used by {@link #asString()} and {@link #toString()} when no charset is provided. */
     public static final Charset DEFAULT_CHARSET = StandardCharsets.UTF_8;
@@ -45,7 +40,7 @@ public final class StringValue {
      * @param bytes raw value bytes (not null)
      */
     public StringValue(byte[] bytes) {
-        this(ByteBuffer.wrap(bytes), DEFAULT_CHARSET);
+        this(bytes, DEFAULT_CHARSET);
     }
 
     /**
@@ -60,76 +55,24 @@ public final class StringValue {
     }
 
     /**
-     * Creates a value backed by a region of the given array. The array is referenced, not copied.
-     *
-     * @param bytes  raw value bytes (not null)
-     * @param offset start offset in the array
-     * @param length number of bytes
-     */
-    public StringValue(byte[] bytes, int offset, int length) {
-        this(ByteBuffer.wrap(bytes, offset, length), DEFAULT_CHARSET);
-    }
-
-    /**
-     * Creates a value backed by the remaining content of the given buffer.
-     *
-     * @param buffer backing buffer (not null); its remaining bytes define the value
-     */
-    public StringValue(ByteBuffer buffer) {
-        this(buffer, DEFAULT_CHARSET);
-    }
-
-    /**
      * Creates a value backed by the remaining content of the given buffer using the provided default charset.
+     * The buffer is referenced, not copied, so its content must not be modified afterwards.
      *
-     * @param buffer         backing buffer (not null); its remaining bytes define the value
+     * @param buffer         backing heap buffer (not null); its remaining bytes define the value
      * @param defaultCharset charset used by {@link #asString()} and {@link #toString()} (not null)
+     * @throws IllegalArgumentException if the buffer is a direct (off-heap) buffer with no accessible array
      */
     public StringValue(ByteBuffer buffer, Charset defaultCharset) {
-        if (buffer == null) {
-            throw new NullPointerException("buffer is null");
+        Objects.requireNonNull(buffer, "buffer cannot be null");
+        Objects.requireNonNull(defaultCharset, "charset is required to convert buffer to String");
+
+        if (!buffer.hasArray()) {
+            throw new IllegalArgumentException("Can work only with heap buffer.");
         }
-        if (defaultCharset == null) {
-            throw new NullPointerException("defaultCharset is null");
-        }
+
         // Keep an independent view so external position/limit changes do not affect this value.
         this.buffer = buffer.slice();
         this.defaultCharset = defaultCharset;
-    }
-
-    /**
-     * Creates a value from a Java string encoded with UTF-8.
-     *
-     * @param value source string (not null)
-     * @return new value
-     */
-    public static StringValue of(String value) {
-        return of(value, DEFAULT_CHARSET);
-    }
-
-    /**
-     * Creates a value from a Java string encoded with the given charset.
-     *
-     * @param value   source string (not null)
-     * @param charset charset used to encode the string (not null)
-     * @return new value
-     */
-    public static StringValue of(String value, Charset charset) {
-        StringValue sv = new StringValue(value.getBytes(charset), charset);
-        if (charset.equals(DEFAULT_CHARSET)) {
-            sv.cached = value;
-        }
-        return sv;
-    }
-
-    /**
-     * Creates a value from the given bytes. The array is wrapped, not copied.
-     *
-     * @param bytes raw value bytes (not null)
-     * @return new value
-     */
-    public static StringValue of(byte[] bytes) {
-        return new StringValue(bytes);
     }
 
     /**
@@ -143,19 +86,16 @@ public final class StringValue {
     }
 
     /**
-     * Returns a fresh copy of the raw bytes of this value.
+     * Returns a direct reference to the backing byte array of this value (no copy is made).
+     * <p>
+     * The returned array is the live backing storage: mutating it mutates this value, and any change
+     * to the underlying bytes is reflected here. Callers that need an independent, immutable snapshot
+     * must copy the result themselves.
      *
-     * @return new byte array with the value bytes
+     * @return the backing array holding the value bytes
      */
     public byte[] toByteArray() {
-        ByteBuffer view = buffer.duplicate();
-        if (view.hasArray()) {
-            int start = view.arrayOffset() + view.position();
-            return Arrays.copyOfRange(view.array(), start, start + view.remaining());
-        }
-        byte[] out = new byte[view.remaining()];
-        view.get(out);
-        return out;
+        return buffer.array();
     }
 
     /**
@@ -195,37 +135,15 @@ public final class StringValue {
      * @return decoded string
      */
     public String asString(Charset charset) {
-        if (charset == null) {
-            throw new NullPointerException("charset is null");
-        }
+        Objects.requireNonNull(charset, "charset cannot be null");
         if (charset.equals(defaultCharset)) {
             return asString();
         }
         return decode(charset);
     }
 
-    /**
-     * Returns a stream over the raw bytes of this value. Useful for JDBC binary/ascii stream access.
-     *
-     * @return input stream over the value bytes
-     */
-    public InputStream asInputStream() {
-        ByteBuffer view = buffer.duplicate();
-        if (view.hasArray()) {
-            int start = view.arrayOffset() + view.position();
-            return new ByteArrayInputStream(view.array(), start, view.remaining());
-        }
-        return new ByteArrayInputStream(toByteArray());
-    }
-
     private String decode(Charset charset) {
-        ByteBuffer view = buffer.duplicate();
-        if (view.hasArray()) {
-            return new String(view.array(), view.arrayOffset() + view.position(), view.remaining(), charset);
-        }
-        byte[] tmp = new byte[view.remaining()];
-        view.get(tmp);
-        return new String(tmp, charset);
+        return new String(buffer.array(), charset);
     }
 
     @Override

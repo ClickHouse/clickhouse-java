@@ -445,6 +445,79 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
     }
 
     @Test (groups = { "integration" })
+    public void writeAndReadImageTest() throws Exception {
+        // Demonstrates that large binary blobs (here a ~10KB PNG) survive a full write/read round-trip
+        // through a String column without being corrupted by lossy UTF-8 decoding.
+        byte[] imageData = readResource("clickhouse-logo.png");
+        org.testng.Assert.assertTrue(imageData.length > 1024, "Expected a non-trivial binary payload");
+
+        String tableName = "rowBinaryFormatWriterTest_writeAndReadImageTest_" + UUID.randomUUID().toString().replace('-', '_');
+        String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
+                " (id Int32, image String) Engine = MergeTree ORDER BY id";
+
+        initTable(tableName, tableCreate, new CommandSettings());
+        TableSchema schema = client.getTableSchema(tableName);
+
+        ClickHouseFormat format = ClickHouseFormat.RowBinaryWithDefaults;
+        try (InsertResponse response = client.insert(tableName, out -> {
+            RowBinaryFormatWriter w = new RowBinaryFormatWriter(out, schema, format);
+            w.setValue(schema.nameToColumnIndex("id"), 1);
+            w.setValue(schema.nameToColumnIndex("image"), imageData);
+            w.commitRow();
+        }, format, settings).get()) {
+            System.out.println("Image bytes written: " + imageData.length + ", rows: " + response.getWrittenRows());
+        }
+
+        Map<com.clickhouse.data.ClickHouseDataType, Class<?>> typeHints = new HashMap<>();
+        typeHints.put(com.clickhouse.data.ClickHouseDataType.String,
+                com.clickhouse.client.api.data_formats.StringValue.class);
+
+        try (Client customClient = newClient().typeHintMapping(typeHints).build()) {
+            // Idiomatic path: stream rows and read the binary payload via the index-based getByteArray(int).
+            try (com.clickhouse.client.api.query.QueryResponse response =
+                         customClient.query("SELECT * FROM \"" + tableName + "\" ORDER BY id").get()) {
+                com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader reader =
+                        customClient.newBinaryFormatReader(response);
+                org.testng.Assert.assertNotNull(reader.next());
+
+                int imageIndex = reader.getSchema().nameToColumnIndex("image");
+                byte[] streamed = reader.getByteArray(imageIndex);
+                org.testng.Assert.assertEquals(streamed, imageData,
+                        "Image bytes read via getByteArray(int) must match the source exactly");
+                // The name-based overload must agree with the index-based one.
+                org.testng.Assert.assertEquals(reader.getByteArray("image"), streamed);
+            }
+
+            List<GenericRecord> records = customClient.queryAll("SELECT * FROM \"" + tableName + "\" ORDER BY id");
+            assertEquals(records.size(), 1);
+
+            GenericRecord record = records.get(0);
+            // Raw bytes must be preserved exactly, regardless of how they are accessed.
+            org.testng.Assert.assertEquals(record.getByteArray("image"), imageData,
+                    "Image bytes read back via getByteArray must match the source exactly");
+
+            com.clickhouse.client.api.data_formats.StringValue value =
+                    (com.clickhouse.client.api.data_formats.StringValue) record.getObject("image");
+            org.testng.Assert.assertEquals(value.size(), imageData.length);
+            org.testng.Assert.assertEquals(value.toByteArray(), imageData,
+                    "StringValue must preserve the full binary payload");
+        }
+    }
+
+    private byte[] readResource(String name) throws IOException {
+        try (java.io.InputStream is = getClass().getClassLoader().getResourceAsStream(name)) {
+            org.testng.Assert.assertNotNull(is, "Test resource not found on classpath: " + name);
+            java.io.ByteArrayOutputStream buffer = new java.io.ByteArrayOutputStream();
+            byte[] chunk = new byte[8192];
+            int read;
+            while ((read = is.read(chunk)) != -1) {
+                buffer.write(chunk, 0, read);
+            }
+            return buffer.toByteArray();
+        }
+    }
+
+    @Test (groups = { "integration" })
     public void writeDatetimeTests() throws Exception {
         String tableName = "rowBinaryFormatWriterTest_writeDatetimeTests_" + UUID.randomUUID().toString().replace('-', '_');
         String tableCreate = "CREATE TABLE \"" + tableName + "\" " +

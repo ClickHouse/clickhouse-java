@@ -85,20 +85,14 @@ public class BinaryStreamReader {
                 typeHintMapping.get(ClickHouseDataType.String) == StringValue.class;
     }
 
-    /**
-     * Decides whether a {@code String}/{@code FixedString} value should be read as a {@link StringValue}
-     * (preserving raw bytes) instead of a {@link String}. A per-call type hint takes precedence over the
-     * default type hint mapping configured for the reader.
-     *
-     * @param typeHint per-call type hint or {@code null}
-     * @return {@code true} when the value should be read as {@link StringValue}
-     */
     private boolean readStringAsBinary(Class<?> typeHint) {
-        if (typeHint == StringValue.class) {
-            return true;
-        }
-        if (typeHint == String.class) {
-            return false;
+        if (typeHint != null) {
+            if (typeHint == StringValue.class) {
+                return true;
+            }
+            if (typeHint == String.class) {
+                return false;
+            }
         }
         return stringAsBinaryDefault;
     }
