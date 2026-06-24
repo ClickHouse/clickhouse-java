@@ -11,9 +11,9 @@ import com.clickhouse.client.api.ConnectionReuseStrategy;
 import com.clickhouse.client.api.DataTransferException;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.enums.ProxyType;
+import com.clickhouse.client.api.enums.SSLMode;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.transport.Endpoint;
-import com.clickhouse.client.config.ClickHouseDefaultSslContextProvider;
 import com.clickhouse.data.ClickHouseFormat;
 import net.jpountz.lz4.LZ4Factory;
 import org.apache.commons.compress.compressors.CompressorStreamFactory;
@@ -85,7 +85,6 @@ import java.net.URISyntaxException;
 import java.net.URLEncoder;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
-import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
@@ -131,7 +130,7 @@ public class HttpAPIClientHelper {
 
     LZ4Factory lz4Factory;
 
-    private final ClickHouseDefaultSslContextProvider sslContextProvider = new ClickHouseDefaultSslContextProvider();
+    private final SslContextProvider sslContextProvider = new SslContextProvider();
 
     public HttpAPIClientHelper(Map<String, Object> configuration, Object metricsRegistry, boolean initSslContext, LZ4Factory lz4Factory) {
         this.metricsRegistry = metricsRegistry;
@@ -159,34 +158,46 @@ public class HttpAPIClientHelper {
      * @return SSLContext
      */
     public SSLContext createSSLContext(Map<String, Object> configuration) {
-        SSLContext sslContext;
-        try {
-            sslContext = SSLContext.getDefault();
-        } catch (NoSuchAlgorithmException e) {
-            throw new ClientException("Failed to create default SSL context", e);
-        }
+        final SSLMode sslMode = ClientConfigProperties.SSL_MODE.getOrDefault(configuration);
         final String trustStorePath = (String) configuration.get(ClientConfigProperties.SSL_TRUST_STORE.getKey());
         final String caCertificate = (String) configuration.get(ClientConfigProperties.CA_CERTIFICATE.getKey());
         final String sslCertificate = (String) configuration.get(ClientConfigProperties.SSL_CERTIFICATE.getKey());
         final String sslKey = (String) configuration.get(ClientConfigProperties.SSL_KEY.getKey());
-        if (trustStorePath != null) {
-            try {
-                sslContext = sslContextProvider.getSslContextFromKeyStore(
-                        trustStorePath,
-                        (String) configuration.get(ClientConfigProperties.SSL_KEY_STORE_PASSWORD.getKey()),
-                        (String) configuration.get(ClientConfigProperties.SSL_KEYSTORE_TYPE.getKey())
-                );
-            } catch (SSLException e) {
-                throw new ClientMisconfigurationException("Failed to create SSL context from a keystore", e);
-            }
-        } else if (caCertificate != null || sslCertificate != null|| sslKey != null) {
-            try {
-                sslContext = sslContextProvider.getSslContextFromCerts(sslCertificate, sslKey, caCertificate);
-            } catch (SSLException e) {
-                throw new ClientMisconfigurationException("Failed to create SSL context from certificates", e);
-            }
+
+        SslContextProvider.Builder builder = sslContextProvider.builder();
+
+        // The client certificate/key (mTLS) are independent of how the server certificate is verified,
+        // so they are applied whenever configured, regardless of the SSL mode.
+        if (sslCertificate != null && !sslCertificate.isEmpty()) {
+            builder.clientCertificate(sslCertificate, sslKey);
         }
-        return sslContext;
+
+        if (sslMode == SSLMode.TRUST) {
+            // TRUST accepts any server certificate and skips the hostname check (the latter is applied
+            // where the connection socket factory is created). A configured trust store or CA
+            // certificate has no effect in this mode and is ignored with a warning.
+            if (trustStorePath != null || caCertificate != null) {
+                LOG.warn("SSL mode '{}' trusts any server certificate; the configured {} is ignored.",
+                        SSLMode.TRUST, trustStorePath != null ? "trust store" : "CA certificate");
+            }
+            builder.trustAllCertificates();
+        } else if (trustStorePath != null) {
+            // VERIFY_CA / STRICT: validate against the trust store. A trust store and a CA certificate
+            // cannot both take effect, so the CA certificate is ignored with a warning.
+            if (caCertificate != null) {
+                LOG.warn("Both a trust store and a CA certificate are configured; using the trust store and"
+                        + " ignoring the CA certificate. Import the CA certificate into the trust store instead.");
+            }
+            builder.trustStore(trustStorePath,
+                    (String) configuration.get(ClientConfigProperties.SSL_KEY_STORE_PASSWORD.getKey()),
+                    (String) configuration.get(ClientConfigProperties.SSL_KEYSTORE_TYPE.getKey()));
+        } else if (caCertificate != null) {
+            // VERIFY_CA / STRICT: validate against the CA certificate.
+            builder.rootCertificate(caCertificate);
+        }
+        // else VERIFY_CA / STRICT with no trust material: the JVM default trust store is used.
+
+        return builder.build();
     }
 
     private static final long CONNECTION_INACTIVITY_CHECK = 5000L;
@@ -272,7 +283,11 @@ public class HttpAPIClientHelper {
         LayeredConnectionSocketFactory sslConnectionSocketFactory;
         if (sslContext != null) {
             String socketSNI = (String)configuration.get(ClientConfigProperties.SSL_SOCKET_SNI.getKey());
-            if (socketSNI != null && !socketSNI.trim().isEmpty()) {
+            SSLMode sslMode = ClientConfigProperties.SSL_MODE.getOrDefault(configuration);
+            // Trust and VerifyCa skip hostname verification. The same applies when a custom SNI is
+            // set because the connection hostname will not match the certificate.
+            boolean trustAllHostnames = sslMode == SSLMode.TRUST || sslMode == SSLMode.VERIFY_CA;
+            if (socketSNI != null && !socketSNI.trim().isEmpty() || trustAllHostnames) {
                 sslConnectionSocketFactory = new CustomSSLConnectionFactory(socketSNI, sslContext, (hostname, session) -> true);
             } else {
                 sslConnectionSocketFactory = new SSLConnectionSocketFactory(sslContext);
@@ -516,35 +531,36 @@ public class HttpAPIClientHelper {
     public ClassicHttpResponse executeRequest(Endpoint server, Map<String, Object> requestConfig,
                                               String body) throws Exception {
 
-        final URI uri = createRequestURI(server, requestConfig, true);
-        final HttpPost req = createPostRequest(uri, requestConfig);
-        final String contentEncoding = req.containsHeader(HttpHeaders.CONTENT_ENCODING) ? req.getHeader(HttpHeaders.CONTENT_ENCODING).getValue() : null;
+        boolean useMultipart = ClientConfigProperties.HTTP_SEND_PARAMS_IN_BODY.<Boolean>getOrDefault(requestConfig) &&
+                requestConfig.containsKey(HttpAPIClientHelper.KEY_STATEMENT_PARAMS);
 
-        HttpEntity httpEntity = new ByteArrayEntity(body.getBytes(StandardCharsets.UTF_8.name()), CONTENT_TYPE, contentEncoding);
-        req.setEntity(wrapRequestEntity(httpEntity, requestConfig));
+        // adjust configuration
+        if (useMultipart) {
+            requestConfig.put(ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey(), false); // turn-off client-req compression
+        }
 
-        return doPostRequest(requestConfig, req);
-    }
-
-        public ClassicHttpResponse executeMultiPartRequest(Endpoint server, Map<String, Object> requestConfig, String sqlQuery) throws Exception {
-
-        requestConfig.put(ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey(), false);
-
-        final URI uri = createRequestURI(server, requestConfig, false);
+        // create configuration dependent objects
+        final URI uri = createRequestURI(server, requestConfig, !useMultipart);
         final HttpPost req = createPostRequest(uri, requestConfig);
 
-        MultipartEntityBuilder multipartEntityBuilder = MultipartEntityBuilder.create();
-        addStatementParams(requestConfig, multipartEntityBuilder::addTextBody);
-        multipartEntityBuilder.addTextBody(ClickHouseHttpProto.QPARAM_QUERY_STMT, sqlQuery);
+        if (useMultipart) {
+            MultipartEntityBuilder multipartEntityBuilder = MultipartEntityBuilder.create();
+            addStatementParams(requestConfig, multipartEntityBuilder::addTextBody);
+            multipartEntityBuilder.addTextBody(ClickHouseHttpProto.QPARAM_QUERY_STMT, body);
 
+            HttpEntity httpEntity = multipartEntityBuilder.build();
+            req.setHeader(HttpHeaders.CONTENT_TYPE, httpEntity.getContentType()); // set proper content type with generated boundary value
+            req.setEntity(wrapRequestEntity(httpEntity, requestConfig));
 
-        HttpEntity httpEntity = multipartEntityBuilder.build();
-        req.setHeader(HttpHeaders.CONTENT_TYPE, httpEntity.getContentType()); // set proper content type with generated boundary value
-        req.setEntity(wrapRequestEntity(httpEntity, requestConfig));
+        } else {
+            final String contentEncoding = req.containsHeader(HttpHeaders.CONTENT_ENCODING) ? req.getHeader(HttpHeaders.CONTENT_ENCODING).getValue() : null;
 
+            HttpEntity httpEntity = new ByteArrayEntity(body.getBytes(StandardCharsets.UTF_8.name()), CONTENT_TYPE, contentEncoding);
+            req.setEntity(wrapRequestEntity(httpEntity, requestConfig));
+        }
+
+        // execute
         return doPostRequest(requestConfig, req);
-
-
     }
 
     public ClassicHttpResponse executeRequest(Endpoint server, Map<String, Object> requestConfig,
@@ -878,6 +894,10 @@ public class HttpAPIClientHelper {
     public RuntimeException wrapException(String message, Exception cause, String queryId) {
         if (cause instanceof ClientException || cause instanceof ServerException) {
             return (RuntimeException) cause;
+        }
+
+        if (cause instanceof SSLException) {
+            return new ClickHouseException("SSL Problem", cause, queryId);
         }
 
         if (cause instanceof ConnectionRequestTimeoutException ||
