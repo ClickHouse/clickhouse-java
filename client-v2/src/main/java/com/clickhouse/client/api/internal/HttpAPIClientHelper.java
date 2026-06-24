@@ -13,6 +13,8 @@ import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.transport.Endpoint;
+import com.clickhouse.client.api.transport.internal.TransportRequest;
+import com.clickhouse.client.api.transport.internal.TransportResponse;
 import com.clickhouse.client.config.ClickHouseDefaultSslContextProvider;
 import com.clickhouse.data.ClickHouseFormat;
 import net.jpountz.lz4.LZ4Factory;
@@ -44,6 +46,7 @@ import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.HttpRequest;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.NoHttpResponseException;
+import org.apache.hc.core5.http.ProtocolException;
 import org.apache.hc.core5.http.URIScheme;
 import org.apache.hc.core5.http.config.CharCodingConfig;
 import org.apache.hc.core5.http.config.Http1Config;
@@ -513,9 +516,37 @@ public class HttpAPIClientHelper {
         return req;
     }
 
-    public ClassicHttpResponse executeRequest(Endpoint server, Map<String, Object> requestConfig,
-                                              String body) throws Exception {
+    private static final class TransportRequestImpl implements TransportRequest {
+        private final HttpPost delegate;
+        private final Map<String, Object> config;
 
+        TransportRequestImpl(HttpPost delegate, Map<String, Object> config) {
+            this.delegate = delegate;
+            this.config = config;
+        }
+
+        @Override
+        public boolean cancel() throws Exception {
+            if (delegate.isCancelled()) {
+                return true;
+            }
+            return delegate.cancel();
+        }
+
+        @Override
+        public Map<String, Object> getConfig() {
+            return config;
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public <T> T getDelegate() {
+            return (T) delegate;
+        }
+    }
+
+    public TransportRequest createRequest(Endpoint server, Map<String, Object> requestConfig,
+                                          String body) {
         boolean useMultipart = ClientConfigProperties.HTTP_SEND_PARAMS_IN_BODY.<Boolean>getOrDefault(requestConfig) &&
                 requestConfig.containsKey(HttpAPIClientHelper.KEY_STATEMENT_PARAMS);
 
@@ -538,27 +569,93 @@ public class HttpAPIClientHelper {
             req.setEntity(wrapRequestEntity(httpEntity, requestConfig));
 
         } else {
-            final String contentEncoding = req.containsHeader(HttpHeaders.CONTENT_ENCODING) ? req.getHeader(HttpHeaders.CONTENT_ENCODING).getValue() : null;
-
-            HttpEntity httpEntity = new ByteArrayEntity(body.getBytes(StandardCharsets.UTF_8.name()), CONTENT_TYPE, contentEncoding);
+            final HttpEntity httpEntity;
+            try {
+                final String contentEncoding = req.containsHeader(HttpHeaders.CONTENT_ENCODING) ? req.getHeader(HttpHeaders.CONTENT_ENCODING).getValue() : null;
+                httpEntity = new ByteArrayEntity(body.getBytes(StandardCharsets.UTF_8.name()), CONTENT_TYPE, contentEncoding);
+            } catch (UnsupportedEncodingException | ProtocolException e) {
+                throw new ClientException("failed to create request body entity", e);
+            }
             req.setEntity(wrapRequestEntity(httpEntity, requestConfig));
         }
 
-        // execute
-        return doPostRequest(requestConfig, req);
+        return new TransportRequestImpl(req, requestConfig);
     }
 
-    public ClassicHttpResponse executeRequest(Endpoint server, Map<String, Object> requestConfig,
-                                              IOCallback<OutputStream> writeCallback) throws Exception {
 
+    private static final class TransportResponseImpl implements TransportResponse {
+
+        private final ClassicHttpResponse delegate;
+
+        TransportResponseImpl(ClassicHttpResponse delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public int getStatusCode() {
+            return 0;
+        }
+
+        @Override
+        public ClickHouseFormat getDataFormat() {
+            Header formatHeader = delegate.getFirstHeader(ClickHouseHttpProto.HEADER_FORMAT);
+            return formatHeader == null ? null : ClickHouseFormat.valueOf(formatHeader.getValue());
+        }
+
+        @Override
+        public String getSummaryJson() {
+            return HttpAPIClientHelper.getHeaderVal(delegate
+                    .getFirstHeader(ClickHouseHttpProto.HEADER_SRV_SUMMARY), "{}");
+        }
+
+        @Override
+        public String getQueryId() {
+            return HttpAPIClientHelper.getHeaderVal(delegate
+                    .getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID), null);
+        }
+
+        @Override
+        public <T> T getDelegate() {
+            return (T) delegate;
+        }
+
+        @Override
+        public Map<String, String> getHeaders() {
+            return HttpAPIClientHelper.collectResponseHeaders(delegate);
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.close();
+        }
+
+        @Override
+        public InputStream createDataInputStream() {
+            try {
+                return delegate.getEntity().getContent();
+            } catch (Exception e) {
+                throw new ClientException("Failed to construct input stream", e);
+            }
+        }
+    }
+
+    public TransportResponse executeRequest(TransportRequest transportRequest) throws Exception {
+        return new TransportResponseImpl(doPostRequest(transportRequest.getConfig(), transportRequest.getDelegate()));
+    }
+
+    public TransportRequest createRequest(Endpoint server, Map<String, Object> requestConfig, IOCallback<OutputStream> writeCallback) {
         final URI uri = createRequestURI(server, requestConfig, true);
         final HttpPost req = createPostRequest(uri, requestConfig);
-        String contentEncoding = req.containsHeader(HttpHeaders.CONTENT_ENCODING) ? req.getHeader(HttpHeaders.CONTENT_ENCODING).getValue() : null;
-        req.setEntity(wrapRequestEntity(
-                new EntityTemplate(-1, CONTENT_TYPE, contentEncoding , writeCallback),
-                requestConfig));
+        try {
+            String contentEncoding = req.containsHeader(HttpHeaders.CONTENT_ENCODING) ? req.getHeader(HttpHeaders.CONTENT_ENCODING).getValue() : null;
+            req.setEntity(wrapRequestEntity(
+                    new EntityTemplate(-1, CONTENT_TYPE, contentEncoding, writeCallback),
+                    requestConfig));
+        } catch (ProtocolException e) {
+            throw new ClientException("failed to create request body entity", e);
+        }
 
-        return doPostRequest(requestConfig, req);
+        return new TransportRequestImpl(req, requestConfig);
     }
 
     private ClassicHttpResponse doPostRequest(Map<String, Object> requestConfig, HttpPost req) throws Exception {
@@ -589,27 +686,17 @@ public class HttpAPIClientHelper {
             return httpResponse;
 
         } catch (UnknownHostException e) {
-            closeQuietly(httpResponse);
+            ClientUtils.quiteClose(httpResponse, LOG);
             LOG.warn("Host '{}' unknown", req.getAuthority());
             throw e;
         } catch (ConnectException | NoRouteToHostException e) {
-            closeQuietly(httpResponse);
+            ClientUtils.quiteClose(httpResponse, LOG);
             LOG.warn("Failed to connect to '{}': {}", req.getAuthority(), e.getMessage());
             throw e;
         } catch (Exception e) {
-            closeQuietly(httpResponse);
+            ClientUtils.quiteClose(httpResponse, LOG);
             LOG.debug("Failed to execute request to '{}': {}", req.getAuthority(), e.getMessage(), e);
             throw e;
-        }
-    }
-
-    public static void closeQuietly(ClassicHttpResponse httpResponse) {
-        if (httpResponse != null) {
-            try {
-                httpResponse.close();
-            } catch (IOException e) {
-                LOG.warn("Failed to close response");
-            }
         }
     }
 
@@ -804,7 +891,10 @@ public class HttpAPIClientHelper {
             ClickHouseHttpProto.HEADER_SRV_SUMMARY,
             ClickHouseHttpProto.HEADER_SRV_DISPLAY_NAME,
             ClickHouseHttpProto.HEADER_DATABASE,
-            ClickHouseHttpProto.HEADER_DB_USER
+            ClickHouseHttpProto.HEADER_DB_USER,
+            ClickHouseHttpProto.HEADER_TIMEZONE,
+            ClickHouseHttpProto.HEADER_FORMAT,
+            ClickHouseHttpProto.HEADER_PROGRESS
     ));
 
     /**
