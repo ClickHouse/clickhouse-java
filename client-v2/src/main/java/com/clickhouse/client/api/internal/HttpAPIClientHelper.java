@@ -10,6 +10,7 @@ import com.clickhouse.client.api.ConnectionInitiationException;
 import com.clickhouse.client.api.ConnectionReuseStrategy;
 import com.clickhouse.client.api.DataTransferException;
 import com.clickhouse.client.api.ServerException;
+import com.clickhouse.client.api.TransportException;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.enums.SSLMode;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
@@ -988,7 +989,7 @@ public class HttpAPIClientHelper {
         }
 
         if (cause instanceof SSLException) {
-            return new ClickHouseException("SSL Problem", cause, queryId);
+            return new TransportException("SSL Problem", cause, queryId);
         }
 
         if (cause instanceof ConnectionRequestTimeoutException ||
