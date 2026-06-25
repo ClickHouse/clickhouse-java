@@ -4,6 +4,8 @@
 
 ### Bug Fixes 
 
+- **[client-v2]** Fixed binary varint decoding for length and count fields so overflowing or overlong values fail with an `IOException` instead of being decoded into corrupted or negative `int` values. (https://github.com/ClickHouse/clickhouse-java/issues/2902)
+
 - **[client-v2]** Fixed container query parameters being sent unquoted, so `Client.query(sql, params, settings)` binding
   a `List<LocalDate>` (or an array/`Map`) to a placeholder like `{ids:Array(Date)}` was rejected by the server with
   `CANNOT_PARSE_INPUT_ASSERTION_FAILED`. Parameter values are now formatted by
