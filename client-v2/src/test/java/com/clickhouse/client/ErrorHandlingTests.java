@@ -91,9 +91,13 @@ public class ErrorHandlingTests extends BaseIntegrationTest {
                 .compressClientRequest(true)
                 .build()) {
 
+            final String queryId = "test-failure-query-id";
             TransportException tex = Assert.expectThrows(TransportException.class,
-                    () -> client.query("SELECT 1").get());
-            Assert.assertTrue(tex.getMessage().contains("SSL Problem"));
+                    () -> client.query("SELECT 1", new QuerySettings().setQueryId(queryId)).get());
+            Assert.assertTrue(tex.getMessage().startsWith("SSL Problem"), "Unexpected message: " + tex.getMessage());
+            Assert.assertEquals(tex.getQueryId(), queryId);
+            Assert.assertTrue(tex.getCause() instanceof javax.net.ssl.SSLException,
+                    "Expected SSLException cause but was: " + tex.getCause());
         }
     }
 
