@@ -3,9 +3,11 @@ package com.clickhouse.client;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.DataTransferException;
 import com.clickhouse.client.api.ServerException;
+import com.clickhouse.client.api.TransportException;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.query.QuerySettings;
 import org.testng.Assert;
+import org.testng.SkipException;
 import org.testng.annotations.Test;
 
 import java.time.temporal.ChronoUnit;
@@ -71,6 +73,31 @@ public class ErrorHandlingTests extends BaseIntegrationTest {
         } catch (DataTransferException e) {
             Assert.assertTrue(e.getMessage().contains(queryId));
             Assert.assertEquals(e.getQueryId(), queryId);
+        }
+    }
+
+    @Test(groups = {"integration"})
+    void testTransportException() throws Exception {
+        if (isCloud()) {
+            throw new SkipException("SSL Configuration tests - no need to test on cloud");
+        }
+
+        ClickHouseNode secureServer = getSecureServer(ClickHouseProtocol.HTTP);
+
+        try (Client client = new Client.Builder()
+                .addEndpoint("https://localhost:" + secureServer.getPort())
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .compressClientRequest(true)
+                .build()) {
+
+            final String queryId = "test-failure-query-id";
+            TransportException tex = Assert.expectThrows(TransportException.class,
+                    () -> client.query("SELECT 1", new QuerySettings().setQueryId(queryId)).get());
+            Assert.assertTrue(tex.getMessage().startsWith("SSL Problem"), "Unexpected message: " + tex.getMessage());
+            Assert.assertEquals(tex.getQueryId(), queryId);
+            Assert.assertTrue(tex.getCause() instanceof javax.net.ssl.SSLException,
+                    "Expected SSLException cause but was: " + tex.getCause());
         }
     }
 
