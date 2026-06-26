@@ -3,15 +3,14 @@ package com.clickhouse.client.api.query;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
-import com.clickhouse.client.api.internal.ClientUtils;
 import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.metrics.ServerMetrics;
 import com.clickhouse.client.api.transport.internal.TransportResponse;
 import com.clickhouse.data.ClickHouseFormat;
 
 import java.io.InputStream;
-import java.time.ZoneId;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TimeZone;
 
 /**
@@ -40,6 +39,7 @@ public class QueryResponse implements AutoCloseable {
     private final Map<String, String> responseHeaders;
 
     public QueryResponse(TransportResponse response, ClickHouseFormat format, QuerySettings settings, OperationMetrics operationMetrics) {
+        Objects.requireNonNull(response, "response is null");
         this.transportResponse = response;
         this.format = format;
         this.operationMetrics = operationMetrics;
@@ -65,12 +65,10 @@ public class QueryResponse implements AutoCloseable {
 
     @Override
     public void close() throws Exception {
-        if (transportResponse != null ) {
-            try {
-                transportResponse.close();
-            } catch (Exception e) {
-                throw new ClientException("Failed to close response", e);
-            }
+        try {
+            transportResponse.close();
+        } catch (Exception e) {
+            throw new ClientException("Failed to close response", e);
         }
     }
 

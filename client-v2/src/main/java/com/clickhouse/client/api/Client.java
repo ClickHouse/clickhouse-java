@@ -47,7 +47,6 @@ import com.clickhouse.data.ClickHouseFormat;
 import com.google.common.collect.ImmutableList;
 import net.jpountz.lz4.LZ4Factory;
 import org.apache.hc.core5.concurrent.DefaultThreadFactory;
-import org.apache.hc.core5.http.HttpStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -1398,18 +1397,11 @@ public class Client implements AutoCloseable {
                             }
                             out.close();
                         });
-                try (TransportResponse httpResponse = httpClientHelper.executeRequest(transportRequest)) {
-                    // Check response
-                    if (httpResponse.getStatusCode() == HttpStatus.SC_SERVICE_UNAVAILABLE) {
-                        LOG.warn("Failed to get response. Server returned {}. Retrying. (Duration: {})", httpResponse.getStatusCode(), durationSince(startTime));
-                        selectedEndpoint = getNextAliveNode();
-                        continue;
-                    }
-
+                try (TransportResponse transportResponse = httpClientHelper.executeRequest(transportRequest)) {
                     ClientStatisticsHolder clientStats = globalClientStats.remove(operationId);
-                    OperationMetrics metrics = completeOperation(httpResponse, clientStats, requestSettings.getQueryId());
+                    OperationMetrics metrics = completeOperation(transportResponse, clientStats, requestSettings.getQueryId());
 
-                    return new InsertResponse(httpResponse, metrics);
+                    return new InsertResponse(transportResponse, metrics);
                 } catch (Exception e) {
                     String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
                     lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
@@ -1424,7 +1416,8 @@ public class Client implements AutoCloseable {
 
             String errMsg = requestExMsg("Insert", retries, durationSince(startTime).toMillis(), requestSettings.getQueryId());
             LOG.warn(errMsg);
-            throw (lastException == null ? new ClientException(errMsg) : lastException);        };
+            throw (lastException == null ? new ClientException(errMsg) : lastException);
+        };
 
         return runAsyncOperation(supplier, requestSettings.getAllSettings());
     }
@@ -1601,17 +1594,9 @@ public class Client implements AutoCloseable {
                             out.close();
                         });
 
-                try (TransportResponse httpResponse = httpClientHelper.executeRequest(transportRequest)) {
-
-                    // Check response
-                    if (httpResponse.getStatusCode() == HttpStatus.SC_SERVICE_UNAVAILABLE) {
-                        LOG.warn("Failed to get response. Server returned {}. Retrying. (Duration: {})", httpResponse.getStatusCode(), durationSince(startTime));
-                        selectedEndpoint = getNextAliveNode();
-                        continue;
-                    }
-
-                    OperationMetrics metrics = completeOperation(httpResponse, finalClientStats, requestSettings.getQueryId());
-                    return new InsertResponse(httpResponse, metrics);
+                try (TransportResponse transportResponse = httpClientHelper.executeRequest(transportRequest)) {
+                    OperationMetrics metrics = completeOperation(transportResponse, finalClientStats, requestSettings.getQueryId());
+                    return new InsertResponse(transportResponse, metrics);
                 } catch (Exception e) {
                     String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
                     lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
@@ -1722,14 +1707,6 @@ public class Client implements AutoCloseable {
                     TransportResponse transportResp = null;
                     try {
                         transportResp = httpClientHelper.executeRequest(request);
-                        // Check response
-                        if (transportResp.getStatusCode() == HttpStatus.SC_SERVICE_UNAVAILABLE) {
-                            LOG.warn("Failed to get response. Server returned {}. Retrying. (Duration: {})", transportResp.getStatusCode(), durationSince(startTime));
-                            selectedEndpoint = getNextAliveNode();
-                            ClientUtils.quiteClose(transportResp, LOG);
-                            continue;
-                        }
-
                         OperationMetrics metrics = completeOperation(transportResp, clientStats, requestSettings.getQueryId());
                         ClickHouseFormat responseFormat = transportResp.getDataFormat();
                         if (responseFormat == null) {
