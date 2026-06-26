@@ -343,7 +343,12 @@ public abstract class SqlParserFacade {
                     List<ClickHouseParser.NestedIdentifierContext> names = columns.nestedIdentifier();
                     String[] insertColumns = new String[names.size()];
                     for (int i = 0; i < names.size(); i++) {
-                        insertColumns[i] = names.get(i).getText();
+                        // Unescape each identifier component and rejoin with '.', mirroring how the
+                        // table/database identifiers are handled above, so backtick-quoted column
+                        // names (e.g. the Nested wire form `directory`.`id`) match the schema columns.
+                        insertColumns[i] = names.get(i).identifier().stream()
+                                .map(id -> ClickHouseSqlUtils.unescape(id.getText()))
+                                .collect(Collectors.joining("."));
                     }
                     parsedStatement.setInsertColumns(insertColumns);
                 }
