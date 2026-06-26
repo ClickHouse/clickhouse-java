@@ -23,8 +23,11 @@ public abstract class BaseSqlParserFacadeTest {
 
     private SqlParserFacade parser;
 
+    private final boolean javaCcBackend;
+
     public BaseSqlParserFacadeTest(String name) throws Exception {
         parser = SqlParserFacade.getParser(name, new JdbcConfiguration("jdbc:ch:http://localhost:8123", new Properties()));
+        javaCcBackend = SqlParserFacade.SQLParser.JAVACC.name().equals(name);
     }
 
     @Test
@@ -297,12 +300,15 @@ public abstract class BaseSqlParserFacadeTest {
         ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
         Assert.assertFalse(stmt.isHasErrors(), "Query should parse without errors: " + sql);
         Assert.assertTrue(stmt.isInsert(), "Should be an INSERT: " + sql);
-        // Only the ANTLR4 parser backends extract INSERT column names; the JavaCC backend leaves
-        // them null, so the per-name assertion only applies when they were actually extracted.
         String[] actualColumns = stmt.getInsertColumns();
-        if (actualColumns != null) {
-            Assert.assertEquals(actualColumns, expectedColumns, "Insert column names mismatch for: " + sql);
+        // The JavaCC backend does not extract INSERT column names, so null is allowed there. The
+        // ANTLR4 backends must extract them, so a null is a regression and must fail the test
+        // loudly instead of being silently skipped.
+        if (javaCcBackend) {
+            return;
         }
+        Assert.assertNotNull(actualColumns, "ANTLR4 backend should extract INSERT column names for: " + sql);
+        Assert.assertEquals(actualColumns, expectedColumns, "Insert column names mismatch for: " + sql);
     }
 
     @Test(dataProvider = "testCreateStmtDP")
