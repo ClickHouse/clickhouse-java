@@ -54,6 +54,7 @@ public class MetricsTest extends BaseIntegrationTest {
                 .serverSetting(ServerSettings.ASYNC_INSERT, "0")
                 .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1")
                 .registerClientMetrics(meterRegistry, "pool-test")
+                .setKeepAliveTimeout(10, ChronoUnit.SECONDS) // enforce connection cleanup
                 .build()) {
 
             client.ping();
@@ -67,7 +68,11 @@ public class MetricsTest extends BaseIntegrationTest {
             Assert.assertEquals((int) leased.value(), 0);
 
             Runnable task = () -> {
+                final long maxDelay = 15;
+                long t1 = System.currentTimeMillis();
                 try (QueryResponse response = client.query("SELECT 1").get()) {
+                    long t = System.currentTimeMillis() - t1;
+                    Assert.assertTrue(t < maxDelay, "Unexpected delay (t = " + t + ", but expected < " + maxDelay + " ms)");
                     Assert.assertEquals((int) available.value(), 0);
                     Assert.assertEquals((int) leased.value(), 1);
                 } catch (Exception e) {
