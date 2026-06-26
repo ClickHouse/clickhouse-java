@@ -1671,12 +1671,19 @@ public class QueryTests extends BaseIntegrationTest {
         params.put("names", Arrays.asList("a", "b"));
         params.put("ints", Arrays.asList(1, 2, 3));
         params.put("dateMap", Collections.singletonMap("k", LocalDate.of(2026, 5, 13)));
+        // Object array, primitive array and a nested array must all be supported, not just List.
+        params.put("dateArr", new LocalDate[]{LocalDate.of(2026, 5, 13)});
+        params.put("intArr", new int[]{4, 5, 6});
+        params.put("nested", Arrays.asList(Arrays.asList(1, 2), Arrays.asList(3, 4)));
 
         List<GenericRecord> records = client.queryAll(
                 "SELECT toString({dates:Array(Date)}) AS d, " +
                         "toString({names:Array(String)}) AS n, " +
                         "toString({ints:Array(Int32)}) AS i, " +
-                        "toString({dateMap:Map(String, Date)}) AS m",
+                        "toString({dateMap:Map(String, Date)}) AS m, " +
+                        "toString({dateArr:Array(Date)}) AS da, " +
+                        "toString({intArr:Array(Int32)}) AS ia, " +
+                        "toString({nested:Array(Array(Int32))}) AS ne",
                 params);
 
         Assert.assertEquals(records.size(), 1);
@@ -1687,6 +1694,10 @@ public class QueryTests extends BaseIntegrationTest {
         // Contrast: numeric arrays must stay unquoted (quoting causes CANNOT_READ_ARRAY_FROM_TEXT).
         Assert.assertEquals(record.getString("i"), "[1,2,3]");
         Assert.assertEquals(record.getString("m"), "{'k':'2026-05-13'}");
+        // Object array, primitive array and nested array round-trip too.
+        Assert.assertEquals(record.getString("da"), "['2026-05-13']");
+        Assert.assertEquals(record.getString("ia"), "[4,5,6]");
+        Assert.assertEquals(record.getString("ne"), "[[1,2],[3,4]]");
     }
 
     @Test(groups = {"integration"})

@@ -16,7 +16,6 @@ import com.clickhouse.client.api.enums.SSLMode;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.transport.Endpoint;
 import com.clickhouse.data.ClickHouseFormat;
-import com.clickhouse.data.ClickHouseValues;
 import net.jpountz.lz4.LZ4Factory;
 import org.apache.commons.compress.compressors.CompressorStreamFactory;
 import org.apache.hc.client5.http.ConnectTimeoutException;
@@ -766,77 +765,8 @@ public class HttpAPIClientHelper {
     private void addStatementParams(Map<String, Object> requestConfig, BiConsumer<String, String> consumer) {
         if (requestConfig.containsKey(KEY_STATEMENT_PARAMS)) {
             Map<?, ?> params = (Map<?, ?>) requestConfig.get(KEY_STATEMENT_PARAMS);
-            params.forEach((k, v) -> consumer.accept("param_" + k, formatStatementParam(v)));
+            params.forEach((k, v) -> consumer.accept("param_" + k, String.valueOf(v)));
         }
-    }
-
-    /**
-     * Formats a value for ClickHouse's HTTP {@code param_<name>} query-parameter interface.
-     *
-     * <p>A top-level scalar is sent in its bare, unquoted text form, which is what the server
-     * expects for a scalar {@code {name:Type}} placeholder (e.g. a {@code Date} is sent as
-     * {@code 2026-05-13}, not {@code '2026-05-13'} - the latter is rejected). When the value is a
-     * container ({@link Collection}, object array or {@link Map}, i.e. an {@code Array}, {@code Tuple}
-     * or {@code Map} parameter) it is rendered as a ClickHouse text literal in which {@code String}
-     * and temporal leaves are single-quoted while numeric/boolean leaves are left unquoted, as
-     * required by the server's array/map text parser. Previously this method used a blanket
-     * {@code String.valueOf(v)}, which left inner elements unquoted (e.g. {@code [2026-05-13]}) and
-     * caused the server to reject {@code Array(Date)}/{@code Array(String)} parameters.</p>
-     *
-     * @param value parameter value, may be {@code null}
-     * @return formatted parameter value for the {@code param_<name>} interface
-     */
-    static String formatStatementParam(Object value) {
-        if (value instanceof Collection || value instanceof Map || value instanceof Object[]) {
-            return formatStatementParamContainer(value);
-        }
-        // Scalars (and null) are passed through unchanged: the server reads a scalar parameter value
-        // verbatim, so quoting it here would break parsing (e.g. Date, numbers, Identifier).
-        return String.valueOf(value);
-    }
-
-    private static String formatStatementParamContainer(Object value) {
-        StringBuilder sb = new StringBuilder();
-        if (value instanceof Map) {
-            sb.append('{');
-            boolean first = true;
-            for (Map.Entry<?, ?> entry : ((Map<?, ?>) value).entrySet()) {
-                if (!first) {
-                    sb.append(',');
-                }
-                first = false;
-                sb.append(formatStatementParamElement(entry.getKey()))
-                        .append(':')
-                        .append(formatStatementParamElement(entry.getValue()));
-            }
-            sb.append('}');
-        } else {
-            // Collection or object array -> ClickHouse Array text: [e1,e2,...]
-            sb.append('[');
-            Collection<?> elements = value instanceof Collection
-                    ? (Collection<?>) value
-                    : Arrays.asList((Object[]) value);
-            boolean first = true;
-            for (Object element : elements) {
-                if (!first) {
-                    sb.append(',');
-                }
-                first = false;
-                sb.append(formatStatementParamElement(element));
-            }
-            sb.append(']');
-        }
-        return sb.toString();
-    }
-
-    private static String formatStatementParamElement(Object value) {
-        if (value instanceof Collection || value instanceof Map || value instanceof Object[]) {
-            return formatStatementParamContainer(value);
-        }
-        // Leaf value: the type-aware SQL-expression form (String/temporal single-quoted,
-        // numeric/boolean unquoted, null -> NULL) is exactly what the server's array/map/tuple
-        // text parser expects for nested elements.
-        return ClickHouseValues.convertToSqlExpression(value);
     }
 
     private HttpEntity wrapRequestEntity(HttpEntity httpEntity, Map<String, Object> requestConfig) {

@@ -5,6 +5,7 @@ import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
+import com.clickhouse.data.ClickHouseValues;
 
 import java.io.IOException;
 import java.lang.reflect.Array;
@@ -17,8 +18,10 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAccessor;
+import java.util.Collection;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Class designed to convert different data types to Java objects.
@@ -219,6 +222,88 @@ public class DataTypeConverter {
     public String arrayToString(Object value, String columnDef) {
         ClickHouseColumn column = ClickHouseColumn.of("v", columnDef);
         return arrayToString(value, column);
+    }
+
+    /**
+     * Converts a query-parameter value into the text form expected by ClickHouse's HTTP
+     * {@code param_<name>} interface, allowing callers to pass raw Java values - including
+     * {@link Collection}, array (object or primitive) and {@link Map} values - for
+     * {@code Array}/{@code Map} placeholders without pre-formatting them.
+     *
+     * <p>A top-level scalar is returned in its bare, unquoted text form, which is what the server
+     * expects for a scalar {@code {name:Type}} placeholder (e.g. a {@code Date} is sent as
+     * {@code 2026-05-13}, not {@code '2026-05-13'}). A container is rendered as a ClickHouse
+     * {@code Array} ({@code [..]}) or {@code Map} ({@code {..}}) text literal in which
+     * {@code String}/temporal leaves are single-quoted (and escaped) while numeric/boolean leaves
+     * are left unquoted, as required by the server's array/map text parser.</p>
+     *
+     * @param value parameter value, may be {@code null}
+     * @return the formatted {@code param_<name>} value
+     */
+    public String convertParameterToString(Object value) {
+        if (isParameterContainer(value)) {
+            return convertParameterContainer(value);
+        }
+        // Scalars (and null) are passed through unquoted: the server reads a scalar parameter value
+        // verbatim, so quoting it here would break parsing (e.g. Date, numbers, Identifier).
+        return String.valueOf(value);
+    }
+
+    private boolean isParameterContainer(Object value) {
+        return value instanceof Collection || value instanceof Map
+                || (value != null && value.getClass().isArray());
+    }
+
+    private String convertParameterContainer(Object value) {
+        StringBuilder sb = new StringBuilder();
+        if (value instanceof Map) {
+            sb.append('{');
+            boolean first = true;
+            for (Map.Entry<?, ?> entry : ((Map<?, ?>) value).entrySet()) {
+                if (!first) {
+                    sb.append(',');
+                }
+                first = false;
+                sb.append(convertParameterElement(entry.getKey()))
+                        .append(':')
+                        .append(convertParameterElement(entry.getValue()));
+            }
+            sb.append('}');
+        } else {
+            // Collection or array (object or primitive) -> ClickHouse Array text: [e1,e2,...]
+            sb.append('[');
+            if (value instanceof Collection) {
+                boolean first = true;
+                for (Object element : (Collection<?>) value) {
+                    if (!first) {
+                        sb.append(',');
+                    }
+                    first = false;
+                    sb.append(convertParameterElement(element));
+                }
+            } else {
+                // Reflection handles both Object[] and primitive arrays (int[], long[], ...);
+                // Array.get autoboxes primitive elements so they render as unquoted numbers/booleans.
+                for (int i = 0, len = Array.getLength(value); i < len; i++) {
+                    if (i > 0) {
+                        sb.append(',');
+                    }
+                    sb.append(convertParameterElement(Array.get(value, i)));
+                }
+            }
+            sb.append(']');
+        }
+        return sb.toString();
+    }
+
+    private String convertParameterElement(Object value) {
+        if (isParameterContainer(value)) {
+            return convertParameterContainer(value);
+        }
+        // Leaf value: the type-aware SQL-expression form (String/temporal single-quoted,
+        // numeric/boolean unquoted, null -> NULL) is exactly what the server's array/map text
+        // parser expects for nested elements.
+        return ClickHouseValues.convertToSqlExpression(value);
     }
 
     public String geoToString(Object value, ClickHouseColumn column) {
