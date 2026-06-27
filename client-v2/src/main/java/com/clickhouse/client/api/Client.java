@@ -53,6 +53,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.lang.ref.WeakReference;
 import java.lang.reflect.InvocationTargetException;
 import java.time.Duration;
 import java.time.ZoneId;
@@ -134,6 +135,8 @@ public class Client implements AutoCloseable {
     private final Map<String, Boolean> tableSchemaHasDefaults = new ConcurrentHashMap<>();
 
     private final Map<ClickHouseDataType, Class<?>> typeHintMapping;
+
+    private final ConcurrentHashMap<String, WeakReference<TransportRequest>> ongoingRequests = new ConcurrentHashMap<>();
 
     // Server context
     private String dbUser;
@@ -1397,6 +1400,9 @@ public class Client implements AutoCloseable {
                             }
                             out.close();
                         });
+
+                registerTransportReq(requestSettings.getQueryId(), transportRequest);
+
                 try (TransportResponse transportResponse = httpClientHelper.executeRequest(transportRequest)) {
                     ClientStatisticsHolder clientStats = globalClientStats.remove(operationId);
                     OperationMetrics metrics = completeOperation(transportResponse, clientStats, requestSettings.getQueryId());
@@ -1405,7 +1411,7 @@ public class Client implements AutoCloseable {
                 } catch (Exception e) {
                     String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
                     lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
-                    if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings())) {
+                    if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings()) && !wasPrevRequestCanceled(requestSettings.getQueryId())) {
                         LOG.warn("Retrying.", e);
                         selectedEndpoint = getNextAliveNode();
                     } else {
@@ -1593,6 +1599,7 @@ public class Client implements AutoCloseable {
                             writer.onOutput(out);
                             out.close();
                         });
+                registerTransportReq(requestSettings.getQueryId(), transportRequest);
 
                 try (TransportResponse transportResponse = httpClientHelper.executeRequest(transportRequest)) {
                     OperationMetrics metrics = completeOperation(transportResponse, finalClientStats, requestSettings.getQueryId());
@@ -1600,7 +1607,7 @@ public class Client implements AutoCloseable {
                 } catch (Exception e) {
                     String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
                     lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
-                    if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings())) {
+                    if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings()) && !wasPrevRequestCanceled(requestSettings.getQueryId())) {
                         LOG.warn("Retrying.", e);
                         selectedEndpoint = getNextAliveNode();
                     } else {
@@ -1704,6 +1711,7 @@ public class Client implements AutoCloseable {
                 RuntimeException lastException = null;
                 for (int i = 0; i <= retries; i++) {
                     TransportRequest request = httpClientHelper.createRequest(selectedEndpoint, requestSettings.getAllSettings(), sqlQuery);
+                    registerTransportReq(requestSettings.getQueryId(), request);
                     TransportResponse transportResp = null;
                     try {
                         transportResp = httpClientHelper.executeRequest(request);
@@ -1719,7 +1727,7 @@ public class Client implements AutoCloseable {
                         ClientUtils.quiteClose(transportResp, LOG);
                         String msg = requestExMsg("Query", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
                         lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
-                        if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings())) {
+                        if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings()) && !wasPrevRequestCanceled(requestSettings.getQueryId())) {
                             LOG.warn("Retrying.", e);
                             selectedEndpoint = getNextAliveNode();
                         } else {
@@ -1734,6 +1742,22 @@ public class Client implements AutoCloseable {
 
         return runAsyncOperation(responseSupplier, requestSettings.getAllSettings());
     }
+
+    private void registerTransportReq(String queryId, TransportRequest tr) {
+        if (queryId != null) {
+            ongoingRequests.put(queryId, new WeakReference<>(tr));
+        }
+    }
+
+    private boolean wasPrevRequestCanceled(String queryId) {
+        if (queryId != null) {
+            WeakReference<TransportRequest> trRef = ongoingRequests.get(queryId);
+            TransportRequest tr = trRef.get();
+            return tr != null && tr.isCancelled();
+        }
+        return false;
+    }
+
     public CompletableFuture<QueryResponse> query(String sqlQuery, Map<String, Object> queryParams) {
         return query(sqlQuery, queryParams, null);
     }
@@ -2241,6 +2265,23 @@ public class Client implements AutoCloseable {
      */
     public void updateAccessToken(String accessToken) {
         this.credentialsManager.setAccessToken(accessToken);
+    }
+
+    /**
+     * Note: It is recommended to use operation timeout settings instead of this method.
+     * Tries to cancel ongoing request. This method cancels IO operations but doesn't
+     * kill query on server side. Original queryId should be used to cancel the request.
+     *
+     * @param queryId - original query id that was passed in operation settings.
+     */
+    public void cancelRequest(String queryId) {
+        WeakReference<TransportRequest> reqRef = ongoingRequests.get(queryId);
+        if (reqRef != null) {
+            TransportRequest req = reqRef.get();
+            if (req != null) {
+                req.cancel();
+            }
+        }
     }
 
     private Endpoint getNextAliveNode() {

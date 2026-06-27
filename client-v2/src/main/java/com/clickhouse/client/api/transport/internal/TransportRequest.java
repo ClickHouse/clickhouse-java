@@ -30,7 +30,8 @@ public interface TransportRequest {
      * times.
      *
      * @return result of operation. True if request was canceled for sure. False when result cannot be known.
-     * @throws Exception - when something extraordinary happens while canceling the request.
      */
-    boolean cancel() throws Exception;
+    boolean cancel();
+
+    boolean isCancelled();
 }

@@ -103,6 +103,7 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -536,6 +537,7 @@ public class HttpAPIClientHelper {
     private static final class TransportRequestImpl implements TransportRequest {
         private final HttpPost delegate;
         private final Map<String, Object> config;
+        private final AtomicBoolean cancelled = new AtomicBoolean(false);
 
         TransportRequestImpl(HttpPost delegate, Map<String, Object> config) {
             this.delegate = delegate;
@@ -543,11 +545,17 @@ public class HttpAPIClientHelper {
         }
 
         @Override
-        public boolean cancel() throws Exception {
+        public boolean cancel() {
+            cancelled.set(true);
             if (delegate.isCancelled()) {
                 return true;
             }
             return delegate.cancel();
+        }
+
+        @Override
+        public boolean isCancelled() {
+            return cancelled.get();
         }
 
         @Override
