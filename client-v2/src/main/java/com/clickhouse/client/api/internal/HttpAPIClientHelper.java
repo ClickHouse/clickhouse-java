@@ -595,6 +595,8 @@ public class HttpAPIClientHelper {
             } else if (httpResponse.getCode() == HttpStatus.SC_BAD_GATEWAY) {
                 httpResponse.close();
                 throw new ClientException("Server returned '502 Bad gateway'. Check network and proxy settings.");
+            } else if (httpResponse.getCode() == HttpStatus.SC_SERVICE_UNAVAILABLE) {
+                return httpResponse;
             } else if (httpResponse.getCode() >= HttpStatus.SC_BAD_REQUEST || httpResponse.containsHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE)) {
                 try {
                     throw readError(req, httpResponse);
