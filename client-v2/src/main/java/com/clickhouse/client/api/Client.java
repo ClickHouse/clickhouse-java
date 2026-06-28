@@ -1717,7 +1717,7 @@ public class Client implements AutoCloseable {
 
         if (queryParams != null) {
             // Format parameter values here so the transport layer receives ready-to-send text:
-            // Array/Map values are rendered with the quoting the server's param_<name> parser needs
+            // Array/Map values are quoted the way the server's param_<name> parser expects
             // (e.g. {dates:Array(Date)} <- List<LocalDate> becomes ['2026-05-13'], not [2026-05-13]).
             Map<String, String> formattedParams = new LinkedHashMap<>();
             for (Map.Entry<String, Object> param : queryParams.entrySet()) {
