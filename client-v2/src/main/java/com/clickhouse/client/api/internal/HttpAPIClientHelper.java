@@ -17,7 +17,6 @@ import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.transport.Endpoint;
 import com.clickhouse.client.api.transport.internal.TransportRequest;
 import com.clickhouse.client.api.transport.internal.TransportResponse;
-import com.clickhouse.client.config.ClickHouseDefaultSslContextProvider;
 import com.clickhouse.data.ClickHouseFormat;
 import net.jpountz.lz4.LZ4Factory;
 import org.apache.commons.compress.compressors.CompressorStreamFactory;
@@ -46,6 +45,7 @@ import org.apache.hc.core5.http.HttpEntity;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.HttpRequest;
+import org.apache.hc.core5.http.HttpResponse;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.NoHttpResponseException;
 import org.apache.hc.core5.http.ProtocolException;
@@ -370,10 +370,7 @@ public class HttpAPIClientHelper {
      * @return exception object with server code
      */
     public Exception readError(HttpPost req, ClassicHttpResponse httpResponse) {
-        final Header serverQueryIdHeader = httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID);
-        final Header clientQueryIdHeader = req.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID);
-        final Header queryHeader = Stream.of(serverQueryIdHeader, clientQueryIdHeader).filter(Objects::nonNull).findFirst().orElse(null);
-        final String queryId = queryHeader == null ? "" : queryHeader.getValue();
+        final String queryId = getQueryId(httpResponse, req);
         int serverCode = getHeaderInt(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE), 0);
         try {
             return serverCode > 0 ? readClickHouseError(httpResponse.getEntity(), serverCode, queryId, httpResponse.getCode()) :
@@ -617,11 +614,6 @@ public class HttpAPIClientHelper {
         }
 
         @Override
-        public int getStatusCode() {
-            return 0;
-        }
-
-        @Override
         public ClickHouseFormat getDataFormat() {
             Header formatHeader = delegate.getFirstHeader(ClickHouseHttpProto.HEADER_FORMAT);
             return formatHeader == null ? null : ClickHouseFormat.valueOf(formatHeader.getValue());
@@ -640,6 +632,7 @@ public class HttpAPIClientHelper {
         }
 
         @Override
+        @SuppressWarnings("unchecked")
         public <T> T getDelegate() {
             return (T) delegate;
         }
@@ -688,6 +681,7 @@ public class HttpAPIClientHelper {
         doPoolVent();
 
         ClassicHttpResponse httpResponse = null;
+        boolean closeResponse = true;
         HttpContext context = createRequestHttpContext(requestConfig);
         try {
             httpResponse = httpClient.executeOpen(null, req, context);
@@ -696,33 +690,56 @@ public class HttpAPIClientHelper {
                     httpResponse.getCode(),
                     requestConfig));
 
-            if (httpResponse.getCode() == HttpStatus.SC_PROXY_AUTHENTICATION_REQUIRED) {
-                throw new ClientMisconfigurationException("Proxy authentication required. Please check your proxy settings.");
-            } else if (httpResponse.getCode() == HttpStatus.SC_BAD_GATEWAY) {
-                httpResponse.close();
-                throw new ClientException("Server returned '502 Bad gateway'. Check network and proxy settings.");
-            } else if (httpResponse.getCode() >= HttpStatus.SC_BAD_REQUEST || httpResponse.containsHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE)) {
-                try {
-                    throw readError(req, httpResponse);
-                } finally {
-                    httpResponse.close();
-                }
+            if (httpResponse.containsHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE)) {
+                throw readError(req, httpResponse);
             }
-            return httpResponse;
 
+            int statusCode = httpResponse.getCode();
+            switch (statusCode) {
+                case HttpStatus.SC_OK:
+                    closeResponse = false;
+                    return httpResponse;
+                case HttpStatus.SC_PROXY_AUTHENTICATION_REQUIRED:
+                    throw new ClientMisconfigurationException("Proxy authentication required. Please check your proxy settings.");
+                case HttpStatus.SC_BAD_GATEWAY:
+                    throw new ClientException("Server returned '502 Bad gateway'. Check network and proxy settings.");
+                case HttpStatus.SC_SERVICE_UNAVAILABLE:
+                    throw new ServerException(0, "Server returned '503 Service Unavailable'. Check network settings.",
+                            HttpStatus.SC_SERVICE_UNAVAILABLE, getQueryId(httpResponse, req));
+                case HttpStatus.SC_BAD_REQUEST:
+                case HttpStatus.SC_UNAUTHORIZED:
+                case HttpStatus.SC_FORBIDDEN:
+                case HttpStatus.SC_SERVER_ERROR:
+                case HttpStatus.SC_NOT_FOUND:
+                    // ClickHouse usually uses SC_BAD_REQUEST and SC_SERVER_ERROR to return error.
+                    // SC_UNAUTHORIZED, SC_FORBIDDEN is for authentication
+                    // SC_NOT_FOUND can be returned by ClickHouse when path doesn't match database, but also by proxy
+                    // others we cannot handle properly
+                    throw readError(req, httpResponse);
+                default:
+                    throw new ClientException("Unexpected result status " + statusCode);
+            }
         } catch (UnknownHostException e) {
-            ClientUtils.quiteClose(httpResponse, LOG);
             LOG.warn("Host '{}' unknown", req.getAuthority());
             throw e;
         } catch (ConnectException | NoRouteToHostException e) {
-            ClientUtils.quiteClose(httpResponse, LOG);
             LOG.warn("Failed to connect to '{}': {}", req.getAuthority(), e.getMessage());
             throw e;
         } catch (Exception e) {
-            ClientUtils.quiteClose(httpResponse, LOG);
             LOG.debug("Failed to execute request to '{}': {}", req.getAuthority(), e.getMessage(), e);
             throw e;
+        } finally {
+            if (closeResponse) {
+                ClientUtils.quietClose(httpResponse, LOG);
+            }
         }
+    }
+
+    private String getQueryId(HttpResponse httpResponse, HttpPost httpRequest) {
+        final Header serverQueryIdHeader = httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID);
+        final Header clientQueryIdHeader = httpRequest.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID);
+        final Header queryHeader = Stream.of(serverQueryIdHeader, clientQueryIdHeader).filter(Objects::nonNull).findFirst().orElse(null);
+        return queryHeader == null ? "" : queryHeader.getValue();
     }
 
     private static final ContentType CONTENT_TYPE = ContentType.create(ContentType.TEXT_PLAIN.getMimeType(), "UTF-8");

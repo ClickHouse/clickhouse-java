@@ -3,7 +3,6 @@ package com.clickhouse.client.api.internal;
 import org.slf4j.Logger;
 
 import java.io.Closeable;
-import java.io.IOException;
 
 /**
  * Class containing utility methods used across the client.
@@ -20,7 +19,7 @@ public final class ClientUtils {
         return str == null || str.trim().isEmpty();
     }
 
-    public static void quiteClose(Closeable closeable, Logger log) {
+    public static void quietClose(Closeable closeable, Logger log) {
         if (closeable != null) {
             try {
                 closeable.close();
