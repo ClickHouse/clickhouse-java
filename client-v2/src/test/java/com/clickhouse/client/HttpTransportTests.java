@@ -2114,6 +2114,102 @@ public class HttpTransportTests extends BaseIntegrationTest {
         };
     }
 
+    @Test(groups = {"integration"})
+    public void test503ServiceUnavailableSurfacesAsServerException() throws Exception {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
+        WireMockServer mockServer = new WireMockServer(WireMockConfiguration
+                .options().dynamicPort().notifier(new ConsoleNotifier(false)));
+        mockServer.start();
+
+        try {
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .willReturn(WireMock.aResponse()
+                            .withStatus(HttpStatus.SC_SERVICE_UNAVAILABLE)
+                            .withBody("Service Unavailable"))
+                    .build());
+
+            try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
+                    .setUsername("default")
+                    .setPassword(ClickHouseServerForTest.getPassword())
+                    .compressServerResponse(false)
+                    .retryOnFailures(ClientFaultCause.None)
+                    .build()) {
+
+                Throwable thrown = Assert.expectThrows(Throwable.class,
+                        () -> client.query("SELECT 1").get(10, TimeUnit.SECONDS));
+
+                ServerException serverException = findServerException(thrown);
+                Assert.assertNotNull(serverException,
+                        "Expected 503 to be reported as a ServerException, but was: " + thrown);
+                Assert.assertEquals(serverException.getTransportProtocolCode(), HttpStatus.SC_SERVICE_UNAVAILABLE,
+                        "Expected transport protocol code 503, but was: " + serverException.getTransportProtocolCode());
+
+                Assert.assertTrue(containsMessageInCauseChain(thrown, "503 Service Unavailable"),
+                        "Expected '503 Service Unavailable' in failure message chain, but was: " + thrown);
+
+                Assert.assertNull(findCause(thrown, ConnectionInitiationException.class),
+                        "503 should not be reported as a ConnectionInitiationException, but was: " + thrown);
+            }
+        } finally {
+            mockServer.stop();
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void test503ServiceUnavailableIsRetried() throws Exception {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
+        WireMockServer mockServer = new WireMockServer(WireMockConfiguration
+                .options().dynamicPort().notifier(new ConsoleNotifier(false)));
+        mockServer.start();
+
+        try {
+            // First request fails with a retryable 503 server error
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .inScenario("ServiceUnavailable")
+                    .withRequestBody(WireMock.containing("SELECT 1"))
+                    .whenScenarioStateIs(STARTED)
+                    .willSetStateTo("Recovered")
+                    .willReturn(WireMock.aResponse()
+                            .withStatus(HttpStatus.SC_SERVICE_UNAVAILABLE)
+                            .withHeader("X-ClickHouse-Exception-Code", "202")
+                            .withBody("Code: 202. DB::Exception: Too many simultaneous queries. (TOO_MANY_SIMULTANEOUS_QUERIES)"))
+                    .build());
+
+            // Second request (retry) succeeds
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .inScenario("ServiceUnavailable")
+                    .withRequestBody(WireMock.containing("SELECT 1"))
+                    .whenScenarioStateIs("Recovered")
+                    .willReturn(WireMock.aResponse()
+                            .withStatus(HttpStatus.SC_OK)
+                            .withHeader("X-ClickHouse-Summary", "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}"))
+                    .build());
+
+            try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
+                    .setUsername("default")
+                    .setPassword(ClickHouseServerForTest.getPassword())
+                    .compressServerResponse(false)
+                    .setMaxRetries(1)
+                    .retryOnFailures(ClientFaultCause.ServerRetryable)
+                    .build()) {
+
+                try (QueryResponse response = client.query("SELECT 1").get(10, TimeUnit.SECONDS)) {
+                    Assert.assertNotNull(response);
+                }
+            }
+
+            mockServer.verify(2, WireMock.postRequestedFor(WireMock.anyUrl()));
+        } finally {
+            mockServer.stop();
+        }
+    }
+
     private byte[] fetchBinaryPayload(String query, int networkBufferSize, int timeoutSec) throws Exception {
         QuerySettings querySettings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
         try (Client client = newClient()

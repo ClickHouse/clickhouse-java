@@ -9,22 +9,6 @@ import java.util.Map;
 public interface TransportResponse extends Closeable {
 
     /**
-     * Transport status code translated to one of values:
-     * <ul>
-     *     <li>503 - for service unavailable</li>
-     *     <li>500 - server error</li>
-     *     <li>400 - user error</li>
-     *     <li>404 - endpoint not found</li>
-     *     <li>403 - access not granted</li>
-     *     <li>401 - no authentication information</li>
-     *     <li>200 - ok</li>
-     * </ul>
-     * @return integer value of status code
-     */
-    int getStatusCode();
-
-
-    /**
      * Data format returned by server or calculated other way
      * @return data format
      */

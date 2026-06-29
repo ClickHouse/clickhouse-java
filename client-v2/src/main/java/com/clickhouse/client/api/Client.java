@@ -1716,7 +1716,7 @@ public class Client implements AutoCloseable {
                         return new QueryResponse(transportResp, responseFormat, requestSettings, metrics);
 
                     } catch (Exception e) {
-                        ClientUtils.quiteClose(transportResp, LOG);
+                        ClientUtils.quietClose(transportResp, LOG);
                         String msg = requestExMsg("Query", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
                         lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
                         if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings())) {
