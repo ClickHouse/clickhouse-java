@@ -5,13 +5,12 @@ import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.metrics.ServerMetrics;
+import com.clickhouse.client.api.transport.internal.TransportResponse;
 import com.clickhouse.data.ClickHouseFormat;
-import org.apache.hc.core5.http.ClassicHttpResponse;
-import org.apache.hc.core5.http.Header;
 
 import java.io.InputStream;
-import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TimeZone;
 
 /**
@@ -31,54 +30,45 @@ public class QueryResponse implements AutoCloseable {
 
     private final ClickHouseFormat format;
 
-    private QuerySettings settings;
+    private final QuerySettings settings;
 
-    private OperationMetrics operationMetrics;
+    private final OperationMetrics operationMetrics;
 
-    private ClassicHttpResponse httpResponse;
+    private final TransportResponse transportResponse;
 
     private final Map<String, String> responseHeaders;
 
-    public QueryResponse(ClassicHttpResponse response, ClickHouseFormat format, QuerySettings settings,
-                         OperationMetrics operationMetrics) {
-        this(response, format, settings, operationMetrics, Collections.emptyMap());
-    }
-
-    public QueryResponse(ClassicHttpResponse response, ClickHouseFormat format, QuerySettings settings,
-                         OperationMetrics operationMetrics, Map<String, String> responseHeaders) {
-        this.httpResponse = response;
+    public QueryResponse(TransportResponse response, ClickHouseFormat format, QuerySettings settings, OperationMetrics operationMetrics) {
+        Objects.requireNonNull(response, "response is null");
+        this.transportResponse = response;
         this.format = format;
         this.operationMetrics = operationMetrics;
         this.settings = settings;
-        this.responseHeaders = responseHeaders;
+        this.responseHeaders = response.getHeaders();
 
-        Header tzHeader = response.getFirstHeader(ClickHouseHttpProto.HEADER_TIMEZONE);
-        if (tzHeader != null) {
+        String timeZoneHeader = responseHeaders.get(ClickHouseHttpProto.HEADER_TIMEZONE);
+        if (timeZoneHeader != null) {
+            TimeZone serverTz;
             try {
-                this.settings.setOption(ClientConfigProperties.SERVER_TIMEZONE.getKey(),
-                        TimeZone.getTimeZone(tzHeader.getValue()));
+                serverTz = TimeZone.getTimeZone(timeZoneHeader);
             } catch (Exception e) {
                 throw new ClientException("Failed to parse server timezone", e);
             }
+            this.settings.setOption(ClientConfigProperties.SERVER_TIMEZONE.getKey(),
+                    serverTz);
         }
     }
 
     public InputStream getInputStream() {
-        try {
-            return httpResponse.getEntity().getContent();
-        } catch (Exception e) {
-            throw new ClientException("Failed to construct input stream", e);
-        }
+        return transportResponse.createDataInputStream();
     }
 
     @Override
     public void close() throws Exception {
-        if (httpResponse != null ) {
-            try {
-                httpResponse.close();
-            } catch (Exception e) {
-                throw new ClientException("Failed to close response", e);
-            }
+        try {
+            transportResponse.close();
+        } catch (Exception e) {
+            throw new ClientException("Failed to close response", e);
         }
     }
 

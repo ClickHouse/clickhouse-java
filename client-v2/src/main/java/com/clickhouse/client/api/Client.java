@@ -17,6 +17,7 @@ import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.internal.ClientStatisticsHolder;
+import com.clickhouse.client.api.internal.ClientUtils;
 import com.clickhouse.client.api.internal.CredentialsManager;
 import com.clickhouse.client.api.internal.HttpAPIClientHelper;
 import com.clickhouse.client.api.internal.MapUtils;
@@ -37,6 +38,8 @@ import com.clickhouse.client.api.serde.POJOFieldSerializer;
 import com.clickhouse.client.api.serde.POJOSerDe;
 import com.clickhouse.client.api.transport.Endpoint;
 import com.clickhouse.client.api.transport.HttpEndpoint;
+import com.clickhouse.client.api.transport.internal.TransportRequest;
+import com.clickhouse.client.api.transport.internal.TransportResponse;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
@@ -44,9 +47,6 @@ import com.clickhouse.data.ClickHouseFormat;
 import com.google.common.collect.ImmutableList;
 import net.jpountz.lz4.LZ4Factory;
 import org.apache.hc.core5.concurrent.DefaultThreadFactory;
-import org.apache.hc.core5.http.ClassicHttpResponse;
-import org.apache.hc.core5.http.Header;
-import org.apache.hc.core5.http.HttpStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -1378,43 +1378,30 @@ public class Client implements AutoCloseable {
             RuntimeException lastException = null;
             for (int i = 0; i <= maxRetries; i++) {
                 // Execute request
-                try (ClassicHttpResponse httpResponse =
-                        httpClientHelper.executeRequest(selectedEndpoint, requestSettings.getAllSettings(),
-                                out -> {
-                                    out.write("INSERT INTO ".getBytes());
-                                    out.write(tableName.getBytes());
-                                    out.write(" \n FORMAT ".getBytes());
-                                    out.write(format.name().getBytes());
-                                    out.write(" \n".getBytes());
-                                    for (Object obj : data) {
+                TransportRequest transportRequest = httpClientHelper.createRequest(selectedEndpoint, requestSettings.getAllSettings(),
+                        out -> {
+                            out.write("INSERT INTO ".getBytes());
+                            out.write(tableName.getBytes());
+                            out.write(" \n FORMAT ".getBytes());
+                            out.write(format.name().getBytes());
+                            out.write(" \n".getBytes());
+                            for (Object obj : data) {
 
-                                        for (POJOFieldSerializer serializer : serializersForTable) {
-                                            try {
-                                                serializer.serialize(obj, out);
-                                            } catch (InvocationTargetException | IllegalAccessException | IOException e) {
-                                                throw new DataSerializationException(obj, serializer, e);
-                                            }
-                                        }
+                                for (POJOFieldSerializer serializer : serializersForTable) {
+                                    try {
+                                        serializer.serialize(obj, out);
+                                    } catch (InvocationTargetException | IllegalAccessException | IOException e) {
+                                        throw new DataSerializationException(obj, serializer, e);
                                     }
-                                    out.close();
-                                })) {
-
-
-                    // Check response
-                    if (httpResponse.getCode() == HttpStatus.SC_SERVICE_UNAVAILABLE) {
-                        LOG.warn("Failed to get response. Server returned {}. Retrying. (Duration: {})", httpResponse.getCode(), durationSince(startTime));
-                        selectedEndpoint = getNextAliveNode();
-                        continue;
-                    }
-
+                                }
+                            }
+                            out.close();
+                        });
+                try (TransportResponse transportResponse = httpClientHelper.executeRequest(transportRequest)) {
                     ClientStatisticsHolder clientStats = globalClientStats.remove(operationId);
-                    OperationMetrics metrics = new OperationMetrics(clientStats);
-                    String summary = HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_SRV_SUMMARY), "{}");
-                    ProcessParser.parseSummary(summary, metrics);
-                    String queryId =  HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID), requestSettings.getQueryId(), String::valueOf);
-                    metrics.operationComplete();
-                    metrics.setQueryId(queryId);
-                    return new InsertResponse(metrics, HttpAPIClientHelper.collectResponseHeaders(httpResponse));
+                    OperationMetrics metrics = completeOperation(transportResponse, clientStats, requestSettings.getQueryId());
+
+                    return new InsertResponse(transportResponse, metrics);
                 } catch (Exception e) {
                     String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
                     lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
@@ -1429,10 +1416,10 @@ public class Client implements AutoCloseable {
 
             String errMsg = requestExMsg("Insert", retries, durationSince(startTime).toMillis(), requestSettings.getQueryId());
             LOG.warn(errMsg);
-            throw (lastException == null ? new ClientException(errMsg) : lastException);        };
+            throw (lastException == null ? new ClientException(errMsg) : lastException);
+        };
 
         return runAsyncOperation(supplier, requestSettings.getAllSettings());
-
     }
 
     /**
@@ -1568,7 +1555,7 @@ public class Client implements AutoCloseable {
         clientStats.start(ClientMetrics.OP_DURATION);
         final ClientStatisticsHolder finalClientStats = clientStats;
 
-        Supplier<InsertResponse> responseSupplier;
+
 
         final int writeBufferSize = requestSettings.getInputStreamCopyBufferSize() <= 0 ?
                 (int) configuration.get(ClientConfigProperties.CLIENT_NETWORK_BUFFER_SIZE.getKey()) :
@@ -1592,7 +1579,8 @@ public class Client implements AutoCloseable {
         if (requestSettings.getQueryId() == null && queryIdGenerator != null) {
             requestSettings.setQueryId(queryIdGenerator.get());
         }
-        responseSupplier = () -> {
+
+        Supplier<InsertResponse> responseSupplier = () -> {
             long startTime = System.nanoTime();
             // Selecting some node
             Endpoint selectedEndpoint = getNextAliveNode();
@@ -1600,28 +1588,15 @@ public class Client implements AutoCloseable {
             RuntimeException lastException = null;
             for (int i = 0; i <= retries; i++) {
                 // Execute request
-                try (ClassicHttpResponse httpResponse =
-                             httpClientHelper.executeRequest(selectedEndpoint, requestSettings.getAllSettings(),
-                                     out -> {
-                                         writer.onOutput(out);
-                                         out.close();
-                                     })) {
+                TransportRequest transportRequest = httpClientHelper.createRequest(selectedEndpoint, requestSettings.getAllSettings(),
+                        out -> {
+                            writer.onOutput(out);
+                            out.close();
+                        });
 
-
-                    // Check response
-                    if (httpResponse.getCode() == HttpStatus.SC_SERVICE_UNAVAILABLE) {
-                        LOG.warn("Failed to get response. Server returned {}. Retrying. (Duration: {})", httpResponse.getCode(), durationSince(startTime));
-                        selectedEndpoint = getNextAliveNode();
-                        continue;
-                    }
-
-                    OperationMetrics metrics = new OperationMetrics(finalClientStats);
-                    String summary = HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_SRV_SUMMARY), "{}");
-                    ProcessParser.parseSummary(summary, metrics);
-                    String queryId =  HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID), requestSettings.getQueryId(), String::valueOf);
-                    metrics.operationComplete();
-                    metrics.setQueryId(queryId);
-                    return new InsertResponse(metrics, HttpAPIClientHelper.collectResponseHeaders(httpResponse));
+                try (TransportResponse transportResponse = httpClientHelper.executeRequest(transportRequest)) {
+                    OperationMetrics metrics = completeOperation(transportResponse, finalClientStats, requestSettings.getQueryId());
+                    return new InsertResponse(transportResponse, metrics);
                 } catch (Exception e) {
                     String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
                     lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
@@ -1728,38 +1703,20 @@ public class Client implements AutoCloseable {
                 Endpoint selectedEndpoint = getNextAliveNode();
                 RuntimeException lastException = null;
                 for (int i = 0; i <= retries; i++) {
-                    ClassicHttpResponse httpResponse = null;
+                    TransportRequest request = httpClientHelper.createRequest(selectedEndpoint, requestSettings.getAllSettings(), sqlQuery);
+                    TransportResponse transportResp = null;
                     try {
-                        httpResponse = httpClientHelper.executeRequest(selectedEndpoint,
-                                    requestSettings.getAllSettings(),
-                                    sqlQuery);
-                        // Check response
-                        if (httpResponse.getCode() == HttpStatus.SC_SERVICE_UNAVAILABLE) {
-                            LOG.warn("Failed to get response. Server returned {}. Retrying. (Duration: {})", httpResponse.getCode(), durationSince(startTime));
-                            selectedEndpoint = getNextAliveNode();
-                            HttpAPIClientHelper.closeQuietly(httpResponse);
-                            continue;
+                        transportResp = httpClientHelper.executeRequest(request);
+                        OperationMetrics metrics = completeOperation(transportResp, clientStats, requestSettings.getQueryId());
+                        ClickHouseFormat responseFormat = transportResp.getDataFormat();
+                        if (responseFormat == null) {
+                            responseFormat = requestSettings.getFormat();
                         }
 
-                        OperationMetrics metrics = new OperationMetrics(clientStats);
-                        String summary = HttpAPIClientHelper.getHeaderVal(httpResponse
-                                .getFirstHeader(ClickHouseHttpProto.HEADER_SRV_SUMMARY), "{}");
-                        ProcessParser.parseSummary(summary, metrics);
-                        String queryId = HttpAPIClientHelper.getHeaderVal(httpResponse
-                                .getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID), requestSettings.getQueryId());
-                        metrics.setQueryId(queryId);
-                        metrics.operationComplete();
-                        Header formatHeader = httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_FORMAT);
-                        ClickHouseFormat responseFormat = requestSettings.getFormat();
-                        if (formatHeader != null) {
-                            responseFormat = ClickHouseFormat.valueOf(formatHeader.getValue());
-                        }
-
-                        return new QueryResponse(httpResponse, responseFormat, requestSettings, metrics,
-                                HttpAPIClientHelper.collectResponseHeaders(httpResponse));
+                        return new QueryResponse(transportResp, responseFormat, requestSettings, metrics);
 
                     } catch (Exception e) {
-                        HttpAPIClientHelper.closeQuietly(httpResponse);
+                        ClientUtils.quietClose(transportResp, LOG);
                         String msg = requestExMsg("Query", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
                         lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
                         if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings())) {
@@ -1779,6 +1736,16 @@ public class Client implements AutoCloseable {
     }
     public CompletableFuture<QueryResponse> query(String sqlQuery, Map<String, Object> queryParams) {
         return query(sqlQuery, queryParams, null);
+    }
+
+    private OperationMetrics completeOperation(TransportResponse transportResponse, ClientStatisticsHolder clientStats, String originalQueryId) {
+        OperationMetrics metrics = new OperationMetrics(clientStats);
+        String summary = transportResponse.getSummaryJson();
+        ProcessParser.parseSummary(summary, metrics);
+        String queryId = transportResponse.getQueryId();
+        metrics.setQueryId(queryId == null ? originalQueryId : queryId);
+        metrics.operationComplete();
+        return metrics;
     }
 
     /**
