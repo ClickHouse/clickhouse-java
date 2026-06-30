@@ -476,7 +476,7 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public byte[] getByteArray(int index) {
-        return getPrimitiveArray(schema.columnIndexToName(index));
+        return getByteArray(schema.columnIndexToName(index));
     }
 
     @Override

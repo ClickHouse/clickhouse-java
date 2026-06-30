@@ -2,7 +2,9 @@ package com.clickhouse.client.api.data_formats;
 
 import com.clickhouse.client.api.data_formats.internal.AbstractBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
+import com.clickhouse.client.api.data_formats.internal.MapBackedRecord;
 import com.clickhouse.client.api.data_formats.internal.SerializerUtils;
+import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.format.BinaryStreamUtils;
 import org.testng.Assert;
@@ -15,6 +17,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.TimeZone;
 
@@ -312,5 +316,113 @@ public class StringValueTests {
         SerializerUtils.serializeData(baos, binary, column);
         StringValue read = reader(baos.toByteArray(), true).readValue(column);
         Assert.assertEquals(read.toByteArray(), binary);
+    }
+
+    // ---- MapBackedRecord (queryAll materialization) ----
+
+    /**
+     * Materializes a single-row {@link MapBackedRecord} the same way {@code Client.queryAll(...)} does:
+     * a {@code RowBinaryWithNamesAndTypes} stream is read into a map and wrapped together with the
+     * reader's converters and schema. {@code binaryStringSupport} mirrors the client property.
+     */
+    private static MapBackedRecord materializeRow(String[] names, String[] types, Object[] values,
+                                                  boolean binaryStringSupport) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        BinaryStreamUtils.writeVarInt(out, names.length);
+        for (String name : names) {
+            BinaryStreamUtils.writeString(out, name);
+        }
+        for (String type : types) {
+            BinaryStreamUtils.writeString(out, type);
+        }
+        for (int i = 0; i < names.length; i++) {
+            SerializerUtils.serializeData(out, values[i], ClickHouseColumn.of(names[i], types[i]));
+        }
+
+        RowBinaryWithNamesAndTypesFormatReader reader = new RowBinaryWithNamesAndTypesFormatReader(
+                new ByteArrayInputStream(out.toByteArray()),
+                new QuerySettings().setUseTimeZone(TimeZone.getTimeZone("UTC").toZoneId().getId()),
+                new BinaryStreamReader.CachingByteBufferAllocator(), null, binaryStringSupport);
+
+        Map<String, Object> record = new LinkedHashMap<>();
+        Assert.assertTrue(reader.readRecord(record), "Expected a row to be read");
+        return new MapBackedRecord(record, reader.getConvertions(), reader.getSchema());
+    }
+
+    @Test
+    public void testMapBackedRecordReadsStringAsStringValueWhenEnabled() throws IOException {
+        byte[] binary = new byte[]{(byte) 0xDE, (byte) 0xAD, (byte) 0x00, (byte) 0xBE, (byte) 0xEF};
+        MapBackedRecord record = materializeRow(new String[]{"s"}, new String[]{"String"},
+                new Object[]{binary}, true);
+
+        // getObject exposes the raw holder
+        Object value = record.getObject("s");
+        Assert.assertTrue(value instanceof StringValue, "Expected StringValue but got " + value.getClass());
+        Assert.assertEquals(((StringValue) value).toByteArray(), binary);
+
+        // getByteArray must preserve the raw bytes through both the label and index overloads
+        Assert.assertEquals(record.getByteArray("s"), binary, "getByteArray(name) must preserve raw bytes");
+        Assert.assertEquals(record.getByteArray(1), binary, "getByteArray(index) must preserve raw bytes");
+    }
+
+    @Test
+    public void testMapBackedRecordGetByteArrayIndexAndLabelParity() throws IOException {
+        // The index and label overloads of getByteArray must behave identically for a String column.
+        byte[] binary = new byte[]{(byte) 0x01, (byte) 0x80, (byte) 0xFF, (byte) 0x00};
+        MapBackedRecord record = materializeRow(new String[]{"s"}, new String[]{"String"},
+                new Object[]{binary}, true);
+        Assert.assertEquals(record.getByteArray(1), record.getByteArray("s"));
+        Assert.assertEquals(record.getByteArray(1), binary);
+    }
+
+    @Test
+    public void testMapBackedRecordFixedStringByteArray() throws IOException {
+        byte[] binary = new byte[]{(byte) 0xAA, (byte) 0xBB, (byte) 0xCC};
+        MapBackedRecord record = materializeRow(new String[]{"s"}, new String[]{"FixedString(3)"},
+                new Object[]{binary}, true);
+
+        Assert.assertTrue(record.getObject("s") instanceof StringValue);
+        Assert.assertEquals(record.getByteArray("s"), binary);
+        Assert.assertEquals(record.getByteArray(1), binary);
+    }
+
+    @Test
+    public void testMapBackedRecordGetStringDecodesStringValue() throws IOException {
+        String text = "Привет, мир";
+        MapBackedRecord record = materializeRow(new String[]{"s"}, new String[]{"String"},
+                new Object[]{text}, true);
+        Assert.assertEquals(record.getString("s"), text);
+        Assert.assertEquals(record.getString(1), text);
+    }
+
+    @Test
+    public void testMapBackedRecordNestedArrayStaysString() throws IOException {
+        // Even with the feature enabled, nested Array(String) elements stay String; getStringArray must
+        // work through both overloads and getList must expose String elements.
+        String[] elements = {"plain", "Привет", ""};
+        MapBackedRecord record = materializeRow(new String[]{"a"}, new String[]{"Array(String)"},
+                new Object[]{elements}, true);
+
+        Assert.assertEquals(record.getStringArray("a"), elements);
+        Assert.assertEquals(record.getStringArray(1), elements);
+
+        List<String> list = record.getList("a");
+        Assert.assertEquals(list.size(), elements.length);
+        for (Object element : list) {
+            Assert.assertTrue(element instanceof String, "Nested array element must be a String");
+        }
+    }
+
+    @Test
+    public void testMapBackedRecordDefaultReturnsString() throws IOException {
+        // Default behavior (feature off): top-level Strings are plain String and byte access re-encodes as UTF-8.
+        String text = "ascii text";
+        MapBackedRecord record = materializeRow(new String[]{"s"}, new String[]{"String"},
+                new Object[]{text}, false);
+
+        Assert.assertTrue(record.getObject("s") instanceof String);
+        Assert.assertEquals(record.getString("s"), text);
+        Assert.assertEquals(record.getByteArray("s"), text.getBytes(StandardCharsets.UTF_8));
+        Assert.assertEquals(record.getByteArray(1), text.getBytes(StandardCharsets.UTF_8));
     }
 }

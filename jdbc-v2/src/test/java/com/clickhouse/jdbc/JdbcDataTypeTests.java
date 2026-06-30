@@ -1613,14 +1613,14 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
              ResultSet rs = stmt.executeQuery("SELECT * FROM test_binary_string_stream ORDER BY id")) {
             assertTrue(rs.next());
 
-            // by column label
+            // by column label (delegates to the index-based implementation)
             try (InputStream stream = rs.getBinaryStream("str")) {
                 Assert.assertNotNull(stream);
                 assertEqualsToClickHouseLogo(stream.readAllBytes());
             }
             assertFalse(rs.wasNull());
 
-            // by column index (delegates to the label-based implementation)
+            // by column index
             try (InputStream stream = rs.getBinaryStream(2)) {
                 Assert.assertNotNull(stream);
                 assertEqualsToClickHouseLogo(stream.readAllBytes());
