@@ -18,6 +18,7 @@ import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
@@ -1540,6 +1541,117 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
                 assertEquals(new String(rs.getBytes("str"), "UTF-8"), expected[0]);
                 assertEquals(new String(rs.getBytes("fixed"), "UTF-8").replace("\0", ""), expected[1]);
             }
+            assertFalse(rs.next());
+        }
+    }
+
+    private static byte[] readClickHouseLogo() throws IOException {
+        try (InputStream is = JdbcDataTypeTests.class.getResourceAsStream("/ch_logo.png")) {
+            Assert.assertNotNull(is, "ch_logo.png not found in test resources");
+            return is.readAllBytes();
+        }
+    }
+
+    /**
+     * Asserts that {@code actual} matches the {@code ch_logo.png} source file byte-for-byte. The source file is
+     * read fresh from test resources so the comparison is against the file content rather than an in-memory copy.
+     */
+    private static void assertEqualsToClickHouseLogo(byte[] actual) throws IOException {
+        byte[] expected = readClickHouseLogo();
+        Assert.assertNotNull(actual, "Read bytes must not be null");
+        assertEquals(actual.length, expected.length, "Read byte count must match ch_logo.png size");
+        assertEquals(actual, expected, "Read bytes must match ch_logo.png content");
+    }
+
+    @Test(groups = { "integration" })
+    public void testBinaryStringSupportGetBytes() throws Exception {
+        // ch_logo.png is real binary content that is not valid UTF-8, so it must survive a
+        // round-trip through a String column byte-for-byte when binary_string_support is enabled.
+        byte[] imageBytes = readClickHouseLogo();
+
+        runQuery("CREATE TABLE test_binary_string_get_bytes (id Int8, str String) ENGINE = MergeTree ORDER BY ()");
+
+        try (Connection conn = getJdbcConnection();
+             PreparedStatement insert = conn.prepareStatement("INSERT INTO test_binary_string_get_bytes VALUES (?, ?)")) {
+            insert.setInt(1, 1);
+            insert.setBytes(2, imageBytes);
+            insert.executeUpdate();
+        }
+
+        Properties props = new Properties();
+        props.put(ClientConfigProperties.BINARY_STRING_SUPPORT.getKey(), "true");
+
+        try (Connection conn = getJdbcConnection(props);
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT * FROM test_binary_string_get_bytes ORDER BY id")) {
+            assertTrue(rs.next());
+            assertEqualsToClickHouseLogo(rs.getBytes("str"));
+            assertEqualsToClickHouseLogo(rs.getBytes(2));
+            assertFalse(rs.wasNull());
+            assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testBinaryStringSupportGetBinaryStream() throws Exception {
+        byte[] imageBytes = readClickHouseLogo();
+
+        runQuery("CREATE TABLE test_binary_string_stream (id Int8, str String) ENGINE = MergeTree ORDER BY ()");
+
+        try (Connection conn = getJdbcConnection();
+             PreparedStatement insert = conn.prepareStatement("INSERT INTO test_binary_string_stream VALUES (?, ?)")) {
+            insert.setInt(1, 1);
+            insert.setBytes(2, imageBytes);
+            insert.executeUpdate();
+        }
+
+        Properties props = new Properties();
+        props.put(ClientConfigProperties.BINARY_STRING_SUPPORT.getKey(), "true");
+
+        try (Connection conn = getJdbcConnection(props);
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT * FROM test_binary_string_stream ORDER BY id")) {
+            assertTrue(rs.next());
+
+            // by column label
+            try (InputStream stream = rs.getBinaryStream("str")) {
+                Assert.assertNotNull(stream);
+                assertEqualsToClickHouseLogo(stream.readAllBytes());
+            }
+            assertFalse(rs.wasNull());
+
+            // by column index (delegates to the label-based implementation)
+            try (InputStream stream = rs.getBinaryStream(2)) {
+                Assert.assertNotNull(stream);
+                assertEqualsToClickHouseLogo(stream.readAllBytes());
+            }
+
+            assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testBinaryStringSupportGetBinaryStreamNull() throws Exception {
+        runQuery("CREATE TABLE test_binary_string_stream_null (id Int8, str Nullable(String)) ENGINE = MergeTree ORDER BY ()");
+
+        try (Connection conn = getJdbcConnection();
+             PreparedStatement insert = conn.prepareStatement("INSERT INTO test_binary_string_stream_null VALUES (?, ?)")) {
+            insert.setInt(1, 1);
+            insert.setNull(2, Types.VARCHAR);
+            insert.executeUpdate();
+        }
+
+        Properties props = new Properties();
+        props.put(ClientConfigProperties.BINARY_STRING_SUPPORT.getKey(), "true");
+
+        try (Connection conn = getJdbcConnection(props);
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT * FROM test_binary_string_stream_null ORDER BY id")) {
+            assertTrue(rs.next());
+            assertNull(rs.getBinaryStream("str"));
+            assertTrue(rs.wasNull());
+            assertNull(rs.getBytes("str"));
+            assertTrue(rs.wasNull());
             assertFalse(rs.next());
         }
     }

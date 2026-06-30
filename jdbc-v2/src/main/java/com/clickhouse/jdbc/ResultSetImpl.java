@@ -287,7 +287,23 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public InputStream getBinaryStream(int columnIndex) throws SQLException {
-        return getBinaryStream(columnIndexToName(columnIndex));
+        try {
+            if (reader.hasValue(columnIndex)) {
+                byte[] bytes = reader.getByteArray(columnIndex);
+                if (bytes == null) {
+                    wasNull = true;
+                    return null;
+                }
+                wasNull = false;
+                return new ByteArrayInputStream(bytes);
+            } else {
+                wasNull = true;
+                return null;
+            }
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(String.format("Method: getBinaryStream(\"%d\") encountered an exception.", columnIndex),
+                    String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
+        }
     }
 
     @Override
@@ -470,10 +486,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public InputStream getBinaryStream(String columnLabel) throws SQLException {
-        checkClosed();
-        featureManager.unsupportedFeatureThrow("getBinaryStream");
-
-        return null;
+        return getBinaryStream(getSchema().nameToColumnIndex(columnLabel));
     }
 
     @Override
