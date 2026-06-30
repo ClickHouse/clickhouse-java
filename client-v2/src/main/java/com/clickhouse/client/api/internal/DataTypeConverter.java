@@ -2,7 +2,7 @@ package com.clickhouse.client.api.internal;
 
 import com.clickhouse.client.api.ClickHouseException;
 import com.clickhouse.client.api.DataTypeUtils;
-import com.clickhouse.client.api.data_formats.StringValue;
+import com.clickhouse.client.api.data_formats.internal.StringValue;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;

@@ -5,9 +5,6 @@ import lombok.Getter;
 import lombok.Setter;
 import org.apache.commons.lang3.RandomStringUtils;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
@@ -66,7 +63,6 @@ public class SamplePOJO {
 
     private String string;
     private String fixedString;
-    private byte[] binaryString;
 
     private LocalDate date;
     private LocalDate date32;
@@ -149,8 +145,6 @@ public class SamplePOJO {
 
         string = RandomStringUtils.randomAlphabetic(1, 256);
         fixedString = RandomStringUtils.randomAlphabetic(3);
-        // Use a real binary blob (a PNG image) to exercise inserting/reading large non-UTF-8 String values.
-        binaryString = loadClickHouseLogo();
 
         date = LocalDate.now();
         date32 = LocalDate.now();
@@ -211,23 +205,6 @@ public class SamplePOJO {
         groupBitmapUint64 = ClickHouseBitmap.wrap(random.longs(5, Long.MAX_VALUE - 100, Long.MAX_VALUE).toArray());
 
         keyword = "database";
-    }
-
-    private static byte[] loadClickHouseLogo() {
-        try (InputStream is = SamplePOJO.class.getClassLoader().getResourceAsStream("clickhouse-logo.png")) {
-            if (is == null) {
-                throw new IllegalStateException("Test resource not found on classpath: clickhouse-logo.png");
-            }
-            ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-            byte[] chunk = new byte[8192];
-            int read;
-            while ((read = is.read(chunk)) != -1) {
-                buffer.write(chunk, 0, read);
-            }
-            return buffer.toByteArray();
-        } catch (IOException e) {
-            throw new IllegalStateException("Failed to read test resource clickhouse-logo.png", e);
-        }
     }
 
     @Override
@@ -331,7 +308,6 @@ public class SamplePOJO {
 //                "boxedBool UInt8, " +
                 "string String, " +
                 "fixedString FixedString(3), " +
-                "binaryString String, " +
                 "date Date, " +
                 "date32 Date, " +
                 "dateTime DateTime, " +

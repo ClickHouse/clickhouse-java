@@ -4,7 +4,6 @@ import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
-import com.clickhouse.client.api.data_formats.StringValue;
 import com.clickhouse.client.api.internal.DataTypeConverter;
 import com.clickhouse.client.api.internal.MapUtils;
 import com.clickhouse.client.api.internal.ServerSettings;
@@ -78,10 +77,6 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     private long lastNextCallTs; // for exception to detect slow reader
 
     protected AbstractBinaryFormatReader(InputStream inputStream, QuerySettings querySettings, TableSchema schema, BinaryStreamReader.ByteBufferAllocator byteBufferAllocator, Map<ClickHouseDataType, Class<?>> defaultTypeHintMap) {
-        this(inputStream, querySettings, schema, byteBufferAllocator, defaultTypeHintMap, false);
-    }
-
-    protected AbstractBinaryFormatReader(InputStream inputStream, QuerySettings querySettings, TableSchema schema, BinaryStreamReader.ByteBufferAllocator byteBufferAllocator, Map<ClickHouseDataType, Class<?>> defaultTypeHintMap, boolean binaryStringSupport) {
         this.input = inputStream;
         Map<String, Object> settings = querySettings == null ? Collections.emptyMap() : querySettings.getAllSettings();
         Boolean useServerTimeZone = (Boolean) settings.get(ClientConfigProperties.USE_SERVER_TIMEZONE.getKey());
@@ -93,6 +88,10 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         }
         boolean jsonAsString = MapUtils.getFlag(settings,
                 ClientConfigProperties.serverSetting(ServerSettings.OUTPUT_FORMAT_BINARY_WRITE_JSON_AS_STRING), false);
+        // Binary string support is resolved from the (already merged client + operation) query settings so it can be
+        // toggled per operation, not just per client.
+        boolean binaryStringSupport = MapUtils.getFlag(settings,
+                ClientConfigProperties.BINARY_STRING_SUPPORT.getKey(), false);
         this.binaryStreamReader = new BinaryStreamReader(inputStream, timeZone, LOG, byteBufferAllocator, jsonAsString,
                 defaultTypeHintMap, binaryStringSupport);
         if (schema != null) {

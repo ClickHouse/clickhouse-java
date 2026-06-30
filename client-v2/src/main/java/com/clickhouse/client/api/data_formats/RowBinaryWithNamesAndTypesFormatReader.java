@@ -22,15 +22,7 @@ public class RowBinaryWithNamesAndTypesFormatReader extends AbstractBinaryFormat
                                                   QuerySettings querySettings,
                                                   BinaryStreamReader.ByteBufferAllocator byteBufferAllocator,
                                                   Map<ClickHouseDataType, Class<?>> typeHintMapping) {
-        this(inputStream, querySettings, byteBufferAllocator, typeHintMapping, false);
-    }
-
-    public RowBinaryWithNamesAndTypesFormatReader(InputStream inputStream,
-                                                  QuerySettings querySettings,
-                                                  BinaryStreamReader.ByteBufferAllocator byteBufferAllocator,
-                                                  Map<ClickHouseDataType, Class<?>> typeHintMapping,
-                                                  boolean binaryStringSupport) {
-        super(inputStream, querySettings, null, byteBufferAllocator, typeHintMapping, binaryStringSupport);
+        super(inputStream, querySettings, null, byteBufferAllocator, typeHintMapping);
         readSchema();
     }
 

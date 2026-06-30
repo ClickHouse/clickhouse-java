@@ -2,7 +2,6 @@ package com.clickhouse.client.api.data_formats.internal;
 
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.DataTypeUtils;
-import com.clickhouse.client.api.data_formats.StringValue;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseEnum;
@@ -109,12 +108,12 @@ public class BinaryStreamReader {
      */
     public <T> T readValue(ClickHouseColumn column, Class<?> typeHint) throws IOException {
         // Top-level reads honor the binary-string feature flag. Values nested inside containers always read
-        // strings as String (see readArray/readMap/readTuple/readNested/readVariant).
+        // strings as String (see readArray/readMap/readTuple/readNested/readVariant/readJsonData).
         return readValue(column, typeHint, binaryStringSupport);
     }
 
     @SuppressWarnings("unchecked")
-    private <T> T readValue(ClickHouseColumn column, Class<?> typeHint, boolean stringAsValue) throws IOException {
+    private <T> T readValue(ClickHouseColumn column, Class<?> typeHint, boolean stringAsBytes) throws IOException {
         if (column.isNullable()) {
             int isNull = readByteOrEOF(input);
             if (isNull == 1) { // is Null?
@@ -133,7 +132,7 @@ public class BinaryStreamReader {
             switch (dataType) {
                 // Primitives
                 case FixedString: {
-                    if (stringAsValue) {
+                    if (stringAsBytes) {
                         return (T) new StringValue(readStringBytes(input, precision));
                     }
                     byte[] bytes = precision > STRING_BUFF.length ?
@@ -142,7 +141,7 @@ public class BinaryStreamReader {
                     return (T) new String(bytes, 0, precision, StandardCharsets.UTF_8);
                 }
                 case String: {
-                    if (stringAsValue) {
+                    if (stringAsBytes) {
                         return (T) readStringValue();
                     }
                     return (T) readString();
@@ -260,14 +259,14 @@ public class BinaryStreamReader {
                 case Nothing:
                     return null;
                 case SimpleAggregateFunction:
-                    return (T) readValue(column.getNestedColumns().get(0));
+                    return (T) readValue(column.getNestedColumns().get(0), typeHint, false);
                 case AggregateFunction:
                     return (T) readBitmap( actualColumn);
                 case Variant:
                 case Geometry:
                     return (T) readVariant(actualColumn);
                 case Dynamic:
-                    return (T) readValue(actualColumn, typeHint, stringAsValue);
+                    return (T) readValue(actualColumn, typeHint, stringAsBytes);
                 case Nested:
                     return convertArray(readNested(actualColumn), typeHint);
                 default:
@@ -686,7 +685,7 @@ public class BinaryStreamReader {
     }
 
     /**
-     * Reads a value nested inside a container (Array, Map, Tuple, Nested, Variant). Strings are always
+     * Reads a value nested inside a container (Array, Map, Tuple, Nested, Variant, JSON). Strings are always
      * decoded into {@link String} here, regardless of the binary-string feature flag, because nested types
      * are not expected to carry large/binary strings.
      */
@@ -1441,7 +1440,7 @@ public class BinaryStreamReader {
             String path = readString(input);
             ClickHouseColumn dataColumn = predefinedColumns == null? JSON_PLACEHOLDER_COL :
                     predefinedColumns.getOrDefault(path, JSON_PLACEHOLDER_COL);
-            Object value = readValue(dataColumn);
+            Object value = readNestedValue(dataColumn);
             if (value == null && (lastDataColumn != null && lastDataColumn.getDataType() == ClickHouseDataType.Nothing) ) {
                 continue;
             }

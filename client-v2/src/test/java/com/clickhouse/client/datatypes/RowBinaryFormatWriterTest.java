@@ -6,33 +6,42 @@ import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.command.CommandSettings;
+import com.clickhouse.client.api.data_formats.RowBinaryFormatSerializer;
 import com.clickhouse.client.api.data_formats.RowBinaryFormatWriter;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
+import com.clickhouse.client.api.data_formats.internal.StringValue;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.GenericRecord;
+import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseVersion;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -494,8 +503,8 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
             org.testng.Assert.assertEquals(record.getByteArray("image"), imageData,
                     "Image bytes read back via getByteArray must match the source exactly");
 
-            com.clickhouse.client.api.data_formats.StringValue value =
-                    (com.clickhouse.client.api.data_formats.StringValue) record.getObject("image");
+            com.clickhouse.client.api.data_formats.internal.StringValue value =
+                    (com.clickhouse.client.api.data_formats.internal.StringValue) record.getObject("image");
             org.testng.Assert.assertEquals(value.size(), imageData.length);
             org.testng.Assert.assertEquals(value.toByteArray(), imageData,
                     "StringValue must preserve the full binary payload");
@@ -846,5 +855,91 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
         }};
 
         writeTest(tableName, tableCreate, rows);
+    }
+
+    // -----------------------------------------------------------------------------------------------------------------
+    // Unit coverage for the writeString helpers on RowBinaryFormatSerializer and the setString(byte[]) overloads on
+    // RowBinaryFormatWriter, which the integration tests above do not exercise in isolation. These run without a server.
+    // -----------------------------------------------------------------------------------------------------------------
+
+    private static final ClickHouseColumn STRING_COLUMN = ClickHouseColumn.of("s", "String");
+
+    private enum StringWriteVia {
+        SERIALIZER,
+        WRITER_BY_NAME,
+        WRITER_BY_INDEX
+    }
+
+    private static BinaryStreamReader stringReader(byte[] data) {
+        return new BinaryStreamReader(new ByteArrayInputStream(data), TimeZone.getTimeZone("UTC"), null,
+                new BinaryStreamReader.DefaultByteBufferAllocator(), false, null, true);
+    }
+
+    private static byte[] writeStringBytes(StringWriteVia via, byte[] payload) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        switch (via) {
+            case SERIALIZER:
+                new RowBinaryFormatSerializer(out).writeString(payload);
+                break;
+            case WRITER_BY_NAME: {
+                TableSchema schema = new TableSchema(Collections.singletonList(STRING_COLUMN));
+                RowBinaryFormatWriter writer = new RowBinaryFormatWriter(out, schema, ClickHouseFormat.RowBinary);
+                writer.setString("s", payload);
+                writer.commitRow();
+                break;
+            }
+            case WRITER_BY_INDEX: {
+                TableSchema schema = new TableSchema(Collections.singletonList(STRING_COLUMN));
+                RowBinaryFormatWriter writer = new RowBinaryFormatWriter(out, schema, ClickHouseFormat.RowBinary);
+                writer.setString(1, payload);
+                writer.commitRow();
+                break;
+            }
+        }
+        return out.toByteArray();
+    }
+
+    @DataProvider(name = "stringValues")
+    public static Object[][] stringValues() {
+        return new Object[][] {
+                {"ascii", "hello world"},
+                {"unicode", "Привет 你好 🚀"},
+        };
+    }
+
+    @Test(dataProvider = "stringValues")
+    public void testSerializerWriteString(String description, String value) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        new RowBinaryFormatSerializer(out).writeString(value);
+
+        StringValue read = stringReader(out.toByteArray()).readValue(STRING_COLUMN);
+        assertEquals(read.asString(), value, description);
+        assertEquals(read.toByteArray(), value.getBytes(StandardCharsets.UTF_8), description);
+    }
+
+    @DataProvider(name = "binaryStringWrites")
+    public static Object[][] binaryStringWrites() {
+        byte[] arbitraryBinary = new byte[]{(byte) 0x00, (byte) 0xFF, (byte) 0x80, (byte) 0x7F, (byte) 0xAB};
+        byte[] utf8Content = "ascii and Юникод".getBytes(StandardCharsets.UTF_8);
+
+        Object[][] cases = new Object[StringWriteVia.values().length * 2][];
+        int i = 0;
+        for (StringWriteVia via : StringWriteVia.values()) {
+            cases[i++] = new Object[]{via, "arbitrary-binary", arbitraryBinary, null};
+            cases[i++] = new Object[]{via, "utf8-content", utf8Content, "ascii and Юникод"};
+        }
+        return cases;
+    }
+
+    @Test(dataProvider = "binaryStringWrites")
+    public void testWriteStringFromBytes(StringWriteVia via, String description, byte[] payload,
+                                         String expectedString) throws IOException {
+        byte[] encoded = writeStringBytes(via, payload);
+
+        StringValue read = stringReader(encoded).readValue(STRING_COLUMN);
+        assertEquals(read.toByteArray(), payload, via + "/" + description);
+        if (expectedString != null) {
+            assertEquals(read.asString(), expectedString, via + "/" + description);
+        }
     }
 }

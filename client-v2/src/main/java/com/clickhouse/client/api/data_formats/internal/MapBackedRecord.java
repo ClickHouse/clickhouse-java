@@ -2,7 +2,6 @@ package com.clickhouse.client.api.data_formats.internal;
 
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.DataTypeUtils;
-import com.clickhouse.client.api.data_formats.StringValue;
 import com.clickhouse.client.api.internal.DataTypeConverter;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.GenericRecord;

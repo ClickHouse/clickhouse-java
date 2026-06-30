@@ -1,9 +1,7 @@
-package com.clickhouse.client.api.data_formats;
+package com.clickhouse.client.api.data_formats.internal;
 
-import com.clickhouse.client.api.data_formats.internal.AbstractBinaryFormatReader;
-import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
-import com.clickhouse.client.api.data_formats.internal.MapBackedRecord;
-import com.clickhouse.client.api.data_formats.internal.SerializerUtils;
+import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatReader;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.serde.POJOFieldDeserializer;
@@ -365,6 +363,36 @@ public class StringValueTests {
         Assert.assertEquals(pojo.asString, "abc");
     }
 
+    @Test
+    public void testPojoSetterStringFieldOverSimpleAggregateFunctionWhenFeatureEnabled() throws Exception {
+        // Regression: a String column wrapped in SimpleAggregateFunction(String) also reads as a StringValue
+        // when the feature is on. The compiled setter must convert it to String based on the target field type
+        // (the column data type is SimpleAggregateFunction, not String), otherwise it would ClassCastException.
+        ClickHouseColumn column = ClickHouseColumn.of("s", "SimpleAggregateFunction(anyLast, String)");
+        // On the wire SimpleAggregateFunction(String) is serialized exactly like its nested String.
+        byte[] wire = stringWire("hello".getBytes(StandardCharsets.UTF_8));
+
+        StringPojo pojo = new StringPojo();
+        setterFor("setAsString", column).setValue(pojo, reader(wire, true), column);
+        Assert.assertEquals(pojo.asString, "hello");
+    }
+
+    @Test
+    public void testPojoSetterSimpleAggregateFunctionWhenFeatureDisabled() throws Exception {
+        // With the feature off the reader returns a plain String for SimpleAggregateFunction(String); the
+        // String field receives it directly and the byte[] field gets the UTF-8 encoding.
+        ClickHouseColumn column = ClickHouseColumn.of("s", "SimpleAggregateFunction(anyLast, String)");
+        byte[] wire = stringWire("world".getBytes(StandardCharsets.UTF_8));
+
+        StringPojo asString = new StringPojo();
+        setterFor("setAsString", column).setValue(asString, reader(wire, false), column);
+        Assert.assertEquals(asString.asString, "world");
+
+        StringPojo asBytes = new StringPojo();
+        setterFor("setAsBytes", column).setValue(asBytes, reader(wire, false), column);
+        Assert.assertEquals(asBytes.asBytes, "world".getBytes(StandardCharsets.UTF_8));
+    }
+
     // ---- Writing binary String values ----
 
     @Test
@@ -450,8 +478,9 @@ public class StringValueTests {
 
         RowBinaryWithNamesAndTypesFormatReader reader = new RowBinaryWithNamesAndTypesFormatReader(
                 new ByteArrayInputStream(out.toByteArray()),
-                new QuerySettings().setUseTimeZone(TimeZone.getTimeZone("UTC").toZoneId().getId()),
-                new BinaryStreamReader.CachingByteBufferAllocator(), null, binaryStringSupport);
+                new QuerySettings().setUseTimeZone(TimeZone.getTimeZone("UTC").toZoneId().getId())
+                        .setOption(ClientConfigProperties.BINARY_STRING_SUPPORT.getKey(), binaryStringSupport),
+                new BinaryStreamReader.CachingByteBufferAllocator(), null);
 
         Map<String, Object> record = new LinkedHashMap<>();
         Assert.assertTrue(reader.readRecord(record), "Expected a row to be read");
@@ -673,8 +702,9 @@ public class StringValueTests {
 
         RowBinaryWithNamesAndTypesFormatReader reader = new RowBinaryWithNamesAndTypesFormatReader(
                 new ByteArrayInputStream(out.toByteArray()),
-                new QuerySettings().setUseTimeZone(TimeZone.getTimeZone("UTC").toZoneId().getId()),
-                new BinaryStreamReader.CachingByteBufferAllocator(), null, binaryStringSupport);
+                new QuerySettings().setUseTimeZone(TimeZone.getTimeZone("UTC").toZoneId().getId())
+                        .setOption(ClientConfigProperties.BINARY_STRING_SUPPORT.getKey(), binaryStringSupport),
+                new BinaryStreamReader.CachingByteBufferAllocator(), null);
         Assert.assertNotNull(reader.next(), "Expected a row to be read");
         return reader;
     }

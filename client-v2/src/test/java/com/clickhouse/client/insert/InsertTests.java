@@ -199,14 +199,7 @@ public class InsertTests extends BaseIntegrationTest {
         try (QueryResponse queryResponse =
                 client.query("SELECT * FROM " + tableName + " LIMIT 1").get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS)) {
 
-            // To read the binaryString properly as raw bytes, we must enable binary string support
-            Client readerClient = client;
-            if (pojo.getBinaryString() != null) {
-                readerClient = newClient()
-                        .binaryStringSupport(true)
-                        .build();
-            }
-            ClickHouseBinaryFormatReader reader = readerClient.newBinaryFormatReader(queryResponse);
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(queryResponse);
             Assert.assertNotNull(reader.next());
 
             Assert.assertEquals(reader.getByte("byteValue"), pojo.getByteValue());
@@ -219,17 +212,12 @@ public class InsertTests extends BaseIntegrationTest {
             Assert.assertEquals(reader.getDouble("float64"), pojo.getFloat64());
             Assert.assertEquals(reader.getString("string"), pojo.getString());
             Assert.assertEquals(reader.getString("fixedString"), pojo.getFixedString());
-            Assert.assertEquals(reader.getByteArray("binaryString"), pojo.getBinaryString());
             Assert.assertTrue(reader.getZonedDateTime("zonedDateTime").isEqual(pojo.getZonedDateTime().withNano(0)));
             Assert.assertTrue(reader.getZonedDateTime("zonedDateTime64").isEqual(pojo.getZonedDateTime64()));
             Assert.assertTrue(reader.getOffsetDateTime("offsetDateTime").isEqual(pojo.getOffsetDateTime().withNano(0)));
             Assert.assertTrue(reader.getOffsetDateTime("offsetDateTime64").isEqual(pojo.getOffsetDateTime64()));
             Assert.assertEquals(reader.getInstant("instant"), pojo.getInstant().with(ChronoField.MICRO_OF_SECOND, 0));
             Assert.assertEquals(reader.getInstant("instant64"), pojo.getInstant64());
-            
-            if (readerClient != client) {
-                readerClient.close();
-            }
         }
     }
 

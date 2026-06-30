@@ -5,12 +5,13 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
-import com.clickhouse.client.api.data_formats.StringValue;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
+import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseVersion;
 import com.clickhouse.data.ClickHouseDataType;
 import org.testng.Assert;
@@ -29,6 +30,7 @@ import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 @Test(groups = {"integration"})
 public class BaseReaderTests extends BaseIntegrationTest {
@@ -680,6 +682,90 @@ public class BaseReaderTests extends BaseIntegrationTest {
                     "Binary hash read via queryAll must match the locally computed digest");
         } finally {
             customClient.close();
+        }
+    }
+
+    /**
+     * String values nested inside a JSON column must be read as plain {@link String} even when
+     * {@code binary_string_support} is enabled, consistent with all other container types. Only top-level
+     * String/FixedString columns are promoted to {@link StringValue}.
+     */
+    @Test(groups = {"integration"})
+    public void testJsonStringPathsStayStringWithBinaryStringSupport() throws Exception {
+        if (isCloud()) {
+            return; // TODO: add support on cloud
+        }
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
+        final String table = "test_json_binary_string_support";
+        CommandSettings commandSettings = new CommandSettings();
+        commandSettings.serverSetting("allow_experimental_json_type", "1");
+        client.execute("DROP TABLE IF EXISTS " + table, commandSettings).get();
+        client.execute("CREATE TABLE " + table + " (id Int32, json JSON) ENGINE = MergeTree ORDER BY id", commandSettings).get();
+        client.execute("INSERT INTO " + table + " VALUES (1, '{\"name\" : \"hello\"}')", commandSettings).get();
+
+        Client customClient = newClient()
+                .binaryStringSupport(true)
+                .build();
+
+        try (QueryResponse response = customClient.query("SELECT json FROM " + table + " ORDER BY id").get()) {
+            ClickHouseBinaryFormatReader reader = customClient.newBinaryFormatReader(response);
+            Assert.assertNotNull(reader.next());
+
+            Map<String, Object> json = reader.readValue("json");
+            Object name = json.get("name");
+            Assert.assertTrue(name instanceof String,
+                    "String values nested in JSON must stay plain String, but got " +
+                            (name == null ? "null" : name.getClass().getName()));
+            Assert.assertEquals(name, "hello");
+        } finally {
+            customClient.close();
+        }
+    }
+
+    /**
+     * Binary string support is resolved per operation from the merged client and query settings, so two reads of the
+     * same table issued from the same client must honor each operation's {@code binary_string_support} override
+     * independently. The client default is left disabled here; one query opts in while the other relies on the
+     * default.
+     */
+    @Test(groups = {"integration"})
+    public void testBinaryStringSupportIsPerOperation() throws Exception {
+        final String table = "test_binary_string_support_per_operation";
+
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        client.execute("CREATE TABLE " + table + " (id Int32, s String) ENGINE = Memory").get();
+        client.execute("INSERT INTO " + table + " VALUES (1, 'hello')").get();
+
+        // The shared client keeps binary string support disabled (the default).
+        final String query = "SELECT s FROM " + table + " ORDER BY id";
+
+        // First operation: opt-in via per-operation QuerySettings -> reads a StringValue.
+        QuerySettings enabled = new QuerySettings()
+                .setOption(ClientConfigProperties.BINARY_STRING_SUPPORT.getKey(), true);
+        try (QueryResponse response = client.query(query, enabled).get()) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+            Assert.assertNotNull(reader.next());
+            Object value = reader.readValue("s");
+            Assert.assertTrue(value instanceof StringValue,
+                    "With binary_string_support enabled for the operation, top-level String must be a StringValue, but got " +
+                            (value == null ? "null" : value.getClass().getName()));
+            Assert.assertEquals(((StringValue) value).asString(), "hello");
+        }
+
+        // Second operation on the same table/client without the override -> reads a plain String.
+        QuerySettings disabled = new QuerySettings()
+                .setOption(ClientConfigProperties.BINARY_STRING_SUPPORT.getKey(), false);
+        try (QueryResponse response = client.query(query, disabled).get()) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+            Assert.assertNotNull(reader.next());
+            Object value = reader.readValue("s");
+            Assert.assertTrue(value instanceof String,
+                    "With binary_string_support disabled for the operation, top-level String must stay a plain String, but got " +
+                            (value == null ? "null" : value.getClass().getName()));
+            Assert.assertEquals(value, "hello");
         }
     }
 }

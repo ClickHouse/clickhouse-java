@@ -1,8 +1,9 @@
-package com.clickhouse.client.api.data_formats;
+package com.clickhouse.client.api.data_formats.internal;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Objects;
 
 /**
@@ -13,22 +14,20 @@ import java.util.Objects;
  * by the read path when the binary-string feature is enabled (for example {@code GenericRecord.getObject}
  * or {@code BinaryStreamReader.readValue} without a type hint), so that callers that need exact bytes can
  * obtain them via {@link #toByteArray()} and callers that need text can decode via {@link #asString()}.
- * It is <b>not</b> a supported field type for POJO binding: declare POJO fields for String/FixedString
- * columns as {@link String} or {@code byte[]} instead. Normal application code should generally consume
- * {@link String} or {@code byte[]} rather than holding onto a {@code StringValue}.
+ * Instances cannot be created by user code: the constructors are package-private and only the binary
+ * reader builds them. It is <b>not</b> a supported field type for POJO binding: declare POJO fields for
+ * String/FixedString columns as {@link String} or {@code byte[]} instead. Normal application code should
+ * generally consume {@link String} or {@code byte[]} rather than holding onto a {@code StringValue}.
  * <p>
  * <b>This is a mutable structure and must be used with care.</b> To avoid copying, it does not
- * duplicate the bytes it is given: the constructor wraps the supplied array/buffer instead of
- * copying it, and {@link #toByteArray()} returns a direct reference to the backing array rather
- * than a defensive copy. Consequently, mutating the source array, the array returned by
- * {@link #toByteArray()}, or reading the same value concurrently while it is being modified will
- * change the observed value. Callers that need an independent snapshot must copy the bytes
- * themselves.
+ * duplicate the bytes it is given: the constructor wraps the supplied array instead of copying it, and
+ * {@link #toByteArray()} returns a direct reference to the backing array when the value spans the whole
+ * array. Consequently, mutating the source array, the array returned by {@link #toByteArray()}, or reading
+ * the same value concurrently while it is being modified will change the observed value. Callers that need
+ * an independent snapshot must copy the bytes themselves.
  * <p>
- * Backed by a {@link ByteBuffer} for a richer API and future off-heap memory support. Only heap
- * buffers (with an accessible backing array) are supported today; constructing a value from a
- * direct (off-heap) buffer is rejected. The decoded {@link String} produced by {@link #asString()}
- * is cached.
+ * Backed by a {@link ByteBuffer} for a richer API and future off-heap memory support. The decoded
+ * {@link String} produced by {@link #asString()} is cached.
  */
 public class StringValue {
 
@@ -47,7 +46,7 @@ public class StringValue {
      *
      * @param bytes raw value bytes (not null)
      */
-    public StringValue(byte[] bytes) {
+    StringValue(byte[] bytes) {
         this(bytes, DEFAULT_CHARSET);
     }
 
@@ -58,28 +57,11 @@ public class StringValue {
      * @param bytes          raw value bytes (not null)
      * @param defaultCharset charset used by {@link #asString()} and {@link #toString()} (not null)
      */
-    public StringValue(byte[] bytes, Charset defaultCharset) {
-        this(ByteBuffer.wrap(bytes), defaultCharset);
-    }
+    StringValue(byte[] bytes, Charset defaultCharset) {
+        Objects.requireNonNull(bytes, "bytes cannot be null");
+        Objects.requireNonNull(defaultCharset, "charset is required to convert bytes to String");
 
-    /**
-     * Creates a value backed by the remaining content of the given buffer using the provided default charset.
-     * The buffer is referenced, not copied, so its content must not be modified afterwards.
-     *
-     * @param buffer         backing heap buffer (not null); its remaining bytes define the value
-     * @param defaultCharset charset used by {@link #asString()} and {@link #toString()} (not null)
-     * @throws IllegalArgumentException if the buffer is a direct (off-heap) buffer with no accessible array
-     */
-    public StringValue(ByteBuffer buffer, Charset defaultCharset) {
-        Objects.requireNonNull(buffer, "buffer cannot be null");
-        Objects.requireNonNull(defaultCharset, "charset is required to convert buffer to String");
-
-        if (!buffer.hasArray()) {
-            throw new IllegalArgumentException("Can work only with heap buffer.");
-        }
-
-        // Keep an independent view so external position/limit changes do not affect this value.
-        this.buffer = buffer.slice();
+        this.buffer = ByteBuffer.wrap(bytes);
         this.defaultCharset = defaultCharset;
     }
 
@@ -94,16 +76,22 @@ public class StringValue {
     }
 
     /**
-     * Returns a direct reference to the backing byte array of this value (no copy is made).
+     * Returns the raw bytes of this value, honoring the backing buffer's offset and position.
      * <p>
-     * The returned array is the live backing storage: mutating it mutates this value, and any change
-     * to the underlying bytes is reflected here. Callers that need an independent, immutable snapshot
-     * must copy the result themselves.
+     * As a zero-copy shortcut, when the value spans the entire backing array the live backing storage is
+     * returned directly (mutating it mutates this value); otherwise an exact-size copy of the value's bytes
+     * is returned. Callers that need a guaranteed independent snapshot should copy the result themselves.
      *
-     * @return the backing array holding the value bytes
+     * @return the value bytes (the live backing array when it spans the whole value, otherwise a copy)
      */
     public byte[] toByteArray() {
-        return buffer.array();
+        byte[] array = buffer.array();
+        int offset = buffer.arrayOffset() + buffer.position();
+        int length = buffer.remaining();
+        if (offset == 0 && length == array.length) {
+            return array;
+        }
+        return Arrays.copyOfRange(array, offset, offset + length);
     }
 
     /**
@@ -151,7 +139,7 @@ public class StringValue {
     }
 
     private String decode(Charset charset) {
-        return new String(buffer.array(), charset);
+        return new String(buffer.array(), buffer.arrayOffset() + buffer.position(), buffer.remaining(), charset);
     }
 
     @Override

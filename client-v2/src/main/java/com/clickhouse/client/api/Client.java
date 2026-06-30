@@ -3,6 +3,7 @@ package com.clickhouse.client.api;
 import com.clickhouse.client.api.command.CommandResponse;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
+import com.clickhouse.client.api.data_formats.ClickHouseFormatReader;
 import com.clickhouse.client.api.data_formats.NativeFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatReader;
@@ -135,8 +136,6 @@ public class Client implements AutoCloseable {
 
     private final Map<ClickHouseDataType, Class<?>> typeHintMapping;
 
-    private final boolean binaryStringSupport;
-
     // Server context
     private String dbUser;
     private String serverVersion;
@@ -202,7 +201,6 @@ public class Client implements AutoCloseable {
         this.serverVersion = configuration.getOrDefault(ClientConfigProperties.SERVER_VERSION.getKey(), "unknown");
         this.dbUser = configuration.getOrDefault(ClientConfigProperties.USER.getKey(), ClientConfigProperties.USER.getDefObjVal());
         this.typeHintMapping = (Map<ClickHouseDataType, Class<?>>) this.configuration.get(ClientConfigProperties.TYPE_HINT_MAPPING.getKey());
-        this.binaryStringSupport = ClientConfigProperties.BINARY_STRING_SUPPORT.getOrDefault(this.configuration);
     }
 
     /**
@@ -1123,10 +1121,10 @@ public class Client implements AutoCloseable {
         }
 
         /**
-         * Enables reading top-level {@code String} and {@code FixedString} columns as
-         * {@link com.clickhouse.client.api.data_formats.StringValue}, preserving the raw bytes instead of
-         * decoding them into a {@link String}. Values nested inside containers (Array, Map, Tuple, Nested,
-         * Variant) are still read as {@link String}.
+         * Enables reading {@code String} and {@code FixedString} columns into an intermediate {@code byte[]}
+         * (a new array each time) instead of decoding them into a {@link String}. This improves working with
+         * large strings and allows {@link ClickHouseFormatReader#getByteArray} to be used more effectively. Can also be configured
+         * per operation.
          *
          * @param enable - if the feature is enabled
          * @return this builder instance
@@ -2126,17 +2124,17 @@ public class Client implements AutoCloseable {
         switch (response.getFormat()) {
             case Native:
                 reader = new NativeFormatReader(response.getInputStream(), response.getSettings(),
-                        byteBufferPool, typeHintMapping, binaryStringSupport);
+                        byteBufferPool, typeHintMapping);
                 break;
             case RowBinaryWithNamesAndTypes:
-                reader = new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings(), byteBufferPool, typeHintMapping, binaryStringSupport);
+                reader = new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings(), byteBufferPool, typeHintMapping);
                 break;
             case RowBinaryWithNames:
-                reader = new RowBinaryWithNamesFormatReader(response.getInputStream(), response.getSettings(), schema, byteBufferPool, typeHintMapping, binaryStringSupport);
+                reader = new RowBinaryWithNamesFormatReader(response.getInputStream(), response.getSettings(), schema, byteBufferPool, typeHintMapping);
                 break;
             case RowBinary:
                 reader = new RowBinaryFormatReader(response.getInputStream(), response.getSettings(), schema,
-                        byteBufferPool, typeHintMapping, binaryStringSupport);
+                        byteBufferPool, typeHintMapping);
                 break;
             default:
                 throw new IllegalArgumentException("Binary readers doesn't support format: " + response.getFormat());

@@ -12,6 +12,7 @@ import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.InetAddress;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -325,6 +326,54 @@ public class SerializerUtilsTest {
         Assert.assertThrows(IllegalArgumentException.class,
                 () -> SerializerUtils.writeFixedStringBytes(new ByteArrayOutputStream(),
                         new byte[]{1, 2, 3, 4}, 3));
+    }
+
+    // stringValueToString / stringValueToByteArray are invoked from the bytecode generated for POJO setters.
+    // They are exercised end-to-end in StringValueTests, but these unit tests pin every input branch directly
+    // so the behaviour is locked in even if the set of column types that reach them is extended later.
+
+    @Test
+    public void testStringValueToStringPassesThroughNull() {
+        Assert.assertNull(SerializerUtils.stringValueToString(null));
+    }
+
+    @Test
+    public void testStringValueToStringDecodesStringValue() {
+        StringValue value = new StringValue("héllo".getBytes(StandardCharsets.UTF_8));
+        Assert.assertEquals(SerializerUtils.stringValueToString(value), "héllo");
+    }
+
+    @Test
+    public void testStringValueToStringReturnsPlainStringAsIs() {
+        String value = "plain";
+        Assert.assertSame(SerializerUtils.stringValueToString(value), value);
+    }
+
+    @Test
+    public void testStringValueToByteArrayPassesThroughNull() {
+        Assert.assertNull(SerializerUtils.stringValueToByteArray(null));
+    }
+
+    @Test
+    public void testStringValueToByteArrayPreservesStringValueBytes() {
+        // Non-UTF-8 bytes must survive without re-encoding.
+        byte[] binary = {(byte) 0xDE, (byte) 0xAD, (byte) 0x00, (byte) 0xBE, (byte) 0xEF};
+        StringValue value = new StringValue(binary);
+        Assert.assertEquals(SerializerUtils.stringValueToByteArray(value), binary);
+    }
+
+    @Test
+    public void testStringValueToByteArrayEncodesStringAsUtf8() {
+        Assert.assertEquals(SerializerUtils.stringValueToByteArray("héllo"),
+                "héllo".getBytes(StandardCharsets.UTF_8));
+    }
+
+    @Test
+    public void testStringValueToByteArrayPassesThroughByteArray() {
+        // This is the branch that lets future string-backed columns (e.g. Array(UInt8)) reuse the helper:
+        // a value that is already a byte[] must be returned unchanged, not re-wrapped or copied.
+        byte[] bytes = {1, 2, 3};
+        Assert.assertSame(SerializerUtils.stringValueToByteArray(bytes), bytes);
     }
 
     private void assertCustomGeoTypeTag(String typeName) throws Exception {
