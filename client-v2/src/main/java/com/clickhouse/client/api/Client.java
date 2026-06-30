@@ -2274,7 +2274,7 @@ public class Client implements AutoCloseable {
      *
      * @param queryId - original query id that was passed in operation settings.
      */
-    public void cancelRequest(String queryId) {
+    public void cancelTransportRequest(String queryId) {
         WeakReference<TransportRequest> reqRef = ongoingRequests.get(queryId);
         if (reqRef != null) {
             TransportRequest req = reqRef.get();

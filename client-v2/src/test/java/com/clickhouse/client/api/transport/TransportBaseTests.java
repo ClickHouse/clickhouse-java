@@ -316,13 +316,13 @@ public class TransportBaseTests extends BaseIntegrationTest {
     }
 
     /**
-     * Exercises {@link Client#cancelRequest(String)} for every combination of
+     * Exercises {@link Client#cancelTransportRequest(String)} for every combination of
      * {@code {query, insert} x {sync, async}} operations. A long-running operation is started against the
      * real server with a known {@code query_id} and is interrupted from the test thread while it is still
      * in progress. The whole life cycle is verified:
      * <ol>
      *     <li>the operation is observed running on the server ({@code system.processes});</li>
-     *     <li>{@link Client#cancelRequest(String)} aborts the in-flight request and the operation fails;</li>
+     *     <li>{@link Client#cancelTransportRequest(String)} aborts the in-flight request and the operation fails;</li>
      *     <li>the query is no longer running on the server.</li>
      * </ol>
      */
@@ -363,6 +363,7 @@ public class TransportBaseTests extends BaseIntegrationTest {
                             new InsertSettings().setQueryId(queryId)).get(35, TimeUnit.SECONDS)) {
                         opFinished.set(true);
                     } catch (Throwable t) {
+                        t.printStackTrace();
                         opError.set(t);
                     }
                 };
@@ -423,7 +424,7 @@ public class TransportBaseTests extends BaseIntegrationTest {
     }
 
     /**
-     * Reissues {@link Client#cancelRequest(String)} until the worker stops or the timeout elapses. The request
+     * Reissues {@link Client#cancelTransportRequest(String)} until the worker stops or the timeout elapses. The request
      * is held by the client only through a {@link java.lang.ref.WeakReference}, so retrying makes the test
      * robust against an unlucky GC clearing the reference between attempts.
      */
@@ -431,7 +432,7 @@ public class TransportBaseTests extends BaseIntegrationTest {
             throws InterruptedException {
         long deadline = System.currentTimeMillis() + timeoutMillis;
         do {
-            client.cancelRequest(queryId);
+            client.cancelTransportRequest(queryId);
             worker.join(200);
         } while (worker.isAlive() && System.currentTimeMillis() < deadline);
     }

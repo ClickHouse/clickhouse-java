@@ -27,6 +27,7 @@ import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.entity.mime.MultipartEntityBuilder;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
+import org.apache.hc.client5.http.impl.classic.RequestFailedException;
 import org.apache.hc.client5.http.impl.io.BasicHttpClientConnectionManager;
 import org.apache.hc.client5.http.impl.io.ManagedHttpClientConnectionFactory;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
@@ -727,6 +728,9 @@ public class HttpAPIClientHelper {
             throw e;
         } catch (Exception e) {
             LOG.debug("Failed to execute request to '{}': {}", req.getAuthority(), e.getMessage(), e);
+            if (e instanceof RequestFailedException && req.isCancelled()) {
+                throw new TransportException("Request was cancelled on client side", e, getQueryId(httpResponse, req));
+            }
             throw e;
         } finally {
             if (closeResponse) {
@@ -736,8 +740,8 @@ public class HttpAPIClientHelper {
     }
 
     private String getQueryId(HttpResponse httpResponse, HttpPost httpRequest) {
-        final Header serverQueryIdHeader = httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID);
-        final Header clientQueryIdHeader = httpRequest.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID);
+        final Header serverQueryIdHeader = httpResponse == null ? null : httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID);
+        final Header clientQueryIdHeader = httpResponse == null ? null : httpRequest.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID);
         final Header queryHeader = Stream.of(serverQueryIdHeader, clientQueryIdHeader).filter(Objects::nonNull).findFirst().orElse(null);
         return queryHeader == null ? "" : queryHeader.getValue();
     }
