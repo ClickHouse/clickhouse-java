@@ -4,6 +4,7 @@ import com.clickhouse.client.api.data_formats.internal.AbstractBinaryFormatReade
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.data_formats.internal.MapBackedRecord;
 import com.clickhouse.client.api.data_formats.internal.SerializerUtils;
+import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.format.BinaryStreamUtils;
@@ -17,6 +18,9 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -318,6 +322,32 @@ public class StringValueTests {
         Assert.assertEquals(read.toByteArray(), binary);
     }
 
+    @Test
+    public void testWriteStringValueToFixedStringRoundTrip() throws IOException {
+        // FixedString serialization must accept a StringValue and write its raw bytes (padded to the
+        // column width), mirroring the byte[] branch.
+        byte[] binary = new byte[]{(byte) 0x10, (byte) 0x20, (byte) 0x00};
+        StringValue value = new StringValue(binary);
+        ClickHouseColumn column = ClickHouseColumn.of("s", "FixedString(3)");
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        SerializerUtils.serializeData(baos, value, column);
+        StringValue read = reader(baos.toByteArray(), true).readValue(column);
+        Assert.assertEquals(read.toByteArray(), binary);
+    }
+
+    @Test
+    public void testWriteStringValueToFixedStringPadsShorterValue() throws IOException {
+        // A StringValue shorter than the column width is right-padded with zero bytes.
+        byte[] binary = new byte[]{(byte) 0xAB, (byte) 0xCD};
+        ClickHouseColumn column = ClickHouseColumn.of("s", "FixedString(5)");
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        SerializerUtils.serializeData(baos, new StringValue(binary), column);
+        StringValue read = reader(baos.toByteArray(), true).readValue(column);
+        Assert.assertEquals(read.toByteArray(), new byte[]{(byte) 0xAB, (byte) 0xCD, 0, 0, 0});
+    }
+
     // ---- MapBackedRecord (queryAll materialization) ----
 
     /**
@@ -424,5 +454,174 @@ public class StringValueTests {
         Assert.assertEquals(record.getString("s"), text);
         Assert.assertEquals(record.getByteArray("s"), text.getBytes(StandardCharsets.UTF_8));
         Assert.assertEquals(record.getByteArray(1), text.getBytes(StandardCharsets.UTF_8));
+    }
+
+    // ---- getStringArray over arrays whose items are StringValue ----
+
+    private static BinaryStreamReader.ArrayValue stringValueArray() {
+        // Build an array whose item type is StringValue (the branch that is not reachable through the
+        // wire, where nested array elements are always decoded as String). A null element exercises the
+        // null-guard inside the StringValue mapping.
+        BinaryStreamReader.ArrayValue array = new BinaryStreamReader.ArrayValue(StringValue.class, 3);
+        array.set(0, new StringValue("plain".getBytes(StandardCharsets.UTF_8)));
+        array.set(1, new StringValue("Привет".getBytes(StandardCharsets.UTF_8)));
+        array.set(2, null);
+        return array;
+    }
+
+    @Test
+    public void testAbstractReaderGetStringArrayFromStringValueItems() {
+        TableSchema schema = new TableSchema(
+                Collections.singletonList(ClickHouseColumn.of("a", "Array(String)")));
+        InjectableReader reader = new InjectableReader(schema);
+        reader.setCurrentRecord(new Object[]{stringValueArray()});
+
+        String[] expected = {"plain", "Привет", null};
+        Assert.assertEquals(reader.getStringArray(1), expected);
+        Assert.assertEquals(reader.getStringArray("a"), expected);
+    }
+
+    @Test
+    public void testMapBackedRecordGetStringArrayFromStringValueItems() {
+        MapBackedRecord record = singleColumnRecord("a", "Array(String)", stringValueArray());
+
+        String[] expected = {"plain", "Привет", null};
+        Assert.assertEquals(record.getStringArray("a"), expected);
+        Assert.assertEquals(record.getStringArray(1), expected);
+    }
+
+    // ---- MapBackedRecord.getByteArray edge cases ----
+
+    @Test
+    public void testMapBackedRecordGetByteArrayReturnsNullForNullValue() {
+        // A null value must short-circuit before any string-like or primitive-array handling.
+        MapBackedRecord record = singleColumnRecord("s", "String", null);
+        Assert.assertNull(record.getByteArray("s"));
+        Assert.assertNull(record.getByteArray(1));
+    }
+
+    @Test
+    public void testMapBackedRecordGetByteArrayFromPrimitiveArray() {
+        // A non-string, primitive Array(Int8) value is not string-like, so getByteArray falls through to
+        // getPrimitiveArray and returns the backing byte[] (the branch the string-based tests never reach).
+        BinaryStreamReader.ArrayValue array = new BinaryStreamReader.ArrayValue(byte.class, 3);
+        array.set(0, (byte) 1);
+        array.set(1, (byte) -2);
+        array.set(2, (byte) 127);
+        MapBackedRecord record = singleColumnRecord("b", "Array(Int8)", array);
+
+        byte[] expected = {(byte) 1, (byte) -2, (byte) 127};
+        Assert.assertEquals(record.getByteArray("b"), expected);
+        Assert.assertEquals(record.getByteArray(1), expected);
+    }
+
+    // ---- Nested structures round-tripped through the real read path ----
+
+    @Test
+    public void testAbstractReaderArrayOfArrayOfString() throws IOException {
+        List<List<String>> value = Arrays.asList(
+                Arrays.asList("a", "b"),
+                Collections.singletonList("c"),
+                Collections.emptyList());
+        RowBinaryWithNamesAndTypesFormatReader reader = readerForRow(
+                new String[]{"a"}, new String[]{"Array(Array(String))"}, new Object[]{value}, true);
+
+        Assert.assertEquals(reader.getList("a"), value);
+
+        Object[] outer = reader.getObjectArray("a");
+        Assert.assertEquals(outer.length, 3);
+        Assert.assertEquals((Object[]) outer[0], new Object[]{"a", "b"});
+        Assert.assertEquals((Object[]) outer[1], new Object[]{"c"});
+        Assert.assertEquals((Object[]) outer[2], new Object[0]);
+    }
+
+    @Test
+    public void testMapBackedRecordArrayOfArrayOfString() throws IOException {
+        List<List<String>> value = Arrays.asList(
+                Arrays.asList("a", "b"),
+                Collections.singletonList("c"),
+                Collections.emptyList());
+        MapBackedRecord record = materializeRow(
+                new String[]{"a"}, new String[]{"Array(Array(String))"}, new Object[]{value}, true);
+
+        Assert.assertEquals(record.getList("a"), value);
+
+        Object[] outer = record.getObjectArray("a");
+        Assert.assertEquals(outer.length, 3);
+        Assert.assertEquals((Object[]) outer[0], new Object[]{"a", "b"});
+        Assert.assertEquals((Object[]) outer[1], new Object[]{"c"});
+        Assert.assertEquals((Object[]) outer[2], new Object[0]);
+    }
+
+    @Test
+    public void testAbstractReaderTupleStringIntString() throws IOException {
+        List<Object> value = Arrays.asList("first", 7, "third");
+        RowBinaryWithNamesAndTypesFormatReader reader = readerForRow(
+                new String[]{"t"}, new String[]{"Tuple(String, Int32, String)"}, new Object[]{value}, true);
+
+        Assert.assertEquals(reader.getTuple("t"), new Object[]{"first", 7, "third"});
+        Assert.assertEquals(reader.getTuple(1), new Object[]{"first", 7, "third"});
+    }
+
+    @Test
+    public void testMapBackedRecordTupleStringIntString() throws IOException {
+        List<Object> value = Arrays.asList("first", 7, "third");
+        MapBackedRecord record = materializeRow(
+                new String[]{"t"}, new String[]{"Tuple(String, Int32, String)"}, new Object[]{value}, true);
+
+        Assert.assertEquals(record.getTuple("t"), new Object[]{"first", 7, "third"});
+        Assert.assertEquals(record.getTuple(1), new Object[]{"first", 7, "third"});
+    }
+
+    /**
+     * Serializes a single row and returns a positioned {@link RowBinaryWithNamesAndTypesFormatReader}
+     * (which is an {@link AbstractBinaryFormatReader}) so its accessors can be exercised over real data.
+     */
+    private static RowBinaryWithNamesAndTypesFormatReader readerForRow(String[] names, String[] types,
+                                                                       Object[] values, boolean binaryStringSupport)
+            throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        BinaryStreamUtils.writeVarInt(out, names.length);
+        for (String name : names) {
+            BinaryStreamUtils.writeString(out, name);
+        }
+        for (String type : types) {
+            BinaryStreamUtils.writeString(out, type);
+        }
+        for (int i = 0; i < names.length; i++) {
+            SerializerUtils.serializeData(out, values[i], ClickHouseColumn.of(names[i], types[i]));
+        }
+
+        RowBinaryWithNamesAndTypesFormatReader reader = new RowBinaryWithNamesAndTypesFormatReader(
+                new ByteArrayInputStream(out.toByteArray()),
+                new QuerySettings().setUseTimeZone(TimeZone.getTimeZone("UTC").toZoneId().getId()),
+                new BinaryStreamReader.CachingByteBufferAllocator(), null, binaryStringSupport);
+        Assert.assertNotNull(reader.next(), "Expected a row to be read");
+        return reader;
+    }
+
+    private static MapBackedRecord singleColumnRecord(String name, String type, Object value) {
+        TableSchema schema = new TableSchema(Collections.singletonList(ClickHouseColumn.of(name, type)));
+        Map<String, Object> record = new HashMap<>();
+        record.put(name, value);
+        return new MapBackedRecord(record, new Map[]{null}, schema);
+    }
+
+    /**
+     * Minimal concrete {@link AbstractBinaryFormatReader} that lets a test inject a materialized record
+     * directly, so accessor branches can be exercised without a live binary stream.
+     */
+    private static final class InjectableReader extends AbstractBinaryFormatReader {
+        InjectableReader(TableSchema schema) {
+            super(new ByteArrayInputStream(new byte[0]),
+                    new QuerySettings().setUseTimeZone("UTC"),
+                    schema,
+                    new BinaryStreamReader.DefaultByteBufferAllocator(),
+                    NO_TYPE_HINT_MAPPING);
+        }
+
+        void setCurrentRecord(Object[] record) {
+            this.currentRecord = record;
+        }
     }
 }

@@ -252,6 +252,81 @@ public class SerializerUtilsTest {
         return map;
     }
 
+    @Test
+    public void testReadNestedReadsArrayOfTuples() throws Exception {
+        ClickHouseColumn nested = ClickHouseColumn.of("n", "Nested(a String, b Int32)");
+        List<ClickHouseColumn> fields = nested.getNestedColumns();
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        SerializerUtils.writeVarInt(out, 2);
+        SerializerUtils.serializeData(out, "x", fields.get(0));
+        SerializerUtils.serializeData(out, 1, fields.get(1));
+        SerializerUtils.serializeData(out, "y", fields.get(0));
+        SerializerUtils.serializeData(out, 2, fields.get(1));
+
+        BinaryStreamReader.ArrayValue array = newReader(out.toByteArray()).readNested(nested);
+        Assert.assertEquals(array.length(), 2);
+        Assert.assertEquals((Object[]) array.get(0), new Object[]{"x", 1});
+        Assert.assertEquals((Object[]) array.get(1), new Object[]{"y", 2});
+    }
+
+    @Test
+    public void testReadNestedEmpty() throws Exception {
+        ClickHouseColumn nested = ClickHouseColumn.of("n", "Nested(a String, b Int32)");
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        SerializerUtils.writeVarInt(out, 0);
+
+        BinaryStreamReader.ArrayValue array = newReader(out.toByteArray()).readNested(nested);
+        Assert.assertEquals(array.length(), 0);
+    }
+
+    @Test
+    public void testReadValueOnNestedColumnReturnsArrayOfTuples() throws Exception {
+        ClickHouseColumn nested = ClickHouseColumn.of("n", "Nested(a String, b Int32)");
+        List<ClickHouseColumn> fields = nested.getNestedColumns();
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        SerializerUtils.writeVarInt(out, 1);
+        SerializerUtils.serializeData(out, "only", fields.get(0));
+        SerializerUtils.serializeData(out, 42, fields.get(1));
+
+        Object value = newReader(out.toByteArray()).readValue(nested);
+        Assert.assertTrue(value instanceof BinaryStreamReader.ArrayValue,
+                "Nested column must read back as an ArrayValue");
+        BinaryStreamReader.ArrayValue array = (BinaryStreamReader.ArrayValue) value;
+        Assert.assertEquals(array.length(), 1);
+        Assert.assertEquals((Object[]) array.get(0), new Object[]{"only", 42});
+    }
+
+    @Test
+    public void testWriteFixedStringBytesPadsShorterValue() throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        SerializerUtils.writeFixedStringBytes(out, new byte[]{1, 2}, 5);
+        Assert.assertEquals(out.toByteArray(), new byte[]{1, 2, 0, 0, 0});
+    }
+
+    @Test
+    public void testWriteFixedStringBytesWritesExactLength() throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        SerializerUtils.writeFixedStringBytes(out, new byte[]{1, 2, 3}, 3);
+        Assert.assertEquals(out.toByteArray(), new byte[]{1, 2, 3});
+    }
+
+    @Test
+    public void testWriteFixedStringBytesEmptyValueIsAllPadding() throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        SerializerUtils.writeFixedStringBytes(out, new byte[0], 3);
+        Assert.assertEquals(out.toByteArray(), new byte[]{0, 0, 0});
+    }
+
+    @Test
+    public void testWriteFixedStringBytesRejectsValueLongerThanLength() {
+        Assert.assertThrows(IllegalArgumentException.class,
+                () -> SerializerUtils.writeFixedStringBytes(new ByteArrayOutputStream(),
+                        new byte[]{1, 2, 3, 4}, 3));
+    }
+
     private void assertCustomGeoTypeTag(String typeName) throws Exception {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         SerializerUtils.writeDynamicTypeTag(out, ClickHouseColumn.of("v", typeName));

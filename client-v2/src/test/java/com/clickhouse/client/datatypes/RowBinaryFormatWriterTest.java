@@ -391,52 +391,58 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
                 "  fixed_string_one FixedString(1) " +
                 "  ) Engine = MergeTree ORDER BY id";
 
-        byte[] binaryData = new byte[]{(byte) 0xDE, (byte) 0xAD, (byte) 0xBE, (byte) 0xEF, (byte) 0x00, (byte) 0xFF, (byte) 0x80};
-        byte[] fixedStringData = new byte[]{(byte) 0xAA, (byte) 0xBB, (byte) 0xCC, (byte) 0xDD, (byte) 0xEE};
-        byte[] fixedStringOneData = new byte[]{(byte) 0x7F};
+        // Row 1 is written via setValue(byte[]), row 2 via setString(byte[]); use distinct
+        // payloads per row so the rows are not identical (identical rows would be collapsed
+        // by insert deduplication on Cloud's replicated/shared engines).
+        byte[] binaryData1 = new byte[]{(byte) 0xDE, (byte) 0xAD, (byte) 0xBE, (byte) 0xEF, (byte) 0x00, (byte) 0xFF, (byte) 0x80};
+        byte[] fixedStringData1 = new byte[]{(byte) 0xAA, (byte) 0xBB, (byte) 0xCC, (byte) 0xDD, (byte) 0xEE};
+        byte[] fixedStringOneData1 = new byte[]{(byte) 0x7F};
+
+        byte[] binaryData2 = new byte[]{(byte) 0x01, (byte) 0x02, (byte) 0x03, (byte) 0xFE, (byte) 0xFD, (byte) 0x00, (byte) 0x7F};
+        byte[] fixedStringData2 = new byte[]{(byte) 0x11, (byte) 0x22, (byte) 0x33, (byte) 0x44, (byte) 0x55};
+        byte[] fixedStringOneData2 = new byte[]{(byte) 0x01};
 
         // Instead of writeTest which reads back using default string decoding, we write manually
         // and query back using typeHintMapping to preserve raw bytes
         initTable(tableName, tableCreate, new CommandSettings());
         TableSchema schema = client.getTableSchema(tableName);
 
+        // Write both rows in a single insert: row 1 exercises setValue(byte[]) and row 2 setString(byte[]).
         ClickHouseFormat format = ClickHouseFormat.RowBinaryWithDefaults;
         try (InsertResponse response = client.insert(tableName, out -> {
             RowBinaryFormatWriter w = new RowBinaryFormatWriter(out, schema, format);
             w.setValue(schema.nameToColumnIndex("id"), 1);
-            w.setValue(schema.nameToColumnIndex("string"), binaryData);
-            w.setValue(schema.nameToColumnIndex("fixed_string"), fixedStringData);
-            w.setValue(schema.nameToColumnIndex("fixed_string_one"), fixedStringOneData);
+            w.setValue(schema.nameToColumnIndex("string"), binaryData1);
+            w.setValue(schema.nameToColumnIndex("fixed_string"), fixedStringData1);
+            w.setValue(schema.nameToColumnIndex("fixed_string_one"), fixedStringOneData1);
+            w.commitRow();
+
+            w.setValue(schema.nameToColumnIndex("id"), 2);
+            w.setString("string", binaryData2);
+            w.setString("fixed_string", fixedStringData2);
+            w.setString("fixed_string_one", fixedStringOneData2);
             w.commitRow();
         }, format, settings).get()) {
-            System.out.println("Rows written (Field-like): " + response.getWrittenRows());
+            System.out.println("Rows written: " + response.getWrittenRows());
         }
 
-        // Also test inserting with byte[] directly via RowBinaryFormatWriter
-        try (InsertResponse response = client.insert(tableName, out -> {
-            RowBinaryFormatWriter w = new RowBinaryFormatWriter(out, schema, format);
-            w.setValue(schema.nameToColumnIndex("id"), 2);
-            w.setString("string", binaryData);
-            w.setString("fixed_string", fixedStringData);
-            w.setString("fixed_string_one", fixedStringOneData);
-            w.commitRow();
-        }, format, settings).get()) {
-            System.out.println("Rows written (manual): " + response.getWrittenRows());
-        }
-        
         Client customClient = newClient()
                 .binaryStringSupport(true)
                 .build();
-                
+
         List<GenericRecord> records = customClient.queryAll("SELECT * FROM \"" + tableName  + "\" ORDER BY id" );
         assertEquals(records.size(), 2);
-        
-        for (GenericRecord record : records) {
-            org.testng.Assert.assertEquals(record.getByteArray("string"), binaryData);
-            org.testng.Assert.assertEquals(record.getByteArray("fixed_string"), fixedStringData);
-            org.testng.Assert.assertEquals(record.getByteArray("fixed_string_one"), fixedStringOneData);
-        }
-        
+
+        GenericRecord row1 = records.get(0);
+        org.testng.Assert.assertEquals(row1.getByteArray("string"), binaryData1);
+        org.testng.Assert.assertEquals(row1.getByteArray("fixed_string"), fixedStringData1);
+        org.testng.Assert.assertEquals(row1.getByteArray("fixed_string_one"), fixedStringOneData1);
+
+        GenericRecord row2 = records.get(1);
+        org.testng.Assert.assertEquals(row2.getByteArray("string"), binaryData2);
+        org.testng.Assert.assertEquals(row2.getByteArray("fixed_string"), fixedStringData2);
+        org.testng.Assert.assertEquals(row2.getByteArray("fixed_string_one"), fixedStringOneData2);
+
         customClient.close();
     }
 
