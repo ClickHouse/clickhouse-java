@@ -6,6 +6,7 @@ import com.clickhouse.client.api.data_formats.internal.MapBackedRecord;
 import com.clickhouse.client.api.data_formats.internal.SerializerUtils;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.QuerySettings;
+import com.clickhouse.client.api.serde.POJOFieldDeserializer;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.format.BinaryStreamUtils;
 import org.testng.Assert;
@@ -15,6 +16,7 @@ import org.testng.annotations.Test;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -284,6 +286,83 @@ public class StringValueTests {
 
         Assert.assertTrue(read instanceof String, "Without a type hint Strings must still be returned as String");
         Assert.assertEquals(read, "still a string");
+    }
+
+    // ---- POJO binding (queryAll/readToPOJO) over String columns with the feature enabled ----
+
+    /**
+     * Minimal POJO with the only two field representations supported for top-level String/FixedString
+     * columns: {@link String} and {@code byte[]}. {@link StringValue} is a read-time holder and is not a
+     * supported POJO field type.
+     */
+    public static class StringPojo {
+        private String asString;
+        private byte[] asBytes;
+
+        public void setAsString(String asString) { this.asString = asString; }
+        public void setAsBytes(byte[] asBytes) { this.asBytes = asBytes; }
+    }
+
+    private static byte[] stringWire(byte[] value) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        BinaryStreamUtils.writeString(baos, value);
+        return baos.toByteArray();
+    }
+
+    private static POJOFieldDeserializer setterFor(String name, ClickHouseColumn column) throws Exception {
+        Method setter = StringPojo.class.getMethod(name,
+                name.equals("setAsString") ? String.class : byte[].class);
+        return SerializerUtils.compilePOJOSetter(setter, column);
+    }
+
+    @Test
+    public void testPojoSetterStringFieldDecodesWhenFeatureEnabled() throws Exception {
+        // Regression: with the feature enabled the reader produces StringValue, but a String setter must
+        // still receive a decoded String (the compiled setter casts the readValue result to String).
+        ClickHouseColumn column = ClickHouseColumn.of("s", "String");
+        byte[] wire = stringWire("hello".getBytes(StandardCharsets.UTF_8));
+
+        StringPojo pojo = new StringPojo();
+        setterFor("setAsString", column).setValue(pojo, reader(wire, true), column);
+        Assert.assertEquals(pojo.asString, "hello");
+    }
+
+    @Test
+    public void testPojoSetterByteArrayFieldReceivesRawBytesWhenFeatureEnabled() throws Exception {
+        // A byte[] setter must receive the raw bytes (preserving non-UTF-8 content) instead of a StringValue.
+        ClickHouseColumn column = ClickHouseColumn.of("s", "String");
+        byte[] binary = {(byte) 0xDE, (byte) 0xAD, (byte) 0x00, (byte) 0xBE, (byte) 0xEF};
+        byte[] wire = stringWire(binary);
+
+        StringPojo pojo = new StringPojo();
+        setterFor("setAsBytes", column).setValue(pojo, reader(wire, true), column);
+        Assert.assertEquals(pojo.asBytes, binary);
+    }
+
+    @Test
+    public void testPojoSetterFixedStringByteArrayFieldWhenFeatureEnabled() throws Exception {
+        // A byte[] setter over a FixedString column must receive the raw bytes, preserving binary content.
+        ClickHouseColumn column = ClickHouseColumn.of("s", "FixedString(3)");
+        byte[] binary = {(byte) 0xAA, (byte) 0xBB, (byte) 0xCC};
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(binary); // FixedString(3) is exactly 3 raw bytes on the wire
+
+        StringPojo pojo = new StringPojo();
+        setterFor("setAsBytes", column).setValue(pojo, reader(baos.toByteArray(), true), column);
+        Assert.assertEquals(pojo.asBytes, binary);
+    }
+
+    @Test
+    public void testPojoSetterFixedStringStringFieldWhenFeatureEnabled() throws Exception {
+        // A String setter over a FixedString column must receive the decoded String.
+        ClickHouseColumn column = ClickHouseColumn.of("s", "FixedString(3)");
+        byte[] bytes = "abc".getBytes(StandardCharsets.UTF_8);
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(bytes);
+
+        StringPojo pojo = new StringPojo();
+        setterFor("setAsString", column).setValue(pojo, reader(baos.toByteArray(), true), column);
+        Assert.assertEquals(pojo.asString, "abc");
     }
 
     // ---- Writing binary String values ----

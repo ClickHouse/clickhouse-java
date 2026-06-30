@@ -287,6 +287,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public InputStream getBinaryStream(int columnIndex) throws SQLException {
+        checkClosed();
         try {
             if (reader.hasValue(columnIndex)) {
                 byte[] bytes = reader.getByteArray(columnIndex);

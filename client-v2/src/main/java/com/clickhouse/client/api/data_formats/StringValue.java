@@ -6,8 +6,16 @@ import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
 /**
- * Holder for ClickHouse {@code String} or {@code FixedString} values that preserves raw bytes
+ * Read-time holder for ClickHouse {@code String} or {@code FixedString} values that preserves raw bytes
  * to avoid lossy decoding and unnecessary allocations.
+ * <p>
+ * <b>This is an internal value holder, not a general-purpose type for user code.</b> It is produced only
+ * by the read path when the binary-string feature is enabled (for example {@code GenericRecord.getObject}
+ * or {@code BinaryStreamReader.readValue} without a type hint), so that callers that need exact bytes can
+ * obtain them via {@link #toByteArray()} and callers that need text can decode via {@link #asString()}.
+ * It is <b>not</b> a supported field type for POJO binding: declare POJO fields for String/FixedString
+ * columns as {@link String} or {@code byte[]} instead. Normal application code should generally consume
+ * {@link String} or {@code byte[]} rather than holding onto a {@code StringValue}.
  * <p>
  * <b>This is a mutable structure and must be used with care.</b> To avoid copying, it does not
  * duplicate the bytes it is given: the constructor wraps the supplied array/buffer instead of
