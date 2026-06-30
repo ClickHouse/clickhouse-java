@@ -199,11 +199,11 @@ public class InsertTests extends BaseIntegrationTest {
         try (QueryResponse queryResponse =
                 client.query("SELECT * FROM " + tableName + " LIMIT 1").get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS)) {
 
-            // To read the binaryString properly as raw bytes, we must map String to StringValue
+            // To read the binaryString properly as raw bytes, we must enable binary string support
             Client readerClient = client;
             if (pojo.getBinaryString() != null) {
                 readerClient = newClient()
-                        .typeHintMapping(java.util.Collections.singletonMap(com.clickhouse.data.ClickHouseDataType.String, com.clickhouse.client.api.data_formats.StringValue.class))
+                        .binaryStringSupport(true)
                         .build();
             }
             ClickHouseBinaryFormatReader reader = readerClient.newBinaryFormatReader(queryResponse);

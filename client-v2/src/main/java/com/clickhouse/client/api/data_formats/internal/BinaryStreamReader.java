@@ -56,7 +56,7 @@ public class BinaryStreamReader {
 
     private final Class<?> arrayDefaultTypeHint;
 
-    private final boolean stringAsBinaryDefault;
+    private final boolean binaryStringSupport;
 
     private static final int SB_INIT_SIZE = 100;
 
@@ -71,8 +71,10 @@ public class BinaryStreamReader {
      * @param bufferAllocator - byte buffer allocator
      * @param jsonAsString - use string to serialize/deserialize JSON columns
      * @param typeHintMapping - what type use as hint if hint is not set or may not be known.
+     * @param binaryStringSupport - when {@code true}, top-level {@code String}/{@code FixedString} columns are read
+     *                              as {@link StringValue} preserving raw bytes; nested string values stay {@link String}.
      */
-    public BinaryStreamReader(InputStream input, TimeZone timeZone, Logger log, ByteBufferAllocator bufferAllocator, boolean jsonAsString, Map<ClickHouseDataType, Class<?>> typeHintMapping) {
+    public BinaryStreamReader(InputStream input, TimeZone timeZone, Logger log, ByteBufferAllocator bufferAllocator, boolean jsonAsString, Map<ClickHouseDataType, Class<?>> typeHintMapping, boolean binaryStringSupport) {
         this.log = log == null ? NOPLogger.NOP_LOGGER : log;
         this.timeZone = timeZone;
         this.input = input;
@@ -81,20 +83,7 @@ public class BinaryStreamReader {
 
         this.arrayDefaultTypeHint = typeHintMapping == null ||
                 typeHintMapping.isEmpty()? NO_TYPE_HINT : typeHintMapping.get(ClickHouseDataType.Array);
-        this.stringAsBinaryDefault = typeHintMapping != null &&
-                typeHintMapping.get(ClickHouseDataType.String) == StringValue.class;
-    }
-
-    private boolean readStringAsBinary(Class<?> typeHint) {
-        if (typeHint != null) {
-            if (typeHint == StringValue.class) {
-                return true;
-            }
-            if (typeHint == String.class) {
-                return false;
-            }
-        }
-        return stringAsBinaryDefault;
+        this.binaryStringSupport = binaryStringSupport;
     }
 
     /**
@@ -118,8 +107,14 @@ public class BinaryStreamReader {
      * @param <T> - target type of the value
      * @throws IOException when IO error occurs
      */
-    @SuppressWarnings("unchecked")
     public <T> T readValue(ClickHouseColumn column, Class<?> typeHint) throws IOException {
+        // Top-level reads honor the binary-string feature flag. Values nested inside containers always read
+        // strings as String (see readArray/readMap/readTuple/readNested/readVariant).
+        return readValue(column, typeHint, binaryStringSupport);
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> T readValue(ClickHouseColumn column, Class<?> typeHint, boolean stringAsValue) throws IOException {
         if (column.isNullable()) {
             int isNull = readByteOrEOF(input);
             if (isNull == 1) { // is Null?
@@ -138,7 +133,7 @@ public class BinaryStreamReader {
             switch (dataType) {
                 // Primitives
                 case FixedString: {
-                    if (readStringAsBinary(typeHint)) {
+                    if (stringAsValue) {
                         return (T) new StringValue(readStringBytes(input, precision));
                     }
                     byte[] bytes = precision > STRING_BUFF.length ?
@@ -147,7 +142,7 @@ public class BinaryStreamReader {
                     return (T) new String(bytes, 0, precision, StandardCharsets.UTF_8);
                 }
                 case String: {
-                    if (readStringAsBinary(typeHint)) {
+                    if (stringAsValue) {
                         return (T) readStringValue();
                     }
                     return (T) readString();
@@ -272,7 +267,7 @@ public class BinaryStreamReader {
                 case Geometry:
                     return (T) readVariant(actualColumn);
                 case Dynamic:
-                    return (T) readValue(actualColumn, typeHint);
+                    return (T) readValue(actualColumn, typeHint, stringAsValue);
                 case Nested:
                     return convertArray(readNested(actualColumn), typeHint);
                 default:
@@ -654,10 +649,10 @@ public class BinaryStreamReader {
                 || itemTypeColumn.getDataType() == ClickHouseDataType.Geometry) {
             array = new ArrayValue(Object.class, len);
             for (int i = 0; i < len; i++) {
-                array.set(i, readValue(itemTypeColumn));
+                array.set(i, readNestedValue(itemTypeColumn));
             }
         } else {
-            Object firstValue = readValue(itemTypeColumn);
+            Object firstValue = readNestedValue(itemTypeColumn);
             Class<?> itemClass = firstValue.getClass();
             if (firstValue instanceof Byte) {
                 itemClass = byte.class;
@@ -684,10 +679,19 @@ public class BinaryStreamReader {
             array = new ArrayValue(itemClass, len);
             array.set(0, firstValue);
             for (int i = 1; i < len; i++) {
-                array.set(i, readValue(itemTypeColumn));
+                array.set(i, readNestedValue(itemTypeColumn));
             }
         }
         return array;
+    }
+
+    /**
+     * Reads a value nested inside a container (Array, Map, Tuple, Nested, Variant). Strings are always
+     * decoded into {@link String} here, regardless of the binary-string feature flag, because nested types
+     * are not expected to carry large/binary strings.
+     */
+    private Object readNestedValue(ClickHouseColumn column) throws IOException {
+        return readValue(column, null, false);
     }
 
     public void skipValue(ClickHouseColumn column) throws IOException {
@@ -862,8 +866,8 @@ public class BinaryStreamReader {
         ClickHouseColumn valueType = column.getValueInfo();
         LinkedHashMap<Object, Object> map = new LinkedHashMap<>(len);
         for (int i = 0; i < len; i++) {
-            Object key = readValue(keyType);
-            Object value = readValue(valueType);
+            Object key = readNestedValue(keyType);
+            Object value = readNestedValue(valueType);
             map.put(key, value);
         }
         return map;
@@ -879,7 +883,7 @@ public class BinaryStreamReader {
         int len = column.getNestedColumns().size();
         Object[] tuple = new Object[len];
         for (int i = 0; i < len; i++) {
-            tuple[i] = readValue(column.getNestedColumns().get(i));
+            tuple[i] = readNestedValue(column.getNestedColumns().get(i));
         }
 
         return tuple;
@@ -903,7 +907,7 @@ public class BinaryStreamReader {
             int tupleLen = column.getNestedColumns().size();
             Object[] tuple = new Object[tupleLen];
             for (int j = 0; j < tupleLen; j++) {
-                tuple[j] = readValue(column.getNestedColumns().get(j));
+                tuple[j] = readNestedValue(column.getNestedColumns().get(j));
             }
 
             array.set(i, tuple);
@@ -917,7 +921,7 @@ public class BinaryStreamReader {
         if (ordNum == 0xFF) {
             return null;
         }
-        return readValue(column.getNestedColumns().get(ordNum));
+        return readNestedValue(column.getNestedColumns().get(ordNum));
     }
 
     /**

@@ -182,6 +182,14 @@ public enum ClientConfigProperties {
     TYPE_HINT_MAPPING("type_hint_mapping", Map.class),
 
     /**
+     * When enabled, top-level {@code String} and {@code FixedString} columns are read into a
+     * {@link com.clickhouse.client.api.data_formats.StringValue} that preserves the raw bytes instead of
+     * decoding them into a {@link String}. Values nested inside containers (Array, Map, Tuple, Nested, Variant)
+     * are still read as {@link String}, since those types are not expected to carry large/binary strings.
+     */
+    BINARY_STRING_SUPPORT("binary_string_support", Boolean.class, "false"),
+
+    /**
      * SNI SSL parameter that will be set for each outbound SSL socket.
      */
     SSL_SOCKET_SNI("ssl_socket_sni", String.class,""),

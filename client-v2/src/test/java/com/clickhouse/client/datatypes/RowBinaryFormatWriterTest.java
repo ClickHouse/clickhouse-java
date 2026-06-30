@@ -424,12 +424,8 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
             System.out.println("Rows written (manual): " + response.getWrittenRows());
         }
         
-        java.util.Map<com.clickhouse.data.ClickHouseDataType, Class<?>> typeHints = new java.util.HashMap<>();
-        typeHints.put(com.clickhouse.data.ClickHouseDataType.String, com.clickhouse.client.api.data_formats.StringValue.class);
-        typeHints.put(com.clickhouse.data.ClickHouseDataType.FixedString, com.clickhouse.client.api.data_formats.StringValue.class);
-
         Client customClient = newClient()
-                .typeHintMapping(typeHints)
+                .binaryStringSupport(true)
                 .build();
                 
         List<GenericRecord> records = customClient.queryAll("SELECT * FROM \"" + tableName  + "\" ORDER BY id" );
@@ -468,11 +464,7 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
             System.out.println("Image bytes written: " + imageData.length + ", rows: " + response.getWrittenRows());
         }
 
-        Map<com.clickhouse.data.ClickHouseDataType, Class<?>> typeHints = new HashMap<>();
-        typeHints.put(com.clickhouse.data.ClickHouseDataType.String,
-                com.clickhouse.client.api.data_formats.StringValue.class);
-
-        try (Client customClient = newClient().typeHintMapping(typeHints).build()) {
+        try (Client customClient = newClient().binaryStringSupport(true).build()) {
             // Idiomatic path: stream rows and read the binary payload via the index-based getByteArray(int).
             try (com.clickhouse.client.api.query.QueryResponse response =
                          customClient.query("SELECT * FROM \"" + tableName + "\" ORDER BY id").get()) {

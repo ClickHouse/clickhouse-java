@@ -581,12 +581,8 @@ public class BaseReaderTests extends BaseIntegrationTest {
         client.execute("CREATE TABLE " + table + " (id Int32, s String, fs FixedString(5), e FixedString(1)) ENGINE = Memory").get();
         client.execute("INSERT INTO " + table + " VALUES (1, 'hello', 'world', 'a'), (2, 'ClickHouse', 'Rocks', 'b')").get();
 
-        java.util.Map<ClickHouseDataType, Class<?>> typeHints = new java.util.HashMap<>();
-        typeHints.put(ClickHouseDataType.String, StringValue.class);
-        typeHints.put(ClickHouseDataType.FixedString, StringValue.class);
-
         Client customClient = newClient()
-                .typeHintMapping(typeHints)
+                .binaryStringSupport(true)
                 .build();
 
         try {
@@ -660,12 +656,8 @@ public class BaseReaderTests extends BaseIntegrationTest {
                 .digest(message.getBytes(java.nio.charset.StandardCharsets.UTF_8));
         Assert.assertEquals(expectedHash.length, 64);
 
-        java.util.Map<ClickHouseDataType, Class<?>> typeHints = new java.util.HashMap<>();
-        typeHints.put(ClickHouseDataType.String, StringValue.class);
-        typeHints.put(ClickHouseDataType.FixedString, StringValue.class);
-
         Client customClient = newClient()
-                .typeHintMapping(typeHints)
+                .binaryStringSupport(true)
                 .build();
 
         final String query = "SELECT SHA512('" + message + "') AS hash";

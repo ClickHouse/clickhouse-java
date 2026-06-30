@@ -4,7 +4,6 @@ import com.clickhouse.client.api.data_formats.internal.AbstractBinaryFormatReade
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.data_formats.internal.SerializerUtils;
 import com.clickhouse.data.ClickHouseColumn;
-import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.format.BinaryStreamUtils;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
@@ -16,18 +15,14 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.util.Collections;
 import java.util.Map;
 import java.util.TimeZone;
 
 public class StringValueTests {
 
-    private static final Map<ClickHouseDataType, Class<?>> STRING_AS_BINARY =
-            Collections.singletonMap(ClickHouseDataType.String, (Class<?>) StringValue.class);
-
-    private static BinaryStreamReader reader(byte[] input, Map<ClickHouseDataType, Class<?>> hints) {
+    private static BinaryStreamReader reader(byte[] input, boolean binaryStringSupport) {
         return new BinaryStreamReader(new ByteArrayInputStream(input), TimeZone.getTimeZone("UTC"), null,
-                new BinaryStreamReader.DefaultByteBufferAllocator(), false, hints);
+                new BinaryStreamReader.DefaultByteBufferAllocator(), false, null, binaryStringSupport);
     }
 
     // ---- StringValue API ----
@@ -135,8 +130,8 @@ public class StringValueTests {
         byte[] wire = baos.toByteArray();
 
         ClickHouseColumn column = ClickHouseColumn.of("s", "String");
-        StringValue first = reader(wire, STRING_AS_BINARY).readValue(column);
-        StringValue second = reader(wire, STRING_AS_BINARY).readValue(column);
+        StringValue first = reader(wire, true).readValue(column);
+        StringValue second = reader(wire, true).readValue(column);
 
         Assert.assertEquals(first, second);
         Assert.assertEquals(first.hashCode(), second.hashCode());
@@ -173,7 +168,7 @@ public class StringValueTests {
         BinaryStreamUtils.writeString(baos, encoded); // binary string write (raw bytes)
 
         ClickHouseColumn column = ClickHouseColumn.of("s", "String");
-        Object read = reader(baos.toByteArray(), STRING_AS_BINARY).readValue(column);
+        Object read = reader(baos.toByteArray(), true).readValue(column);
 
         Assert.assertTrue(read instanceof StringValue, "Expected StringValue but got " + read.getClass());
         StringValue sv = (StringValue) read;
@@ -190,7 +185,7 @@ public class StringValueTests {
         BinaryStreamUtils.writeString(baos, binary);
 
         ClickHouseColumn column = ClickHouseColumn.of("s", "String");
-        StringValue sv = reader(baos.toByteArray(), STRING_AS_BINARY).readValue(column);
+        StringValue sv = reader(baos.toByteArray(), true).readValue(column);
 
         Assert.assertEquals(sv.toByteArray(), binary, "Binary content must be preserved exactly");
         Assert.assertEquals(AbstractBinaryFormatReader.stringLikeToBytes(sv), binary,
@@ -204,30 +199,26 @@ public class StringValueTests {
         baos.write(binary); // FixedString(5) is written as exactly 5 raw bytes
 
         ClickHouseColumn column = ClickHouseColumn.of("s", "FixedString(5)");
-        Object read = reader(baos.toByteArray(), STRING_AS_BINARY).readValue(column);
+        Object read = reader(baos.toByteArray(), true).readValue(column);
 
         Assert.assertTrue(read instanceof StringValue);
         Assert.assertEquals(((StringValue) read).toByteArray(), binary);
     }
 
     @Test
-    public void testReadStringArrayAsStringValue() throws IOException {
-        // Array(String) elements must be preserved as StringValue (including non-UTF-8 content).
-        byte[][] elements = {
-                "plain".getBytes(StandardCharsets.UTF_8),
-                "Привет".getBytes(StandardCharsets.UTF_8),
-                new byte[]{(byte) 0xDE, (byte) 0xAD, (byte) 0xBE, (byte) 0xEF},
-                new byte[0],
-        };
+    public void testReadStringArrayKeepsStringWhenBinarySupportEnabled() throws IOException {
+        // Even with the binary-string feature enabled, nested Array(String) elements are read as String:
+        // nested types are not expected to carry large/binary strings.
+        String[] elements = {"plain", "Привет", "中文", ""};
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         BinaryStreamUtils.writeVarInt(baos, elements.length);
-        for (byte[] element : elements) {
-            BinaryStreamUtils.writeString(baos, element);
+        for (String element : elements) {
+            BinaryStreamUtils.writeString(baos, element.getBytes(StandardCharsets.UTF_8));
         }
 
         ClickHouseColumn column = ClickHouseColumn.of("a", "Array(String)");
-        Object read = reader(baos.toByteArray(), STRING_AS_BINARY).readValue(column);
+        Object read = reader(baos.toByteArray(), true).readValue(column);
 
         Assert.assertTrue(read instanceof BinaryStreamReader.ArrayValue,
                 "Expected ArrayValue but got " + read.getClass());
@@ -235,34 +226,28 @@ public class StringValueTests {
         Assert.assertEquals(array.length(), elements.length);
 
         Object raw = array.getArray();
-        Assert.assertTrue(raw instanceof StringValue[], "Array items must be StringValue, got " + raw.getClass());
-        StringValue[] values = (StringValue[]) raw;
+        Assert.assertTrue(raw instanceof String[], "Nested array items must be String, got " + raw.getClass());
+        String[] values = (String[]) raw;
         for (int i = 0; i < elements.length; i++) {
-            Assert.assertEquals(values[i].toByteArray(), elements[i], "Element " + i + " bytes must be preserved");
+            Assert.assertEquals(values[i], elements[i], "Element " + i + " must round-trip as String");
         }
     }
 
     @Test
-    public void testReadStringMapAsStringValue() throws IOException {
-        // Map(String, String) keys and values must be preserved as StringValue.
-        byte[][] keys = {
-                "k1".getBytes(StandardCharsets.UTF_8),
-                "ключ".getBytes(StandardCharsets.UTF_8),
-        };
-        byte[][] vals = {
-                "v1".getBytes(StandardCharsets.UTF_8),
-                new byte[]{(byte) 0x00, (byte) 0xFF, (byte) 0x80},
-        };
+    public void testReadStringMapKeepsStringWhenBinarySupportEnabled() throws IOException {
+        // Even with the binary-string feature enabled, nested Map(String, String) keys and values are read as String.
+        String[] keys = {"k1", "ключ"};
+        String[] vals = {"v1", "значение"};
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         BinaryStreamUtils.writeVarInt(baos, keys.length);
         for (int i = 0; i < keys.length; i++) {
-            BinaryStreamUtils.writeString(baos, keys[i]);
-            BinaryStreamUtils.writeString(baos, vals[i]);
+            BinaryStreamUtils.writeString(baos, keys[i].getBytes(StandardCharsets.UTF_8));
+            BinaryStreamUtils.writeString(baos, vals[i].getBytes(StandardCharsets.UTF_8));
         }
 
         ClickHouseColumn column = ClickHouseColumn.of("m", "Map(String, String)");
-        Object read = reader(baos.toByteArray(), STRING_AS_BINARY).readValue(column);
+        Object read = reader(baos.toByteArray(), true).readValue(column);
 
         Assert.assertTrue(read instanceof Map, "Expected Map but got " + read.getClass());
         Map<?, ?> map = (Map<?, ?>) read;
@@ -270,15 +255,14 @@ public class StringValueTests {
 
         int i = 0;
         for (Map.Entry<?, ?> entry : map.entrySet()) {
-            Assert.assertTrue(entry.getKey() instanceof StringValue, "Map key must be a StringValue");
-            Assert.assertTrue(entry.getValue() instanceof StringValue, "Map value must be a StringValue");
-            Assert.assertEquals(((StringValue) entry.getKey()).toByteArray(), keys[i], "Key " + i + " bytes");
-            Assert.assertEquals(((StringValue) entry.getValue()).toByteArray(), vals[i], "Value " + i + " bytes");
+            Assert.assertTrue(entry.getKey() instanceof String, "Nested map key must be a String");
+            Assert.assertTrue(entry.getValue() instanceof String, "Nested map value must be a String");
+            Assert.assertEquals(entry.getKey(), keys[i], "Key " + i);
+            Assert.assertEquals(entry.getValue(), vals[i], "Value " + i);
             i++;
         }
 
-        // Lookup by an equal StringValue key must work (relies on equals/hashCode over raw bytes).
-        Assert.assertEquals(((StringValue) map.get(new StringValue(keys[0]))).toByteArray(), vals[0]);
+        Assert.assertEquals(map.get(keys[0]), vals[0]);
     }
 
     @Test
@@ -288,7 +272,7 @@ public class StringValueTests {
         BinaryStreamUtils.writeString(baos, encoded);
 
         ClickHouseColumn column = ClickHouseColumn.of("s", "String");
-        Object read = reader(baos.toByteArray(), AbstractBinaryFormatReader.NO_TYPE_HINT_MAPPING).readValue(column);
+        Object read = reader(baos.toByteArray(), false).readValue(column);
 
         Assert.assertTrue(read instanceof String, "Without a type hint Strings must still be returned as String");
         Assert.assertEquals(read, "still a string");
@@ -303,7 +287,7 @@ public class StringValueTests {
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         SerializerUtils.serializeData(baos, binary, column);
-        StringValue read = reader(baos.toByteArray(), STRING_AS_BINARY).readValue(column);
+        StringValue read = reader(baos.toByteArray(), true).readValue(column);
         Assert.assertEquals(read.toByteArray(), binary);
     }
 
@@ -315,7 +299,7 @@ public class StringValueTests {
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         SerializerUtils.serializeData(baos, value, column);
-        StringValue read = reader(baos.toByteArray(), STRING_AS_BINARY).readValue(column);
+        StringValue read = reader(baos.toByteArray(), true).readValue(column);
         Assert.assertEquals(read.toByteArray(), binary);
     }
 
@@ -326,7 +310,7 @@ public class StringValueTests {
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         SerializerUtils.serializeData(baos, binary, column);
-        StringValue read = reader(baos.toByteArray(), STRING_AS_BINARY).readValue(column);
+        StringValue read = reader(baos.toByteArray(), true).readValue(column);
         Assert.assertEquals(read.toByteArray(), binary);
     }
 }

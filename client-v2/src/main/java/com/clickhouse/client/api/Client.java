@@ -135,6 +135,8 @@ public class Client implements AutoCloseable {
 
     private final Map<ClickHouseDataType, Class<?>> typeHintMapping;
 
+    private final boolean binaryStringSupport;
+
     // Server context
     private String dbUser;
     private String serverVersion;
@@ -200,6 +202,7 @@ public class Client implements AutoCloseable {
         this.serverVersion = configuration.getOrDefault(ClientConfigProperties.SERVER_VERSION.getKey(), "unknown");
         this.dbUser = configuration.getOrDefault(ClientConfigProperties.USER.getKey(), ClientConfigProperties.USER.getDefObjVal());
         this.typeHintMapping = (Map<ClickHouseDataType, Class<?>>) this.configuration.get(ClientConfigProperties.TYPE_HINT_MAPPING.getKey());
+        this.binaryStringSupport = ClientConfigProperties.BINARY_STRING_SUPPORT.getOrDefault(this.configuration);
     }
 
     /**
@@ -1116,6 +1119,20 @@ public class Client implements AutoCloseable {
                     ClientConfigProperties.mapToString(typeHintMapping, (v) -> {
                         return ((Class<?>) v).getName();
                     }));
+            return this;
+        }
+
+        /**
+         * Enables reading top-level {@code String} and {@code FixedString} columns as
+         * {@link com.clickhouse.client.api.data_formats.StringValue}, preserving the raw bytes instead of
+         * decoding them into a {@link String}. Values nested inside containers (Array, Map, Tuple, Nested,
+         * Variant) are still read as {@link String}.
+         *
+         * @param enable - if the feature is enabled
+         * @return this builder instance
+         */
+        public Builder binaryStringSupport(boolean enable) {
+            this.configuration.put(ClientConfigProperties.BINARY_STRING_SUPPORT.getKey(), String.valueOf(enable));
             return this;
         }
 
@@ -2109,17 +2126,17 @@ public class Client implements AutoCloseable {
         switch (response.getFormat()) {
             case Native:
                 reader = new NativeFormatReader(response.getInputStream(), response.getSettings(),
-                        byteBufferPool, typeHintMapping);
+                        byteBufferPool, typeHintMapping, binaryStringSupport);
                 break;
             case RowBinaryWithNamesAndTypes:
-                reader = new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings(), byteBufferPool, typeHintMapping);
+                reader = new RowBinaryWithNamesAndTypesFormatReader(response.getInputStream(), response.getSettings(), byteBufferPool, typeHintMapping, binaryStringSupport);
                 break;
             case RowBinaryWithNames:
-                reader = new RowBinaryWithNamesFormatReader(response.getInputStream(), response.getSettings(), schema, byteBufferPool, typeHintMapping);
+                reader = new RowBinaryWithNamesFormatReader(response.getInputStream(), response.getSettings(), schema, byteBufferPool, typeHintMapping, binaryStringSupport);
                 break;
             case RowBinary:
                 reader = new RowBinaryFormatReader(response.getInputStream(), response.getSettings(), schema,
-                        byteBufferPool, typeHintMapping);
+                        byteBufferPool, typeHintMapping, binaryStringSupport);
                 break;
             default:
                 throw new IllegalArgumentException("Binary readers doesn't support format: " + response.getFormat());

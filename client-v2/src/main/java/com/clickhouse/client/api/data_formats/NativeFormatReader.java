@@ -29,7 +29,14 @@ public class NativeFormatReader extends AbstractBinaryFormatReader {
     public NativeFormatReader(InputStream inputStream, QuerySettings settings,
                               BinaryStreamReader.ByteBufferAllocator byteBufferAllocator,
                               Map<ClickHouseDataType, Class<?>> typeHintMapping) {
-        super(inputStream, settings, null, byteBufferAllocator, typeHintMapping);
+        this(inputStream, settings, byteBufferAllocator, typeHintMapping, false);
+    }
+
+    public NativeFormatReader(InputStream inputStream, QuerySettings settings,
+                              BinaryStreamReader.ByteBufferAllocator byteBufferAllocator,
+                              Map<ClickHouseDataType, Class<?>> typeHintMapping,
+                              boolean binaryStringSupport) {
+        super(inputStream, settings, null, byteBufferAllocator, typeHintMapping, binaryStringSupport);
         try {
             readBlock();
         } catch (IOException e) {

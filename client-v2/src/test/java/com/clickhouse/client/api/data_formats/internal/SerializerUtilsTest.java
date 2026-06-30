@@ -25,7 +25,7 @@ import java.util.UUID;
 public class SerializerUtilsTest {
     private BinaryStreamReader newReader(byte[] data) {
         return new BinaryStreamReader(new ByteArrayInputStream(data), TimeZone.getTimeZone("UTC"), null,
-                new BinaryStreamReader.DefaultByteBufferAllocator(), false, null);
+                new BinaryStreamReader.DefaultByteBufferAllocator(), false, null, false);
     }
 
     @Test

@@ -77,7 +77,11 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     private long row = -1; // before first row
     private long lastNextCallTs; // for exception to detect slow reader
 
-    protected AbstractBinaryFormatReader(InputStream inputStream, QuerySettings querySettings, TableSchema schema,BinaryStreamReader.ByteBufferAllocator byteBufferAllocator, Map<ClickHouseDataType, Class<?>> defaultTypeHintMap) {
+    protected AbstractBinaryFormatReader(InputStream inputStream, QuerySettings querySettings, TableSchema schema, BinaryStreamReader.ByteBufferAllocator byteBufferAllocator, Map<ClickHouseDataType, Class<?>> defaultTypeHintMap) {
+        this(inputStream, querySettings, schema, byteBufferAllocator, defaultTypeHintMap, false);
+    }
+
+    protected AbstractBinaryFormatReader(InputStream inputStream, QuerySettings querySettings, TableSchema schema, BinaryStreamReader.ByteBufferAllocator byteBufferAllocator, Map<ClickHouseDataType, Class<?>> defaultTypeHintMap, boolean binaryStringSupport) {
         this.input = inputStream;
         Map<String, Object> settings = querySettings == null ? Collections.emptyMap() : querySettings.getAllSettings();
         Boolean useServerTimeZone = (Boolean) settings.get(ClientConfigProperties.USE_SERVER_TIMEZONE.getKey());
@@ -90,7 +94,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         boolean jsonAsString = MapUtils.getFlag(settings,
                 ClientConfigProperties.serverSetting(ServerSettings.OUTPUT_FORMAT_BINARY_WRITE_JSON_AS_STRING), false);
         this.binaryStreamReader = new BinaryStreamReader(inputStream, timeZone, LOG, byteBufferAllocator, jsonAsString,
-                defaultTypeHintMap);
+                defaultTypeHintMap, binaryStringSupport);
         if (schema != null) {
             setSchema(schema);
         }

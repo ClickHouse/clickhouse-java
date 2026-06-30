@@ -19,7 +19,16 @@ public class RowBinaryFormatReader extends AbstractBinaryFormatReader {
                                  TableSchema schema,
                                  BinaryStreamReader.ByteBufferAllocator byteBufferAllocator,
                                  Map<ClickHouseDataType, Class<?>> typeHintMapping) {
-        super(inputStream, querySettings, schema, byteBufferAllocator, typeHintMapping);
+        this(inputStream, querySettings, schema, byteBufferAllocator, typeHintMapping, false);
+    }
+
+    public RowBinaryFormatReader(InputStream inputStream,
+                                 QuerySettings querySettings,
+                                 TableSchema schema,
+                                 BinaryStreamReader.ByteBufferAllocator byteBufferAllocator,
+                                 Map<ClickHouseDataType, Class<?>> typeHintMapping,
+                                 boolean binaryStringSupport) {
+        super(inputStream, querySettings, schema, byteBufferAllocator, typeHintMapping, binaryStringSupport);
         readNextRecord();
     }
 
