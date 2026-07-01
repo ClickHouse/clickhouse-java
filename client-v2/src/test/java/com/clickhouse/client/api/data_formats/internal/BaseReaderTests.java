@@ -580,7 +580,7 @@ public class BaseReaderTests extends BaseIntegrationTest {
         final String table = "test_reading_stringvalue";
 
         client.execute("DROP TABLE IF EXISTS " + table).get();
-        client.execute("CREATE TABLE " + table + " (id Int32, s String, fs FixedString(5), e FixedString(1)) ENGINE = Memory").get();
+        client.execute("CREATE TABLE " + table + " (id Int32, s String, fs FixedString(5), e FixedString(1)) ENGINE = MergeTree ORDER BY id").get();
         client.execute("INSERT INTO " + table + " VALUES (1, 'hello', 'world', 'a'), (2, 'ClickHouse', 'Rocks', 'b')").get();
 
         Client customClient = newClient()
