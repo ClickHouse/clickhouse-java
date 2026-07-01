@@ -1,8 +1,10 @@
 package com.clickhouse.client.api.internal;
 
 import com.clickhouse.data.ClickHouseColumn;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -163,5 +165,58 @@ public class DataTypeConverterTest {
         assertEquals(
                 converter.convertToString(new double[][] {{1D, 2D, 3D}}, ClickHouseColumn.of("field", "Dynamic")),
                 "[[1.0, 2.0, 3.0]]");
+    }
+
+    @DataProvider(name = "queryParameters")
+    public static Object[][] queryParameters() {
+        return new Object[][] {
+                // --- Scalars: bare, UNQUOTED text form. The server reads a scalar {name:Type} value
+                // verbatim, so quoting it (e.g. '2026-05-13' for a Date) is rejected. ---
+                {LocalDate.of(2026, 5, 13), "2026-05-13"},
+                {"hello", "hello"},
+                {42, "42"},
+                {new BigDecimal("1.50"), "1.50"},
+                {null, "null"},
+
+                // --- Array/List with String/temporal leaves: single-quoted so the server's array
+                // text parser accepts them (previously emitted e.g. [2026-05-13] -> HTTP 400). ---
+                {Arrays.asList(LocalDate.of(2026, 5, 13), LocalDate.of(2026, 5, 14)), "['2026-05-13','2026-05-14']"},
+                {Arrays.asList("a", "b"), "['a','b']"},
+                {Collections.singletonList(LocalDateTime.of(2026, 5, 13, 16, 10, 0)), "['2026-05-13 16:10:00']"},
+                {new LocalDate[] {LocalDate.of(2026, 5, 13)}, "['2026-05-13']"},
+
+                // --- Primitive arrays are detected via getClass().isArray() and iterated reflectively
+                // (Array.get autoboxes), so they are no longer mis-rendered as a scalar "[I@..". ---
+                {new int[] {1, 2, 3}, "[1,2,3]"},
+                {new double[] {1.0d, 2.5d}, "[1.0,2.5]"},
+                {new boolean[] {true, false}, "[true,false]"},
+                // byte[] has no declared type here, so it is treated as a numeric array (Array(Int8)).
+                {new byte[] {1, 2, 3}, "[1,2,3]"},
+
+                // --- Nested containers, including a nested primitive array (List<int[]>). ---
+                {Collections.singletonList(Collections.singletonList(LocalDate.of(2026, 5, 13))), "[['2026-05-13']]"},
+                {Collections.singletonList(new int[] {1, 2}), "[[1,2]]"},
+
+                // --- Map: {k:v} (no spaces), keys/values formatted like array leaves. ---
+                {Collections.singletonMap("k", LocalDate.of(2026, 5, 13)), "{'k':'2026-05-13'}"},
+
+                // --- Escaping and null leaves. ---
+                {Collections.singletonList("a'b"), "['a\\'b']"},
+                {Arrays.asList(LocalDate.of(2026, 5, 13), null), "['2026-05-13',NULL]"},
+
+                // --- Contrast: numeric containers must stay UNQUOTED (quoting an Array(Int32)/
+                // Array(Decimal) element causes the server to reject it with CANNOT_READ_ARRAY_FROM_TEXT). ---
+                {Arrays.asList(1, 2, 3), "[1,2,3]"},
+                {Collections.singletonList(new BigDecimal("1.50")), "[1.50]"},
+
+                // --- Boundary: empty containers. ---
+                {Collections.emptyList(), "[]"},
+                {Collections.emptyMap(), "{}"},
+        };
+    }
+
+    @Test(dataProvider = "queryParameters")
+    public void testConvertParameterToString(Object value, String expected) {
+        assertEquals(new DataTypeConverter().convertParameterToString(value), expected);
     }
 }

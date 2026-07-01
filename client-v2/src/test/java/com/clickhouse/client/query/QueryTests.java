@@ -59,6 +59,7 @@ import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -1658,6 +1659,45 @@ public class QueryTests extends BaseIntegrationTest {
 
         Assert.assertEquals(records.get(0).getString("name"), "COLLATIONS");
         Assert.assertEquals(records.get(1).getString("name"), "ENGINES");
+    }
+
+    @Test(groups = {"integration"})
+    public void testContainerQueryParamsQuoteInnerValues() {
+        // Regression for Array/Map parameters whose elements were emitted unquoted (e.g.
+        // param_dates=[2026-05-13]) and rejected by the server with HTTP 400. Raw List/array/Map
+        // values must now round-trip without the manual DataTypeConverter pre-formatting workaround.
+        final Map<String, Object> params = new HashMap<>();
+        params.put("dates", Arrays.asList(LocalDate.of(2026, 5, 13), LocalDate.of(2026, 5, 14)));
+        params.put("names", Arrays.asList("a", "b"));
+        params.put("ints", Arrays.asList(1, 2, 3));
+        params.put("dateMap", Collections.singletonMap("k", LocalDate.of(2026, 5, 13)));
+        // Object array, primitive array and a nested array must all be supported, not just List.
+        params.put("dateArr", new LocalDate[]{LocalDate.of(2026, 5, 13)});
+        params.put("intArr", new int[]{4, 5, 6});
+        params.put("nested", Arrays.asList(Arrays.asList(1, 2), Arrays.asList(3, 4)));
+
+        List<GenericRecord> records = client.queryAll(
+                "SELECT toString({dates:Array(Date)}) AS d, " +
+                        "toString({names:Array(String)}) AS n, " +
+                        "toString({ints:Array(Int32)}) AS i, " +
+                        "toString({dateMap:Map(String, Date)}) AS m, " +
+                        "toString({dateArr:Array(Date)}) AS da, " +
+                        "toString({intArr:Array(Int32)}) AS ia, " +
+                        "toString({nested:Array(Array(Int32))}) AS ne",
+                params);
+
+        Assert.assertEquals(records.size(), 1);
+        GenericRecord record = records.get(0);
+        // Array(Date)/Array(String) elements are single-quoted so the server parses them.
+        Assert.assertEquals(record.getString("d"), "['2026-05-13','2026-05-14']");
+        Assert.assertEquals(record.getString("n"), "['a','b']");
+        // Contrast: numeric arrays must stay unquoted (quoting causes CANNOT_READ_ARRAY_FROM_TEXT).
+        Assert.assertEquals(record.getString("i"), "[1,2,3]");
+        Assert.assertEquals(record.getString("m"), "{'k':'2026-05-13'}");
+        // Object array, primitive array and nested array round-trip too.
+        Assert.assertEquals(record.getString("da"), "['2026-05-13']");
+        Assert.assertEquals(record.getString("ia"), "[4,5,6]");
+        Assert.assertEquals(record.getString("ne"), "[[1,2],[3,4]]");
     }
 
     @Test(groups = {"integration"})
