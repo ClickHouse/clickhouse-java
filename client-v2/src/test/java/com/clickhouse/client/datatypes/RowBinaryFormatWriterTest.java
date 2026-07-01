@@ -6,33 +6,42 @@ import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.command.CommandSettings;
+import com.clickhouse.client.api.data_formats.RowBinaryFormatSerializer;
 import com.clickhouse.client.api.data_formats.RowBinaryFormatWriter;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
+import com.clickhouse.client.api.data_formats.internal.StringValue;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.GenericRecord;
+import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseVersion;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -156,6 +165,11 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
 
         if (expected instanceof BigDecimal) {
             expected = ((BigDecimal) expected).stripTrailingZeros();
+        }
+
+        if (actual instanceof byte[] && expected instanceof byte[]) {
+            org.testng.Assert.assertEquals((byte[]) actual, (byte[]) expected);
+            return;
         }
 
         assertEquals(String.valueOf(actual), String.valueOf(expected));
@@ -376,6 +390,139 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
         writeTest(tableName, tableCreate, rows);
     }
 
+    @Test (groups = { "integration" })
+    public void writeBinaryStringsTest() throws Exception {
+        String tableName = "rowBinaryFormatWriterTest_writeBinaryStringsTests_" + UUID.randomUUID().toString().replace('-', '_');
+        String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
+                " (id Int32, " +
+                "  string String, " +
+                "  fixed_string FixedString(5), " +
+                "  fixed_string_one FixedString(1) " +
+                "  ) Engine = MergeTree ORDER BY id";
+
+        // Row 1 is written via setValue(byte[]), row 2 via setString(byte[]); use distinct
+        // payloads per row so the rows are not identical (identical rows would be collapsed
+        // by insert deduplication on Cloud's replicated/shared engines).
+        byte[] binaryData1 = new byte[]{(byte) 0xDE, (byte) 0xAD, (byte) 0xBE, (byte) 0xEF, (byte) 0x00, (byte) 0xFF, (byte) 0x80};
+        byte[] fixedStringData1 = new byte[]{(byte) 0xAA, (byte) 0xBB, (byte) 0xCC, (byte) 0xDD, (byte) 0xEE};
+        byte[] fixedStringOneData1 = new byte[]{(byte) 0x7F};
+
+        byte[] binaryData2 = new byte[]{(byte) 0x01, (byte) 0x02, (byte) 0x03, (byte) 0xFE, (byte) 0xFD, (byte) 0x00, (byte) 0x7F};
+        byte[] fixedStringData2 = new byte[]{(byte) 0x11, (byte) 0x22, (byte) 0x33, (byte) 0x44, (byte) 0x55};
+        byte[] fixedStringOneData2 = new byte[]{(byte) 0x01};
+
+        // Instead of writeTest which reads back using default string decoding, we write manually
+        // and query back using typeHintMapping to preserve raw bytes
+        initTable(tableName, tableCreate, new CommandSettings());
+        TableSchema schema = client.getTableSchema(tableName);
+
+        // Write both rows in a single insert: row 1 exercises setValue(byte[]) and row 2 setString(byte[]).
+        ClickHouseFormat format = ClickHouseFormat.RowBinaryWithDefaults;
+        try (InsertResponse response = client.insert(tableName, out -> {
+            RowBinaryFormatWriter w = new RowBinaryFormatWriter(out, schema, format);
+            w.setValue(schema.nameToColumnIndex("id"), 1);
+            w.setValue(schema.nameToColumnIndex("string"), binaryData1);
+            w.setValue(schema.nameToColumnIndex("fixed_string"), fixedStringData1);
+            w.setValue(schema.nameToColumnIndex("fixed_string_one"), fixedStringOneData1);
+            w.commitRow();
+
+            w.setValue(schema.nameToColumnIndex("id"), 2);
+            w.setString("string", binaryData2);
+            w.setString("fixed_string", fixedStringData2);
+            w.setString("fixed_string_one", fixedStringOneData2);
+            w.commitRow();
+        }, format, settings).get()) {
+            System.out.println("Rows written: " + response.getWrittenRows());
+        }
+
+        Client customClient = newClient()
+                .binaryStringSupport(true)
+                .build();
+
+        List<GenericRecord> records = customClient.queryAll("SELECT * FROM \"" + tableName  + "\" ORDER BY id" );
+        assertEquals(records.size(), 2);
+
+        GenericRecord row1 = records.get(0);
+        org.testng.Assert.assertEquals(row1.getByteArray("string"), binaryData1);
+        org.testng.Assert.assertEquals(row1.getByteArray("fixed_string"), fixedStringData1);
+        org.testng.Assert.assertEquals(row1.getByteArray("fixed_string_one"), fixedStringOneData1);
+
+        GenericRecord row2 = records.get(1);
+        org.testng.Assert.assertEquals(row2.getByteArray("string"), binaryData2);
+        org.testng.Assert.assertEquals(row2.getByteArray("fixed_string"), fixedStringData2);
+        org.testng.Assert.assertEquals(row2.getByteArray("fixed_string_one"), fixedStringOneData2);
+
+        customClient.close();
+    }
+
+    @Test (groups = { "integration" })
+    public void writeAndReadImageTest() throws Exception {
+        // Demonstrates that large binary blobs (here a ~10KB PNG) survive a full write/read round-trip
+        // through a String column without being corrupted by lossy UTF-8 decoding.
+        byte[] imageData = readResource("clickhouse-logo.png");
+        org.testng.Assert.assertTrue(imageData.length > 1024, "Expected a non-trivial binary payload");
+
+        String tableName = "rowBinaryFormatWriterTest_writeAndReadImageTest_" + UUID.randomUUID().toString().replace('-', '_');
+        String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
+                " (id Int32, image String) Engine = MergeTree ORDER BY id";
+
+        initTable(tableName, tableCreate, new CommandSettings());
+        TableSchema schema = client.getTableSchema(tableName);
+
+        ClickHouseFormat format = ClickHouseFormat.RowBinaryWithDefaults;
+        try (InsertResponse response = client.insert(tableName, out -> {
+            RowBinaryFormatWriter w = new RowBinaryFormatWriter(out, schema, format);
+            w.setValue(schema.nameToColumnIndex("id"), 1);
+            w.setValue(schema.nameToColumnIndex("image"), imageData);
+            w.commitRow();
+        }, format, settings).get()) {
+            System.out.println("Image bytes written: " + imageData.length + ", rows: " + response.getWrittenRows());
+        }
+
+        try (Client customClient = newClient().binaryStringSupport(true).build()) {
+            // Idiomatic path: stream rows and read the binary payload via the index-based getByteArray(int).
+            try (com.clickhouse.client.api.query.QueryResponse response =
+                         customClient.query("SELECT * FROM \"" + tableName + "\" ORDER BY id").get()) {
+                com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader reader =
+                        customClient.newBinaryFormatReader(response);
+                org.testng.Assert.assertNotNull(reader.next());
+
+                int imageIndex = reader.getSchema().nameToColumnIndex("image");
+                byte[] streamed = reader.getByteArray(imageIndex);
+                org.testng.Assert.assertEquals(streamed, imageData,
+                        "Image bytes read via getByteArray(int) must match the source exactly");
+                // The name-based overload must agree with the index-based one.
+                org.testng.Assert.assertEquals(reader.getByteArray("image"), streamed);
+            }
+
+            List<GenericRecord> records = customClient.queryAll("SELECT * FROM \"" + tableName + "\" ORDER BY id");
+            assertEquals(records.size(), 1);
+
+            GenericRecord record = records.get(0);
+            // Raw bytes must be preserved exactly, regardless of how they are accessed.
+            org.testng.Assert.assertEquals(record.getByteArray("image"), imageData,
+                    "Image bytes read back via getByteArray must match the source exactly");
+
+            com.clickhouse.client.api.data_formats.internal.StringValue value =
+                    (com.clickhouse.client.api.data_formats.internal.StringValue) record.getObject("image");
+            org.testng.Assert.assertEquals(value.size(), imageData.length);
+            org.testng.Assert.assertEquals(value.toByteArray(), imageData,
+                    "StringValue must preserve the full binary payload");
+        }
+    }
+
+    private byte[] readResource(String name) throws IOException {
+        try (java.io.InputStream is = getClass().getClassLoader().getResourceAsStream(name)) {
+            org.testng.Assert.assertNotNull(is, "Test resource not found on classpath: " + name);
+            java.io.ByteArrayOutputStream buffer = new java.io.ByteArrayOutputStream();
+            byte[] chunk = new byte[8192];
+            int read;
+            while ((read = is.read(chunk)) != -1) {
+                buffer.write(chunk, 0, read);
+            }
+            return buffer.toByteArray();
+        }
+    }
 
     @Test (groups = { "integration" })
     public void writeDatetimeTests() throws Exception {
@@ -708,5 +855,91 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
         }};
 
         writeTest(tableName, tableCreate, rows);
+    }
+
+    // -----------------------------------------------------------------------------------------------------------------
+    // Unit coverage for the writeString helpers on RowBinaryFormatSerializer and the setString(byte[]) overloads on
+    // RowBinaryFormatWriter, which the integration tests above do not exercise in isolation. These run without a server.
+    // -----------------------------------------------------------------------------------------------------------------
+
+    private static final ClickHouseColumn STRING_COLUMN = ClickHouseColumn.of("s", "String");
+
+    private enum StringWriteVia {
+        SERIALIZER,
+        WRITER_BY_NAME,
+        WRITER_BY_INDEX
+    }
+
+    private static BinaryStreamReader stringReader(byte[] data) {
+        return new BinaryStreamReader(new ByteArrayInputStream(data), TimeZone.getTimeZone("UTC"), null,
+                new BinaryStreamReader.DefaultByteBufferAllocator(), false, null, true);
+    }
+
+    private static byte[] writeStringBytes(StringWriteVia via, byte[] payload) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        switch (via) {
+            case SERIALIZER:
+                new RowBinaryFormatSerializer(out).writeString(payload);
+                break;
+            case WRITER_BY_NAME: {
+                TableSchema schema = new TableSchema(Collections.singletonList(STRING_COLUMN));
+                RowBinaryFormatWriter writer = new RowBinaryFormatWriter(out, schema, ClickHouseFormat.RowBinary);
+                writer.setString("s", payload);
+                writer.commitRow();
+                break;
+            }
+            case WRITER_BY_INDEX: {
+                TableSchema schema = new TableSchema(Collections.singletonList(STRING_COLUMN));
+                RowBinaryFormatWriter writer = new RowBinaryFormatWriter(out, schema, ClickHouseFormat.RowBinary);
+                writer.setString(1, payload);
+                writer.commitRow();
+                break;
+            }
+        }
+        return out.toByteArray();
+    }
+
+    @DataProvider(name = "stringValues")
+    public static Object[][] stringValues() {
+        return new Object[][] {
+                {"ascii", "hello world"},
+                {"unicode", "Привет 你好 🚀"},
+        };
+    }
+
+    @Test(dataProvider = "stringValues")
+    public void testSerializerWriteString(String description, String value) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        new RowBinaryFormatSerializer(out).writeString(value);
+
+        StringValue read = stringReader(out.toByteArray()).readValue(STRING_COLUMN);
+        assertEquals(read.asString(), value, description);
+        assertEquals(read.toByteArray(), value.getBytes(StandardCharsets.UTF_8), description);
+    }
+
+    @DataProvider(name = "binaryStringWrites")
+    public static Object[][] binaryStringWrites() {
+        byte[] arbitraryBinary = new byte[]{(byte) 0x00, (byte) 0xFF, (byte) 0x80, (byte) 0x7F, (byte) 0xAB};
+        byte[] utf8Content = "ascii and Юникод".getBytes(StandardCharsets.UTF_8);
+
+        Object[][] cases = new Object[StringWriteVia.values().length * 2][];
+        int i = 0;
+        for (StringWriteVia via : StringWriteVia.values()) {
+            cases[i++] = new Object[]{via, "arbitrary-binary", arbitraryBinary, null};
+            cases[i++] = new Object[]{via, "utf8-content", utf8Content, "ascii and Юникод"};
+        }
+        return cases;
+    }
+
+    @Test(dataProvider = "binaryStringWrites")
+    public void testWriteStringFromBytes(StringWriteVia via, String description, byte[] payload,
+                                         String expectedString) throws IOException {
+        byte[] encoded = writeStringBytes(via, payload);
+
+        StringValue read = stringReader(encoded).readValue(STRING_COLUMN);
+        assertEquals(read.toByteArray(), payload, via + "/" + description);
+        if (expectedString != null) {
+            assertEquals(read.asString(), expectedString, via + "/" + description);
+        }
     }
 }
