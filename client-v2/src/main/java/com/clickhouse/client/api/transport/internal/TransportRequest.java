@@ -33,5 +33,9 @@ public interface TransportRequest {
      */
     boolean cancel();
 
+    /**
+     * Returns indication if request was canceled on client side
+     * @return true if request was canceled
+     */
     boolean isCancelled();
 }

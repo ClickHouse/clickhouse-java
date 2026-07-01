@@ -659,25 +659,9 @@ public class HttpAPIClientHelper {
     }
 
     public TransportResponse executeRequest(TransportRequest transportRequest) throws Exception {
-        return new TransportResponseImpl(doPostRequest(transportRequest.getConfig(), transportRequest.getDelegate()));
-    }
 
-    public TransportRequest createRequest(Endpoint server, Map<String, Object> requestConfig, IOCallback<OutputStream> writeCallback) {
-        final URI uri = createRequestURI(server, requestConfig, true);
-        final HttpPost req = createPostRequest(uri, requestConfig);
-        try {
-            String contentEncoding = req.containsHeader(HttpHeaders.CONTENT_ENCODING) ? req.getHeader(HttpHeaders.CONTENT_ENCODING).getValue() : null;
-            req.setEntity(wrapRequestEntity(
-                    new EntityTemplate(-1, CONTENT_TYPE, contentEncoding, writeCallback),
-                    requestConfig));
-        } catch (ProtocolException e) {
-            throw new ClientException("failed to create request body entity", e);
-        }
-
-        return new TransportRequestImpl(req, requestConfig);
-    }
-
-    private ClassicHttpResponse doPostRequest(Map<String, Object> requestConfig, HttpPost req) throws Exception {
+        final Map<String, Object> requestConfig = transportRequest.getConfig();
+        final HttpPost req = transportRequest.getDelegate();
 
         doPoolVent();
 
@@ -699,14 +683,13 @@ public class HttpAPIClientHelper {
             switch (statusCode) {
                 case HttpStatus.SC_OK:
                     closeResponse = false;
-                    return httpResponse;
+                    return new TransportResponseImpl(httpResponse);
                 case HttpStatus.SC_PROXY_AUTHENTICATION_REQUIRED:
                     throw new ClientMisconfigurationException("Proxy authentication required. Please check your proxy settings.");
                 case HttpStatus.SC_BAD_GATEWAY:
                     throw new ClientException("Server returned '502 Bad gateway'. Check network and proxy settings.");
                 case HttpStatus.SC_SERVICE_UNAVAILABLE:
-                    throw new ServerException(0, "Server returned '503 Service Unavailable'. Check network settings.",
-                            HttpStatus.SC_SERVICE_UNAVAILABLE, getQueryId(httpResponse, req));
+                    throw new ConnectException("Server returned '503 Service Unavailable'. Check network settings.");
                 case HttpStatus.SC_BAD_REQUEST:
                 case HttpStatus.SC_UNAUTHORIZED:
                 case HttpStatus.SC_FORBIDDEN:
@@ -739,9 +722,24 @@ public class HttpAPIClientHelper {
         }
     }
 
+    public TransportRequest createRequest(Endpoint server, Map<String, Object> requestConfig, IOCallback<OutputStream> writeCallback) {
+        final URI uri = createRequestURI(server, requestConfig, true);
+        final HttpPost req = createPostRequest(uri, requestConfig);
+        try {
+            String contentEncoding = req.containsHeader(HttpHeaders.CONTENT_ENCODING) ? req.getHeader(HttpHeaders.CONTENT_ENCODING).getValue() : null;
+            req.setEntity(wrapRequestEntity(
+                    new EntityTemplate(-1, CONTENT_TYPE, contentEncoding, writeCallback),
+                    requestConfig));
+        } catch (ProtocolException e) {
+            throw new ClientException("failed to create request body entity", e);
+        }
+
+        return new TransportRequestImpl(req, requestConfig);
+    }
+
     private String getQueryId(HttpResponse httpResponse, HttpPost httpRequest) {
         final Header serverQueryIdHeader = httpResponse == null ? null : httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID);
-        final Header clientQueryIdHeader = httpResponse == null ? null : httpRequest.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID);
+        final Header clientQueryIdHeader = httpRequest == null ? null : httpRequest.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID);
         final Header queryHeader = Stream.of(serverQueryIdHeader, clientQueryIdHeader).filter(Objects::nonNull).findFirst().orElse(null);
         return queryHeader == null ? "" : queryHeader.getValue();
     }
@@ -1013,8 +1011,11 @@ public class HttpAPIClientHelper {
     // This method wraps some client specific exceptions into specific ClientException or just ClientException
     // ClientException will be also wrapped
     public RuntimeException wrapException(String message, Exception cause, String queryId) {
-        if (cause instanceof ClientException || cause instanceof ServerException) {
-            return (RuntimeException) cause;
+        // Already-classified exceptions (ClientException, ServerException, ConnectionInitiationException, ...)
+        // are returned as-is so their specific type is preserved instead of being reboxed as a generic
+        // ClickHouseException.
+        if (cause instanceof ClickHouseException) {
+            return (ClickHouseException) cause;
         }
 
         if (cause instanceof SSLException) {

@@ -2115,7 +2115,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
     }
 
     @Test(groups = {"integration"})
-    public void test503ServiceUnavailableSurfacesAsServerException() throws Exception {
+    public void test503ServiceUnavailableSurfacesAsConnectionInitiationException() throws Exception {
         if (isCloud()) {
             return; // mocked server
         }
@@ -2141,17 +2141,16 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 Throwable thrown = Assert.expectThrows(Throwable.class,
                         () -> client.query("SELECT 1").get(10, TimeUnit.SECONDS));
 
-                ServerException serverException = findServerException(thrown);
-                Assert.assertNotNull(serverException,
-                        "Expected 503 to be reported as a ServerException, but was: " + thrown);
-                Assert.assertEquals(serverException.getTransportProtocolCode(), HttpStatus.SC_SERVICE_UNAVAILABLE,
-                        "Expected transport protocol code 503, but was: " + serverException.getTransportProtocolCode());
+                ConnectionInitiationException connectionInitiationException =
+                        findCause(thrown, ConnectionInitiationException.class);
+                Assert.assertNotNull(connectionInitiationException,
+                        "Expected 503 to be reported as a ConnectionInitiationException, but was: " + thrown);
 
                 Assert.assertTrue(containsMessageInCauseChain(thrown, "503 Service Unavailable"),
                         "Expected '503 Service Unavailable' in failure message chain, but was: " + thrown);
 
-                Assert.assertNull(findCause(thrown, ConnectionInitiationException.class),
-                        "503 should not be reported as a ConnectionInitiationException, but was: " + thrown);
+                Assert.assertNull(findServerException(thrown),
+                        "A bare 503 (no ClickHouse exception code) should not be reported as a ServerException, but was: " + thrown);
             }
         } finally {
             mockServer.stop();

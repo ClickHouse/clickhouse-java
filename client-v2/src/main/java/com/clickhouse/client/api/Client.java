@@ -53,7 +53,6 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.lang.ref.WeakReference;
 import java.lang.reflect.InvocationTargetException;
 import java.time.Duration;
 import java.time.ZoneId;
@@ -66,6 +65,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.StringJoiner;
 import java.util.TimeZone;
@@ -114,6 +114,8 @@ import java.util.stream.Collectors;
 public class Client implements AutoCloseable {
     private static final Logger LOG = LoggerFactory.getLogger(Client.class);
 
+    private static final int REQ_REGISTRY_SIZE = 1000; // initial capacity hint for the ongoing-request registry, not a hard limit; no separate config needed.
+
     private HttpAPIClientHelper httpClientHelper = null;
 
     private final List<Endpoint> endpoints;
@@ -136,7 +138,7 @@ public class Client implements AutoCloseable {
 
     private final Map<ClickHouseDataType, Class<?>> typeHintMapping;
 
-    private final ConcurrentHashMap<String, WeakReference<TransportRequest>> ongoingRequests = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, TransportRequest> ongoingRequests = new ConcurrentHashMap<>(REQ_REGISTRY_SIZE);
 
     // Server context
     private String dbUser;
@@ -234,7 +236,6 @@ public class Client implements AutoCloseable {
     public String getDefaultDatabase() {
         return (String) this.configuration.get(ClientConfigProperties.DATABASE.getKey());
     }
-
 
     /**
      * Frees the resources associated with the client.
@@ -1411,12 +1412,16 @@ public class Client implements AutoCloseable {
                 } catch (Exception e) {
                     String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
                     lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
-                    if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings()) && !wasPrevRequestCanceled(requestSettings.getQueryId())) {
+                    if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings()) && requestIsNotCancelled(requestSettings.getQueryId())) {
                         LOG.warn("Retrying.", e);
                         selectedEndpoint = getNextAliveNode();
                     } else {
                         throw lastException;
                     }
+                } finally {
+                    // Insert completes once the request returns; the response exposes no stream to read afterwards,
+                    // so the request is no longer cancellable and can be unregistered.
+                    unregisterTransportReq(requestSettings.getQueryId());
                 }
             }
 
@@ -1607,12 +1612,16 @@ public class Client implements AutoCloseable {
                 } catch (Exception e) {
                     String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
                     lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
-                    if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings()) && !wasPrevRequestCanceled(requestSettings.getQueryId())) {
+                    if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings()) && requestIsNotCancelled(requestSettings.getQueryId())) {
                         LOG.warn("Retrying.", e);
                         selectedEndpoint = getNextAliveNode();
                     } else {
                         throw lastException;
                     }
+                } finally {
+                    // Insert completes once the request returns; the response exposes no stream to read afterwards,
+                    // so the request is no longer cancellable and can be unregistered.
+                    unregisterTransportReq(requestSettings.getQueryId());
                 }
 
                 if (i < retries) {
@@ -1709,9 +1718,10 @@ public class Client implements AutoCloseable {
                 // Selecting some node
                 Endpoint selectedEndpoint = getNextAliveNode();
                 RuntimeException lastException = null;
+                final String queryId = requestSettings.getQueryId();
                 for (int i = 0; i <= retries; i++) {
                     TransportRequest request = httpClientHelper.createRequest(selectedEndpoint, requestSettings.getAllSettings(), sqlQuery);
-                    registerTransportReq(requestSettings.getQueryId(), request);
+                    registerTransportReq(queryId, request);
                     TransportResponse transportResp = null;
                     try {
                         transportResp = httpClientHelper.executeRequest(request);
@@ -1727,12 +1737,17 @@ public class Client implements AutoCloseable {
                         ClientUtils.quietClose(transportResp, LOG);
                         String msg = requestExMsg("Query", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
                         lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
-                        if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings()) && !wasPrevRequestCanceled(requestSettings.getQueryId())) {
+                        if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings()) && requestIsNotCancelled(requestSettings.getQueryId())) {
                             LOG.warn("Retrying.", e);
                             selectedEndpoint = getNextAliveNode();
                         } else {
                             throw lastException;
                         }
+                    } finally {
+                        // Cancellation only unblocks the thread while it waits for the server response. Once the
+                        // response has been received (or the attempt failed) the request is no longer cancellable,
+                        // so it is unregistered here. A retry re-registers it on the next attempt.
+                        unregisterTransportReq(queryId);
                     }
                 }
                 String errMsg = requestExMsg("Query", retries, durationSince(startTime).toMillis(), requestSettings.getQueryId());
@@ -1745,17 +1760,22 @@ public class Client implements AutoCloseable {
 
     private void registerTransportReq(String queryId, TransportRequest tr) {
         if (queryId != null) {
-            ongoingRequests.put(queryId, new WeakReference<>(tr));
+            ongoingRequests.put(queryId, tr);
         }
     }
 
-    private boolean wasPrevRequestCanceled(String queryId) {
+    private void unregisterTransportReq(String queryId) {
         if (queryId != null) {
-            WeakReference<TransportRequest> trRef = ongoingRequests.get(queryId);
-            TransportRequest tr = trRef.get();
-            return tr != null && tr.isCancelled();
+            ongoingRequests.remove(queryId);
         }
-        return false;
+    }
+
+    private boolean requestIsNotCancelled(String queryId) {
+        if (queryId != null) {
+            TransportRequest tr = ongoingRequests.get(queryId);
+            return tr == null || !tr.isCancelled();
+        }
+        return true;
     }
 
     public CompletableFuture<QueryResponse> query(String sqlQuery, Map<String, Object> queryParams) {
@@ -2275,12 +2295,10 @@ public class Client implements AutoCloseable {
      * @param queryId - original query id that was passed in operation settings.
      */
     public void cancelTransportRequest(String queryId) {
-        WeakReference<TransportRequest> reqRef = ongoingRequests.get(queryId);
-        if (reqRef != null) {
-            TransportRequest req = reqRef.get();
-            if (req != null) {
-                req.cancel();
-            }
+        Objects.requireNonNull(queryId, "queryId should be not null");
+        TransportRequest req = ongoingRequests.get(queryId);
+        if (req != null) {
+            req.cancel();
         }
     }
 

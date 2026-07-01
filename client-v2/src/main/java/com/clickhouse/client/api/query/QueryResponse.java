@@ -38,7 +38,8 @@ public class QueryResponse implements AutoCloseable {
 
     private final Map<String, String> responseHeaders;
 
-    public QueryResponse(TransportResponse response, ClickHouseFormat format, QuerySettings settings, OperationMetrics operationMetrics) {
+    public QueryResponse(TransportResponse response, ClickHouseFormat format, QuerySettings settings,
+                         OperationMetrics operationMetrics) {
         Objects.requireNonNull(response, "response is null");
         this.transportResponse = response;
         this.format = format;
