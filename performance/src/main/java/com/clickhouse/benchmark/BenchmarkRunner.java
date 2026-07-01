@@ -66,7 +66,7 @@ public class BenchmarkRunner {
                 .warmupIterations(1)
                 .warmupTime(TimeValue.seconds(5))
                 .measurementIterations(measurementIterations)
-                .jvmArgs("-Xms8g", "-Xmx8g")
+                .jvmArgs("-Xms8g", "-Xmx8g", "-XX:+AlwaysPreTouch", "-XX:-UseBiasedLocking")
                 .measurementTime(TimeValue.seconds(measurementTime))
                 .resultFormat(ResultFormatType.JSON)
                 .output(outputFile)
