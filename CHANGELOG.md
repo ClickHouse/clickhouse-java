@@ -27,7 +27,13 @@
 
 - **[client-v2]** `Client.Builder#useBearerTokenAuth(String)` now stores the bearer token under the `access_token` configuration key (with the `Bearer ` prefix) instead of writing it directly into `http_header_authorization`. The HTTP wire format is unchanged, but the token is no longer observable through `Client#getReadOnlyConfig()` under the `http_header_authorization` key.
 
+- **[client-v2]** HTTP `503 Service Unavailable` responses are now surfaced as a connection-style failure (`java.net.ConnectException`) and are retried by default. Previously a `503` was treated as a server error (`ServerException`) and fell under the `ServerRetryable` fault cause. It has been moved to the `ConnectTimeout` fault cause category so that connectivity/availability failures are handled uniformly with other connection errors. Callers that specifically excluded `ServerRetryable` to avoid retrying `503` should now adjust their `client_retry_on_failures` configuration to exclude `ConnectTimeout` instead.
+
+- **[client-v2]** Unexpected/unknown HTTP status codes (those the client cannot interpret as a ClickHouse response) now throw a `ClientException` instead of a `ServerException`. Since the client cannot meaningfully handle these responses, they are reported as a client-side error rather than being attributed to the server.
+
 ### New Features
+
+- **[client-v2]** Added `Client#cancelTransportRequest(String queryId)` to cancel an in-flight request that has not yet received a response from the server, identified by the query id supplied in the operation settings. This aborts the request on the client side (cancels the underlying IO operation) but does **not** issue a `KILL QUERY` on the server, so a query that already started executing may continue to run server-side. It is recommended to use operation timeout settings where possible; this API is intended for explicitly aborting a request from the client.
 
 - **[client-v2]** Added `Session` API to encapsulate and manage ClickHouse session settings (`session_id`, `session_check`, `session_timeout`, `session_timezone`) as a reusable object. The `Session` instance can be applied to any request settings using `applyTo()`, and session state can be cleared via `clearSession()`. Additionally, added `resetOption(String)` to `InsertSettings`, `QuerySettings`, and `CommonSettings` to allow removing specific settings. Settings explicitly set to `null` will not be sent to the server, which is useful for overriding global settings.
 
