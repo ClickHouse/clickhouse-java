@@ -138,7 +138,8 @@
         <jmh.version>1.37</jmh.version>
         <guava.version>33.4.6-jre</guava.version>
         <sonar.publish-pluing.version>0.8.0</sonar.publish-pluing.version>
-        <jackson.version>2.17.2</jackson.version>
+        <jackson.version>2.22.0</jackson.version>
+        <jackson.version.annotations>2.22</jackson.version.annotations>
 
         <minTargetJdk>17</minTargetJdk>
         <minSourceJdk>17</minSourceJdk>
