@@ -111,6 +111,25 @@ public class SerializerUtils {
         }
     }
 
+    /**
+     * Serializes a value that is nested inside a container ({@code Tuple} or {@code Map}). A nested
+     * {@code Nullable} element is prefixed with its null-marker byte ({@code 0x00} when present,
+     * {@code 0x01} when null), as the server expects for {@code Nullable} sub-columns in
+     * {@code RowBinary}. For a top-level column this marker is instead written by
+     * {@link com.clickhouse.client.api.data_formats.RowBinaryFormatSerializer#writeValuePreamble},
+     * so this helper must only be used for nested elements.
+     */
+    private static void serializeNestedData(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
+        if (column.isNullable()) {
+            if (value == null) {
+                writeNull(stream);
+                return;
+            }
+            writeNonNull(stream);
+        }
+        serializeData(stream, value, column);
+    }
+
     private static final Map<Class<?>, ClickHouseColumn> PREDEFINED_TYPE_COLUMNS = getPredefinedTypeColumnsMap();
 
     private static Map<Class<?>, ClickHouseColumn> getPredefinedTypeColumnsMap() {
@@ -460,12 +479,12 @@ public class SerializerUtils {
         if (value instanceof List) {
             List<?> values = (List<?>) value;
             for (int i = 0; i < values.size(); i++) {
-                serializeData(stream, values.get(i), column.getNestedColumns().get(i));
+                serializeNestedData(stream, values.get(i), column.getNestedColumns().get(i));
             }
         } else if (value.getClass().isArray()) {
             // TODO: this code uses reflection - we might need to measure it and find faster solution.
             for (int i = 0; i < Array.getLength(value); i++) {
-                serializeData(stream, Array.get(value, i), column.getNestedColumns().get(i));
+                serializeNestedData(stream, Array.get(value, i), column.getNestedColumns().get(i));
             }
         } else {
             throw new IllegalArgumentException("Cannot serialize " + value + " as a tuple");
@@ -483,7 +502,7 @@ public class SerializerUtils {
         map.forEach((key, val) -> {
             try {
                 serializePrimitiveData(stream, key, Objects.requireNonNull(column.getKeyInfo()));
-                serializeData(stream, val, Objects.requireNonNull(column.getValueInfo()));
+                serializeNestedData(stream, val, Objects.requireNonNull(column.getValueInfo()));
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
