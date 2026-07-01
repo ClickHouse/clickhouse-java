@@ -1378,7 +1378,7 @@ public class Client implements AutoCloseable {
             long startTime = System.nanoTime();
             // Selecting some node
             Endpoint selectedEndpoint = getNextAliveNode();
-
+            final String queryId = requestSettings.getQueryId();
             RuntimeException lastException = null;
             for (int i = 0; i <= maxRetries; i++) {
                 // Execute request
@@ -1402,7 +1402,7 @@ public class Client implements AutoCloseable {
                             out.close();
                         });
 
-                registerTransportReq(requestSettings.getQueryId(), transportRequest);
+                registerTransportReq(queryId, transportRequest);
 
                 try (TransportResponse transportResponse = httpClientHelper.executeRequest(transportRequest)) {
                     ClientStatisticsHolder clientStats = globalClientStats.remove(operationId);
@@ -1412,16 +1412,14 @@ public class Client implements AutoCloseable {
                 } catch (Exception e) {
                     String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
                     lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
-                    if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings()) && requestIsNotCancelled(requestSettings.getQueryId())) {
+                    if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings()) && requestIsNotCancelled(queryId)) {
                         LOG.warn("Retrying.", e);
                         selectedEndpoint = getNextAliveNode();
                     } else {
                         throw lastException;
                     }
                 } finally {
-                    // Insert completes once the request returns; the response exposes no stream to read afterwards,
-                    // so the request is no longer cancellable and can be unregistered.
-                    unregisterTransportReq(requestSettings.getQueryId());
+                    unregisterTransportReq(queryId);
                 }
             }
 
@@ -1597,41 +1595,47 @@ public class Client implements AutoCloseable {
             Endpoint selectedEndpoint = getNextAliveNode();
 
             RuntimeException lastException = null;
-            for (int i = 0; i <= retries; i++) {
-                // Execute request
-                TransportRequest transportRequest = httpClientHelper.createRequest(selectedEndpoint, requestSettings.getAllSettings(),
-                        out -> {
-                            writer.onOutput(out);
-                            out.close();
-                        });
-                registerTransportReq(requestSettings.getQueryId(), transportRequest);
+            final String queryId = requestSettings.getQueryId();
+            try {
+                for (int i = 0; i <= retries; i++) {
+                    // Execute request
+                    TransportRequest transportRequest = httpClientHelper.createRequest(selectedEndpoint, requestSettings.getAllSettings(),
+                            out -> {
+                                writer.onOutput(out);
+                                out.close();
+                            });
+                    registerTransportReq(queryId, transportRequest);
 
-                try (TransportResponse transportResponse = httpClientHelper.executeRequest(transportRequest)) {
-                    OperationMetrics metrics = completeOperation(transportResponse, finalClientStats, requestSettings.getQueryId());
-                    return new InsertResponse(transportResponse, metrics);
-                } catch (Exception e) {
-                    String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
-                    lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
-                    if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings()) && requestIsNotCancelled(requestSettings.getQueryId())) {
-                        LOG.warn("Retrying.", e);
-                        selectedEndpoint = getNextAliveNode();
-                    } else {
-                        throw lastException;
+                    try (TransportResponse transportResponse = httpClientHelper.executeRequest(transportRequest)) {
+                        OperationMetrics metrics = completeOperation(transportResponse, finalClientStats, requestSettings.getQueryId());
+                        return new InsertResponse(transportResponse, metrics);
+                    } catch (Exception e) {
+                        String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
+                        lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
+                        if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings()) && requestIsNotCancelled(requestSettings.getQueryId())) {
+                            LOG.warn("Retrying.", e);
+                            selectedEndpoint = getNextAliveNode();
+                        } else {
+                            throw lastException;
+                        }
+                    } finally {
+                        // Insert completes once the request returns; the response exposes no stream to read afterwards,
+                        // so the request is no longer cancellable and can be unregistered.
+                        unregisterTransportReq(requestSettings.getQueryId());
                     }
-                } finally {
-                    // Insert completes once the request returns; the response exposes no stream to read afterwards,
-                    // so the request is no longer cancellable and can be unregistered.
-                    unregisterTransportReq(requestSettings.getQueryId());
-                }
 
-                if (i < retries) {
-                    try {
-                        writer.onRetry();
-                    } catch (IOException ioe) {
-                        throw new ClientException("Failed to reset stream before next attempt", ioe);
+                    if (i < retries) {
+                        try {
+                            writer.onRetry();
+                        } catch (IOException ioe) {
+                            throw new ClientException("Failed to reset stream before next attempt", ioe);
+                        }
                     }
                 }
+            } finally {
+                unregisterTransportReq(queryId);
             }
+
             String errMsg = requestExMsg("Insert", retries, durationSince(startTime).toMillis(), requestSettings.getQueryId());
             LOG.warn(errMsg);
             throw (lastException == null ? new ClientException(errMsg) : lastException);
@@ -1719,36 +1723,36 @@ public class Client implements AutoCloseable {
                 Endpoint selectedEndpoint = getNextAliveNode();
                 RuntimeException lastException = null;
                 final String queryId = requestSettings.getQueryId();
-                for (int i = 0; i <= retries; i++) {
-                    TransportRequest request = httpClientHelper.createRequest(selectedEndpoint, requestSettings.getAllSettings(), sqlQuery);
-                    registerTransportReq(queryId, request);
-                    TransportResponse transportResp = null;
-                    try {
-                        transportResp = httpClientHelper.executeRequest(request);
-                        OperationMetrics metrics = completeOperation(transportResp, clientStats, requestSettings.getQueryId());
-                        ClickHouseFormat responseFormat = transportResp.getDataFormat();
-                        if (responseFormat == null) {
-                            responseFormat = requestSettings.getFormat();
-                        }
+                try {
+                    for (int i = 0; i <= retries; i++) {
+                        TransportRequest request = httpClientHelper.createRequest(selectedEndpoint, requestSettings.getAllSettings(), sqlQuery);
+                        registerTransportReq(queryId, request);
+                        TransportResponse transportResp = null;
+                        try {
+                            transportResp = httpClientHelper.executeRequest(request);
+                            OperationMetrics metrics = completeOperation(transportResp, clientStats, requestSettings.getQueryId());
+                            ClickHouseFormat responseFormat = transportResp.getDataFormat();
+                            if (responseFormat == null) {
+                                responseFormat = requestSettings.getFormat();
+                            }
 
-                        return new QueryResponse(transportResp, responseFormat, requestSettings, metrics);
+                            return new QueryResponse(transportResp, responseFormat, requestSettings, metrics);
 
-                    } catch (Exception e) {
-                        ClientUtils.quietClose(transportResp, LOG);
-                        String msg = requestExMsg("Query", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
-                        lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
-                        if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings()) && requestIsNotCancelled(requestSettings.getQueryId())) {
-                            LOG.warn("Retrying.", e);
-                            selectedEndpoint = getNextAliveNode();
-                        } else {
-                            throw lastException;
+                        } catch (Exception e) {
+                            ClientUtils.quietClose(transportResp, LOG);
+                            String msg = requestExMsg("Query", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
+                            lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
+                            if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings()) && requestIsNotCancelled(requestSettings.getQueryId())) {
+                                LOG.warn("Retrying.", e);
+                                selectedEndpoint = getNextAliveNode();
+                            } else {
+                                throw lastException;
+                            }
                         }
-                    } finally {
-                        // Cancellation only unblocks the thread while it waits for the server response. Once the
-                        // response has been received (or the attempt failed) the request is no longer cancellable,
-                        // so it is unregistered here. A retry re-registers it on the next attempt.
-                        unregisterTransportReq(queryId);
                     }
+                } finally {
+                    // unregister transport request once we are done
+                    unregisterTransportReq(queryId);
                 }
                 String errMsg = requestExMsg("Query", retries, durationSince(startTime).toMillis(), requestSettings.getQueryId());
                 LOG.warn(errMsg);
@@ -2291,6 +2295,8 @@ public class Client implements AutoCloseable {
      * Note: It is recommended to use operation timeout settings instead of this method.
      * Tries to cancel ongoing request. This method cancels IO operations but doesn't
      * kill query on server side. Original queryId should be used to cancel the request.
+     * This operation cancels only operations on client side and only that still waiting
+     * for response.
      *
      * @param queryId - original query id that was passed in operation settings.
      */

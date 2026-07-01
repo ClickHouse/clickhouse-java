@@ -415,6 +415,114 @@ public class TransportBaseTests extends BaseIntegrationTest {
     }
 
     /**
+     * A retryable transport failure - here a socket read timeout produced by a mocked server that delays its
+     * response well beyond the client socket timeout - is normally retried up to {@code maxRetries} times.
+     * When the caller cancels the in-flight request through {@link Client#cancelTransportRequest(String)} while
+     * the operation is inside that retry loop, the loop must stop early instead of exhausting the configured
+     * retries. Covers the {@code requestIsNotCancelled(queryId)} guard of the operation retry loop: the
+     * operation fails and the mocked server observes fewer than {@code maxRetries + 1} attempts.
+     */
+    @Test(groups = {"integration"}, dataProvider = "cancelDuringRetryProvider")
+    @SuppressWarnings("java:S2925")
+    public void testCancelStopsRetriesOnRetryableDelay(String operation, boolean isInsert, boolean isPojo)
+            throws Exception {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
+        int maxRetries = 50;
+        WireMockServer mockServer = startMockServer();
+        // The response is delayed far beyond the client socket timeout, so every attempt fails with a
+        // retryable SocketTimeoutException and the operation stays in the retry loop until it is cancelled.
+        mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                .willReturn(WireMock.aResponse()
+                        .withStatus(HttpStatus.SC_OK)
+                        .withFixedDelay(5_000)
+                        .withHeader("X-ClickHouse-Summary",
+                                "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")).build());
+
+        String queryId = "cancel-retry-" + UUID.randomUUID();
+        AtomicReference<Throwable> opError = new AtomicReference<>();
+        AtomicBoolean opFinished = new AtomicBoolean(false);
+
+        try (Client client = new Client.Builder()
+                .addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .compressClientRequest(false)
+                .compressServerResponse(false)
+                .setSocketTimeout(500)
+                .setMaxRetries(maxRetries)
+                .retryOnFailures(ClientFaultCause.SocketTimeout)
+                .build()) {
+
+            Runnable op;
+            if (isInsert && isPojo) {
+                client.register(InsertablePojo.class, new TableSchema("table01", null, "default",
+                        Collections.singletonList(ClickHouseColumn.of("id", "Int32"))));
+                op = () -> {
+                    try (InsertResponse response = client.insert("table01",
+                            Collections.singletonList(new InsertablePojo(1)),
+                            new InsertSettings().setQueryId(queryId)).get(60, TimeUnit.SECONDS)) {
+                        opFinished.set(true);
+                    } catch (Throwable t) {
+                        opError.set(t);
+                    }
+                };
+            } else if (isInsert) {
+                op = () -> {
+                    try (InsertResponse response = client.insert("table01",
+                            new ByteArrayInputStream("1\t2\t3\n".getBytes()), ClickHouseFormat.TSV,
+                            new InsertSettings().setQueryId(queryId)).get(60, TimeUnit.SECONDS)) {
+                        opFinished.set(true);
+                    } catch (Throwable t) {
+                        opError.set(t);
+                    }
+                };
+            } else {
+                op = () -> {
+                    try (QueryResponse response = client.query("SELECT timezone()",
+                            new QuerySettings().setQueryId(queryId)).get(60, TimeUnit.SECONDS)) {
+                        opFinished.set(true);
+                    } catch (Throwable t) {
+                        opError.set(t);
+                    }
+                };
+            }
+
+            Thread worker = new Thread(op, "cancel-retry-" + operation);
+            worker.start();
+
+            // Cancellation is reissued until the worker stops so it reliably lands while a request is in flight,
+            // independent of scheduling races between the worker and the canceller.
+            cancelUntilStopped(client, queryId, worker, 30_000);
+
+            Assert.assertFalse(worker.isAlive(),
+                    "[" + operation + "] operation must stop once the request is cancelled");
+            Assert.assertFalse(opFinished.get(),
+                    "[" + operation + "] a cancelled operation must not complete successfully");
+            Assert.assertNotNull(opError.get(),
+                    "[" + operation + "] a cancelled operation must fail with an error");
+
+            int attempts = mockServer.findAll(WireMock.postRequestedFor(WireMock.anyUrl())).size();
+            Assert.assertTrue(attempts < maxRetries + 1,
+                    "[" + operation + "] cancellation must stop the retry loop early, but observed " + attempts
+                            + " attempts (maxRetries=" + maxRetries + ")");
+        } finally {
+            mockServer.stop();
+        }
+    }
+
+    @DataProvider(name = "cancelDuringRetryProvider")
+    public static Object[][] cancelDuringRetryProvider() {
+        return new Object[][]{
+                {"query", false, false},
+                {"insert-stream", true, false},
+                {"insert-pojo", true, true}
+        };
+    }
+
+    /**
      * Reissues {@link Client#cancelTransportRequest(String)} until the worker stops or the timeout elapses.
      * Retrying makes the test robust against thread-scheduling races where a single cancel could land before
      * the worker has actually started blocking on the request.
