@@ -32,7 +32,11 @@
             <id>sergey_chernov</id>
             <name>Sergey Chernov</name>
             <email>sergey.chernov@clickhouse.com</email>
-            <timezone>-8</timezone>
+        </developer>
+        <developer>
+            <id>mzitnik</id>
+            <name>Mark Zitnik</name>
+            <email>mark@clickhouse.com</email>
         </developer>
     </developers>
 
