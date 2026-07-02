@@ -1,5 +1,7 @@
 ## 0.10.0-rc1 
 
+[Release Migration Guide](docs/releases/0_10_0.md)
+
 ### Breaking Changes
 
 - **[jdbc-v2]** The driver no longer hardcodes the server settings `async_insert=0` and `wait_end_of_query=0` on every JDBC
@@ -12,7 +14,7 @@
     method) is no longer guaranteed to be accurate for INSERT statements when the server runs them asynchronously, and
     parsing/data errors in the INSERT body may not surface synchronously as a `SQLException`. Previously these were
     accurate because inserts were forced to be synchronous (see also https://github.com/ClickHouse/ClickHouse/issues/57768).
-    To restore the previous behavior, set `async_insert=0` (or `wait_for_async_insert=1`) per connection or statement.
+    To restore the previous behavior, set `async_insert=0` (or `wait_for_async_insert=1`) per connection as server setting.
     Read more about asynchronous insert: https://clickhouse.com/docs/optimize/asynchronous-inserts.
 
   (https://github.com/ClickHouse/clickhouse-java/issues/2652, https://github.com/ClickHouse/clickhouse-java/issues/2825)
@@ -26,8 +28,8 @@
 - **[client-v2]** Combining `setUsername(...)` + `setPassword(...)` with a custom `Authorization` HTTP header (
   `httpHeader(HttpHeaders.AUTHORIZATION, ...)`) now fails at `Client.Builder#build()` with
   `ClientMisconfigurationException` unless HTTP Basic authentication is explicitly disabled via
-  `useHTTPBasicAuth(false)`. Previously this combination was accepted and the custom `Authorization` header overrode the
-  ClickHouse user/password headers at request time. (https://github.com/ClickHouse/clickhouse-java/pull/2812)
+  `useHTTPBasicAuth(false)`. Previously this combination was accepted and the custom `Authorization` header overrode 
+  the user/password at request time. (https://github.com/ClickHouse/clickhouse-java/pull/2812)
 
 - **[client-v2]** The `access_token` configuration property (set via `Client.Builder#setAccessToken(String)` or directly
   through `setOption`) is now actually applied to outgoing requests as the `Authorization` HTTP header value verbatim.
@@ -50,7 +52,7 @@
   (https://github.com/ClickHouse/clickhouse-java/pull/2874, https://github.com/ClickHouse/clickhouse-java/issues/2389,
   https://github.com/ClickHouse/clickhouse-java/issues/2309, https://github.com/ClickHouse/clickhouse-java/issues/2819)
 
-- **[jdbc-v2, client-v2] (experimental)** Implemented standalone readers for `JSONEachRow` to provide scaffold for 
+- **[jdbc-v2, client-v2] (beta)** Implemented standalone readers for `JSONEachRow` to provide scaffold for 
   reading this format. Additionally, it gives a way to map `Json` columns to custom types using JDBC driver. See examples 
   in https://github.com/ClickHouse/clickhouse-java/tree/main/examples/jdbc-v2-json-processors and https://github.com/ClickHouse/clickhouse-java/tree/main/examples/client-v2-json-processors.
   (https://github.com/ClickHouse/clickhouse-java/pull/2871)
@@ -123,9 +125,6 @@ passing empty string. (https://github.com/ClickHouse/clickhouse-java/pull/2809)
 
 - **[jdbc-v2, client-v2]** Fixed handling `NULL` values to `Variant` and `Dynamic` columns. Previously indicator 
 of `NULL` was not set and read. (https://github.com/ClickHouse/clickhouse-java/issues/2789, https://github.com/ClickHouse/clickhouse-java/issues/2791)
-
-- **[client-v2]** Fixed timeunit inconsistency of `executionTimeout` parameter. Previously was saved in milliseconds but 
-used as value in seconds. (https://github.com/ClickHouse/clickhouse-java/issues/2358)
 
 - **[jdbc-v2]** Fixed `Statement.cancel()` throwing `SESSION_IS_LOCKED` when the statement was running inside a
   ClickHouse session. The driver now accepts `session_id`, `session_check`, and `session_timeout` as first-class
