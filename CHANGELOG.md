@@ -42,6 +42,10 @@
   HTTP wire format is unchanged, but the token is no longer observable through `Client#getReadOnlyConfig()` under the
   `http_header_authorization` key. (https://github.com/ClickHouse/clickhouse-java/pull/2812)
 
+- **[client-v2]** Fixed inconsistent use of `executionTimeout` parameter in `Client` component. The timeout was
+  previously set in milliseconds but mistakenly retrieved and used in seconds in some places. Now it correctly uses
+  milliseconds consistently. (https://github.com/ClickHouse/clickhouse-java/issues/2358)
+
 ### New Features
 
 - **[jdbc-v2, client-v2]** Implemented SSL modes configuration. Now it is possible to set `ssl_mode` to `DISABLED`, 
@@ -131,10 +135,6 @@ of `NULL` was not set and read. (https://github.com/ClickHouse/clickhouse-java/i
   connection properties and correctly suppresses them when issuing a `KILL QUERY` during cancellation. This ensures the
   cancellation request runs outside the session and no longer contends with the running query for the session
   lock. (https://github.com/ClickHouse/clickhouse-java/issues/2690, https://github.com/ClickHouse/clickhouse-java/issues/2881)
-
-- **[client-v2]** Fixed inconsistent use of `executionTimeout` parameter in `Client` component. The timeout was
-  previously set in milliseconds but mistakenly retrieved and used in seconds in some places. Now it correctly uses
-  milliseconds consistently. (https://github.com/ClickHouse/clickhouse-java/issues/2358)
 
 - **[jdbc-v2]** Added option to specify cluster name for operations on cluster. One of them is `KILL QUERY .. ON CLUSTER <cluster_name>`.
   Use `DriverProperties.CLUSTER_NAME` (`jdbc_cluster_name`) to define name of the cluster to be used in such queries.
