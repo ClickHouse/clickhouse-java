@@ -17,7 +17,7 @@
         <slf4j.version>2.0.17</slf4j.version>
         <ch.jdbc.revision>0.9.8-SNAPSHOT</ch.jdbc.revision>
         <jmh.version>1.37</jmh.version>
-        <testcontainers.version>2.0.2</testcontainers.version>
+        <testcontainers.version>2.0.5</testcontainers.version>
 
         <antrun-plugin.version>3.1.0</antrun-plugin.version>
         <assembly-plugin.version>3.6.0</assembly-plugin.version>

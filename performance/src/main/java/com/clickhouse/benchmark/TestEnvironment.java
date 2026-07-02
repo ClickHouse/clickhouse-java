@@ -74,6 +74,7 @@ public class TestEnvironment {
         return serverNode;
     }
 
+    private static final long MEM_LIMIT = (long) (24 * Math.pow(1024.0D, 3.0D));
 
     //Initialization and Teardown methods
     public static void setupEnvironment() {
@@ -88,6 +89,13 @@ public class TestEnvironment {
                     .withPassword("testing_password")
                     .withEnv("CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT", "1")
                     .withExposedPorts(8123, 8443)
+                    .withCreateContainerCmdModifier(cmd -> {
+                        cmd.getHostConfig()
+                                .withMemorySwap(0L)
+                                .withMemory(MEM_LIMIT)
+                                .withCpuCount(2L);
+                    })
+                    .withUrlParam("max_threads", "2")
                     .waitingFor(Wait.forHttp("/ping").forPort(8123).forStatusCode(200).withStartupTimeout(Duration.of(600, SECONDS)));
             container.start();
         }
