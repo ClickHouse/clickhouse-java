@@ -41,6 +41,8 @@
 
 ### Bug Fixes
 
+- **[client-v2]** Fixed binary varint decoding for length and count fields so overflowing or overlong values fail with an `IOException` instead of being decoded into corrupted or negative `int` values.
+
 - **[jdbc-v2]** Fixed `Statement.cancel()` throwing `SESSION_IS_LOCKED` when the statement was running inside a ClickHouse session. The driver now accepts `session_id`, `session_check`, and `session_timeout` as first-class connection properties and correctly suppresses them when issuing a `KILL QUERY` during cancellation. This ensures the cancellation request runs outside the session and no longer contends with the running query for the session lock. (https://github.com/ClickHouse/clickhouse-java/issues/2690, https://github.com/ClickHouse/clickhouse-java/issues/2881)
 
 - **[client-v2]** Fixed inconsistent use of `executionTimeout` parameter in `Client` component. The timeout was previously set in milliseconds but mistakenly retrieved and used in seconds in some places. Now it correctly uses milliseconds consistently. (https://github.com/ClickHouse/clickhouse-java/issues/2358)
