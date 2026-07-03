@@ -29,10 +29,14 @@
 
     <developers>
         <developer>
-            <id>zhicwu</id>
-            <name>Zhichun Wu</name>
-            <email>zhicwu@gmail.com</email>
-            <timezone>+8</timezone>
+            <id>sergey_chernov</id>
+            <name>Sergey Chernov</name>
+            <email>sergey.chernov@clickhouse.com</email>
+        </developer>
+        <developer>
+            <id>mzitnik</id>
+            <name>Mark Zitnik</name>
+            <email>mark@clickhouse.com</email>
         </developer>
     </developers>
 
@@ -69,7 +73,7 @@
     </ciManagement>
     
     <properties>
-        <revision>0.9.8-SNAPSHOT</revision>
+        <revision>0.10.0-rc1-SNAPSHOT</revision>
         <project.current.year>2026</project.current.year>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
