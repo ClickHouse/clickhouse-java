@@ -48,7 +48,6 @@ For a new feature, implement the smallest change that solves the problem. Polish
 For self and AI review use following guids:
 - `docs/ai-review.md`
 - `docs/changes_checklist.md`
-- `docs/highlevel-changes-checklist.md`
 - `docs/features.md` for changes that touch `client-v2` or `jdbc-v2`
 
 ### Testing Expectations
