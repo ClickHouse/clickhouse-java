@@ -17,7 +17,7 @@ Main modules:
 
 - Minimal supported Java version is 8.
 - Follow `docs/ai-review.md` for compatibility, breaking-change, and review instructions.
-- Follow `AI_POLICY.MD`: take the same responsibility for generated code as hand-written code, don't
+- Follow `AI_POLICY.md`: take the same responsibility for generated code as hand-written code, don't
   submit code you don't understand, and respect licensing when reproducing any external code.
 
 ## When to pause and ask
