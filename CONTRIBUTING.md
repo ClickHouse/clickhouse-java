@@ -45,10 +45,9 @@ We all know that large PRs (400+ lines of code) are hard to review and it is mor
 
 For a new feature, implement the smallest change that solves the problem. Polish, additional configuration, optimization, and extensions can be addressed in the follow-up PRs. 
 
-For self and AI review use following guids:
+For self and AI review use following guides:
 - `docs/ai-review.md`
 - `docs/changes_checklist.md`
-- `docs/highlevel-changes-checklist.md`
 - `docs/features.md` for changes that touch `client-v2` or `jdbc-v2`
 
 ### Testing Expectations
