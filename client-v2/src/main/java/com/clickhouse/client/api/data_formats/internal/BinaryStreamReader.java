@@ -18,11 +18,13 @@ import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.nio.charset.StandardCharsets;
+import java.time.DateTimeException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.Period;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
@@ -115,7 +117,6 @@ public class BinaryStreamReader {
         ClickHouseDataType dataType = actualColumn.getDataType();
         int precision = actualColumn.getPrecision();
         int scale = actualColumn.getScale();
-        TimeZone timezone = actualColumn.getTimeZoneOrDefault(timeZone);
 
         try {
             switch (dataType) {
@@ -184,11 +185,10 @@ public class BinaryStreamReader {
                 case Date32:
                     return (T) readDate32AsLocalDate();
                 case DateTime:
-                    return convertDateTime(readDateTime32(timezone), typeHint);
                 case DateTime32:
-                    return convertDateTime(readDateTime32(timezone), typeHint);
+                    return convertDateTime(readDateTime32(resolveTimeZone(actualColumn)), typeHint);
                 case DateTime64:
-                    return convertDateTime(readDateTime64(scale, timezone), typeHint);
+                    return convertDateTime(readDateTime64(scale, resolveTimeZone(actualColumn)), typeHint);
                 case Time:
                     return (T) readTime();
                 case Time64:
@@ -1034,6 +1034,44 @@ public class BinaryStreamReader {
             throws IOException {
         LocalDate d = LocalDate.ofEpochDay(readIntLE(input, buff));
         return d.atStartOfDay(tz.toZoneId()).withZoneSameInstant(tz.toZoneId());
+    }
+
+    private static final String FIXED_UTC_PREFIX = "Fixed/UTC";
+
+    /**
+     * Resolves the timezone declared by a {@code DateTime}/{@code DateTime32}/{@code DateTime64}
+     * column, honouring ClickHouse's synthetic fixed-offset timezone names.
+     *
+     * <p>For a column declared with a literal offset, ClickHouse emits a synthetic timezone name of
+     * the form {@code Fixed/UTC±HH:MM:SS} (e.g. {@code Fixed/UTC+05:30:00}) in the column type
+     * metadata. {@link TimeZone#getTimeZone(String)} does not recognise these ids and silently
+     * returns GMT, which drops the declared offset and shifts every value read from the column by
+     * that offset. This recovers the offset from the declared name via {@link ZoneOffset}; ordinary
+     * (IANA) timezone names, and columns without a declared timezone, are resolved as before.
+     *
+     * @param column the {@code DateTime}/{@code DateTime64} column being read
+     * @return the timezone used to interpret the column's epoch value; never {@code null}
+     */
+    private TimeZone resolveTimeZone(ClickHouseColumn column) {
+        for (String param : column.getParameters()) {
+            // The timezone is the sole quoted (non-numeric) parameter of a DateTime type; the
+            // server may emit it quoted ('Fixed/UTC+05:30:00') or bare (in dynamic subcolumns).
+            int start = !param.isEmpty() && param.charAt(0) == '\'' ? 1 : 0;
+            if (param.startsWith(FIXED_UTC_PREFIX, start)) {
+                int end = param.endsWith("'") ? param.length() - 1 : param.length();
+                String offset = param.substring(start + FIXED_UTC_PREFIX.length(), end);
+                if (!offset.isEmpty()) {
+                    try {
+                        return TimeZone.getTimeZone(ZoneOffset.of(offset));
+                    } catch (DateTimeException ignored) {
+                        // Offset out of range (beyond ±18:00) or malformed: fall back to the
+                        // column's default resolution below instead of failing the read.
+                    }
+                }
+                break;
+            }
+        }
+        return column.getTimeZoneOrDefault(timeZone);
     }
 
     private ZonedDateTime readDateTime32(TimeZone tz) throws IOException {

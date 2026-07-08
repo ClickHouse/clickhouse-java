@@ -37,9 +37,7 @@ import com.clickhouse.data.value.array.ClickHouseShortArrayValue;
 
 import java.io.Serializable;
 import java.lang.reflect.Array;
-import java.time.DateTimeException;
 import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -129,34 +127,6 @@ public final class ClickHouseColumn implements Serializable {
     private DefaultValue defaultValue;
     private String defaultExpression;
 
-    /**
-     * Resolves a timezone name to a {@link TimeZone}.
-     *
-     * <p>ClickHouse uses synthetic fixed-offset timezone names of the form
-     * {@code Fixed/UTC±HH:MM:SS} (e.g. {@code Fixed/UTC+05:30:00}) for columns
-     * declared with a literal offset. These names are not recognised by
-     * {@link TimeZone#getTimeZone(String)}, which silently falls back to GMT for
-     * any unrecognised ID. This method detects the {@code Fixed/UTC} prefix and
-     * converts the offset portion to a {@link ZoneOffset} before creating the
-     * {@link TimeZone}, preserving the column's declared fixed offset.
-     *
-     * @param tzName non-null timezone name as emitted in ClickHouse column type metadata
-     * @return resolved {@link TimeZone}; never null for a non-null {@code tzName}
-     */
-    static TimeZone resolveTimeZone(String tzName) {
-        if (tzName != null && tzName.startsWith("Fixed/UTC")) {
-            String offset = tzName.substring("Fixed/UTC".length());
-            if (!offset.isEmpty()) {
-                try {
-                    return TimeZone.getTimeZone(ZoneOffset.of(offset));
-                } catch (DateTimeException ignored) {
-                    // fall through to standard resolution
-                }
-            }
-        }
-        return TimeZone.getTimeZone(tzName);
-    }
-
     private static ClickHouseColumn update(ClickHouseColumn column) {
         column.enumConstants = ClickHouseEnum.EMPTY;
         int size = column.parameters.size();
@@ -234,14 +204,15 @@ public final class ClickHouseColumn implements Serializable {
                     }
                     column.template = ClickHouseOffsetDateTimeValue.ofNull(
                             column.scale = Integer.parseInt(column.parameters.get(0)),
-                            column.timeZone = resolveTimeZone(column.parameters.get(1).replace("'", "")));
+                            column.timeZone = TimeZone.getTimeZone(column.parameters.get(1).replace("'", "")));
                 } else if (size == 1) { // same as DateTime32
                     if (!column.nullable) {
                         column.estimatedByteLength += ClickHouseDataType.DateTime32.getByteLength();
                     }
                     column.template = ClickHouseOffsetDateTimeValue.ofNull(
                             column.scale,
-                            column.timeZone = resolveTimeZone(column.parameters.get(0).replace("'", "")));
+                            // unfortunately this will fall back to GMT if the time zone cannot be resolved
+                            column.timeZone = TimeZone.getTimeZone(column.parameters.get(0).replace("'", "")));
                 }
                 break;
             case DateTime32:
@@ -249,7 +220,8 @@ public final class ClickHouseColumn implements Serializable {
                 if (size > 0) {
                     column.template = ClickHouseOffsetDateTimeValue.ofNull(
                             column.scale,
-                            column.timeZone = resolveTimeZone(column.parameters.get(0).replace("'", "")));
+                            // unfortunately this will fall back to GMT if the time zone cannot be resolved
+                            column.timeZone = TimeZone.getTimeZone(column.parameters.get(0).replace("'", "")));
                 }
                 break;
             case DateTime64:
@@ -260,7 +232,7 @@ public final class ClickHouseColumn implements Serializable {
                 if (size > 1) {
                     column.template = ClickHouseOffsetDateTimeValue.ofNull(
                             column.scale,
-                            column.timeZone = resolveTimeZone(column.parameters.get(1).replace("'", "")));
+                            column.timeZone = TimeZone.getTimeZone(column.parameters.get(1).replace("'", "")));
                 }
                 break;
             case Decimal:
