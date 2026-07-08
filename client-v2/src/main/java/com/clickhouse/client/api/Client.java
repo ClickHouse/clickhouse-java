@@ -18,6 +18,7 @@ import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.internal.ClientStatisticsHolder;
 import com.clickhouse.client.api.internal.CredentialsManager;
+import com.clickhouse.client.api.internal.DataTypeConverter;
 import com.clickhouse.client.api.internal.HttpAPIClientHelper;
 import com.clickhouse.client.api.internal.MapUtils;
 import com.clickhouse.client.api.internal.TableSchemaParser;
@@ -1715,7 +1716,15 @@ public class Client implements AutoCloseable {
         clientStats.start(ClientMetrics.OP_DURATION);
 
         if (queryParams != null) {
-            requestSettings.setOption(HttpAPIClientHelper.KEY_STATEMENT_PARAMS, queryParams);
+            // Format parameter values here so the transport layer receives ready-to-send text:
+            // Array/Map values are quoted the way the server's param_<name> parser expects
+            // (e.g. {dates:Array(Date)} <- List<LocalDate> becomes ['2026-05-13'], not [2026-05-13]).
+            Map<String, String> formattedParams = new LinkedHashMap<>();
+            for (Map.Entry<String, Object> param : queryParams.entrySet()) {
+                formattedParams.put(param.getKey(),
+                        DataTypeConverter.INSTANCE.convertParameterToString(param.getValue()));
+            }
+            requestSettings.setOption(HttpAPIClientHelper.KEY_STATEMENT_PARAMS, formattedParams);
         }
 
         if (requestSettings.getQueryId() == null && queryIdGenerator != null) {

@@ -146,6 +146,8 @@ of `NULL` was not set and read. (https://github.com/ClickHouse/clickhouse-java/i
   (`Fixed/UTC±HH:MM:SS`, e.g. `Fixed/UTC+05:30:00`) being silently read in UTC instead of the declared offset. The
   `RowBinary` reader now recovers the offset from the column's declared type. (https://github.com/ClickHouse/clickhouse-java/issues/2876)
 
+- **[client-v2]** Fixed container query parameters being sent unquoted, so `Client.query(sql, params, settings)` binding a `List<LocalDate>` (or an array/`Map`) to a placeholder like `{ids:Array(Date)}` was rejected by the server with `CANNOT_PARSE_INPUT_ASSERTION_FAILED`. Parameter values are now formatted by `DataTypeConverter#convertParameterToString(Object)` before being sent: pass the raw Java value and the client renders it into the text the server's `param_<name>` interface expects — a `Collection`, array (object or primitive), or `Map` becomes ClickHouse `Array` (`['2026-05-13']`) / `Map` (`{'k':'v'}`) text with `String`/temporal leaves single-quoted and numeric/boolean leaves left unquoted, while a scalar is passed through unquoted as before. No manual pre-formatting of container parameters is needed. (https://github.com/ClickHouse/clickhouse-java/issues/2897)
+
 ## 0.9.8
 
 ### Improvements 

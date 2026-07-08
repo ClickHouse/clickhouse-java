@@ -59,6 +59,7 @@ import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -1658,6 +1659,37 @@ public class QueryTests extends BaseIntegrationTest {
 
         Assert.assertEquals(records.get(0).getString("name"), "COLLATIONS");
         Assert.assertEquals(records.get(1).getString("name"), "ENGINES");
+    }
+
+    @DataProvider(name = "containerQueryParameters")
+    Object[][] containerQueryParameters() {
+        // {clickHouseType, value, expected} - add a row to extend coverage to another container/type.
+        return new Object[][]{
+                // String and temporal elements must be single-quoted so the server's param parser accepts them.
+                {"Array(Date)", Arrays.asList(LocalDate.of(2026, 5, 13), LocalDate.of(2026, 5, 14)), "['2026-05-13','2026-05-14']"},
+                {"Array(DateTime)", Arrays.asList(LocalDateTime.of(2026, 5, 13, 1, 2, 3)), "['2026-05-13 01:02:03']"},
+                {"Array(String)", Arrays.asList("a", "b"), "['a','b']"},
+                {"Map(String, Date)", Collections.singletonMap("k", LocalDate.of(2026, 5, 13)), "{'k':'2026-05-13'}"},
+                // Contrast: numeric elements must stay unquoted (quoting an Array(Int*/Float*) triggers CANNOT_READ_ARRAY_FROM_TEXT).
+                {"Array(Int32)", Arrays.asList(1, 2, 3), "[1,2,3]"},
+                {"Array(Float64)", Arrays.asList(1.5, 2.5), "[1.5,2.5]"},
+                // Object arrays, primitive arrays and nested containers must round-trip too, not just List.
+                {"Array(Date)", new LocalDate[]{LocalDate.of(2026, 5, 13)}, "['2026-05-13']"},
+                {"Array(Int32)", new int[]{4, 5, 6}, "[4,5,6]"},
+                {"Array(Array(Int32))", Arrays.asList(Arrays.asList(1, 2), Arrays.asList(3, 4)), "[[1,2],[3,4]]"},
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "containerQueryParameters")
+    public void testContainerQueryParamsQuoteInnerValues(String clickHouseType, Object value, String expected) {
+        // Regression: Array/Map parameters whose elements were emitted unquoted (e.g. param_p=[2026-05-13])
+        // were rejected by the server with HTTP 400. Raw List/array/Map values must round-trip without the
+        // manual DataTypeConverter pre-formatting workaround; the query is built from the parameter's type.
+        Map<String, Object> params = Collections.singletonMap("p", value);
+        List<GenericRecord> records = client.queryAll("SELECT toString({p:" + clickHouseType + "}) AS v", params);
+
+        Assert.assertEquals(records.size(), 1);
+        Assert.assertEquals(records.get(0).getString("v"), expected);
     }
 
     @Test(groups = {"integration"})
