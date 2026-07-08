@@ -142,6 +142,10 @@ of `NULL` was not set and read. (https://github.com/ClickHouse/clickhouse-java/i
 
 - **[jdbc-v2, client-v2]** Fixed writing nullable marker for nested `Tuple` and `Map values. (https://github.com/ClickHouse/clickhouse-java/issues/2721)
 
+- **[client-v2]** Fixed `DateTime`/`DateTime64` columns declared with a synthetic fixed-offset timezone name
+  (`Fixed/UTC±HH:MM:SS`, e.g. `Fixed/UTC+05:30:00`) being silently read in UTC instead of the declared offset. The
+  `RowBinary` reader now recovers the offset from the column's declared type. (https://github.com/ClickHouse/clickhouse-java/issues/2876)
+
 ## 0.9.8
 
 ### Improvements 
