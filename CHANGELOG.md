@@ -146,6 +146,12 @@ of `NULL` was not set and read. (https://github.com/ClickHouse/clickhouse-java/i
   (`Fixed/UTC±HH:MM:SS`, e.g. `Fixed/UTC+05:30:00`) being silently read in UTC instead of the declared offset. The
   `RowBinary` reader now recovers the offset from the column's declared type. (https://github.com/ClickHouse/clickhouse-java/issues/2876)
 
+- **[jdbc-v2]** Fixed the beta RowBinary writer (`DriverProperties.BETA_ROW_BINARY_WRITER`) throwing
+  `NoSuchColumnException` for `INSERT` statements whose column names are backtick-quoted, in particular the
+  canonical `Nested` sub-column wire form `` `directory`.`id` ``. The SQL parser now unescapes each
+  backtick-quoted `INSERT` column-name component before the by-name server-schema lookup, matching how the
+  table and database identifiers are already handled. (https://github.com/ClickHouse/clickhouse-java/issues/2896)
+
 ## 0.9.8
 
 ### Improvements 
