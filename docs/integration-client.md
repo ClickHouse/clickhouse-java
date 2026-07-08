@@ -1,29 +1,60 @@
 # ClickHouse Java Client Integration Guide
 
-This guide walks through integrating ClickHouse using the **Java Client V2** (`client-v2`). It covers terminology, configuration, formats, read/write operations, and metadata discovery.
+This guide is a **step-by-step, end-to-end integration path** for the **Java Client V2** (`client-v2`). It is written to be used as context for building an application or a downstream integration spec: each step states the decisions you must make, how to configure them, and the common pitfalls to avoid. It is self-contained — you can work through it from the empty project to a running read/write path without other prerequisites.
 
-**Prerequisites:** Read [integration-common.md](integration-common.md) to confirm the Java Client is the right choice for your application.
+> **Configuration philosophy.** This guide names only the properties relevant to each step. It does not repeat the exhaustive property list — that lives in [`ClientConfigProperties`](../client-v2/src/main/java/com/clickhouse/client/api/ClientConfigProperties.java) and the official docs. Configuration splits into two groups:
+> - **Init configuration** — set once when the client is built: endpoint, connection pool size, async mode, authentication. Covered in Steps 1–3.
+> - **Operation configuration** — set per request or as client defaults: formats, buffer sizes, timeouts, retries, dedup tokens. Covered in Steps 4–6.
 
-| Resource | Link |
-|----------|------|
-| Official docs | [clickhouse.com/docs/integrations/java](https://clickhouse.com/docs/integrations/java) |
-| Javadoc | [javadoc.io/doc/com.clickhouse/client-v2](https://javadoc.io/doc/com.clickhouse/client-v2) |
-| Maven artifact | `com.clickhouse:client-v2` |
-| Examples | [examples/client-v2](../examples/client-v2) |
-| Authentication & TLS | [authentication.md](authentication.md) |
-| Feature contract | [features.md](features.md) |
+## Artifacts
+
+The client is published to Maven Central as **`com.clickhouse:client-v2`**. Browse versions and copy a ready-made dependency snippet for any build system (Maven, Gradle, sbt, Ivy, ...) from the [Maven Central page](https://central.sonatype.com/artifact/com.clickhouse/client-v2).
+
+Two distributions are published under the same artifact:
+
+- **Standard artifact** (default, no classifier) — the client together with its dependencies declared as ordinary transitive Maven dependencies. Recommended for managed builds in which the application controls the dependency tree.
+- **Shaded artifact** (`all` classifier) — a single self-contained archive that bundles and **relocates** most third-party dependencies (Apache HttpClient, LZ4, RoaringBitmap, ASM, and others) under `com.clickhouse.shaded.*`. Recommended when transitive dependencies cannot be managed, such as self-contained deployment archives or standalone tooling.
+
+**Dependency conflicts to anticipate.** The standard artifact introduces libraries that the application may already depend on at different versions — notably **Guava**, **Apache HttpClient 5**, and **commons-compress**. If the application declares incompatible versions, `NoSuchMethodError` or `LinkageError` may occur at runtime. Two approaches resolve this:
+
+- Use the shaded artifact so that these dependencies are relocated and cannot collide. Note that `slf4j` and `micrometer` are intentionally left unshaded, so logging and metrics continue to bind to the application's own implementations.
+- Alternatively, use the standard artifact and reconcile versions explicitly through dependency management or `<exclusions>`.
 
 ---
 
-## Terminology and Internal Overview
+## Integration path at a glance
 
-Understanding a few core concepts before writing code will save time later.
+Work through these steps in order. Each one is a decision point; the "Common Pitfalls" notes describe the consequences of skipping it.
 
-### Client
+| # | Step | Core decision |
+|---|-----------|---------------|
+| 1 | [Instantiation strategy](#step-1--instantiation-strategy) | How many `Client` instances, their lifetime, and pool sizing |
+| 2 | [Authentication](#step-2--authentication) | Which auth mechanism and how to configure it |
+| 3 | [Transport & connectivity](#step-3--transport--connectivity-tls-proxies-timeouts) | TLS/mTLS, proxies, timeouts, health checks |
+| 4 | [Data formats, readers & writers](#step-4--data-formats-readers--writers) | Which wire format and reader/writer to use |
+| 5 | [Read operations & tuning](#step-5--read-operations--tuning) | Streaming vs materializing; heavy-read tuning; read errors |
+| 6 | [Write operations & tuning](#step-6--write-operations--tuning) | Insert pattern; heavy-ingest tuning; idempotency; write errors |
+| 7 | [Metadata & schema discovery](#step-7--metadata--schema-discovery) | How to obtain schemas without JDBC metadata |
 
-The [`Client`](https://javadoc.io/doc/com.clickhouse/client-v2/latest/com/clickhouse/client/api/Client.html) is the entry point for all interactions. Create one instance (or a small pool of instances) and reuse it across threads — **`Client` is thread-safe**.
+---
+
+## Step 1 — Instantiation strategy
+
+**Goal:** decide how many `Client` instances exist, how long they live, and how the internal connection pool is sized.
+
+### What a `Client` is
+
+The [`Client`](https://javadoc.io/doc/com.clickhouse/client-v2/latest/com/clickhouse/client/api/Client.html) is the single entry point for all operations. It owns:
+
+- An HTTP connection pool (Apache HttpClient)
+- Endpoint configuration and retry policy
+- A table schema cache
+- The POJO serialization/deserialization registry
+- Optional client-wide session and settings defaults
 
 ```java
+import com.clickhouse.client.api.Client;
+
 Client client = new Client.Builder()
     .addEndpoint("http://localhost:8123")
     .setUsername("default")
@@ -32,100 +63,149 @@ Client client = new Client.Builder()
     .build();
 ```
 
-Internally, `Client` owns:
+### Decisions
 
-- An HTTP connection pool (Apache HttpClient)
-- Endpoint configuration and retry policy
-- A table schema cache
-- POJO serialization/deserialization registry
-- Optional client-wide session defaults
+| Question | Recommended answer |
+|----------|--------------------|
+| How many instances? | **One long-lived `Client`** shared across the whole application (or one per distinct endpoint/credential set). |
+| Short- or long-lived? | **Long-lived.** Build once at startup, close once at shutdown. |
+| Thread-safe? | **Yes** — `Client` is thread-safe; share it across threads. |
+| Do I need my own pool? | **No.** The `Client` already pools HTTP connections internally. **CONSTRAINT:** Do not wrap it in an external object pool. |
 
-### Connection (HTTP, not JDBC)
+### A "connection" here is an HTTP connection
 
-In the Java Client, a "connection" is an **HTTP connection** from the internal pool, not a long-lived database session in the traditional sense. Each operation borrows an HTTP connection, sends a request, streams the response, and returns the connection to the pool.
+In the Java Client a "connection" is an **HTTP connection borrowed from the internal pool**, not a long-lived database session. Each operation borrows a connection, sends a request, streams the response, and returns the connection to the pool.
 
-Key related settings in [`ClientConfigProperties`](../client-v2/src/main/java/com/clickhouse/client/api/ClientConfigProperties.java):
+### Init configuration — connection pool sizing (set at build time)
 
-| Property | Purpose |
-|----------|---------|
-| `max_open_connections` | Pool size (default: 10) |
-| `connection_ttl` | Connection lifetime |
-| `connection_reuse_strategy` | FIFO or LIFO reuse |
-| `connection_timeout` | TCP connect timeout |
-| `socket_timeout` | Socket read/write timeout |
-| `connection_pool_enabled` | Enable/disable pooling |
+These are the only pool-related properties you normally touch; the rest have safe defaults.
 
-### Session
+| Property (Builder method) | Purpose | Default |
+|---------------------------|---------|---------|
+| `max_open_connections` (`.setMaxConnections()`) | Pool size — raise it to match peak concurrent operations | 10 |
+| `connection_pool_enabled` (`.enableConnectionPool()`) | Enable/disable pooling (keep enabled) | true |
+| `connection_ttl` (`.setConnectionTTL()`) | Max lifetime of a pooled connection | — |
+| `connection_reuse_strategy` (`.setConnectionReuseStrategy()`) | FIFO or LIFO reuse | — |
 
-A [`Session`](../client-v2/src/main/java/com/clickhouse/client/api/Session.java) represents ClickHouse HTTP session state (`session_id`, `session_check`, `session_timeout`, `session_timezone`). Sessions can be configured:
+### Init configuration — async vs synchronous execution
 
-- **Client-wide** — via `Client.Builder.use(session)`; applies to all operations
-- **Operation-wide** — via `QuerySettings.use(session)` or `InsertSettings.use(session)`; overrides client defaults for one request
+All operations return `CompletableFuture`. Whether they run on a client-managed executor is controlled once, at build time:
 
-HTTP sessions require **server affinity**. When using a load balancer, route session-bound requests to the same backend node or use sticky sessions. See [examples/client-v2 Sessions example](../examples/client-v2/src/main/java/com/clickhouse/examples/client_v2/Sessions.java).
+- **`ClientConfigProperties.ASYNC_OPERATIONS`** — when enabled, operations are dispatched on an internal executor and the returned future completes asynchronously. When disabled, the work runs on the calling thread and the returned future is already completed when you receive it.
+- `queryAll(...)` returns a `List<GenericRecord>` directly — it blocks and materializes every row into memory. `queryRecords(...)` returns a `CompletableFuture<Records>` whose `Records` is a **lazy** iterator over the still-open response stream, so it neither blocks the whole read nor materializes all rows. Reserve `queryAll(...)` for small results.
 
-### Operation types
+This choice should be made early, as async mode affects how back-pressure and timeouts are propagated throughout the application.
 
-| Operation | API | Returns |
-|-----------|-----|---------|
-| Query (SELECT) | `client.query(sql, settings)` | `CompletableFuture<QueryResponse>` |
-| Insert | `client.insert(table, data, settings)` | `CompletableFuture<InsertResponse>` |
-| Command (DDL, etc.) | `client.execute(sql, settings)` | `CompletableFuture<CommandResponse>` |
+### Sessions (optional, decide now if you need them)
 
-All operations are **asynchronous** (`CompletableFuture`). Convenience methods like `queryAll()` and `queryRecords()` block and materialize results.
+A [`Session`](../client-v2/src/main/java/com/clickhouse/client/api/Session.java) carries ClickHouse HTTP session state (`session_id`, `session_check`, `session_timeout`, `session_timezone`):
+
+- **Client-wide** — `Client.Builder.use(session)` applies to every operation.
+- **Operation-wide** — `QuerySettings.use(session)` / `InsertSettings.use(session)` overrides per request.
+
+### Common Pitfalls
+
+<common-pitfalls>
+- **CONSTRAINT:** Do not create a `Client` per request. It destroys pool warm-up and adds latency on every call — the single most common mistake.
+- **Pool too small** (`max_open_connections`) throttles concurrency; size it to peak concurrent operations, not average.
+- **Sessions behind a load balancer** require **server affinity** (sticky sessions) — a session-bound request routed to a different node fails. See [Sessions example](../examples/client-v2/src/main/java/com/clickhouse/examples/client_v2/Sessions.java).
+- **CONSTRAINT:** Always `close()` the client at shutdown to avoid leaking the pool and its threads.
+
+</common-pitfalls>
+---
+
+## Step 2 — Authentication
+
+**Goal:** configure the authentication mechanism the ClickHouse deployment requires. The mechanism is dictated by the server and any fronting infrastructure, not chosen freely; the task is to identify it and configure it correctly. <constraints>
+**CONSTRAINT:** Configure exactly one primary mechanism — `client-v2`'s `CredentialsManager` rejects a client that mixes password, token, and SSL auth.
+</constraints>
+
+> This section is intentionally self-contained (it is duplicated, with client-specific configuration, in the [JDBC guide](integration-jdbc.md#milestone-2--authentication)). For the full reference including the Client V1 → V2 migration table, see [authentication.md](authentication.md).
+
+### Option A — Basic (username + password)
+
+The standard mechanism. Default installs ship a `default` user with no password.
+
+```java
+import com.clickhouse.client.api.Client;
+
+Client client = new Client.Builder()
+    .addEndpoint("http://localhost:8123")
+    .setUsername("my_user")
+    .setPassword("my_password")
+    .build();
+```
+
+Rotate credentials at runtime (thread-safe, non-blocking, applies to newly started requests):
+
+```java
+client.updateUserAndPassword("new_user", "new_password");
+```
+
+### Option B — Token / bearer
+
+For the standard `Authorization: Bearer <token>` scheme use `useBearerTokenAuth(...)` (the `Bearer ` prefix is added for you):
+
+```java
+import com.clickhouse.client.api.Client;
+
+Client client = new Client.Builder()
+    .addEndpoint("http://localhost:8123")
+    .useBearerTokenAuth("my_access_token")
+    .build();
+```
+
+For a non-`Bearer` scheme, use `setAccessToken(...)` — the value is sent verbatim, so include the scheme yourself. Runtime updates: `updateBearerToken(...)` (adds prefix) and `updateAccessToken(...)` (verbatim).
+
+### Option C — Mutual TLS (client certificate)
+
+```java
+import com.clickhouse.client.api.Client;
+
+Client client = new Client.Builder()
+    .addEndpoint("https://localhost:8443")
+    .useSSLAuthentication(true)
+    .setClientCertificate("/path/to/client.crt")
+    .setClientKey("/path/to/client.key")
+    .setRootCertificate("/path/to/ca.crt") // if the server cert is self-signed
+    .build();
+```
+
+Alternatively configure a trust store with `setSSLTrustStore(...)`, `setSSLTrustStorePassword(...)`, `setSSLTrustStoreType(...)`.
+
+### Option D — Custom HTTP headers (proxies / gateways)
+
+For OAuth gateways or custom handler configurations, inject arbitrary headers:
+
+```java
+import com.clickhouse.client.api.Client;
+
+Client client = new Client.Builder()
+    .addEndpoint("http://localhost:8123")
+    .httpHeader("X-API-Key", "my_custom_api_key")
+    .build();
+```
+
+### Identifying the required mechanism
+
+The mechanism follows from how the server and any fronting infrastructure are configured:
+
+| Deployment | Required mechanism |
+|------------|--------------------|
+| Native ClickHouse users with passwords | Basic — username + password (Option A) |
+| Bearer/token gateway or ClickHouse Cloud token | Token / bearer (Option B) |
+| Certificate-based (zero-trust) access | Mutual TLS (Option C) |
+| Authenticating proxy or API gateway in front of ClickHouse | Custom HTTP headers (Option D) |
+
+Runtime rotation via `updateUserAndPassword` / `updateBearerToken` updates the credentials of the **already-selected** mechanism; it throws `ClientMisconfigurationException` rather than switching to a different mechanism.
 
 ---
 
-## Configuration
+## Step 3 — Transport & connectivity (TLS, proxies, timeouts)
 
-Configuration happens at three levels. Operation settings override client defaults.
+**Goal:** make the client reach the server reliably under your network topology. This is init configuration set on the builder.
 
-```mermaid
-flowchart LR
-  builder["Client.Builder\n(client defaults)"]
-  opSettings["QuerySettings /\nInsertSettings /\nCommandSettings"]
-  server["ClickHouse server\n(server settings)"]
-
-  builder --> opSettings
-  opSettings --> server
-```
-
-### Where to find properties
-
-| Layer | Class | Description |
-|-------|-------|-------------|
-| Client defaults | [`ClientConfigProperties`](../client-v2/src/main/java/com/clickhouse/client/api/ClientConfigProperties.java) | All known client properties |
-| Builder API | [`Client.Builder`](../client-v2/src/main/java/com/clickhouse/client/api/Client.java) | Fluent configuration at construction |
-| Query operations | [`QuerySettings`](../client-v2/src/main/java/com/clickhouse/client/api/query/QuerySettings.java) | Per-query overrides |
-| Insert operations | [`InsertSettings`](../client-v2/src/main/java/com/clickhouse/client/api/insert/InsertSettings.java) | Per-insert overrides |
-| Command operations | [`CommandSettings`](../client-v2/src/main/java/com/clickhouse/client/api/command/CommandSettings.java) | Per-command overrides |
-
-Properties can be set via builder methods, string key/value maps, or `setOption(key, value)` on operation settings.
-
-### Server settings vs client settings
-
-**Server settings** control ClickHouse query execution (e.g., `max_execution_time`, `max_threads`). Pass them with the `server_setting` prefix or via builder/operation helpers:
-
-```java
-// Client-wide
-Client client = new Client.Builder()
-    .addEndpoint("http://localhost:8123")
-    .serverSetting("max_execution_time", "60")
-    .build();
-
-// Per-query
-QuerySettings settings = new QuerySettings()
-    .setMaxExecutionTime(60)
-    .serverSetting("max_threads", "8");
-```
-
-**Client settings** control HTTP transport, pooling, compression, and timeouts. Examples: `compress`, `client.use_http_compression`, `retry`, `socket_timeout`.
-
-Refer to [ClickHouse server settings documentation](https://clickhouse.com/docs/operations/settings/settings) for available server-side options.
-
-### Non-standard communication (TLS, mTLS, proxies)
-
-See [authentication.md](authentication.md) for full details. Summary:
+### TLS / mTLS / proxies
 
 | Scenario | Builder methods / properties |
 |----------|------------------------------|
@@ -134,82 +214,56 @@ See [authentication.md](authentication.md) for full details. Summary:
 | mTLS (client certificate) | `useSSLAuthentication(true)`, `setClientCertificate(...)`, `setClientKey(...)` |
 | Trust store (JKS/PKCS12) | `setSSLTrustStore(...)`, `setSSLTrustStorePassword(...)` |
 | HTTP proxy | `setProxy(ProxyType.HTTP, host, port)`, `setProxyCredentials(user, password)` |
-| Custom auth headers | `httpHeader("Authorization", "...")` |
-| Bearer token | `useBearerTokenAuth("token")` |
 
-**Example — self-signed certificate:**
+See [SSLExamples](../examples/client-v2/src/main/java/com/clickhouse/examples/client_v2/SSLExamples.java) for a runnable walkthrough and [authentication.md](authentication.md) for full details.
+
+### Init configuration — timeouts
+
+| Property (Builder method) | Purpose |
+|----------|---------|
+| `connection_timeout` (`.setConnectTimeout()`) | TCP connect timeout |
+| `socket_timeout` (`.setSocketTimeout()`) | Socket read/write timeout |
+
+Per-operation network timeouts are set later (Step 5) via `QuerySettings.setNetworkTimeout(long timeout, ChronoUnit unit)`. Note this method returns `void` (it is not chainable), so call it on a `QuerySettings` instance rather than inside a builder chain.
+
+### Health check
 
 ```java
-Client client = new Client.Builder()
-    .addEndpoint("https://localhost:8443")
-    .setUsername("default")
-    .setPassword("secret")
-    .setRootCertificate("/path/to/ca.crt")
-    .build();
+if (!client.ping()) { throw new RuntimeException("ClickHouse unreachable"); }
 ```
 
-See [examples/client-v2 SSLExamples](../examples/client-v2/src/main/java/com/clickhouse/examples/client_v2/SSLExamples.java) for a runnable walkthrough.
+### Server vs client settings
 
-### Read-oriented configuration
+- **Server settings** control query execution (`max_execution_time`, `max_threads`). Pass them with the `server_setting` prefix or helpers: `.serverSetting("max_execution_time", "60")` at build time, or `QuerySettings.serverSetting(...)` per operation.
+- **Client settings** control HTTP transport, pooling, compression, and timeouts (`compress`, `socket_timeout`, `retry`).
 
-Tune these for analytical read workloads:
+### Common Pitfalls
 
-| Setting | Property / method | Notes |
-|---------|-------------------|-------|
-| Response compression | `compress=true` (default) | Server-side LZ4 compression |
-| Output format | `QuerySettings.setFormat(...)` | Prefer binary formats for throughput |
-| Read buffer | `QuerySettings.setReadBufferSize(n)` | Min 8192 bytes |
-| Execution limit | `QuerySettings.setMaxExecutionTime(seconds)` | Server-side timeout |
-| Max result rows | `serverSetting("max_result_rows", ...)` | Limit rows server-side |
-| Async execution | `ClientConfigProperties.ASYNC_OPERATIONS` | Non-blocking client-side |
-| Network timeout | `QuerySettings.setNetworkTimeout(...)` | Per-operation override |
+<common-pitfalls>
+- **Timeouts too aggressive** for heavy analytical queries cause spurious failures — align `socket_timeout` with expected query duration or use per-operation network timeouts.
+- **Proxy credentials omitted** on authenticated proxies produce opaque connection failures.
 
-### Write-oriented configuration
-
-Tune these for bulk ingest:
-
-| Setting | Property / method | Notes |
-|---------|-------------------|-------|
-| Client request compression | `InsertSettings.compressClientRequest(true)` | LZ4-compress insert body |
-| HTTP compression | `InsertSettings.useHttpCompression(true)` | Content-Encoding header |
-| Pre-compressed data | `InsertSettings.appCompressedData(true, "gzip")` | When you compress data yourself |
-| Copy buffer size | `InsertSettings.setInputStreamCopyBufferSize(n)` | Stream-to-stream copy buffer |
-| Async insert | `serverSetting("async_insert", "1")` | Server-side buffering |
-| Deduplication | `InsertSettings.setDeduplicationToken(...)` | See [Write operations](#write-operations) |
-
-### Special features
-
-| Feature | How to use |
-|---------|------------|
-| Named parameters | `client.query("SELECT * FROM t WHERE id = {id:UInt64}", Map.of("id", 42), settings)` |
-| DB roles | `client.setDBRoles(List.of("analyst"))` or per-operation `settings.setDBRoles(...)` |
-| Query ID | `settings.setQueryId("my-query-id")` — appears in `system.query_log` |
-| Log comment | `settings.logComment("batch-job-42")` — appears in query log |
-| Retry on failure | `retry=3` (default), configurable fault causes via `client_retry_on_failures` |
-| Runtime credential update | `client.updateUserAndPassword(...)`, `client.updateBearerToken(...)` |
-| Metrics | Micrometer integration via `metrics_name` property |
-| Custom settings prefix | `custom_settings_prefix` for prefixed server settings |
-
+</common-pitfalls>
 ---
 
-## Supported Formats Overview
+## Step 4 — Data formats, readers & writers
 
-ClickHouse supports many [input/output formats](https://clickhouse.com/docs/interfaces/formats). The Java Client lets you choose the format per operation.
+**Goal:** pick the wire format and the reader/writer that match your throughput and interop needs. Format is chosen **per operation**, unlike JDBC which hides it.
 
-All formats are defined in [`ClickHouseFormat`](../clickhouse-data/src/main/java/com/clickhouse/data/ClickHouseFormat.java). Each format declares whether it supports input, output, binary encoding, headers, and row-based layout.
+All formats are defined in [`ClickHouseFormat`](../clickhouse-data/src/main/java/com/clickhouse/data/ClickHouseFormat.java); each declares whether it supports input, output, binary encoding, headers, and row layout.
 
 ### Format categories
 
 | Category | Examples | Typical use |
 |----------|----------|-------------|
 | Binary (high throughput) | `RowBinary`, `RowBinaryWithNamesAndTypes`, `Native` | Production ingest and ETL |
-| Text (human-readable) | `TabSeparated`, `CSV`, `JSONEachRow` | Debugging, ad-hoc export, interoperability |
-| Columnar file | `Parquet`, `Arrow`, `ORC`, `Avro` | Data lake integration |
-| Schema-aware binary | `RowBinaryWithNamesAndTypes` | Self-describing streams without prior schema |
+| Text (human-readable) | `TabSeparated`, `CSV`, `JSONEachRow` | Debugging, ad-hoc export, interop |
+| Columnar file | `Parquet`, `Arrow`, `ORC`, `Avro` | Data-lake integration |
+| Schema-aware binary | `RowBinaryWithNamesAndTypes` | Self-describing streams without a prior schema |
 
-### What the client can read
+### Readers (for reads)
 
-Use `QuerySettings.setFormat(format)` and consume the response stream:
+Select with `QuerySettings.setFormat(format)` and consume the response stream:
 
 | Reader class | Formats |
 |--------------|---------|
@@ -218,33 +272,14 @@ Use `QuerySettings.setFormat(format)` and consume the response stream:
 | [`ClickHouseBinaryFormatReader`](../client-v2/src/main/java/com/clickhouse/client/api/data_formats/ClickHouseBinaryFormatReader.java) | General binary access |
 | Text / JSON | Read `QueryResponse.getInputStream()` directly |
 
-Convenience methods:
+### Writers (for writes)
 
-- `client.queryAll(sql)` — materialize all rows as `GenericRecord`
-- `client.queryRecords(sql, settings)` — lazy `Records` iterator
-- `client.queryAll(sql, MyPojo.class)` — materialize as typed POJOs (requires registration)
+| Writer class | Use |
+|--------------|-----|
+| [`RowBinaryFormatWriter`](../client-v2/src/main/java/com/clickhouse/client/api/data_formats/RowBinaryFormatWriter.java) | Row-oriented binary insert |
+| [`ClickHouseBinaryFormatWriter`](../client-v2/src/main/java/com/clickhouse/client/api/data_formats/ClickHouseBinaryFormatWriter.java) | General binary insert |
 
-### What the client can write
-
-Use `client.insert(...)` with a format:
-
-| Method | Description |
-|--------|-------------|
-| `insert(table, List<?> pojos)` | Registered POJO serialization |
-| `insert(table, InputStream, format)` | Stream pre-serialized data |
-| `insert(table, columns, InputStream, format)` | Partial-column stream insert |
-| `insert(table, writer, format, settings)` | Callback-driven `DataStreamWriter` |
-
-Writers: [`RowBinaryFormatWriter`](../client-v2/src/main/java/com/clickhouse/client/api/data_formats/RowBinaryFormatWriter.java), [`ClickHouseBinaryFormatWriter`](../client-v2/src/main/java/com/clickhouse/client/api/data_formats/ClickHouseBinaryFormatWriter.java).
-
-### Limitations
-
-- Not every `ClickHouseFormat` enum value has a dedicated reader/writer in the client. Text and binary row formats are fully supported; some specialized formats (e.g., `CapnProto`, `MySQLDump`) may require raw stream handling.
-- `Native` format is block-oriented — best for high-throughput scenarios where you control both schema and consumption.
-- Format choice must match what the ClickHouse table/query supports. Mismatched types produce server-side errors.
-- POJO SerDe covers common and many advanced types but has known limitations for `Geometry` shape inference (see [features.md](features.md)).
-
-### How to choose a format
+### How to choose
 
 | Goal | Recommended format |
 |------|--------------------|
@@ -252,17 +287,35 @@ Writers: [`RowBinaryFormatWriter`](../client-v2/src/main/java/com/clickhouse/cli
 | Maximum write throughput | `RowBinary` or `Native` |
 | Interop with other systems | `JSONEachRow`, `CSV`, `Parquet` |
 | Debugging / inspection | `TabSeparated`, `JSONEachRow` |
-| Schema-less exploration | `RowBinaryWithNamesAndTypes` (includes column names and types in stream) |
-| POJO-based ingest | Register POJO + use default RowBinary writer |
+| Schema-less exploration | `RowBinaryWithNamesAndTypes` (Wire format carries column names + types, avoiding need for out-of-band schema) |
+| POJO-based ingest | Register POJO + default RowBinary writer |
 
+### Common Pitfalls
+
+<common-pitfalls>
+- **Not every `ClickHouseFormat` has a dedicated reader/writer.** Specialized formats (e.g. `CapnProto`, `MySQLDump`) may require raw stream handling — verify a reader exists before committing.
+- **POJO SerDe** covers most types but has known limitations (e.g. `Geometry` shape inference) — see [features.md](features.md).
+- **`Native`** is block-oriented; best when you control both schema and consumption.
+
+</common-pitfalls>
 ---
 
-## Read Operations
+## Step 5 — Read operations & tuning
 
-### General interface overview
+**Goal:** read results efficiently and configure the operation-level settings for heavy analytical reads.
+
+### General interface
 
 ```java
-// Async query with streaming response
+import com.clickhouse.client.api.query.QuerySettings;
+import com.clickhouse.client.api.query.QueryResponse;
+import com.clickhouse.client.api.query.GenericRecord;
+import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
+import com.clickhouse.data.ClickHouseFormat;
+import java.util.concurrent.TimeUnit;
+import java.util.List;
+import java.util.Map;
+
 QuerySettings settings = new QuerySettings()
     .setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
 
@@ -277,61 +330,74 @@ try (QueryResponse response = client.query("SELECT * FROM events", settings)
     }
 }
 
-// Convenience: materialize all rows
+// Convenience: materialize all rows (small results only)
 List<GenericRecord> rows = client.queryAll("SELECT count() FROM events");
 ```
 
-**Key classes:**
+> **Reader schema source.** The one-argument `client.newBinaryFormatReader(response)` only works when the format carries its own schema (e.g. `RowBinaryWithNamesAndTypes`, `Native`). For a plain `RowBinary` stream, which has no embedded column names/types, use the two-argument overload `client.newBinaryFormatReader(response, schema)` and pass a `TableSchema`, or the reader cannot decode the rows.
 
-| Class | Role |
-|-------|------|
-| [`QueryResponse`](../client-v2/src/main/java/com/clickhouse/client/api/query/QueryResponse.html) | Streaming HTTP response; must be closed |
-| [`QuerySettings`](../client-v2/src/main/java/com/clickhouse/client/api/query/QuerySettings.java) | Per-query configuration |
-| [`Records`](../client-v2/src/main/java/com/clickhouse/client/api/query/Records.java) | Lazy record iterator |
-| [`GenericRecord`](../client-v2/src/main/java/com/clickhouse/client/api/query/GenericRecord.java) | Column access by name or index |
-| [`QueryResponse.getMetrics()`](../client-v2/src/main/java/com/clickhouse/client/api/metrics/OperationMetrics.java) | Server timing and row counts |
-
-Parameterized queries:
+Parameterized queries use ClickHouse placeholder syntax `{name:Type}`:
 
 ```java
 Map<String, Object> params = Map.of("min_id", 1000);
 client.query("SELECT * FROM events WHERE id > {min_id:UInt64}", params, settings);
 ```
 
-Placeholders use ClickHouse syntax: `{name:Type}`. The value must match the expected textual representation for that type.
+**Key classes:**
 
-### Limitations
+| Class | Role |
+|-------|------|
+| [`QueryResponse`](../client-v2/src/main/java/com/clickhouse/client/api/query/QueryResponse.java) | Streaming HTTP response; must be closed |
+| [`QuerySettings`](../client-v2/src/main/java/com/clickhouse/client/api/query/QuerySettings.java) | Per-query configuration |
+| [`Records`](../client-v2/src/main/java/com/clickhouse/client/api/query/Records.java) | Lazy record iterator |
+| [`GenericRecord`](../client-v2/src/main/java/com/clickhouse/client/api/query/GenericRecord.java) | Column access by name or index |
+| [`OperationMetrics`](../client-v2/src/main/java/com/clickhouse/client/api/metrics/OperationMetrics.java) | Server timing and row counts via `QueryResponse.getMetrics()` |
 
-- Large result sets: `queryAll()` loads everything into memory. Use streaming readers or `queryRecords()` for big results.
-- Format support varies by reader class — verify your chosen format has a reader before production use.
-- Named parameter typing is strict — mismatched types cause server errors.
-- Session-bound queries require server affinity behind load balancers.
+### Operation configuration — tuning heavy reads
 
-### Read best practices
+Set these on `QuerySettings` (per query) or as client defaults:
 
-- **Prefer binary formats** (`RowBinaryWithNamesAndTypes`, `Native`) over text formats for production workloads.
-- **Stream, don't materialize** — use `QueryResponse` + binary reader for large datasets.
-- **Set server-side limits** — use `max_execution_time` and `max_result_rows` to prevent runaway queries.
-- **Reuse the Client** — create once, share across threads; do not create a new client per query.
-- **Register POJOs once** — `client.register(MyRecord.class, schema)` at startup, not per query.
-- **Close responses** — always use try-with-resources on `QueryResponse`.
-- **Use query IDs and log comments** — essential for correlating application logs with `system.query_log`.
+| Setting | Property / method | Notes |
+|---------|-------------------|-------|
+| Response compression | `compress=true` (default) | Server-side LZ4 |
+| Output format | `QuerySettings.setFormat(...)` | Prefer binary for throughput |
+| Read buffer size | `QuerySettings.setReadBufferSize(n)` | Min 8192 bytes; raise for large streams |
+| Execution limit | `QuerySettings.setMaxExecutionTime(seconds)` | Server-side timeout |
+| Max result rows | `serverSetting("max_result_rows", ...)` | Limit rows server-side |
+| Network timeout | `QuerySettings.setNetworkTimeout(long, ChronoUnit)` | Per-operation override; returns `void`, not chainable |
 
-### Read don'ts
+Useful correlation helpers: `settings.setQueryId(...)` and `settings.logComment(...)` surface in `system.query_log`.
 
-- **Don't** call `queryAll()` on unbounded `SELECT *` against large tables.
-- **Don't** use `JSON` or `Pretty` formats in high-throughput pipelines.
-- **Don't** create a new `Client` per request — connection pool warmup adds latency.
-- **Don't** ignore `QueryResponse` close — leaked responses hold HTTP connections.
-- **Don't** assume text format parsing is as fast as binary — measure before choosing.
+### Best practices
 
+<best-practices>
+- **Prefer binary formats** over text for production reads.
+- **Stream rather than materialize** — use `QueryResponse` with a binary reader for large datasets; reserve `queryAll()` for small results.
+- **Set server-side limits** (`max_execution_time`, `max_result_rows`) to stop runaway queries.
+- **Register POJOs once** at startup, not per query.
+- **Always close `QueryResponse`** (try-with-resources) — a leaked response holds an HTTP connection.
+
+</best-practices>
+### Errors & how to handle them
+
+<error-handling-rules>
+See the [Error model](#error-model) for the exception hierarchy and how to unwrap `ExecutionException`. Reads have **no side effects**, so a failed read is always safe to re-run from the start — the decisions are about *whether* it is worth retrying:
+
+| Failure | Surfaces as | Handling |
+|---------|-------------|----------|
+| Bad SQL, unknown column, placeholder type mismatch, missing table | `ServerException` (e.g. code `60` table-not-found) | **Not retryable** — a retry produces the same error. Inspect `getCode()` and fix the query. |
+| Server aborted an excessively heavy query | `ServerException` code `159` (`TIMEOUT_EXCEEDED`) | The query exceeded `max_execution_time`. Raise the limit or optimize the query; do not retry unconditionally. |
+| Transport connect/read timeout | `DataTransferException` / timeout | Often transient. A read is idempotent, so re-running the whole query is safe. |
+| Connection dropped **mid-stream** (after you began iterating) | `DataTransferException` while reading | You cannot resume from the middle — some rows were already consumed. Close the `QueryResponse` and re-run the entire query. Make consumers tolerant of re-reading from the start. |
+
+</error-handling-rules>
 ---
 
-## Write Operations
+## Step 6 — Write operations & tuning
 
-### General interface overview
+**Goal:** choose an insert pattern, tune it for bulk ingest, and make retries idempotent.
 
-The client supports three insert patterns:
+### Insert patterns
 
 **1. POJO list insert** (simplest for typed data):
 
@@ -340,96 +406,120 @@ client.register(Event.class, client.getTableSchema("events"));
 client.insert("events", List.of(new Event(...), new Event(...))).get();
 ```
 
-**2. Stream insert** (best for bulk/pre-serialized data):
+**2. Stream insert** (best for bulk / pre-serialized data):
 
 ```java
-InsertSettings settings = new InsertSettings()
-    .compressClientRequest(true);
+import com.clickhouse.client.api.insert.InsertSettings;
+import com.clickhouse.data.ClickHouseFormat;
+import java.io.InputStream;
 
+InsertSettings settings = new InsertSettings().compressClientRequest(true);
 try (InputStream data = openJsonLinesStream()) {
     client.insert("events", data, ClickHouseFormat.JSONEachRow, settings).get();
 }
 ```
 
-**3. Callback writer** (best for generated binary data):
+**3. Callback writer** (best for generated binary data). The writer-based `insert` requires an explicit `InsertSettings`, a `TableSchema`, and the `format` argument; the client opens the stream, invokes your `DataStreamWriter`, and closes the stream for you:
 
 ```java
-client.insert("events", outputStream -> {
-    RowBinaryFormatWriter writer = new RowBinaryFormatWriter(outputStream, schema);
+import com.clickhouse.client.api.metadata.TableSchema;
+import com.clickhouse.client.api.data_formats.RowBinaryFormatWriter;
+import com.clickhouse.client.api.insert.InsertSettings;
+import com.clickhouse.data.ClickHouseFormat;
+
+TableSchema schema = client.getTableSchema("events");
+ClickHouseFormat format = ClickHouseFormat.RowBinary;
+
+client.insert("events", out -> {
+    RowBinaryFormatWriter writer = new RowBinaryFormatWriter(out, schema, format);
     for (Event event : events) {
-        writer.writeObject(event);
+        writer.setValue("id", event.getId());
+        writer.setValue("name", event.getName());
+        writer.commitRow();
     }
-    writer.flush();
-}, ClickHouseFormat.RowBinary);
+}, format, new InsertSettings()).get();
 ```
+
+Populate each row with `setValue(column, value)` (by name or 1-based index) and finish it with `commitRow()`. Do not close the stream yourself — the client does it.
 
 **Key classes:**
 
 | Class | Role |
 |-------|------|
-| [`InsertResponse`](../client-v2/src/main/java/com/clickhouse/client/api/insert/InsertResponse.java) | Insert operation result; must be closed |
+| [`InsertResponse`](../client-v2/src/main/java/com/clickhouse/client/api/insert/InsertResponse.java) | Insert result; must be closed |
 | [`InsertSettings`](../client-v2/src/main/java/com/clickhouse/client/api/insert/InsertSettings.java) | Per-insert configuration |
 | [`DataStreamWriter`](../client-v2/src/main/java/com/clickhouse/client/api/DataStreamWriter.java) | Callback interface for writer-based inserts |
 
-### Deduplication token
+### Operation configuration — tuning heavy writes
 
-When inserting into a `MergeTree`-family table with deduplication enabled, ClickHouse can skip duplicate blocks. The **`insert_deduplication_token`** server setting identifies an insert attempt so retries do not create duplicate rows.
+| Setting | Property / method | Notes |
+|---------|-------------------|-------|
+| Client request compression | `InsertSettings.compressClientRequest(true)` | LZ4-compress the insert body |
+| HTTP compression | `InsertSettings.useHttpCompression(true)` | Content-Encoding header |
+| Pre-compressed data | `InsertSettings.appCompressedData(true, "gzip")` | When you compress the data yourself |
+| Copy buffer size | `InsertSettings.setInputStreamCopyBufferSize(n)` | Stream-to-stream copy buffer |
+| Async insert | `serverSetting("async_insert", "1")` | Server-side buffering |
+| Retry policy | `retry=3` (default), `client_retry_on_failures` | Configurable fault causes (init config) |
+
+### Idempotency — deduplication token
+
+On a `MergeTree`-family table with deduplication enabled, the **`insert_deduplication_token`** lets the server skip duplicate blocks so retries do not create duplicate rows.
 
 ```java
+import com.clickhouse.client.api.insert.InsertSettings;
+import com.clickhouse.data.ClickHouseFormat;
+
 InsertSettings settings = new InsertSettings()
     .setDeduplicationToken("batch-2024-06-18-part-001");
-
 client.insert("events", dataStream, ClickHouseFormat.JSONEachRow, settings).get();
 ```
 
-**How it works:**
+- Assign a **stable** token per logical batch (file name, Kafka offset, job ID).
+- Use it for retry-safe pipelines and at-least-once sources (Kafka, SQS, file reprocessing).
+- Requires a `MergeTree` engine with deduplication configured. See [`InsertTests.testInsertSettingsDeduplicationToken`](../client-v2/src/test/java/com/clickhouse/client/insert/InsertTests.java).
 
-1. You assign a unique token per logical batch (e.g., derived from file name, Kafka offset, or job ID).
-2. The server records the token alongside the inserted block.
-3. If the same token is sent again within the deduplication window, the server skips the duplicate insert.
+### Best practices
 
-**When to use it:**
-
-- Retry-safe ingest pipelines (network failures, client retries)
-- At-least-once delivery sources (Kafka, SQS, file reprocessing)
-- Idempotent batch jobs
-
-**Requirements:**
-
-- Table must use a `MergeTree` engine with deduplication configured (e.g., `non_replicated_deduplication_window` for non-replicated tables, or ReplicatedMergeTree with standard deduplication).
-- Token must be stable for a given logical batch across retries.
-- Use a different token for each distinct batch.
-
-See the integration test in [`InsertTests.testInsertSettingsDeduplicationToken`](../client-v2/src/test/java/com/clickhouse/client/insert/InsertTests.java) for a working example.
-
-### Write best practices
-
-- **Batch inserts** — send rows in large chunks (thousands to millions), not one row per request.
-- **Use binary formats** for production ingest (`RowBinary`, `Native`, or registered POJOs).
-- **Enable compression** — `compressClientRequest(true)` reduces network payload for large inserts.
+<best-practices>
+- **Batch large** — thousands to millions of rows per request, never one row per request.
+- **Use binary formats** (`RowBinary`, `Native`, or registered POJOs) for production ingest.
+- **Enable compression** for large payloads.
 - **Set deduplication tokens** on retry-prone pipelines.
-- **Use `async_insert`** server setting when you need fire-and-forget buffering (server-side).
-- **Pre-fetch table schema** — `client.getTableSchema("table")` once and reuse; schema is cached internally.
-- **Match column types** — verify schema before writing; type mismatches fail at the server.
+- **Pre-fetch and reuse the table schema** (`getTableSchema` is cached internally).
 
-### Write don'ts
+</best-practices>
+### Errors & how to handle them
 
-- **Don't** insert one row per HTTP request — overhead dominates at scale.
-- **Don't** retry without a deduplication token on MergeTree tables — duplicates may appear.
-- **Don't** mix formats in a single insert stream.
-- **Don't** send text formats without verifying escaping and column order.
-- **Don't** ignore `InsertResponse` close — release HTTP connections promptly.
-- **Don't** assume POJO SerDe handles every ClickHouse type — test with your schema first.
+<error-handling-rules>
+See the [Error model](#error-model) for the exception hierarchy and how to unwrap `ExecutionException`. Writes have **side effects**, so error handling is fundamentally harder than for reads:
 
+| Failure | Surfaces as | Handling |
+|---------|-------------|----------|
+| Type mismatch, missing/extra column, quota exceeded, read-only table | `ServerException` | Mostly **not retryable** (schema errors). Fix the payload or schema. Check `isRetryable()` before retrying. |
+| Transient server condition (too-many-parts `252`, memory limit `241`, network `210`, ...) | `ServerException` with `isRetryable() == true` | The built-in `retry` policy already re-sends. See the caveat below before relying on it. |
+| Timeout/drop **after** the server received the body | `ServerException` code `319` (`UNKNOWN_STATUS_OF_INSERT`) or transport error | **Ambiguous** — you cannot tell whether the insert committed. Treat as "maybe written" and rely on a deduplication token so a safe re-insert cannot double-write. |
+
+**Retrying an insert re-sends the whole payload — this is the key difference from reads.** On a retry the client calls `DataStreamWriter.onRetry()` and then re-invokes `onOutput(...)`, so your data source must be **replayable**:
+
+- A one-shot `InputStream`, a drained queue, or a consumed iterator **cannot be re-read** — the retry either fails or sends truncated data. Buffer the batch in memory, hand the client a rewindable source, or implement `onRetry()` to reset your stream.
+- Even a successful retry can **duplicate rows** unless you set a stable `insert_deduplication_token` (see [Idempotency](#idempotency--deduplication-token) above) on a MergeTree-family table.
+- If retries are not safe for your source, disable them (`retry=0`) and handle re-submission at the application level with a dedup token.
+
+</error-handling-rules>
 ---
 
-## Getting Metadata and Table Schemas
+## Step 7 — Metadata & schema discovery
 
-The client provides schema discovery without going through JDBC `DatabaseMetaData`.
+**Goal:** obtain table and query schemas without JDBC `DatabaseMetaData`.
 
-### Table schema from table name
+### Table schema from a table name
 
 ```java
+import com.clickhouse.client.api.metadata.TableSchema;
+import com.clickhouse.client.api.data_formats.RowBinaryFormatWriter;
+import com.clickhouse.client.api.insert.InsertSettings;
+import com.clickhouse.data.ClickHouseFormat;
+
 TableSchema schema = client.getTableSchema("events");
 TableSchema schema = client.getTableSchema("events", "analytics"); // explicit database
 
@@ -438,40 +528,32 @@ for (ClickHouseColumn column : schema.getColumns()) {
 }
 ```
 
-Internally this runs `DESCRIBE TABLE` and parses the result via [`TableSchemaParser`](../client-v2/src/main/java/com/clickhouse/client/api/internal/TableSchemaParser.java).
+Internally runs `DESCRIBE TABLE` and parses via [`TableSchemaParser`](../client-v2/src/main/java/com/clickhouse/client/api/internal/TableSchemaParser.java).
 
 ### Schema from a query
 
-When you need the schema of a query result (not an existing table):
-
 ```java
 TableSchema schema = client.getTableSchemaFromQuery(
-    "SELECT id, name, created_at FROM events WHERE id > 0"
-);
+    "SELECT id, name, created_at FROM events WHERE id > 0");
 ```
 
 ### POJO registration
 
-For typed read/write, register a POJO against a schema:
-
 ```java
+import com.clickhouse.client.api.metadata.TableSchema;
+import com.clickhouse.client.api.data_formats.RowBinaryFormatWriter;
+import com.clickhouse.client.api.insert.InsertSettings;
+import com.clickhouse.data.ClickHouseFormat;
+
 TableSchema schema = client.getTableSchema("events");
 client.register(Event.class, schema);
 
-// Now you can:
-List<Event> events = client.queryAll("SELECT * FROM events", Event.class);
-client.insert("events", events);
+// The typed queryAll takes the target class AND the schema to bind against.
+List<Event> events = client.queryAll("SELECT * FROM events", Event.class, schema);
+client.insert("events", events).get();
 ```
 
-Matching between POJO fields and columns is controlled by [`ColumnToMethodMatchingStrategy`](../client-v2/src/main/java/com/clickhouse/client/api/metadata/ColumnToMethodMatchingStrategy.java) (default: camelCase field to snake_case column).
-
-### Manual schema registration
-
-If you already know the schema, register it directly:
-
-```java
-client.registerTableSchema("events", schema);
-```
+Field-to-column matching is controlled by [`ColumnToMethodMatchingStrategy`](../client-v2/src/main/java/com/clickhouse/client/api/metadata/ColumnToMethodMatchingStrategy.java) (default: camelCase field → snake_case column). You can also register a known schema directly with `client.registerTableSchema("events", schema)`.
 
 ### Tools summary
 
@@ -480,45 +562,103 @@ client.registerTableSchema("events", schema);
 | Table schema | `getTableSchema(table)` | Inserts, POJO binding, writers |
 | Query schema | `getTableSchemaFromQuery(sql)` | Dynamic queries, unknown result shape |
 | POJO registry | `register(Class, schema)` | Typed query/insert |
-| Schema cache | Automatic | Avoid repeated DESCRIBE calls |
 | Column metadata | `TableSchema.getColumnByName(name)` | Type-aware read/write |
-| Server info | `client.loadServerInfo()` | Version, timezone, current user |
+| Server info | `client.loadServerInfo()` (returns `void`) | Refreshes cached server info; then read `getServerVersion()`, `getServerTimeZone()`, `getUser()` |
 
-For JDBC-style catalog metadata (`DatabaseMetaData`), use the [JDBC integration guide](integration-jdbc.md) instead.
+For JDBC-style catalog metadata (`DatabaseMetaData`), use the [JDBC integration guide](integration-jdbc.md).
 
 ---
 
-## Quick Reference
+<error-handling-rules>
+## Error model
+
+This is the shared exception reference used by the read ([Step 5](#step-5--read-operations--tuning)) and write ([Step 6](#step-6--write-operations--tuning)) error sections. All exceptions extend [`ClickHouseException`](../client-v2/src/main/java/com/clickhouse/client/api/ClickHouseException.java) (an unchecked `RuntimeException`). Because operations return `CompletableFuture`, a failed operation surfaces its cause wrapped in `java.util.concurrent.ExecutionException` when you call `.get()`; unwrap it with `getCause()`.
+
+| Exception | Meaning | Typical cause |
+|-----------|---------|---------------|
+| [`ServerException`](../client-v2/src/main/java/com/clickhouse/client/api/ServerException.java) | ClickHouse rejected the request | Bad SQL, type mismatch, missing table; inspect `getCode()` for the CH error code, `isRetryable()`, and `getQueryId()` |
+| [`ClientException`](../client-v2/src/main/java/com/clickhouse/client/api/ClientException.java) | Client-side failure | Serialization, reader/writer, or usage error |
+| [`ClientMisconfigurationException`](../client-v2/src/main/java/com/clickhouse/client/api/ClientMisconfigurationException.java) | Invalid configuration | Mixed auth mechanisms; runtime mechanism switch |
+| [`ConnectionInitiationException`](../client-v2/src/main/java/com/clickhouse/client/api/ConnectionInitiationException.java) | Could not establish a connection | Wrong endpoint, TLS handshake, proxy failure |
+| [`DataTransferException`](../client-v2/src/main/java/com/clickhouse/client/api/DataTransferException.java) | Failure while streaming the request/response body | Dropped connection mid-transfer |
 
 ```java
-// Build client
-Client client = new Client.Builder()
-    .addEndpoint("http://localhost:8123")
-    .setUsername("default")
-    .setPassword("secret")
-    .setDefaultDatabase("default")
-    .serverSetting("max_execution_time", "120")
-    .build();
-
-// Health check
-if (!client.ping()) { throw new RuntimeException("ClickHouse unreachable"); }
-
-// Read
-List<GenericRecord> rows = client.queryAll("SELECT 1");
-
-// Write
-client.insert("my_table", jsonInputStream, ClickHouseFormat.JSONEachRow).get();
-
-// Schema
-TableSchema schema = client.getTableSchema("my_table");
-
-// Cleanup
-client.close();
+try {
+    client.query("SELECT * FROM missing_table").get();
+} catch (ExecutionException e) {
+    Throwable cause = e.getCause();
+    if (cause instanceof ServerException) {
+        ServerException se = (ServerException) cause;
+        // ServerException.TABLE_NOT_FOUND == 60
+        logger.error("ClickHouse error {} (query {}, retryable={}): {}",
+                se.getCode(), se.getQueryId(), se.isRetryable(), se.getMessage());
+    }
+    throw e;
+}
 ```
 
-**Related documents:**
+**On built-in retries.** `ServerException.isRetryable()` marks transient server codes (timeouts, network, memory-limit, too-many-parts, ...) and the client's own `retry` policy already re-sends those. Do not add a second retry loop on top without accounting for it. Retries behave very differently for reads vs writes — see the per-operation "Errors & how to handle them" sections for the details (in particular, an insert retry must re-send the whole payload).
+
+</error-handling-rules>
+
+---
+
+## Quick reference
+
+A minimal end-to-end program. `Client` implements `AutoCloseable`, so try-with-resources handles shutdown.
+
+```java
+import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.query.GenericRecord;
+import com.clickhouse.data.ClickHouseFormat;
+
+import java.io.InputStream;
+import java.util.List;
+
+public class QuickStart {
+    public static void main(String[] args) throws Exception {
+        // Steps 1–3: build one long-lived client
+        try (Client client = new Client.Builder()
+                .addEndpoint("http://localhost:8123")
+                .setUsername("default")
+                .setPassword("secret")
+                .setDefaultDatabase("default")
+                .serverSetting("max_execution_time", "120")
+                .build()) {
+
+            // Step 3: health check
+            if (!client.ping()) {
+                throw new RuntimeException("ClickHouse unreachable");
+            }
+
+            // Step 6: write (blocks on the returned future)
+            try (InputStream data = QuickStart.class.getResourceAsStream("/events.jsonl")) {
+                client.insert("my_table", data, ClickHouseFormat.JSONEachRow).get();
+            }
+
+            // Step 5: read a small result
+            List<GenericRecord> rows = client.queryAll("SELECT count() FROM my_table");
+            System.out.println("row count = " + rows.get(0).getLong(1));
+        } // client.close() runs here
+    }
+}
+```
+
+## References
+
+**External resources:**
+
+| Resource | Link |
+|----------|------|
+| Official docs | [clickhouse.com/docs/integrations/java](https://clickhouse.com/docs/integrations/java) |
+| Javadoc | [javadoc.io/doc/com.clickhouse/client-v2](https://javadoc.io/doc/com.clickhouse/client-v2) |
+| Artifact (versions + build snippets) | [central.sonatype.com/artifact/com.clickhouse/client-v2](https://central.sonatype.com/artifact/com.clickhouse/client-v2) |
+| Runnable examples | [examples/client-v2](../examples/client-v2) |
+| Full property reference | [`ClientConfigProperties`](../client-v2/src/main/java/com/clickhouse/client/api/ClientConfigProperties.java) and [ClickHouse server settings](https://clickhouse.com/docs/operations/settings/settings) |
+
+**Related documents in this repository:**
 
 - [integration-common.md](integration-common.md) — choosing JDBC vs Client
 - [integration-jdbc.md](integration-jdbc.md) — JDBC integration path
-- [authentication.md](authentication.md) — authentication and TLS
-- [features.md](features.md) — compatibility contract
+- [authentication.md](authentication.md) — full authentication and TLS reference (referenced from Steps 2–3)
+- [features.md](features.md) — compatibility contract (referenced from Step 4)
