@@ -219,4 +219,26 @@ public class DataTypeConverterTest {
     public void testConvertParameterToString(Object value, String expected) {
         assertEquals(new DataTypeConverter().convertParameterToString(value), expected);
     }
+
+    @Test
+    public void testConvertDeeplyNestedParameterDoesNotOverflow() {
+        // convertParameterContainer uses an explicit work stack (not recursion), so a deeply nested
+        // container must format correctly without a StackOverflowError. Recursion overflowed here.
+        int depth = 20_000;
+        Object nested = LocalDate.of(2026, 5, 13);
+        for (int i = 0; i < depth; i++) {
+            nested = Collections.singletonList(nested);
+        }
+
+        StringBuilder expected = new StringBuilder(depth * 2 + 12);
+        for (int i = 0; i < depth; i++) {
+            expected.append('[');
+        }
+        expected.append("'2026-05-13'");
+        for (int i = 0; i < depth; i++) {
+            expected.append(']');
+        }
+
+        assertEquals(new DataTypeConverter().convertParameterToString(nested), expected.toString());
+    }
 }

@@ -18,8 +18,10 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAccessor;
+import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.Date;
+import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 
@@ -254,57 +256,96 @@ public class DataTypeConverter {
                 || (value != null && value.getClass().isArray());
     }
 
+    /**
+     * Renders a {@code Collection}/array/{@code Map} parameter value into ClickHouse
+     * {@code Array} ({@code [e1,e2,...]}) or {@code Map} ({@code {k:v,...}}) text using an explicit
+     * work stack rather than recursion, so that arbitrarily deep nesting cannot overflow the call
+     * stack. Work items are pushed in reverse so they pop in left-to-right output order: a container
+     * expands into its punctuation and child values, while a leaf is formatted with
+     * {@link ClickHouseValues#convertToSqlExpression(Object)} (String/temporal single-quoted,
+     * numeric/boolean unquoted, {@code null} -> {@code NULL}) - exactly what the server's array/map
+     * text parser expects for nested elements.
+     */
     private String convertParameterContainer(Object value) {
         StringBuilder sb = new StringBuilder();
-        if (value instanceof Map) {
-            sb.append('{');
-            boolean first = true;
-            for (Map.Entry<?, ?> entry : ((Map<?, ?>) value).entrySet()) {
-                if (!first) {
-                    sb.append(',');
-                }
-                first = false;
-                sb.append(convertParameterElement(entry.getKey()))
-                        .append(':')
-                        .append(convertParameterElement(entry.getValue()));
-            }
-            sb.append('}');
-        } else {
-            // Collection or array (object or primitive) -> ClickHouse Array text: [e1,e2,...]
-            sb.append('[');
-            if (value instanceof Collection) {
-                boolean first = true;
-                for (Object element : (Collection<?>) value) {
-                    if (!first) {
-                        sb.append(',');
-                    }
-                    first = false;
-                    sb.append(convertParameterElement(element));
-                }
+        Deque<Object> stack = new ArrayDeque<>();
+        stack.push(value);
+        while (!stack.isEmpty()) {
+            Object item = stack.pop();
+            if (item instanceof Literal) {
+                sb.append(((Literal) item).text);
+            } else if (isParameterContainer(item)) {
+                pushContainer(stack, item);
             } else {
-                // Reflection handles both Object[] and primitive arrays (int[], long[], ...);
-                // Array.get autoboxes primitive elements so they render as unquoted numbers/booleans.
-                for (int i = 0, len = Array.getLength(value); i < len; i++) {
-                    if (i > 0) {
-                        sb.append(',');
-                    }
-                    sb.append(convertParameterElement(Array.get(value, i)));
-                }
+                sb.append(ClickHouseValues.convertToSqlExpression(item));
             }
-            sb.append(']');
         }
         return sb.toString();
     }
 
-    private String convertParameterElement(Object value) {
-        if (isParameterContainer(value)) {
-            return convertParameterContainer(value);
+    /** Expands one container onto the work {@code stack}, pushed in reverse so it pops in output order. */
+    private void pushContainer(Deque<Object> stack, Object container) {
+        if (container instanceof Map) {
+            stack.push(MAP_CLOSE);
+            Object[] entries = ((Map<?, ?>) container).entrySet().toArray();
+            for (int i = entries.length - 1; i >= 0; i--) {
+                Map.Entry<?, ?> entry = (Map.Entry<?, ?>) entries[i];
+                pushValue(stack, entry.getValue());
+                stack.push(COLON);
+                pushValue(stack, entry.getKey());
+                if (i > 0) {
+                    stack.push(COMMA);
+                }
+            }
+            stack.push(MAP_OPEN);
+        } else if (container instanceof Collection) {
+            stack.push(ARRAY_CLOSE);
+            Object[] elements = ((Collection<?>) container).toArray();
+            for (int i = elements.length - 1; i >= 0; i--) {
+                pushValue(stack, elements[i]);
+                if (i > 0) {
+                    stack.push(COMMA);
+                }
+            }
+            stack.push(ARRAY_OPEN);
+        } else {
+            // Reflection handles both Object[] and primitive arrays (int[], long[], ...);
+            // Array.get autoboxes primitive elements so they render as unquoted numbers/booleans.
+            stack.push(ARRAY_CLOSE);
+            for (int i = Array.getLength(container) - 1; i >= 0; i--) {
+                pushValue(stack, Array.get(container, i));
+                if (i > 0) {
+                    stack.push(COMMA);
+                }
+            }
+            stack.push(ARRAY_OPEN);
         }
-        // Leaf value: the type-aware SQL-expression form (String/temporal single-quoted,
-        // numeric/boolean unquoted, null -> NULL) is exactly what the server's array/map text
-        // parser expects for nested elements.
-        return ClickHouseValues.convertToSqlExpression(value);
     }
+
+    /**
+     * Pushes a child value onto the work {@code stack}, substituting {@link #NULL_LITERAL} for a
+     * {@code null} element because {@link ArrayDeque} does not permit {@code null} entries.
+     */
+    private static void pushValue(Deque<Object> stack, Object value) {
+        stack.push(value == null ? NULL_LITERAL : value);
+    }
+
+    /** A pre-rendered literal on the work stack: structural punctuation, or the {@code null} leaf. */
+    private static final class Literal {
+        final String text;
+
+        Literal(String text) {
+            this.text = text;
+        }
+    }
+
+    private static final Literal ARRAY_OPEN = new Literal("[");
+    private static final Literal ARRAY_CLOSE = new Literal("]");
+    private static final Literal MAP_OPEN = new Literal("{");
+    private static final Literal MAP_CLOSE = new Literal("}");
+    private static final Literal COMMA = new Literal(",");
+    private static final Literal COLON = new Literal(":");
+    private static final Literal NULL_LITERAL = new Literal(ClickHouseValues.convertToSqlExpression(null));
 
     public String geoToString(Object value, ClickHouseColumn column) {
         String geoValue = tryGeoToString(value, column);
