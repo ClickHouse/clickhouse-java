@@ -61,6 +61,15 @@ public class InsertSettings {
     }
 
     /**
+     * Removes options from the settings.
+     * @param option - configuration option name
+     */
+    public InsertSettings resetOption(String option) {
+        settings.resetOption(option);
+        return this;
+    }
+
+    /**
      * Get all settings as an unmodifiable map.
      *
      * @return all settings

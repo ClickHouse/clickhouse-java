@@ -1,6 +1,7 @@
 package com.clickhouse.client.api;
 
 import com.clickhouse.client.api.data_formats.internal.AbstractBinaryFormatReader;
+import com.clickhouse.client.api.enums.SSLMode;
 import com.clickhouse.client.api.internal.ClickHouseLZ4OutputStream;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
@@ -115,6 +116,8 @@ public enum ClientConfigProperties {
 
     SSL_CERTIFICATE("sslcert", String.class),
 
+    SSL_MODE("ssl_mode", SSLMode.class, SSLMode.STRICT.name()),
+
     RETRY_ON_FAILURE("retry", Integer.class, "3"),
 
     INPUT_OUTPUT_FORMAT("format", ClickHouseFormat.class),
@@ -190,6 +193,11 @@ public enum ClientConfigProperties {
      */
     HTTP_SEND_PARAMS_IN_BODY("client.http.use_form_request_for_query", Boolean.class, "false"),
 
+    /**
+     * When enabled for JSONEachRow queries, asks ClickHouse to emit large integer,
+     * floating-point, and decimal values as JSON numbers instead of quoted strings.
+     */
+    JSON_DISABLE_NUMBER_QUOTING("json_disable_number_quoting", Boolean.class, "false"),
 
     /**
      *  Prefix for custom settings. Should be aligned with server configuration.

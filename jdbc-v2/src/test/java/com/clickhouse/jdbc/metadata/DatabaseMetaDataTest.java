@@ -567,6 +567,47 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
         }
     }
 
+    private static final java.util.Map<ClickHouseDataType, String[]> TYPE_LITERAL_EXPECTATIONS;
+    static {
+        java.util.Map<ClickHouseDataType, String[]> map = new java.util.EnumMap<>(ClickHouseDataType.class);
+        
+        String[] quote = new String[]{"'", "'"};
+        map.put(ClickHouseDataType.String, quote);
+        map.put(ClickHouseDataType.FixedString, quote);
+        map.put(ClickHouseDataType.UUID, quote);
+        map.put(ClickHouseDataType.Date, quote);
+        map.put(ClickHouseDataType.Date32, quote);
+        map.put(ClickHouseDataType.DateTime, quote);
+        map.put(ClickHouseDataType.DateTime32, quote);
+        map.put(ClickHouseDataType.DateTime64, quote);
+        map.put(ClickHouseDataType.Time, quote);
+        map.put(ClickHouseDataType.Time64, quote);
+        map.put(ClickHouseDataType.Enum, quote);
+        map.put(ClickHouseDataType.Enum8, quote);
+        map.put(ClickHouseDataType.Enum16, quote);
+        map.put(ClickHouseDataType.IPv4, quote);
+        map.put(ClickHouseDataType.IPv6, quote);
+
+        String[] bracket = new String[]{"[", "]"};
+        map.put(ClickHouseDataType.Array, bracket);
+        map.put(ClickHouseDataType.Ring, bracket);
+        map.put(ClickHouseDataType.Polygon, bracket);
+        map.put(ClickHouseDataType.MultiPolygon, bracket);
+        map.put(ClickHouseDataType.LineString, bracket);
+        map.put(ClickHouseDataType.MultiLineString, bracket);
+
+        String[] brace = new String[]{"{", "}"};
+        map.put(ClickHouseDataType.Map, brace);
+
+        String[] parenthesis = new String[]{"(", ")"};
+        map.put(ClickHouseDataType.Tuple, parenthesis);
+        map.put(ClickHouseDataType.Point, parenthesis);
+        map.put(ClickHouseDataType.AggregateFunction, parenthesis);
+        map.put(ClickHouseDataType.SimpleAggregateFunction, parenthesis);
+
+        TYPE_LITERAL_EXPECTATIONS = java.util.Collections.unmodifiableMap(map);
+    }
+
     @Test(groups = { "integration" })
     public void testGetTypeInfo() throws Exception {
         try (Connection conn = getJdbcConnection()) {
@@ -638,8 +679,16 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
                     assertEquals(rs.getInt("DATA_TYPE"), rs.getObject("DATA_TYPE"));
 
                     assertEquals(rs.getInt("PRECISION"), dataType.getMaxPrecision());
-                    assertNull(rs.getString("LITERAL_PREFIX"));
-                    assertNull(rs.getString("LITERAL_SUFFIX"));
+                    
+                    String[] expectedLiterals = TYPE_LITERAL_EXPECTATIONS.get(dataType);
+                    if (expectedLiterals != null) {
+                        assertEquals(rs.getString("LITERAL_PREFIX"), expectedLiterals[0]);
+                        assertEquals(rs.getString("LITERAL_SUFFIX"), expectedLiterals[1]);
+                    } else {
+                        assertNull(rs.getString("LITERAL_PREFIX"), "Expected null prefix for " + dataType);
+                        assertNull(rs.getString("LITERAL_SUFFIX"), "Expected null suffix for " + dataType);
+                    }
+                    
                     assertEquals(rs.getInt("MINIMUM_SCALE"), dataType.getMinScale());
                     assertEquals(rs.getInt("MAXIMUM_SCALE"), dataType.getMaxScale());
                     assertNull(rs.getString("CREATE_PARAMS"));

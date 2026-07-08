@@ -2863,12 +2863,23 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
 
                 assertTrue(rs.next());
                 Object jsonObj = rs.getObject(1);
+                assertTrue(jsonObj instanceof Map, "JSON should be read as a Map");
+                Map<String, Object> jsonMap = (Map<String, Object>) jsonObj;
+                
                 if (expected == null) {
                     expected = jsonToClientMap(json);
                 }
-                assertEquals(jsonObj, expected);
+                Map<String, Object> expectedMap = (Map<String, Object>) expected;
+                
+                assertEquals(jsonMap, expectedMap);
+                for (Map.Entry<String, Object> entry : expectedMap.entrySet()) {
+                    assertTrue(jsonMap.containsKey(entry.getKey()), "Map should contain key: " + entry.getKey());
+                    assertEquals(jsonMap.get(entry.getKey()), entry.getValue(), "Values should match for key: " + entry.getKey());
+                }
+
                 assertTrue(rs.next());
                 Object emptyJsonObj = rs.getObject(1);
+                assertTrue(emptyJsonObj instanceof Map, "Empty JSON should be returned as Map");
                 assertEquals(emptyJsonObj, EMPTY_JSON);
                 assertFalse(rs.next());
             }

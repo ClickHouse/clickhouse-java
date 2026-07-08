@@ -1,5 +1,6 @@
 package com.clickhouse.client;
 
+import com.clickhouse.client.api.ClickHouseException;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
@@ -7,6 +8,7 @@ import com.clickhouse.client.api.ClientFaultCause;
 import com.clickhouse.client.api.ClientMisconfigurationException;
 import com.clickhouse.client.api.ConnectionInitiationException;
 import com.clickhouse.client.api.ConnectionReuseStrategy;
+import com.clickhouse.client.api.DataTransferException;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.Session;
 import com.clickhouse.client.api.command.CommandResponse;
@@ -14,6 +16,7 @@ import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.enums.ProxyType;
+import com.clickhouse.client.api.enums.SSLMode;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
@@ -38,21 +41,52 @@ import org.apache.hc.core5.http.ConnectionRequestTimeoutException;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.net.URIBuilder;
+import org.bouncycastle.asn1.x500.X500Name;
+import org.bouncycastle.asn1.x509.BasicConstraints;
+import org.bouncycastle.asn1.x509.Extension;
+import org.bouncycastle.asn1.x509.GeneralName;
+import org.bouncycastle.asn1.x509.GeneralNames;
+import org.bouncycastle.asn1.x509.KeyUsage;
+import org.bouncycastle.cert.X509v3CertificateBuilder;
+import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
+import org.bouncycastle.cert.jcajce.JcaX509ExtensionUtils;
+import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
+import org.bouncycastle.operator.ContentSigner;
+import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.testcontainers.utility.ThrowingFunction;
 import org.testng.Assert;
+import org.testng.SkipException;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
+import javax.net.ssl.SSLHandshakeException;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.StringWriter;
+import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.KeyStore;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.SecureRandom;
+import java.security.Security;
+import java.security.cert.Certificate;
+import java.security.cert.X509Certificate;
+import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Date;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -259,6 +293,180 @@ public class HttpTransportTests extends BaseIntegrationTest {
         } catch (Exception e) {
             e.printStackTrace();
             Assert.fail(e.getMessage());
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testSSLModeTrust() {
+        if (isCloud()) {
+            throw new SkipException("Test uses a self-signed certificate, not applicable to cloud");
+        }
+
+        ClickHouseNode secureServer = getSecureServer(ClickHouseProtocol.HTTP);
+
+        // Default mode (Strict) without any trust material - the self-signed certificate must be rejected
+        try (Client client = new Client.Builder()
+                .addEndpoint("https://localhost:" + secureServer.getPort())
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .build()) {
+            Assert.expectThrows(Exception.class, () -> client.queryAll("SELECT 1"));
+        }
+
+        // Trust mode - the same certificate is accepted without any trust material
+        try (Client client = new Client.Builder()
+                .addEndpoint("https://localhost:" + secureServer.getPort())
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .setOption(ClientConfigProperties.SSL_MODE.getKey(), SSLMode.TRUST.name())
+                .build()) {
+            List<GenericRecord> records = client.queryAll("SELECT timezone()");
+            Assert.assertEquals(records.get(0).getString(1), "UTC");
+        } catch (Exception e) {
+            Assert.fail("Trust SSL mode should accept a self-signed certificate", e);
+        }
+
+        // Trust mode ignores a configured trust store (a warning is logged). A non-existent path proves
+        // the trust store is never loaded - the connection still succeeds by trusting any certificate.
+        try (Client client = new Client.Builder()
+                .addEndpoint("https://localhost:" + secureServer.getPort())
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .setSSLMode(SSLMode.TRUST)
+                .setSSLTrustStore("non-existent-trust-store.jks")
+                .build()) {
+            List<GenericRecord> records = client.queryAll("SELECT timezone()");
+            Assert.assertEquals(records.get(0).getString(1), "UTC");
+        } catch (Exception e) {
+            Assert.fail("Trust SSL mode should ignore a configured trust store", e);
+        }
+
+        // Trust mode ignores a configured CA certificate as well (a warning is logged).
+        try (Client client = new Client.Builder()
+                .addEndpoint("https://localhost:" + secureServer.getPort())
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .setSSLMode(SSLMode.TRUST)
+                .setRootCertificate("non-existent-ca.crt")
+                .build()) {
+            List<GenericRecord> records = client.queryAll("SELECT timezone()");
+            Assert.assertEquals(records.get(0).getString(1), "UTC");
+        } catch (Exception e) {
+            Assert.fail("Trust SSL mode should ignore a configured CA certificate", e);
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testSSLModeVerifyCa() {
+        if (isCloud()) {
+            throw new SkipException("Test uses a self-signed certificate, not applicable to cloud");
+        }
+
+        ClickHouseNode secureServer = getSecureServer(ClickHouseProtocol.HTTP);
+        // server certificate has CN=localhost, so connecting via 127.0.0.1 fails hostname verification
+        final String endpointByIp = "https://127.0.0.1:" + secureServer.getPort();
+        final String serverCertificate = "containers/clickhouse-server/certs/localhost.crt";
+
+        // Strict mode (default): certificate chain is trusted, but the hostname does not match
+        try (Client client = new Client.Builder()
+                .addEndpoint(endpointByIp)
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .setRootCertificate(serverCertificate)
+                .build()) {
+            Assert.expectThrows(Exception.class, () -> client.queryAll("SELECT 1"));
+        }
+
+        // VerifyCa mode: certificate chain is validated, hostname mismatch is ignored
+        try (Client client = new Client.Builder()
+                .addEndpoint(endpointByIp)
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .setRootCertificate(serverCertificate)
+                .setSSLMode(SSLMode.VERIFY_CA)
+                .build()) {
+            List<GenericRecord> records = client.queryAll("SELECT timezone()");
+            Assert.assertEquals(records.get(0).getString(1), "UTC");
+        } catch (Exception e) {
+            Assert.fail("VerifyCa SSL mode should ignore hostname mismatch", e);
+        }
+
+        // VerifyCa mode still validates the certificate chain - without the CA it must fail
+        try (Client client = new Client.Builder()
+                .addEndpoint(endpointByIp)
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .setSSLMode(SSLMode.VERIFY_CA)
+                .build()) {
+            Assert.expectThrows(Exception.class, () -> client.queryAll("SELECT 1"));
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testSSLModeDisabled() {
+        if (isCloud()) {
+            throw new SkipException("Plain HTTP is not available on cloud");
+        }
+
+        ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
+
+        // Disabled mode with a plain HTTP endpoint - SSL is simply not used
+        try (Client client = new Client.Builder()
+                .addEndpoint("http://" + server.getHost() + ":" + server.getPort())
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .setSSLMode(SSLMode.DISABLED)
+                .build()) {
+            List<GenericRecord> records = client.queryAll("SELECT timezone()");
+            Assert.assertEquals(records.get(0).getString(1), "UTC");
+        } catch (Exception e) {
+            Assert.fail("Disabled SSL mode should work with a plain HTTP endpoint", e);
+        }
+
+        ClickHouseNode secureServer = getSecureServer(ClickHouseProtocol.HTTP);
+        // Disabled mode contradicts a secure (https) endpoint - the scheme decides encryption, not the mode
+        Assert.expectThrows(ClientMisconfigurationException.class, () -> new Client.Builder()
+                .addEndpoint("https://localhost:" + secureServer.getPort())
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .setSSLMode(SSLMode.DISABLED)
+                .build());
+    }
+
+    @Test(groups = { "integration" })
+    public void testSSLModeStrictWithTrustStoreAndCaCertificate() {
+        if (isCloud()) {
+            throw new SkipException("Test uses a self-signed certificate, not applicable to cloud");
+        }
+
+        ClickHouseNode secureServer = getSecureServer(ClickHouseProtocol.HTTP);
+        // A trust store and a CA certificate cannot both take effect: the trust store is used and the
+        // CA certificate is ignored (a warning is logged). The connection still succeeds via the trust store.
+        try (Client client = new Client.Builder()
+                .addEndpoint("https://localhost:" + secureServer.getPort())
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .build()) {
+            ClientException ex = Assert.expectThrows(ClientException.class, () -> client.queryAll("SELECT timezone()"));
+
+            Assert.assertTrue(ex.getCause() instanceof ClickHouseException);
+            Assert.assertTrue(ex.getCause().getMessage().startsWith("SSL Problem"));
+        }
+
+        // A trust store and a CA certificate cannot both take effect: the trust store is used and the
+        // CA certificate is ignored (a warning is logged). The connection still succeeds via the trust store.
+        try (Client client = new Client.Builder()
+                .addEndpoint("https://localhost:" + secureServer.getPort())
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .setSSLTrustStore("containers/clickhouse-server/certs/KeyStore.jks")
+                .setSSLTrustStorePassword("iloveclickhouse")
+                .setRootCertificate("containers/clickhouse-server/certs/localhost.crt")
+                .build()) {
+            List<GenericRecord> records = client.queryAll("SELECT timezone()");
+            Assert.assertEquals(records.get(0).getString(1), "UTC");
+        } catch (Exception e) {
+            Assert.fail("Trust store should be used when a CA certificate is also configured", e);
         }
     }
 
@@ -2144,5 +2352,184 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 .compressClientRequest(false)
                 .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
                 .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1");
+    }
+
+    private static final String BC_PROVIDER = BouncyCastleProvider.PROVIDER_NAME;
+
+    static {
+        if (Security.getProvider(BC_PROVIDER) == null) {
+            Security.addProvider(new BouncyCastleProvider());
+        }
+    }
+
+    @DataProvider(name = "testCustomCaCertificateProvider")
+    public static Object[][] testCustomCaCertificateProvider() {
+        return new Object[][]{
+                {true},
+                {false}};
+    }
+
+    /**
+     * End-to-end verification that a client configured with only a custom root CA certificate
+     * ({@link Client.Builder#setRootCertificate(String)}, no trust store involved) can establish a validated TLS
+     * connection to a server whose certificate is signed by that CA, and successfully perform operations over it.
+     * The certificate is passed either as a file or as a string with PEM content. As a control, a client without
+     * the root CA must fail to validate the same server, proving the provided CA is what makes the trusted
+     * connection possible.
+     */
+    @Test(groups = {"integration"}, dataProvider = "testCustomCaCertificateProvider")
+    public void testCustomCaCertificate(boolean certAsString) throws Exception {
+        if (isCloud()) {
+            return; // test uses a local WireMock HTTPS server instead of a ClickHouse instance
+        }
+
+        // Generate a private CA and a server certificate (CN/SAN=localhost) signed by it.
+        KeyPair caKeyPair = generateRsaKeyPair();
+        X500Name caSubject = new X500Name("CN=ClickHouse Java Test CA");
+        X509Certificate caCertificate = generateCertificate(caSubject, caSubject, caKeyPair.getPublic(),
+                caKeyPair.getPrivate(), caKeyPair.getPublic(), true, null);
+
+        KeyPair serverKeyPair = generateRsaKeyPair();
+        X500Name serverSubject = new X500Name("CN=localhost");
+        GeneralNames serverSans = new GeneralNames(new GeneralName[]{
+                new GeneralName(GeneralName.dNSName, "localhost"),
+                new GeneralName(GeneralName.iPAddress, "127.0.0.1")
+        });
+        X509Certificate serverCertificate = generateCertificate(serverSubject, caSubject, serverKeyPair.getPublic(),
+                caKeyPair.getPrivate(), caKeyPair.getPublic(), false, serverSans);
+
+        // Server side: PKCS12 keystore with the server key and its certificate chain for WireMock HTTPS.
+        char[] keystorePassword = "changeit".toCharArray();
+        KeyStore serverKeyStore = KeyStore.getInstance("PKCS12");
+        serverKeyStore.load(null, null);
+        serverKeyStore.setKeyEntry("server", serverKeyPair.getPrivate(), keystorePassword,
+                new Certificate[]{serverCertificate, caCertificate});
+        Path keyStoreFile = Files.createTempFile("ch-test-server-keystore-", ".p12");
+        try (java.io.OutputStream out = Files.newOutputStream(keyStoreFile)) {
+            serverKeyStore.store(out, keystorePassword);
+        }
+
+        // Client side: only the root CA certificate, either as PEM content or as a file.
+        String caCertificatePem = toPem(caCertificate);
+        Path caCertFile = Files.createTempFile("ch-test-ca-", ".crt");
+        Files.write(caCertFile, caCertificatePem.getBytes(StandardCharsets.US_ASCII));
+        String rootCertificateValue = certAsString ? caCertificatePem : caCertFile.toAbsolutePath().toString();
+
+        WireMockServer httpsServer = new WireMockServer(WireMockConfiguration.options()
+                .dynamicPort()
+                .dynamicHttpsPort()
+                .keystorePath(keyStoreFile.toAbsolutePath().toString())
+                .keystorePassword(new String(keystorePassword))
+                .keyManagerPassword(new String(keystorePassword))
+                .keystoreType("PKCS12")
+                .notifier(new ConsoleNotifier(false)));
+        httpsServer.start();
+
+        try {
+            // ClickHouse-style success response for any query/command.
+            httpsServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .willReturn(WireMock.aResponse()
+                            .withStatus(HttpStatus.SC_OK)
+                            .withHeader(ClickHouseHttpProto.HEADER_QUERY_ID, UUID.randomUUID().toString())
+                            .withBody("1\n"))
+                    .build());
+
+            int httpsPort = httpsServer.httpsPort();
+            String endpoint = "https://localhost:" + httpsPort;
+
+            // Trusting client: configured with the root CA certificate only.
+            try (Client client = new Client.Builder()
+                    .addEndpoint(endpoint)
+                    .setUsername("default")
+                    .setPassword("")
+                    .setRootCertificate(rootCertificateValue)
+                    .compressClientRequest(false)
+                    .compressServerResponse(false)
+                    .build()) {
+
+                // Ping executes "SELECT 1" - succeeds only if the TLS handshake validated the server certificate.
+                Assert.assertTrue(client.ping(),
+                        "Client should validate the server certificate using the root CA passed as "
+                                + (certAsString ? "a string" : "a file"));
+
+                // A real operation over the validated connection: read the result back.
+                try (QueryResponse response =
+                             client.query("SELECT 1 FORMAT TabSeparated").get(10, TimeUnit.SECONDS)) {
+                    Assert.assertNotNull(response.getQueryId());
+                    ByteArrayOutputStream content = new ByteArrayOutputStream();
+                    byte[] buffer = new byte[128];
+                    int read;
+                    while ((read = response.getInputStream().read(buffer)) != -1) {
+                        content.write(buffer, 0, read);
+                    }
+                    Assert.assertEquals(content.toString("UTF-8"), "1\n");
+                }
+            }
+
+            // The operations actually reached the HTTPS mock server.
+            httpsServer.verify(WireMock.moreThanOrExactly(1), WireMock.postRequestedFor(WireMock.anyUrl()));
+
+            // Control client: without the root CA the default trust store rejects the private chain.
+            try (Client client = new Client.Builder()
+                    .addEndpoint(endpoint)
+                    .setUsername("default")
+                    .setPassword("")
+                    .compressClientRequest(false)
+                    .compressServerResponse(false)
+                    .build()) {
+                Assert.assertFalse(client.ping(),
+                        "Client should not trust the server when the root CA is not provided");
+            }
+        } finally {
+            httpsServer.stop();
+            Files.deleteIfExists(keyStoreFile);
+            Files.deleteIfExists(caCertFile);
+        }
+    }
+
+    private static KeyPair generateRsaKeyPair() throws Exception {
+        KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
+        keyPairGenerator.initialize(2048, new SecureRandom());
+        return keyPairGenerator.generateKeyPair();
+    }
+
+    private static X509Certificate generateCertificate(X500Name subject, X500Name issuer, PublicKey subjectPublicKey,
+                                                       PrivateKey issuerPrivateKey, PublicKey issuerPublicKey,
+                                                       boolean isCa, GeneralNames subjectAlternativeNames)
+            throws Exception {
+        Date notBefore = new Date(System.currentTimeMillis() - 60_000L);
+        Date notAfter = new Date(System.currentTimeMillis() + Duration.ofDays(1).toMillis());
+        BigInteger serial = new BigInteger(160, new SecureRandom()).abs().add(BigInteger.ONE);
+
+        X509v3CertificateBuilder certBuilder = new JcaX509v3CertificateBuilder(
+                issuer, serial, notBefore, notAfter, subject, subjectPublicKey);
+        certBuilder.addExtension(Extension.basicConstraints, true, new BasicConstraints(isCa));
+        certBuilder.addExtension(Extension.keyUsage, true, new KeyUsage(isCa
+                ? KeyUsage.keyCertSign | KeyUsage.cRLSign
+                : KeyUsage.digitalSignature | KeyUsage.keyEncipherment));
+
+        JcaX509ExtensionUtils extensionUtils = new JcaX509ExtensionUtils();
+        certBuilder.addExtension(Extension.subjectKeyIdentifier, false,
+                extensionUtils.createSubjectKeyIdentifier(subjectPublicKey));
+        certBuilder.addExtension(Extension.authorityKeyIdentifier, false,
+                extensionUtils.createAuthorityKeyIdentifier(issuerPublicKey));
+        if (subjectAlternativeNames != null) {
+            certBuilder.addExtension(Extension.subjectAlternativeName, false, subjectAlternativeNames);
+        }
+
+        ContentSigner signer = new JcaContentSignerBuilder("SHA256withRSA")
+                .setProvider(BC_PROVIDER)
+                .build(issuerPrivateKey);
+        return new JcaX509CertificateConverter()
+                .setProvider(BC_PROVIDER)
+                .getCertificate(certBuilder.build(signer));
+    }
+
+    private static String toPem(X509Certificate certificate) throws Exception {
+        StringWriter stringWriter = new StringWriter();
+        try (JcaPEMWriter pemWriter = new JcaPEMWriter(stringWriter)) {
+            pemWriter.writeObject(certificate);
+        }
+        return stringWriter.toString();
     }
 }

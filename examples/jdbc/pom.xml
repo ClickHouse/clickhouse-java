@@ -54,7 +54,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
-        <clickhouse-java.version>0.9.8-SNAPSHOT</clickhouse-java.version>
+        <clickhouse-java.version>0.10.0-rc1-SNAPSHOT</clickhouse-java.version>
         <hikaricp.version>4.0.3</hikaricp.version>
         <apache-httpclient.version>5.2.1</apache-httpclient.version>
 
@@ -90,6 +90,23 @@
             <artifactId>slf4j-simple</artifactId>
             <version>${slf4j.version}</version>
             <scope>runtime</scope>
+        </dependency>
+
+        <!-- For the SSL examples: local ClickHouse server in Docker with a self-signed certificate -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <version>2.0.2</version>
+        </dependency>
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcprov-jdk18on</artifactId>
+            <version>1.84</version>
+        </dependency>
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcpkix-jdk18on</artifactId>
+            <version>1.84</version>
         </dependency>
     </dependencies>
 
