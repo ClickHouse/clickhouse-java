@@ -1,4 +1,29 @@
-## 0.10.0-rc1 
+## 0.11.0-rc1 
+
+[Release Migration Guide](docs/releases/0_11_0.md)
+
+### Bug Fixes 
+
+- **[client-v2]** Fixed container query parameters being sent unquoted, so `Client.query(sql, params, settings)` binding
+  a `List<LocalDate>` (or an array/`Map`) to a placeholder like `{ids:Array(Date)}` was rejected by the server with
+  `CANNOT_PARSE_INPUT_ASSERTION_FAILED`. Parameter values are now formatted by
+  `DataTypeConverter#convertParameterToString(Object)` before being sent: pass the raw Java value and the client renders
+  it into the text the server's `param_<name>` interface expects — a `Collection`, array (object or primitive), or `Map`
+  becomes ClickHouse `Array` (`['2026-05-13']`) / `Map` (`{'k':'v'}`) text with `String`/temporal leaves single-quoted
+  and numeric/boolean leaves left unquoted, while a scalar is passed through unquoted as before. No manual
+  pre-formatting of container parameters is needed. (https://github.com/ClickHouse/clickhouse-java/issues/2897)
+
+- **[client-v2]** Fixed `DateTime`/`DateTime64` columns declared with a synthetic fixed-offset timezone name
+  (`Fixed/UTC±HH:MM:SS`, e.g. `Fixed/UTC+05:30:00`) being silently read in UTC instead of the declared offset. The
+  `RowBinary` reader now recovers the offset from the column's declared type. (https://github.com/ClickHouse/clickhouse-java/issues/2876)
+
+- **[jdbc-v2]** Fixed the beta RowBinary writer (`DriverProperties.BETA_ROW_BINARY_WRITER`) throwing
+  `NoSuchColumnException` for `INSERT` statements whose column names are backtick-quoted, in particular the
+  canonical `Nested` sub-column wire form `` `directory`.`id` ``. The SQL parser now unescapes each
+  backtick-quoted `INSERT` column-name component before the by-name server-schema lookup, matching how the
+  table and database identifiers are already handled. (https://github.com/ClickHouse/clickhouse-java/issues/2896)
+
+## 0.10.0-rc1,  
 
 [Release Migration Guide](docs/releases/0_10_0.md)
 
@@ -141,18 +166,6 @@ of `NULL` was not set and read. (https://github.com/ClickHouse/clickhouse-java/i
   (https://github.com/ClickHouse/clickhouse-java/issues/2837)
 
 - **[jdbc-v2, client-v2]** Fixed writing nullable marker for nested `Tuple` and `Map values. (https://github.com/ClickHouse/clickhouse-java/issues/2721)
-
-- **[client-v2]** Fixed `DateTime`/`DateTime64` columns declared with a synthetic fixed-offset timezone name
-  (`Fixed/UTC±HH:MM:SS`, e.g. `Fixed/UTC+05:30:00`) being silently read in UTC instead of the declared offset. The
-  `RowBinary` reader now recovers the offset from the column's declared type. (https://github.com/ClickHouse/clickhouse-java/issues/2876)
-
-- **[client-v2]** Fixed container query parameters being sent unquoted, so `Client.query(sql, params, settings)` binding a `List<LocalDate>` (or an array/`Map`) to a placeholder like `{ids:Array(Date)}` was rejected by the server with `CANNOT_PARSE_INPUT_ASSERTION_FAILED`. Parameter values are now formatted by `DataTypeConverter#convertParameterToString(Object)` before being sent: pass the raw Java value and the client renders it into the text the server's `param_<name>` interface expects — a `Collection`, array (object or primitive), or `Map` becomes ClickHouse `Array` (`['2026-05-13']`) / `Map` (`{'k':'v'}`) text with `String`/temporal leaves single-quoted and numeric/boolean leaves left unquoted, while a scalar is passed through unquoted as before. No manual pre-formatting of container parameters is needed. (https://github.com/ClickHouse/clickhouse-java/issues/2897)
-
-- **[jdbc-v2]** Fixed the beta RowBinary writer (`DriverProperties.BETA_ROW_BINARY_WRITER`) throwing
-  `NoSuchColumnException` for `INSERT` statements whose column names are backtick-quoted, in particular the
-  canonical `Nested` sub-column wire form `` `directory`.`id` ``. The SQL parser now unescapes each
-  backtick-quoted `INSERT` column-name component before the by-name server-schema lookup, matching how the
-  table and database identifiers are already handled. (https://github.com/ClickHouse/clickhouse-java/issues/2896)
 
 ## 0.9.8
 
