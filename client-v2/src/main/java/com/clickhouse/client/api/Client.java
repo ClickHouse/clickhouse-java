@@ -80,6 +80,8 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import javax.net.ssl.SSLContext;
+
 /**
  * <p>Client is the starting point for all interactions with ClickHouse. </p>
  *
@@ -147,8 +149,14 @@ public class Client implements AutoCloseable {
 
     private Client(Collection<Endpoint> endpoints, Map<String,String> configuration,
                    ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy,
-                   Object metricsRegistry, Supplier<String> queryIdGenerator, CredentialsManager cManager) {
+                   Object metricsRegistry, Supplier<String> queryIdGenerator, CredentialsManager cManager,
+                   SSLContext sslContext) {
         Map<String, Object> parsedConfiguration = new ConcurrentHashMap<>(ClientConfigProperties.parseConfigMap(configuration));
+        // A pre-built SSLContext is a live object and cannot travel through the string-based configuration
+        // map, so it is injected into the parsed (object) configuration directly.
+        if (sslContext != null) {
+            parsedConfiguration.put(ClientConfigProperties.SSL_CONTEXT.getKey(), sslContext);
+        }
         this.credentialsManager = cManager;
         this.session = Session.extractFrom(parsedConfiguration);
         this.configuration = new ConcurrentHashMap<>(parsedConfiguration);
@@ -270,6 +278,7 @@ public class Client implements AutoCloseable {
         private ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy;
         private Object metricRegistry = null;
         private Supplier<String> queryIdGenerator;
+        private SSLContext sslContext = null;
 
         public Builder() {
             this.endpoints = new HashSet<>();
@@ -786,6 +795,29 @@ public class Client implements AutoCloseable {
         }
 
         /**
+         * Supplies a pre-built {@link SSLContext} to be used for secure connections instead of one built
+         * from the configured trust/key material (trust store, CA certificate, client certificate/key).
+         *
+         * <p>When a context is set, the client uses it as is - it is the application's responsibility to
+         * configure it correctly. Trust- and key-material options ({@link Builder#setSSLTrustStore(String)},
+         * {@link Builder#setRootCertificate(String)}, {@link Builder#setClientCertificate(String)}, ...)
+         * are then ignored because they only feed the context the client would otherwise build.
+         * {@link SSLMode} still applies, but only to server hostname verification: {@link SSLMode#TRUST}
+         * and {@link SSLMode#VERIFY_CA} skip the hostname check while {@link SSLMode#STRICT} (default)
+         * enforces it.</p>
+         *
+         * <p>This is primarily useful when certificates and keys are held in memory (for example, loaded
+         * from a secret store) and must never be written to disk.</p>
+         *
+         * @param sslContext a fully configured SSL context; {@code null} clears any previously set context
+         * @return same instance of the builder
+         */
+        public Builder setSSLContext(SSLContext sslContext) {
+            this.sslContext = sslContext;
+            return this;
+        }
+
+        /**
          * Configure client to use server timezone for date/datetime columns. Default is true.
          * If this options is selected then server timezone should be set as well.
          *
@@ -1229,7 +1261,8 @@ public class Client implements AutoCloseable {
             }
 
             return new Client(this.endpoints, this.configuration, this.sharedOperationExecutor,
-                this.columnToMethodMatchingStrategy, this.metricRegistry, this.queryIdGenerator, cManager);
+                this.columnToMethodMatchingStrategy, this.metricRegistry, this.queryIdGenerator, cManager,
+                this.sslContext);
         }
     }
 

@@ -159,6 +159,15 @@ public class HttpAPIClientHelper {
      * @return SSLContext
      */
     public SSLContext createSSLContext(Map<String, Object> configuration) {
+        // A pre-built SSLContext supplied by the application is used as is; the client does not build one
+        // from the configured trust/key material. Server hostname verification is still governed by the
+        // SSL mode where the connection socket factory is created (see createHttpClient).
+        final Object customSSLContext = configuration.get(ClientConfigProperties.SSL_CONTEXT.getKey());
+        if (customSSLContext instanceof SSLContext) {
+            LOG.debug("Using application-supplied SSLContext; trust/key material options are ignored.");
+            return (SSLContext) customSSLContext;
+        }
+
         final SSLMode sslMode = ClientConfigProperties.SSL_MODE.getOrDefault(configuration);
         final String trustStorePath = (String) configuration.get(ClientConfigProperties.SSL_TRUST_STORE.getKey());
         final String caCertificate = (String) configuration.get(ClientConfigProperties.CA_CERTIFICATE.getKey());
