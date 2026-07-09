@@ -31,6 +31,9 @@ import java.util.Properties;
  *     the {@code ssl_mode=trust} connection property accepts any server certificate and skips
  *     hostname verification ({@code ssl_mode=none} is accepted as an alias). Use it only for
  *     testing or in fully trusted environments.</li>
+ *     <li>Restricting the negotiated TLS cipher suites with the {@code ssl_cipher_suites} connection
+ *     property (a comma-separated list) - useful to enforce a stronger or compliance-mandated set of
+ *     cipher suites instead of the JVM defaults.</li>
  * </ul>
  *
  * <p>More SSL examples (mTLS, trust stores, SNI) will be added to this class later.</p>
@@ -72,6 +75,7 @@ public class SSLExamples {
                 if (rootCert != null) {
                     connectWithCustomRootCertificate(url, user, password, rootCert);
                     connectWithRootCertificateAsString(url, user, password, rootCert);
+                    connectWithCipherSuites(url, user, password, rootCert);
                 } else {
                     log.info("chRootCert is not set - skipping the custom CA certificate examples. "
                             + "Pass the path to the CA certificate (PEM) that signed the server certificate to run them.");
@@ -92,6 +96,8 @@ public class SSLExamples {
             connectWithCustomRootCertificate(server.getJdbcUrl(),
                     SecureServerSupport.USER, SecureServerSupport.PASSWORD, server.getCaCertPath());
             connectWithRootCertificateAsString(server.getJdbcUrl(),
+                    SecureServerSupport.USER, SecureServerSupport.PASSWORD, server.getCaCertPath());
+            connectWithCipherSuites(server.getJdbcUrl(),
                     SecureServerSupport.USER, SecureServerSupport.PASSWORD, server.getCaCertPath());
         } catch (Exception e) {
             log.error("Failed to run the SSL example against a local Docker server", e);
@@ -191,6 +197,39 @@ public class SSLExamples {
              ResultSet rs = stmt.executeQuery("SELECT currentUser() AS user, version() AS version")) {
             if (rs.next()) {
                 log.info("Connected securely (CA cert as string) as '{}' to ClickHouse {}",
+                        rs.getString("user"), rs.getString("version"));
+            }
+        }
+    }
+
+    /**
+     * Connects while restricting the TLS cipher suites the driver is allowed to negotiate, using the
+     * {@code ssl_cipher_suites} connection property (a comma-separated list). Only the listed suites are
+     * enabled on the socket (subject to what the JVM and the server support); this is useful to enforce a
+     * stronger or compliance-mandated set of cipher suites rather than relying on the JVM defaults.
+     *
+     * <p>The CA certificate is still used to verify the server and hostname verification stays enabled -
+     * cipher-suite selection is independent of the trust configuration and {@code ssl_mode}. Keep at least
+     * one suite the server actually supports, or the handshake fails.</p>
+     */
+    static void connectWithCipherSuites(String url, String user, String password, String rootCert)
+            throws SQLException {
+        log.info("Connecting to {} with a restricted set of TLS cipher suites", url);
+
+        Properties properties = new Properties();
+        properties.setProperty(ClientConfigProperties.USER.getKey(), user); // user
+        properties.setProperty(ClientConfigProperties.PASSWORD.getKey(), password); // password
+        properties.setProperty("ssl", "true"); // enable TLS even if the URL has no https scheme
+        properties.setProperty(ClientConfigProperties.CA_CERTIFICATE.getKey(), rootCert); // sslrootcert
+        // Restrict negotiation to these cipher suites (TLS 1.3 and TLS 1.2), comma-separated.
+        properties.setProperty(ClientConfigProperties.SSL_CIPHER_SUITES.getKey(),
+                "TLS_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"); // ssl_cipher_suites
+
+        try (Connection connection = DriverManager.getConnection(url, properties);
+             Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT currentUser() AS user, version() AS version")) {
+            if (rs.next()) {
+                log.info("Connected securely (restricted cipher suites) as '{}' to ClickHouse {}",
                         rs.getString("user"), rs.getString("version"));
             }
         }

@@ -118,6 +118,13 @@ public enum ClientConfigProperties {
 
     SSL_MODE("ssl_mode", SSLMode.class, SSLMode.STRICT.name()),
 
+    /**
+     * Comma-separated list of TLS cipher suites the client is allowed to negotiate on secure connections.
+     * When set, only these cipher suites are enabled on the SSL socket (subject to what the JVM and server
+     * support); when unset, the JVM defaults are used.
+     */
+    SSL_CIPHER_SUITES("ssl_cipher_suites", List.class),
+
     RETRY_ON_FAILURE("retry", Integer.class, "3"),
 
     INPUT_OUTPUT_FORMAT("format", ClickHouseFormat.class),

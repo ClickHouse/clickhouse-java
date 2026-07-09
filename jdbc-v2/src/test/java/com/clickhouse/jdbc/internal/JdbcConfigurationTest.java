@@ -221,6 +221,24 @@ public class JdbcConfigurationTest {
                 () -> new JdbcConfiguration("jdbc:clickhouse://localhost:8123/?ssl_mode=insecure", new Properties()));
     }
 
+    @Test
+    public void testSSLCipherSuitesForwardedToClientProperties() throws Exception {
+        String cipherSuites = "TLS_AES_256_GCM_SHA384,TLS_AES_128_GCM_SHA256";
+
+        // passed via Properties
+        Properties properties = new Properties();
+        properties.setProperty(ClientConfigProperties.SSL_CIPHER_SUITES.getKey(), cipherSuites);
+        JdbcConfiguration configuration = new JdbcConfiguration("jdbc:clickhouse://localhost:8123/", properties);
+        assertEquals(configuration.getClientProperties().get(ClientConfigProperties.SSL_CIPHER_SUITES.getKey()),
+                cipherSuites);
+
+        // passed as a URL parameter
+        configuration = new JdbcConfiguration(
+                "jdbc:clickhouse://localhost:8123/?ssl_cipher_suites=" + cipherSuites, new Properties());
+        assertEquals(configuration.getClientProperties().get(ClientConfigProperties.SSL_CIPHER_SUITES.getKey()),
+                cipherSuites);
+    }
+
     @DataProvider(name = "typeMappingsPropertyKey")
     public Object[][] typeMappingsPropertyKey() {
         return new Object[][] {

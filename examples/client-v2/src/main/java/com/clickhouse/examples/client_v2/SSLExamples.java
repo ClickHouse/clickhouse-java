@@ -26,6 +26,9 @@ import java.util.List;
  *     <li>Connecting to a server with a self-signed certificate without any trust material -
  *     {@link SSLMode#TRUST} accepts any server certificate and skips hostname verification.
  *     Use it only for testing or in fully trusted environments.</li>
+ *     <li>Restricting the negotiated TLS cipher suites with
+ *     {@link Client.Builder#setSSLCipherSuites(String...)} - useful to enforce a stronger or
+ *     compliance-mandated set of cipher suites instead of the JVM defaults.</li>
  * </ul>
  *
  * <p>More SSL examples (mTLS, trust stores, SNI) will be added to this class later.</p>
@@ -70,6 +73,7 @@ public class SSLExamples {
             if (rootCert != null) {
                 connectWithCustomRootCertificate(endpoint, database, user, password, rootCert);
                 connectWithRootCertificateAsString(endpoint, database, user, password, rootCert);
+                connectWithCipherSuites(endpoint, database, user, password, rootCert);
             } else {
                 log.info("chRootCert is not set - skipping the custom CA certificate examples. "
                         + "Pass the path to the CA certificate (PEM) that signed the server certificate to run them.");
@@ -87,6 +91,8 @@ public class SSLExamples {
             connectWithCustomRootCertificate(server.getEndpoint(), database,
                     SecureServerSupport.USER, SecureServerSupport.PASSWORD, server.getCaCertPath());
             connectWithRootCertificateAsString(server.getEndpoint(), database,
+                    SecureServerSupport.USER, SecureServerSupport.PASSWORD, server.getCaCertPath());
+            connectWithCipherSuites(server.getEndpoint(), database,
                     SecureServerSupport.USER, SecureServerSupport.PASSWORD, server.getCaCertPath());
         } catch (Exception e) {
             log.error("Failed to run the SSL example against a local Docker server", e);
@@ -189,6 +195,38 @@ public class SSLExamples {
                     rows.get(0).getString("user"), rows.get(0).getString("version"));
         } catch (Exception e) {
             log.error("Secure connection with a CA certificate passed as a string failed", e);
+        }
+    }
+
+    /**
+     * Connects while restricting the TLS cipher suites the client is allowed to negotiate, using
+     * {@link Client.Builder#setSSLCipherSuites(String...)}. Only the listed suites are enabled on the
+     * socket (subject to what the JVM and the server support); this is useful to enforce a stronger or
+     * compliance-mandated set of cipher suites rather than relying on the JVM defaults.
+     *
+     * <p>The CA certificate is still used to verify the server, and hostname verification stays enabled -
+     * cipher-suite selection is independent of the trust configuration and the SSL mode. The suites below
+     * cover TLS 1.3 and TLS 1.2; keep at least one suite the server actually supports, or the handshake
+     * fails.</p>
+     */
+    static void connectWithCipherSuites(String endpoint, String database, String user, String password,
+                                        String rootCert) {
+        log.info("Connecting to {} with a restricted set of TLS cipher suites", endpoint);
+        try (Client client = new Client.Builder()
+                .addEndpoint(endpoint)
+                .setUsername(user)
+                .setPassword(password)
+                .setDefaultDatabase(database)
+                .setRootCertificate(rootCert)
+                // Restrict negotiation to these cipher suites (TLS 1.3 and TLS 1.2).
+                .setSSLCipherSuites("TLS_AES_256_GCM_SHA384", "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384")
+                .build()) {
+
+            List<GenericRecord> rows = client.queryAll("SELECT currentUser() AS user, version() AS version");
+            log.info("Connected securely (restricted cipher suites) as '{}' to ClickHouse {}",
+                    rows.get(0).getString("user"), rows.get(0).getString("version"));
+        } catch (Exception e) {
+            log.error("Secure connection with restricted cipher suites failed", e);
         }
     }
 
