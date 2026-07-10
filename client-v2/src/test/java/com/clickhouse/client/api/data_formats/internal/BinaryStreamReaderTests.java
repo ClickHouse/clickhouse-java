@@ -1,6 +1,7 @@
 package com.clickhouse.client.api.data_formats.internal;
 
 import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.format.BinaryStreamUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -203,5 +204,75 @@ public class BinaryStreamReaderTests {
                 null);
 
         Assert.assertNull(reader.readValue(column));
+    }
+
+    @Test
+    public void testNullableArrayValueUsesBoxedComponentType() throws Exception {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        BinaryStreamUtils.writeVarInt(baos, 2);
+        BinaryStreamUtils.writeNonNull(baos);
+        BinaryStreamUtils.writeFloat64(baos, 1.0);
+        BinaryStreamUtils.writeNonNull(baos);
+        BinaryStreamUtils.writeFloat64(baos, 2.0);
+
+        BinaryStreamReader reader = new BinaryStreamReader(
+                new ByteArrayInputStream(baos.toByteArray()),
+                TimeZone.getTimeZone("UTC"),
+                null,
+                new BinaryStreamReader.CachingByteBufferAllocator(),
+                false,
+                null);
+
+        BinaryStreamReader.ArrayValue array = (BinaryStreamReader.ArrayValue) reader.readValue(
+                ClickHouseColumn.of("v", "Array(Nullable(Float64))"));
+
+        Assert.assertEquals(array.getArray().getClass().getComponentType(), Double.class);
+    }
+
+    @Test
+    public void testNullableUnsignedArrayUsesWidenedType() throws Exception {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        BinaryStreamUtils.writeVarInt(baos, 2);
+        BinaryStreamUtils.writeNonNull(baos);
+        BinaryStreamUtils.writeUnsignedInt8(baos, 10);
+        BinaryStreamUtils.writeNonNull(baos);
+        BinaryStreamUtils.writeUnsignedInt8(baos, 20);
+
+        BinaryStreamReader reader = new BinaryStreamReader(
+                new ByteArrayInputStream(baos.toByteArray()),
+                TimeZone.getTimeZone("UTC"),
+                null,
+                new BinaryStreamReader.CachingByteBufferAllocator(),
+                false,
+                null);
+
+        BinaryStreamReader.ArrayValue array = (BinaryStreamReader.ArrayValue) reader.readValue(
+                ClickHouseColumn.of("v", "Array(Nullable(UInt8))"));
+
+        Assert.assertEquals(array.getArray().getClass().getComponentType(), Short.class);
+    }
+
+    @Test
+    public void testNullableEnumArrayUsesEnumValueType() throws Exception {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        BinaryStreamUtils.writeVarInt(baos, 2);
+        BinaryStreamUtils.writeNonNull(baos);
+        baos.write(1); // enum ordinal for 'a'
+        BinaryStreamUtils.writeNonNull(baos);
+        baos.write(2); // enum ordinal for 'b'
+
+        BinaryStreamReader reader = new BinaryStreamReader(
+                new ByteArrayInputStream(baos.toByteArray()),
+                TimeZone.getTimeZone("UTC"),
+                null,
+                new BinaryStreamReader.CachingByteBufferAllocator(),
+                false,
+                null);
+
+        BinaryStreamReader.ArrayValue array = (BinaryStreamReader.ArrayValue) reader.readValue(
+                ClickHouseColumn.of("v", "Array(Nullable(Enum8('a'=1,'b'=2)))"));
+
+        Assert.assertEquals(array.getArray().getClass().getComponentType(),
+                BinaryStreamReader.EnumValue.class);
     }
 }

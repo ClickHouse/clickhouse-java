@@ -625,8 +625,13 @@ public class BinaryStreamReader {
 
     public ArrayValue readArrayItem(ClickHouseColumn itemTypeColumn, int len) throws IOException {
         ArrayValue array;
-        if (itemTypeColumn.isNullable()
-                || itemTypeColumn.getDataType() == ClickHouseDataType.Variant
+        if (itemTypeColumn.isNullable()) {
+            Class<?> itemClass = resolveNullableArrayItemClass(itemTypeColumn.getDataType());
+            array = new ArrayValue(itemClass, len);
+            for (int i = 0; i < len; i++) {
+                array.set(i, readValue(itemTypeColumn));
+            }
+        } else if (itemTypeColumn.getDataType() == ClickHouseDataType.Variant
                 || itemTypeColumn.getDataType() == ClickHouseDataType.Dynamic
                 || itemTypeColumn.getDataType() == ClickHouseDataType.Geometry) {
             array = new ArrayValue(Object.class, len);
@@ -665,6 +670,34 @@ public class BinaryStreamReader {
             }
         }
         return array;
+    }
+
+    /**
+     * Resolves the Java class that {@link #readValue} actually returns for a given data type
+     * so that it can be used as the component type of a nullable array.
+     *
+     * <p>For unsigned integer types, {@code readValue} widens the value (e.g. UInt8 → Short,
+     * UInt32 → Long), so we use {@link ClickHouseDataType#getWiderObjectClass()} which mirrors
+     * that widening. For Enum types, {@code readValue} returns {@link EnumValue} rather than the
+     * declared {@code String.class}. All other types use {@link ClickHouseDataType#getObjectClass()}.
+     *
+     * @param dataType the element data type of the array
+     * @return the Java class to use as the array component type; never {@code null}
+     */
+    private static Class<?> resolveNullableArrayItemClass(ClickHouseDataType dataType) {
+        switch (dataType) {
+            case UInt8:
+            case UInt16:
+            case UInt32:
+            case UInt64:
+                return dataType.getWiderObjectClass();
+            case Enum8:
+            case Enum16:
+                return EnumValue.class;
+            default:
+                Class<?> cls = dataType.getObjectClass();
+                return cls == null ? Object.class : cls;
+        }
     }
 
     public void skipValue(ClickHouseColumn column) throws IOException {

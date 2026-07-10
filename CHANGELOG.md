@@ -4,6 +4,8 @@
 
 ### Bug Fixes 
 
+- **[client-v2]** Fixed binary array decoding for nullable element types so `Array(Nullable(Float64))` and similar columns now return boxed arrays such as `Double[]` instead of `Object[]`. This keeps null-supporting arrays aligned with their element type while preserving the existing `Object[]` fallback for Variant/Dynamic/Geometry arrays. (https://github.com/ClickHouse/clickhouse-java/issues/2846)
+
 - **[client-v2]** Fixed container query parameters being sent unquoted, so `Client.query(sql, params, settings)` binding
   a `List<LocalDate>` (or an array/`Map`) to a placeholder like `{ids:Array(Date)}` was rejected by the server with
   `CANNOT_PARSE_INPUT_ASSERTION_FAILED`. Parameter values are now formatted by
