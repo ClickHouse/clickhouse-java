@@ -91,6 +91,51 @@ public class ClientBuilderTest {
     }
 
     @Test
+    public void testStringSSLContextRejected() {
+        // ssl_context is an object-only property; a textual value can never be a real context, so the
+        // builder must reject it instead of silently ignoring it (previously parsed to null and dropped).
+        Assert.expectThrows(ClientMisconfigurationException.class, () -> new Client.Builder()
+                .addEndpoint("https://localhost:8443")
+                .setUsername("default")
+                .setPassword("")
+                .setOption(ClientConfigProperties.SSL_CONTEXT.getKey(), "not-a-context")
+                .build());
+    }
+
+    @Test
+    public void testCustomSSLContextIgnoresTrustAndKeyMaterialConflict() throws Exception {
+        SSLContext customContext = SSLContext.getInstance("TLS");
+        customContext.init(null, null, null);
+
+        // A trust store and a client certificate normally conflict, but when a custom SSLContext is
+        // supplied that material is ignored, so the conflict must not be reported and the client builds.
+        try (Client client = new Client.Builder()
+                .addEndpoint("https://localhost:8443")
+                .setUsername("default")
+                .setPassword("")
+                .setSSLTrustStore("/path/to/truststore.jks")
+                .setClientCertificate("client.crt")
+                .setSSLContext(customContext)
+                .build()) {
+            Assert.assertSame(extractConfiguration(client).get(ClientConfigProperties.SSL_CONTEXT.getKey()),
+                    customContext, "The application-supplied SSLContext should be used as is");
+        }
+    }
+
+    @Test
+    public void testTrustStoreAndClientCertificateConflictRejectedWithoutCustomContext() {
+        // Contrast case: without a custom SSLContext the trust-store/certificate conflict must still be
+        // rejected exactly as before - the fix only suppresses the check when a context is supplied.
+        Assert.expectThrows(ClientMisconfigurationException.class, () -> new Client.Builder()
+                .addEndpoint("https://localhost:8443")
+                .setUsername("default")
+                .setPassword("")
+                .setSSLTrustStore("/path/to/truststore.jks")
+                .setClientCertificate("client.crt")
+                .build());
+    }
+
+    @Test
     public void testSetSSLContextStoredInConfiguration() throws Exception {
         SSLContext customContext = SSLContext.getInstance("TLS");
         customContext.init(null, null, null);

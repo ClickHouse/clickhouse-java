@@ -1197,7 +1197,21 @@ public class Client implements AutoCloseable {
 
             CredentialsManager cManager = new CredentialsManager(this.configuration);
 
-            if (configuration.containsKey(ClientConfigProperties.SSL_TRUST_STORE.getKey()) &&
+            // A pre-built SSLContext is a live object and can only be supplied programmatically via
+            // setSSLContext(SSLContext). A textual 'ssl_context' value (e.g. from setOption(...), a JDBC
+            // property, or a URL query parameter) can never represent a real context, so it is rejected
+            // here instead of being silently ignored when the SSL context is created.
+            if (configuration.containsKey(ClientConfigProperties.SSL_CONTEXT.getKey())) {
+                throw new ClientMisconfigurationException("'" + ClientConfigProperties.SSL_CONTEXT.getKey()
+                        + "' cannot be set as a string; supply a javax.net.ssl.SSLContext object via "
+                        + "Client.Builder.setSSLContext(...)");
+            }
+
+            // Trust- and key-material options only feed a context the client would otherwise build. When
+            // the application supplies its own SSLContext they are ignored (see createSSLContext), so this
+            // conflict cannot arise and must not be reported.
+            if (this.sslContext == null &&
+                    configuration.containsKey(ClientConfigProperties.SSL_TRUST_STORE.getKey()) &&
                     configuration.containsKey(ClientConfigProperties.SSL_CERTIFICATE.getKey())) {
                 throw new ClientMisconfigurationException("Trust store and certificates cannot be used together");
             }

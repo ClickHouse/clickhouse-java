@@ -265,6 +265,24 @@ public class JdbcConfigurationTest {
                 () -> new JdbcConfiguration("jdbc:clickhouse://localhost:8123/", properties));
     }
 
+    @Test
+    public void testStringSSLContextViaUrlRejected() {
+        // ssl_context carries a live object; a textual value in the URL can never be a real context, so it
+        // must fail fast with a SQLException instead of being silently forwarded and ignored.
+        assertThrows(SQLException.class,
+                () -> new JdbcConfiguration("jdbc:clickhouse://localhost:8123/?ssl_context=not-a-context",
+                        new Properties()));
+    }
+
+    @Test
+    public void testStringSSLContextViaPropertyRejected() {
+        Properties properties = new Properties();
+        // A String value (setProperty) cannot represent an SSLContext, so it is rejected rather than ignored.
+        properties.setProperty(ClientConfigProperties.SSL_CONTEXT.getKey(), "not-a-context");
+        assertThrows(SQLException.class,
+                () -> new JdbcConfiguration("jdbc:clickhouse://localhost:8123/", properties));
+    }
+
     @DataProvider(name = "typeMappingsPropertyKey")
     public Object[][] typeMappingsPropertyKey() {
         return new Object[][] {
