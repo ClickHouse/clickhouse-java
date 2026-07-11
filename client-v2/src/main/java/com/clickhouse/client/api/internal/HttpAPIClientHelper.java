@@ -296,6 +296,10 @@ public class HttpAPIClientHelper {
                 // Skip hostname verification only for trust-all modes or when a custom SNI is used (the
                 // connection hostname would not match the certificate); otherwise a null verifier makes the
                 // factory fall back to the JDK/HttpClient default verifier, keeping STRICT verification.
+                // java:S5527 - the permissive verifier is applied only for SSLMode.TRUST/VERIFY_CA (where the
+                // user has explicitly opted out of hostname verification) or a custom SNI; STRICT keeps the
+                // default verifying behaviour, so secure-by-default hostname verification is preserved.
+                @SuppressWarnings("java:S5527")
                 HostnameVerifier hostnameVerifier = trustAllHostnames || hasSNI ? (hostname, session) -> true : null;
                 sslConnectionSocketFactory = new CustomSSLConnectionFactory(socketSNI, sslContext, hostnameVerifier,
                         enabledCipherSuites);
@@ -1074,6 +1078,7 @@ public class HttpAPIClientHelper {
 
         private final SNIHostName defaultSNI;
 
+        // Retained for backward compatibility; delegates with no cipher-suite restriction (JVM defaults).
         public CustomSSLConnectionFactory(String defaultSNI, SSLContext sslContext, HostnameVerifier hostnameVerifier) {
             this(defaultSNI, sslContext, hostnameVerifier, null);
         }
