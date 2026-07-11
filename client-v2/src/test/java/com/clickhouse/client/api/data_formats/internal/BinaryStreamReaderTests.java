@@ -204,4 +204,26 @@ public class BinaryStreamReaderTests {
 
         Assert.assertNull(reader.readValue(column));
     }
+
+    @Test
+    public void testReadVarIntReadsMaxInt() throws IOException {
+        Assert.assertEquals(readVarInt((byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0x07),
+                Integer.MAX_VALUE);
+    }
+
+    @Test
+    public void testReadVarIntRejectsOverflow() {
+        Assert.assertThrows(IOException.class,
+                () -> readVarInt((byte) 0x80, (byte) 0x80, (byte) 0x80, (byte) 0x80, (byte) 0x08));
+    }
+
+    @Test
+    public void testReadVarIntRejectsOverlongValue() {
+        Assert.assertThrows(IOException.class,
+                () -> readVarInt((byte) 0x80, (byte) 0x80, (byte) 0x80, (byte) 0x80, (byte) 0x80, (byte) 0x01));
+    }
+
+    private static int readVarInt(byte... bytes) throws IOException {
+        return BinaryStreamReader.readVarInt(new ByteArrayInputStream(bytes));
+    }
 }
