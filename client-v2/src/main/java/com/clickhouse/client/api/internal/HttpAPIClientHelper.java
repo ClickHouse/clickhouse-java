@@ -290,8 +290,17 @@ public class HttpAPIClientHelper {
             boolean trustAllHostnames = sslMode == SSLMode.TRUST || sslMode == SSLMode.VERIFY_CA;
             boolean hasSNI = socketSNI != null && !socketSNI.trim().isEmpty();
             List<String> cipherSuites = ClientConfigProperties.SSL_CIPHER_SUITES.getOrDefault(configuration);
-            String[] enabledCipherSuites = cipherSuites == null || cipherSuites.isEmpty()
-                    ? null : cipherSuites.toArray(new String[0]);
+            // Drop blank tokens (e.g. from a leading, trailing or doubled comma in ssl_cipher_suites) and trim
+            // each name: a null, empty or whitespace-only entry is rejected by the SSL socket and breaks the
+            // handshake even when valid suites are also present.
+            String[] enabledCipherSuites = cipherSuites == null ? null
+                    : cipherSuites.stream()
+                            .filter(s -> s != null && !s.trim().isEmpty())
+                            .map(String::trim)
+                            .toArray(String[]::new);
+            if (enabledCipherSuites != null && enabledCipherSuites.length == 0) {
+                enabledCipherSuites = null;
+            }
             if (hasSNI || trustAllHostnames || enabledCipherSuites != null) {
                 // Skip hostname verification only for trust-all modes or when a custom SNI is used (the
                 // connection hostname would not match the certificate); otherwise a null verifier makes the
