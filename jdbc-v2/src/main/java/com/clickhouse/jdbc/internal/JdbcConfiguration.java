@@ -2,6 +2,7 @@ package com.clickhouse.jdbc.internal;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.enums.SSLMode;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.Driver;
@@ -332,7 +333,8 @@ public class JdbcConfiguration {
      * @param urlProperties - properties parsed from URL
      * @param providedProperties - properties object provided by application
      */
-    private void buildFinalProperties(Map<String, String> urlProperties, Properties providedProperties) {
+    private void buildFinalProperties(Map<String, String> urlProperties, Properties providedProperties)
+            throws SQLException {
 
         // Copy provided properties
         Map<String, String> props = new HashMap<>();
@@ -376,6 +378,22 @@ public class JdbcConfiguration {
                 driverProperties.put(prop.getKey(), prop.getValue());
             } else {
                 clientProperties.put(prop.getKey(), prop.getValue());
+            }
+        }
+
+        String sslMode = clientProperties.get(ClientConfigProperties.SSL_MODE.getKey());
+        if (sslMode != null) {
+            if ("none".equalsIgnoreCase(sslMode)) {
+                // JDBC drivers traditionally use 'none' for the no-verification SSL mode - alias it to 'trust'
+                clientProperties.put(ClientConfigProperties.SSL_MODE.getKey(), SSLMode.TRUST.name());
+            } else {
+                try {
+                    // values are case-insensitive in JDBC - normalize before passing to the client
+                    clientProperties.put(ClientConfigProperties.SSL_MODE.getKey(), SSLMode.fromValue(sslMode).name());
+                } catch (IllegalArgumentException e) {
+                    throw new SQLException("Unknown value '" + sslMode + "' for property '"
+                            + ClientConfigProperties.SSL_MODE.getKey() + "'", e);
+                }
             }
         }
 

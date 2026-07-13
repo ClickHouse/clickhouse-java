@@ -7,6 +7,7 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.command.CommandSettings;
@@ -58,6 +59,7 @@ import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -377,6 +379,44 @@ public class QueryTests extends BaseIntegrationTest {
             }
         } catch (Exception e) {
             Assert.fail("failed to read response", e);
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testJsonEachRowNumberQuoteSettingsAreOptIn() throws Exception {
+        // Pin all three numeric quoting flags (integers, floats, decimals) to `1` regardless
+        // of server defaults so the test exercises the same starting state on every supported
+        // ClickHouse version. The server default for 64-bit integers flipped from `1` to `0`
+        // in 25.8 (PR #74079); explicit overrides keep the assertions stable across versions.
+        String sql = "SELECT toInt64(1234567890123) AS i, toFloat64(3.14) AS f, toDecimal64(1.5, 2) AS d";
+
+        QuerySettings settings = new QuerySettings()
+                .setFormat(ClickHouseFormat.JSONEachRow)
+                .serverSetting("output_format_json_quote_64bit_integers", "1")
+                .serverSetting("output_format_json_quote_64bit_floats", "1")
+                .serverSetting("output_format_json_quote_decimals", "1");
+        try (QueryResponse response = client.query(sql, settings).get();
+             BufferedReader reader = new BufferedReader(new InputStreamReader(response.getInputStream()))) {
+            String line = reader.readLine();
+            Assert.assertTrue(line.contains("\"i\":\"1234567890123\""), "Int64 should be quoted: " + line);
+            Assert.assertTrue(line.contains("\"f\":\"3.14\""), "Float64 should be quoted: " + line);
+            // Decimal trailing-zero formatting differs across server versions; match the
+            // significant digits inside the quotes.
+            Assert.assertTrue(line.matches(".*\"d\":\"1\\.50?\".*"), "Decimal should be quoted: " + line);
+        }
+
+        QuerySettings unquotedSettings = new QuerySettings()
+                .setFormat(ClickHouseFormat.JSONEachRow)
+                .serverSetting("output_format_json_quote_64bit_integers", "1")
+                .serverSetting("output_format_json_quote_64bit_floats", "1")
+                .serverSetting("output_format_json_quote_decimals", "1")
+                .setOption(ClientConfigProperties.JSON_DISABLE_NUMBER_QUOTING.getKey(), true);
+        try (QueryResponse response = client.query(sql, unquotedSettings).get();
+             BufferedReader reader = new BufferedReader(new InputStreamReader(response.getInputStream()))) {
+            String line = reader.readLine();
+            Assert.assertTrue(line.contains("\"i\":1234567890123"), "Int64 should be unquoted: " + line);
+            Assert.assertTrue(line.contains("\"f\":3.14"), "Float64 should be unquoted: " + line);
+            Assert.assertTrue(line.matches(".*\"d\":1\\.50?[,}].*"), "Decimal should be unquoted: " + line);
         }
     }
 
@@ -1619,6 +1659,37 @@ public class QueryTests extends BaseIntegrationTest {
 
         Assert.assertEquals(records.get(0).getString("name"), "COLLATIONS");
         Assert.assertEquals(records.get(1).getString("name"), "ENGINES");
+    }
+
+    @DataProvider(name = "containerQueryParameters")
+    Object[][] containerQueryParameters() {
+        // {clickHouseType, value, expected} - add a row to extend coverage to another container/type.
+        return new Object[][]{
+                // String and temporal elements must be single-quoted so the server's param parser accepts them.
+                {"Array(Date)", Arrays.asList(LocalDate.of(2026, 5, 13), LocalDate.of(2026, 5, 14)), "['2026-05-13','2026-05-14']"},
+                {"Array(DateTime)", Arrays.asList(LocalDateTime.of(2026, 5, 13, 1, 2, 3)), "['2026-05-13 01:02:03']"},
+                {"Array(String)", Arrays.asList("a", "b"), "['a','b']"},
+                {"Map(String, Date)", Collections.singletonMap("k", LocalDate.of(2026, 5, 13)), "{'k':'2026-05-13'}"},
+                // Contrast: numeric elements must stay unquoted (quoting an Array(Int*/Float*) triggers CANNOT_READ_ARRAY_FROM_TEXT).
+                {"Array(Int32)", Arrays.asList(1, 2, 3), "[1,2,3]"},
+                {"Array(Float64)", Arrays.asList(1.5, 2.5), "[1.5,2.5]"},
+                // Object arrays, primitive arrays and nested containers must round-trip too, not just List.
+                {"Array(Date)", new LocalDate[]{LocalDate.of(2026, 5, 13)}, "['2026-05-13']"},
+                {"Array(Int32)", new int[]{4, 5, 6}, "[4,5,6]"},
+                {"Array(Array(Int32))", Arrays.asList(Arrays.asList(1, 2), Arrays.asList(3, 4)), "[[1,2],[3,4]]"},
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "containerQueryParameters")
+    public void testContainerQueryParamsQuoteInnerValues(String clickHouseType, Object value, String expected) {
+        // Regression: Array/Map parameters whose elements were emitted unquoted (e.g. param_p=[2026-05-13])
+        // were rejected by the server with HTTP 400. Raw List/array/Map values must round-trip without the
+        // manual DataTypeConverter pre-formatting workaround; the query is built from the parameter's type.
+        Map<String, Object> params = Collections.singletonMap("p", value);
+        List<GenericRecord> records = client.queryAll("SELECT toString({p:" + clickHouseType + "}) AS v", params);
+
+        Assert.assertEquals(records.size(), 1);
+        Assert.assertEquals(records.get(0).getString("v"), expected);
     }
 
     @Test(groups = {"integration"})

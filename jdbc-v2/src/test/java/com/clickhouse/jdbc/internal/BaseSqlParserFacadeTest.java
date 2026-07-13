@@ -23,8 +23,11 @@ public abstract class BaseSqlParserFacadeTest {
 
     private SqlParserFacade parser;
 
+    private final boolean javaCcBackend;
+
     public BaseSqlParserFacadeTest(String name) throws Exception {
         parser = SqlParserFacade.getParser(name, new JdbcConfiguration("jdbc:ch:http://localhost:8123", new Properties()));
+        javaCcBackend = SqlParserFacade.SQLParser.JAVACC.name().equals(name);
     }
 
     @Test
@@ -252,6 +255,60 @@ public abstract class BaseSqlParserFacadeTest {
         ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
         Assert.assertFalse(stmt.isHasErrors(), "Query should parse without errors: " + sql);
         Assert.assertEquals(stmt.getTable(), expectedTableName, "Table name mismatch for: " + sql);
+    }
+
+    @Test
+    public void testInsertColumnNamesAreUnescaped() {
+        /*
+         * Regression for #2896: INSERT column names must be unescaped before they are matched
+         * against the server table schema, exactly as table and database identifiers already are.
+         * The canonical wire form of a Nested sub-column is `directory`.`id`, which previously kept
+         * its backticks and failed the schema lookup in WriterStatementImpl with NoSuchColumnException.
+         */
+
+        // Backtick-quoted Nested sub-columns -> clean compound names (the reported case)
+        assertInsertColumns("INSERT INTO t (`directory`.`id`, `directory`.`name`) VALUES (?, ?)",
+                "directory.id", "directory.name");
+
+        // Simple backtick-quoted column
+        assertInsertColumns("INSERT INTO t (`id`) VALUES (?)", "id");
+
+        // Contrast: already-clean unquoted forms must keep their existing values
+        assertInsertColumns("INSERT INTO t (directory.id, name) VALUES (?, ?)", "directory.id", "name");
+        assertInsertColumns("INSERT INTO t (id) VALUES (?)", "id");
+
+        // Mixed quoted/unquoted components within one nested name are unescaped per component
+        assertInsertColumns("INSERT INTO t (`directory`.id, directory.`name`) VALUES (?, ?)",
+                "directory.id", "directory.name");
+
+        // A dot *inside* a single backtick-quoted identifier is part of the name, not a separator
+        assertInsertColumns("INSERT INTO t (`a.b`) VALUES (?)", "a.b");
+
+        // Double-quoted identifiers are a valid alternate quoting form and unescape the same way
+        assertInsertColumns("INSERT INTO t (\"directory\".\"id\") VALUES (?)", "directory.id");
+
+        // Mixed backtick / double-quote components in one nested name
+        assertInsertColumns("INSERT INTO t (`directory`.\"id\") VALUES (?)", "directory.id");
+
+        // Escaped backtick inside a quoted column name collapses to a single backtick,
+        // for both the doubled (``) and backslash-escaped (\`) forms
+        assertInsertColumns("INSERT INTO t (`od``d`) VALUES (?)", "od`d");
+        assertInsertColumns("INSERT INTO t (`od\\`d`) VALUES (?)", "od`d");
+    }
+
+    private void assertInsertColumns(String sql, String... expectedColumns) {
+        ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
+        Assert.assertFalse(stmt.isHasErrors(), "Query should parse without errors: " + sql);
+        Assert.assertTrue(stmt.isInsert(), "Should be an INSERT: " + sql);
+        String[] actualColumns = stmt.getInsertColumns();
+        // The JavaCC backend does not extract INSERT column names, so null is allowed there. The
+        // ANTLR4 backends must extract them, so a null is a regression and must fail the test
+        // loudly instead of being silently skipped.
+        if (javaCcBackend) {
+            return;
+        }
+        Assert.assertNotNull(actualColumns, "ANTLR4 backend should extract INSERT column names for: " + sql);
+        Assert.assertEquals(actualColumns, expectedColumns, "Insert column names mismatch for: " + sql);
     }
 
     @Test(dataProvider = "testCreateStmtDP")

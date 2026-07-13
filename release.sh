@@ -8,6 +8,9 @@ if [ -z "$RELEASE_VERSION" ]; then
 fi
 echo "Release version: $RELEASE_VERSION"
 
+# write version to VERSION file (consumed by the release workflow)
+printf '%s\n' "$RELEASE_VERSION" > VERSION
+
 # update version in main pom.xml 
 sed -i "s|<clickhouse-java.version>.*<\/clickhouse-java.version>|<clickhouse-java.version>${RELEASE_VERSION}<\/clickhouse-java.version>|g" pom.xml
 
