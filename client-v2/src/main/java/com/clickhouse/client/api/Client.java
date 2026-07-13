@@ -141,7 +141,6 @@ public class Client implements AutoCloseable {
     private String dbUser;
     private String serverVersion;
     private final Object metricsRegistry;
-    private final int retries;
     private LZ4Factory lz4Factory = null;
     private final Supplier<String> queryIdGenerator;
     private final ClientNodeSelector nodeSelector;
@@ -191,8 +190,6 @@ public class Client implements AutoCloseable {
         this.endpoints = tmpEndpoints.build();
         this.nodeSelector = new ClientNodeSelector(this.endpoints);
 
-        String retry = configuration.get(ClientConfigProperties.RETRY_ON_FAILURE.getKey());
-        this.retries = retry == null ? 0 : Integer.parseInt(retry);
         boolean useNativeCompression = !MapUtils.getFlag(configuration, ClientConfigProperties.DISABLE_NATIVE_COMPRESSION.getKey(), false);
         if (useNativeCompression) {
             this.lz4Factory = LZ4Factory.fastestInstance();
