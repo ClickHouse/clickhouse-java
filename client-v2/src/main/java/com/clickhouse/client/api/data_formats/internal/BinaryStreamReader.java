@@ -1022,16 +1022,20 @@ public class BinaryStreamReader {
     public static int readVarInt(InputStream input) throws IOException {
         int value = 0;
 
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 5; i++) {
             byte b = (byte) readByteOrEOF(input);
+            if (i == 4 && (b & 0xF8) != 0) {
+                throw new IOException("VarInt is too large for int");
+            }
+
             value |= (b & 0x7F) << (7 * i);
 
             if ((b & 0x80) == 0) {
-                break;
+                return value;
             }
         }
 
-        return value;
+        throw new IOException("Malformed VarInt");
     }
 
     /**
