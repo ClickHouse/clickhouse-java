@@ -118,6 +118,7 @@ For a non-`Bearer` scheme, use `setAccessToken(...)` — the value is sent verba
 
 ```java
 import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.enums.SSLMode;
 
 Client client = new Client.Builder()
     .addEndpoint("https://localhost:8443")
@@ -125,6 +126,7 @@ Client client = new Client.Builder()
     .setClientCertificate("/path/to/client.crt")
     .setClientKey("/path/to/client.key")
     .setRootCertificate("/path/to/ca.crt") // if the server cert is self-signed
+    .setSSLMode(SSLMode.STRICT) // STRICT (default), VERIFY_CA, TRUST, or DISABLED
     .build();
 ```
 
@@ -161,6 +163,20 @@ Client client = new Client.Builder()
     .setProxyCredentials("proxy_user", "proxy_password")
     .build();
 ```
+
+### Client Identity & Default Database
+
+Regardless of the authentication mechanism, you can also configure the client's identity and default database:
+
+```java
+Client client = new Client.Builder()
+    // ... endpoint and auth config ...
+    .setClientName("my-analytics-app")
+    .setDefaultDatabase("analytics")   // Default database for queries
+    .build();
+```
+
+> **Note on Client Name:** How the client name surfaces in `system.query_log` depends on the protocol used. For HTTP connections, it appears in the `http_user_agent` column. For TCP connections, it appears in the `client_name` column.
 
 ### Identifying the required mechanism
 
@@ -400,6 +416,7 @@ Set these on `QuerySettings` (per query) or as client defaults:
 | Execution limit | `QuerySettings.setMaxExecutionTime(seconds)` | Server-side timeout |
 | Max result rows | `serverSetting("max_result_rows", ...)` | Limit rows server-side |
 | Network timeout | `QuerySettings.setNetworkTimeout(long, ChronoUnit)` | Per-operation override; returns `void`, not chainable |
+| Retry policy | `Client.Builder.setMaxRetries(n)` / `retryOnFailures(...)` | Client-level default (init config) |
 
 Useful correlation helpers: `settings.setQueryId(...)` and `settings.logComment(...)` surface in `system.query_log`.
 
@@ -494,7 +511,7 @@ Populate each row with `setValue(column, value)` (by name or 1-based index) and 
 | Pre-compressed data | `InsertSettings.appCompressedData(true, "gzip")` | When you compress the data yourself |
 | Copy buffer size | `InsertSettings.setInputStreamCopyBufferSize(n)` | Stream-to-stream copy buffer |
 | Async insert | `serverSetting("async_insert", "1")` | Server-side buffering |
-| Retry policy | `retry=3` (default), `client_retry_on_failures` | Configurable fault causes (init config) |
+| Retry policy | `Client.Builder.setMaxRetries(n)` / `retryOnFailures(...)` | Client-level default (init config) |
 
 ### Idempotency — deduplication token
 
