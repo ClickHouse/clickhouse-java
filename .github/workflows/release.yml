@@ -2,10 +2,6 @@ name: Release
 
 on:
   workflow_dispatch:
-    inputs:
-      version:
-        description: "Release version"
-        required: true
 
 env:
   CH_VERSION: "25.3"
@@ -15,11 +11,16 @@ jobs:
     name: "Build and Publish Artifact"
     runs-on: "ubuntu-latest"
 
-    permissions: write-all
+    permissions:
+      contents: write
 
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v4
+      - name: Read release version
+        id: version
+        shell: bash
+        run: echo "version=$(cat VERSION)" >> "$GITHUB_OUTPUT"
       - name: Install JDK and Maven
         uses: actions/setup-java@v4
         with:
@@ -28,6 +29,11 @@ jobs:
             8
             17
           cache: 'maven'
+          server-id: central
+          server-username: MAVEN_USERNAME
+          server-password: MAVEN_PASSWORD
+          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+          gpg-passphrase: MAVEN_GPG_PASSPHRASE
       - name: Setup Toolchain
         shell: bash
         run: |
@@ -48,43 +54,34 @@ jobs:
           EOF
       - name: Update Configuration
         run: |
-          sed -i 's|<revision>.*</revision>|<revision>${{ github.event.inputs.version }}</revision>|g' pom.xml
+          sed -i 's|<revision>.*</revision>|<revision>${{ steps.version.outputs.version }}</revision>|g' pom.xml
           find . -type f -name "simplelogger.*" -exec rm -fv '{}' \;
       - name: Release Maven package
-        uses: samuelmeuli/action-maven-publish@v1
-        with:
-          maven_profiles: release
-          maven_args: -q --batch-mode -DclickhouseVersion=${{ env.CH_VERSION }}
-          server_id: central
-          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
-          gpg_passphrase: ${{ secrets.GPG_PASSPHRASE }}
-          nexus_username: ${{ secrets.SONATYPE_TOKEN_USER }}
-          nexus_password: ${{ secrets.SONATYPE_TOKEN }}
+        env:
+          MAVEN_USERNAME: ${{ secrets.SONATYPE_TOKEN_USER }}
+          MAVEN_PASSWORD: ${{ secrets.SONATYPE_TOKEN }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: mvn -q --batch-mode -P release -DclickhouseVersion=${{ env.CH_VERSION }} clean deploy
       - name: Release R2DBC 0.9.1
-        uses: samuelmeuli/action-maven-publish@v1
-        with:
-          directory: clickhouse-r2dbc
-          maven_profiles: release
-          maven_args: -q --batch-mode -Dr2dbc-spi.version=0.9.1.RELEASE -DclickhouseVersion=${{ env.CH_VERSION }}
-          server_id: central
-          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
-          gpg_passphrase: ${{ secrets.GPG_PASSPHRASE }}
-          nexus_username: ${{ secrets.SONATYPE_TOKEN_USER }}
-          nexus_password: ${{ secrets.SONATYPE_TOKEN }}
+        working-directory: clickhouse-r2dbc
+        env:
+          MAVEN_USERNAME: ${{ secrets.SONATYPE_TOKEN_USER }}
+          MAVEN_PASSWORD: ${{ secrets.SONATYPE_TOKEN }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: mvn -q --batch-mode -P release -Dr2dbc-spi.version=0.9.1.RELEASE -DclickhouseVersion=${{ env.CH_VERSION }} clean deploy
       - name: Create Pre-release on Github
-        uses: "zhicwu/action-automatic-releases@latest"
-        with:
-          repo_token: "${{ secrets.GITHUB_TOKEN }}"
-          automatic_release_tag: "v${{ github.event.inputs.version }}"
-          prerelease: true
-          title: "Release v${{ github.event.inputs.version }}"
-          files: |
-            LICENSE
-            clickhouse-client/target/clickhouse*.jar
-            clickhouse-data/target/clickhouse*.jar
-            clickhouse-http-client/target/clickhouse*.jar
-            clickhouse-jdbc/target/clickhouse*.jar
-            clickhouse-jdbc/target/bundle/clickhouse*.jar
-            clickhouse-r2dbc/target/clickhouse*.jar
-            client-v2/target/client-v2*.jar
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "v${{ steps.version.outputs.version }}" \
+            --prerelease \
+            --title "Release v${{ steps.version.outputs.version }}" \
+            LICENSE \
+            clickhouse-client/target/clickhouse*.jar \
+            clickhouse-data/target/clickhouse*.jar \
+            clickhouse-http-client/target/clickhouse*.jar \
+            clickhouse-jdbc/target/clickhouse*.jar \
+            clickhouse-jdbc/target/bundle/clickhouse*.jar \
+            clickhouse-r2dbc/target/clickhouse*.jar \
+            client-v2/target/client-v2*.jar \
             jdbc-v2/target/jdbc-v2*.jar

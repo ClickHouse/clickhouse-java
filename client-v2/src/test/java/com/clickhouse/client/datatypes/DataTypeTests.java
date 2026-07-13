@@ -1054,6 +1054,64 @@ public class DataTypeTests extends BaseIntegrationTest {
         Assert.assertEquals(record.getDuration("time"), Duration.ofHours(999).plusMinutes(59).plusSeconds(59).negated());
     }
 
+    /**
+     * Regression test for <a href="https://github.com/ClickHouse/clickhouse-java/issues/2876">#2876</a>.
+     *
+     * <p>ClickHouse emits synthetic fixed-offset timezone names of the form {@code Fixed/UTC±HH:MM:SS}
+     * for {@code DateTime}/{@code DateTime64} columns declared with a literal offset. These names are
+     * not recognised by {@link java.util.TimeZone#getTimeZone(String)}, which silently returns GMT, so
+     * before the fix the wall-clock of every value read from such a column was shifted to UTC (e.g. by
+     * 5h30m for {@code +05:30}). The reader must interpret the epoch value in the declared fixed offset,
+     * exactly as it already does for IANA names such as {@code Asia/Kolkata}.
+     */
+    @Test(groups = {"integration"})
+    public void testDateTimeWithFixedOffsetTimeZone() throws Exception {
+        // For every column below the server wall-clock is 2024-01-15 10:30:00 in the *declared* zone.
+        List<GenericRecord> records = client.queryAll(
+                "SELECT toDateTime('2024-01-15 10:30:00', 'Fixed/UTC+05:30:00') AS dt_plus, "
+                        + "toDateTime('2024-01-15 10:30:00', 'Fixed/UTC-08:00:00') AS dt_minus, "
+                        + "toDateTime64('2024-01-15 10:30:00.123', 3, 'Fixed/UTC+05:30:00') AS dt64_plus, "
+                        + "toDateTime64('2024-01-15 10:30:00.123', 3, 'Fixed/UTC-08:00:00') AS dt64_minus, "
+                        + "toDateTime('2024-01-15 10:30:00', 'Asia/Kolkata') AS dt_iana, "
+                        + "toDateTime('2024-01-15 10:30:00', 'UTC') AS dt_utc");
+        Assert.assertEquals(records.size(), 1);
+        GenericRecord row = records.get(0);
+
+        final LocalDateTime wallClock = LocalDateTime.of(2024, 1, 15, 10, 30, 0);
+
+        // DateTime, +05:30 fixed offset: wall-clock preserved and offset applied (was 05:00 at +00:00).
+        Assert.assertEquals(row.getZonedDateTime("dt_plus").toLocalDateTime(), wallClock);
+        Assert.assertEquals(row.getZonedDateTime("dt_plus").getOffset(), ZoneOffset.of("+05:30"));
+        Assert.assertEquals(row.getInstant("dt_plus"), Instant.ofEpochSecond(1705294800L));
+
+        // DateTime, -08:00 fixed offset: exercises a west-of-UTC (negative) offset.
+        Assert.assertEquals(row.getZonedDateTime("dt_minus").toLocalDateTime(), wallClock);
+        Assert.assertEquals(row.getZonedDateTime("dt_minus").getOffset(), ZoneOffset.of("-08:00"));
+        Assert.assertEquals(row.getInstant("dt_minus"), Instant.ofEpochSecond(1705343400L));
+
+        // DateTime64(3), +05:30 fixed offset: fractional seconds preserved alongside the offset.
+        Assert.assertEquals(row.getZonedDateTime("dt64_plus").toLocalDateTime(), wallClock.withNano(123_000_000));
+        Assert.assertEquals(row.getZonedDateTime("dt64_plus").getOffset(), ZoneOffset.of("+05:30"));
+        Assert.assertEquals(row.getInstant("dt64_plus"), Instant.ofEpochSecond(1705294800L, 123_000_000L));
+
+        // DateTime64(3), -08:00 fixed offset: negative offset combined with fractional seconds.
+        Assert.assertEquals(row.getZonedDateTime("dt64_minus").toLocalDateTime(), wallClock.withNano(123_000_000));
+        Assert.assertEquals(row.getZonedDateTime("dt64_minus").getOffset(), ZoneOffset.of("-08:00"));
+        Assert.assertEquals(row.getInstant("dt64_minus"), Instant.ofEpochSecond(1705343400L, 123_000_000L));
+
+        // Contrast 1 — IANA Asia/Kolkata (also +05:30) is unchanged by the fix and must render
+        // identically to the Fixed/UTC+05:30:00 column (same wall-clock and same instant).
+        Assert.assertEquals(row.getZonedDateTime("dt_iana").toLocalDateTime(), wallClock);
+        Assert.assertEquals(row.getZonedDateTime("dt_iana").getOffset(), ZoneOffset.of("+05:30"));
+        Assert.assertEquals(row.getInstant("dt_iana"), row.getInstant("dt_plus"));
+
+        // Contrast 2 — a plain UTC column keeps a +00:00 offset (the fix is offset-specific, not a
+        // blanket shift): identical wall-clock text, but a different instant from the +05:30 columns.
+        Assert.assertEquals(row.getZonedDateTime("dt_utc").toLocalDateTime(), wallClock);
+        Assert.assertEquals(row.getZonedDateTime("dt_utc").getOffset(), ZoneOffset.UTC);
+        Assert.assertEquals(row.getInstant("dt_utc"), Instant.ofEpochSecond(1705314600L));
+    }
+
     @Test(groups = {"integration"}, dataProvider = "testTimeData")
     public void testTime(String column, String value, LocalDateTime expectedDt) throws Exception {
         if (isVersionMatch("(,25.5]")) {

@@ -20,7 +20,6 @@
         <javacc-plugin.version>5.0.0</javacc-plugin.version>
         <spec.title>JDBC</spec.title>
         <spec.version>4.2</spec.version>
-        <jackson.version>2.18.6</jackson.version>
         <lombok.version>1.18.36</lombok.version>
         <shade.base>${project.groupId}.shaded</shade.base>
     </properties>
@@ -50,14 +49,35 @@
             <version>${guava.version}</version>
         </dependency>
 
-<!--        Test dependencies -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-            <scope>test</scope>
             <version>${jackson.version}</version>
+            <scope>provided</scope>
         </dependency>
 
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-core</artifactId>
+            <version>${jackson.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-annotations</artifactId>
+            <version>${jackson.version.annotations}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>com.google.code.gson</groupId>
+            <artifactId>gson</artifactId>
+            <version>${gson.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+<!--        Test dependencies -->
         <dependency>
             <groupId>${project.parent.groupId}</groupId>
             <artifactId>clickhouse-client</artifactId>
@@ -89,18 +109,6 @@
             <scope>test</scope>
         </dependency>
 
-        <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-core</artifactId>
-            <version>${jackson.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
-            <version>${jackson.version}</version>
-            <scope>test</scope>
-        </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-yaml</artifactId>

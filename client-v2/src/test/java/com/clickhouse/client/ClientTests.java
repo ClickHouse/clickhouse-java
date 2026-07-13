@@ -50,6 +50,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -332,7 +333,7 @@ public class ClientTests extends BaseIntegrationTest {
                     Assert.assertEquals(config.get(p.getKey()), p.getDefaultValue(), "Default value doesn't match");
                 }
             }
-            Assert.assertEquals(config.size(), 34); // to check everything is set. Increment when new added.
+            Assert.assertEquals(config.size(), 36); // to check everything is set. Increment when new added.
         }
 
         try (Client client = new Client.Builder()
@@ -365,7 +366,7 @@ public class ClientTests extends BaseIntegrationTest {
                 .setSocketSndbuf(100000)
                 .build()) {
             Map<String, String> config = client.getConfiguration();
-            Assert.assertEquals(config.size(), 35); // to check everything is set. Increment when new added.
+            Assert.assertEquals(config.size(), 37); // to check everything is set. Increment when new added.
             Assert.assertEquals(config.get(ClientConfigProperties.DATABASE.getKey()), "mydb");
             Assert.assertEquals(config.get(ClientConfigProperties.MAX_EXECUTION_TIME.getKey()), "10");
             Assert.assertEquals(config.get(ClientConfigProperties.COMPRESSION_LZ4_UNCOMPRESSED_BUF_SIZE.getKey()), "300000");
@@ -389,6 +390,7 @@ public class ClientTests extends BaseIntegrationTest {
             Assert.assertEquals(config.get(ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey()), "20000");
             Assert.assertEquals(config.get(ClientConfigProperties.SOCKET_RCVBUF_OPT.getKey()), "100000");
             Assert.assertEquals(config.get(ClientConfigProperties.SOCKET_SNDBUF_OPT.getKey()), "100000");
+            Assert.assertEquals(config.get(ClientConfigProperties.SSL_MODE.getKey()), "STRICT");
         }
     }
 
@@ -432,7 +434,7 @@ public class ClientTests extends BaseIntegrationTest {
                     Assert.assertEquals(config.get(p.getKey()), p.getDefaultValue(), "Default value doesn't match");
                 }
             }
-            Assert.assertEquals(config.size(), 34); // to check everything is set. Increment when new added.
+            Assert.assertEquals(config.size(), 36); // to check everything is set. Increment when new added.
         }
     }
 
@@ -727,6 +729,24 @@ public class ClientTests extends BaseIntegrationTest {
                 Assert.assertTrue(e.getMessage().contains("Trust store and certificates cannot be used together"), e.getMessage()));
         t.apply(builderF.get().setOption(CredentialsManager.AUTHORIZATION_HEADER_KEY, "CustomAuth token").setClientCertificate("cert").setSSLTrustStore("trustStore"), (e) ->
                 Assert.assertTrue(e.getMessage().contains("Trust store and certificates cannot be used together"), e.getMessage()));
+    }
+
+    @Test(groups = {"integration"})
+    public void testOverrideSettings() throws Exception {
+        final String clientTimezone = "America/Los_Angeles";
+        try (Client client = newClient().setSessionTimezone(clientTimezone).build()) {
+
+            final BiConsumer<QuerySettings, String> checkTzStmt = (settings, timezone) -> {
+                GenericRecord firstRecord = client.queryAll("SELECT timezone()", settings).stream().findFirst().get();
+                Assert.assertEquals(firstRecord.getString(1), timezone);
+            };
+
+            checkTzStmt.accept(new QuerySettings(), clientTimezone);
+
+            final String altTimezone = "America/New_York";
+            checkTzStmt.accept(new QuerySettings().setSessionTimezone(altTimezone), altTimezone);
+            checkTzStmt.accept(new QuerySettings().setOption(ClientConfigProperties.serverSetting("session_timezone"), null), "UTC");
+        }
     }
 
     public boolean isVersionMatch(String versionExpression, Client client) {

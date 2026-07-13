@@ -1,6 +1,7 @@
 package com.clickhouse.examples.client_v2;
 
 import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.enums.SSLMode;
 import com.clickhouse.client.api.query.GenericRecord;
 import lombok.extern.slf4j.Slf4j;
 
@@ -22,6 +23,9 @@ import java.util.List;
  *     <li>Passing the CA certificate as a PEM string instead of a file path - useful when the
  *     certificate comes from an environment variable or a secret manager (typical for
  *     Kubernetes/cloud deployments) and you do not want to write it to disk.</li>
+ *     <li>Connecting to a server with a self-signed certificate without any trust material -
+ *     {@link SSLMode#TRUST} accepts any server certificate and skips hostname verification.
+ *     Use it only for testing or in fully trusted environments.</li>
  * </ul>
  *
  * <p>More SSL examples (mTLS, trust stores, SNI) will be added to this class later.</p>
@@ -41,7 +45,8 @@ import java.util.List;
  *     <li>{@code chPort} - ClickHouse HTTPS port, default {@code 8443}</li>
  *     <li>{@code chDatabase} - database name, default {@code default}</li>
  *     <li>{@code chUser} and {@code chPassword} - credentials (standalone mode)</li>
- *     <li>{@code chRootCert} - path to the root CA certificate in PEM format (required in standalone mode)</li>
+ *     <li>{@code chRootCert} - path to the root CA certificate in PEM format. When omitted in
+ *     standalone mode, only the self-signed (TRUST) example runs
  *     <li>{@code chImage} - Docker image for local mode, default {@code clickhouse/clickhouse-server:latest}</li>
  * </ul>
  */
@@ -58,16 +63,17 @@ public class SSLExamples {
             final String user = System.getProperty("chUser", "default");
             final String password = System.getProperty("chPassword", "");
             final String rootCert = trimToNull(System.getProperty("chRootCert"));
-            if (rootCert == null) {
-                log.error("chRootCert is required when chHost is set. "
-                        + "Pass the path to the CA certificate (PEM) that signed the server certificate.");
-                return;
-            }
 
             log.info("Running in standalone mode against {}:{}", host, port);
             String endpoint = "https://" + host + ":" + port;
-            connectWithCustomRootCertificate(endpoint, database, user, password, rootCert);
-            connectWithRootCertificateAsString(endpoint, database, user, password, rootCert);
+            connectToSelfSignedServer(endpoint, database, user, password);
+            if (rootCert != null) {
+                connectWithCustomRootCertificate(endpoint, database, user, password, rootCert);
+                connectWithRootCertificateAsString(endpoint, database, user, password, rootCert);
+            } else {
+                log.info("chRootCert is not set - skipping the custom CA certificate examples. "
+                        + "Pass the path to the CA certificate (PEM) that signed the server certificate to run them.");
+            }
             return;
         }
 
@@ -76,12 +82,43 @@ public class SSLExamples {
         final String image = System.getProperty("chImage", "clickhouse/clickhouse-server:latest");
         log.info("Running in local mode (set -DchHost to verify your own server)");
         try (SecureServerSupport server = SecureServerSupport.start(image)) {
+            connectToSelfSignedServer(server.getEndpoint(), database,
+                    SecureServerSupport.USER, SecureServerSupport.PASSWORD);
             connectWithCustomRootCertificate(server.getEndpoint(), database,
                     SecureServerSupport.USER, SecureServerSupport.PASSWORD, server.getCaCertPath());
             connectWithRootCertificateAsString(server.getEndpoint(), database,
                     SecureServerSupport.USER, SecureServerSupport.PASSWORD, server.getCaCertPath());
         } catch (Exception e) {
             log.error("Failed to run the SSL example against a local Docker server", e);
+        }
+    }
+
+    /**
+     * Connects to a ClickHouse server with a self-signed certificate without providing
+     * any trust material. {@link SSLMode#TRUST} makes the client accept any server
+     * certificate and skip hostname verification.
+     *
+     * <p><b>Warning:</b> the connection is encrypted, but the server identity is NOT verified,
+     * which makes it susceptible to man-in-the-middle attacks. Use this mode only for testing
+     * or in fully trusted environments. Prefer {@link Client.Builder#setRootCertificate(String)}
+     * with the signing CA certificate whenever possible.</p>
+     */
+    static void connectToSelfSignedServer(String endpoint, String database, String user, String password) {
+        log.info("Connecting to {} accepting any server certificate (SSLMode.TRUST)", endpoint);
+        try (Client client = new Client.Builder()
+                .addEndpoint(endpoint)
+                .setUsername(user)
+                .setPassword(password)
+                .setDefaultDatabase(database)
+                // Accept the self-signed certificate and skip hostname verification.
+                .setSSLMode(SSLMode.TRUST)
+                .build()) {
+
+            List<GenericRecord> rows = client.queryAll("SELECT currentUser() AS user, version() AS version");
+            log.info("Connected (server certificate not verified) as '{}' to ClickHouse {}",
+                    rows.get(0).getString("user"), rows.get(0).getString("version"));
+        } catch (Exception e) {
+            log.error("Connection with SSLMode.TRUST failed", e);
         }
     }
 
