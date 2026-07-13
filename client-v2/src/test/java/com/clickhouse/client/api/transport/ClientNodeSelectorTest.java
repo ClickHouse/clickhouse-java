@@ -29,6 +29,20 @@ public class ClientNodeSelectorTest {
         Assert.assertTrue(state.isAlive(), "Endpoint state should be alive again after quarantine expires");
     }
 
+    @Test(expectedExceptions = IllegalArgumentException.class)
+    public void testEndpointStateQuarantineValidation() {
+        Endpoint ep = new HttpEndpoint("localhost", 8123, false, "/");
+        EndpointState state = new EndpointState(ep);
+        state.markFailed(0);
+    }
+
+    @Test(expectedExceptions = IllegalArgumentException.class)
+    public void testEndpointStateQuarantineValidationNegative() {
+        Endpoint ep = new HttpEndpoint("localhost", 8123, false, "/");
+        EndpointState state = new EndpointState(ep);
+        state.markFailed(-10);
+    }
+
     @Test
     public void testClientNodeSelectorAffinityAndQuarantine() {
         Endpoint epA = new HttpEndpoint("localhost", 8123, false, "/");

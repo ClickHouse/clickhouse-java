@@ -21,6 +21,9 @@ class EndpointState {
     }
 
     void markFailed(long quarantineMs) {
+        if (quarantineMs <= 0) {
+            throw new IllegalArgumentException("Quarantine duration must be positive: " + quarantineMs);
+        }
         this.failedUntil = System.currentTimeMillis() + quarantineMs;
     }
 

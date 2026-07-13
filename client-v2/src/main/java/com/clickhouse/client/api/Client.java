@@ -1317,7 +1317,7 @@ public class Client implements AutoCloseable {
         Supplier<InsertResponse> supplier = () -> {
             long startTime = System.nanoTime();
             // Selecting some node
-            Endpoint selectedEndpoint = getEndpoint();
+            Endpoint selectedEndpoint = nodeSelector.getEndpoint();
 
             RuntimeException lastException = null;
             for (int i = 0; i <= maxRetries; i++) {
@@ -1343,14 +1343,6 @@ public class Client implements AutoCloseable {
                                     out.close();
                                 })) {
 
-
-                    // Check response
-                    if (httpResponse.getCode() == HttpStatus.SC_SERVICE_UNAVAILABLE) {
-                        LOG.warn("Failed to get response. Server returned {}. Retrying. (Duration: {})", httpResponse.getCode(), durationSince(startTime));
-                        selectedEndpoint = getNextAliveNode(selectedEndpoint);
-                        continue;
-                    }
-
                     ClientStatisticsHolder clientStats = globalClientStats.remove(operationId);
                     OperationMetrics metrics = new OperationMetrics(clientStats);
                     String summary = HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_SRV_SUMMARY), "{}");
@@ -1364,7 +1356,7 @@ public class Client implements AutoCloseable {
                     lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
                     if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings())) {
                         LOG.warn("Retrying.", e);
-                        selectedEndpoint = getNextAliveNode(selectedEndpoint);
+                        selectedEndpoint = nodeSelector.getNextAliveNode(selectedEndpoint);
                     } else {
                         throw lastException;
                     }
@@ -1539,7 +1531,7 @@ public class Client implements AutoCloseable {
         responseSupplier = () -> {
             long startTime = System.nanoTime();
             // Selecting some node
-            Endpoint selectedEndpoint = getEndpoint();
+            Endpoint selectedEndpoint = nodeSelector.getEndpoint();
 
             RuntimeException lastException = null;
             for (int i = 0; i <= retries; i++) {
@@ -1550,21 +1542,6 @@ public class Client implements AutoCloseable {
                                          writer.onOutput(out);
                                          out.close();
                                      })) {
-
-
-                    // Check response
-                    if (httpResponse.getCode() == HttpStatus.SC_SERVICE_UNAVAILABLE) {
-                        LOG.warn("Failed to get response. Server returned {}. Retrying. (Duration: {})", httpResponse.getCode(), durationSince(startTime));
-                        selectedEndpoint = getNextAliveNode(selectedEndpoint);
-                        if (i < retries) {
-                            try {
-                                writer.onRetry();
-                            } catch (IOException ioe) {
-                                throw new ClientException("Failed to reset stream before next attempt", ioe);
-                            }
-                        }
-                        continue;
-                    }
 
                     OperationMetrics metrics = new OperationMetrics(finalClientStats);
                     String summary = HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_SRV_SUMMARY), "{}");
@@ -1578,7 +1555,7 @@ public class Client implements AutoCloseable {
                     lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
                     if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings())) {
                         LOG.warn("Retrying.", e);
-                        selectedEndpoint = getNextAliveNode(selectedEndpoint);
+                        selectedEndpoint = nodeSelector.getNextAliveNode(selectedEndpoint);
                     } else {
                         throw lastException;
                     }
@@ -1675,7 +1652,7 @@ public class Client implements AutoCloseable {
         Supplier<QueryResponse> responseSupplier = () -> {
                 long startTime = System.nanoTime();
                 // Selecting some node
-                Endpoint selectedEndpoint = getEndpoint();
+                Endpoint selectedEndpoint = nodeSelector.getEndpoint();
                 RuntimeException lastException = null;
                 for (int i = 0; i <= retries; i++) {
                     ClassicHttpResponse httpResponse = null;
@@ -1683,18 +1660,11 @@ public class Client implements AutoCloseable {
                         boolean  useMultipart = ClientConfigProperties.HTTP_SEND_PARAMS_IN_BODY.getOrDefault(requestSettings.getAllSettings());
                         if (queryParams != null && useMultipart) {
                             httpResponse = httpClientHelper.executeMultiPartRequest(selectedEndpoint,
-                                    requestSettings.getAllSettings(), sqlQuery);
+                                     requestSettings.getAllSettings(), sqlQuery);
                         } else {
                             httpResponse = httpClientHelper.executeRequest(selectedEndpoint,
                                     requestSettings.getAllSettings(),
                                     sqlQuery);
-                        }
-                        // Check response
-                        if (httpResponse.getCode() == HttpStatus.SC_SERVICE_UNAVAILABLE) {
-                            LOG.warn("Failed to get response. Server returned {}. Retrying. (Duration: {})", httpResponse.getCode(), durationSince(startTime));
-                            selectedEndpoint = getNextAliveNode(selectedEndpoint);
-                            HttpAPIClientHelper.closeQuietly(httpResponse);
-                            continue;
                         }
 
                         OperationMetrics metrics = new OperationMetrics(clientStats);
@@ -1720,7 +1690,7 @@ public class Client implements AutoCloseable {
                         lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
                         if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings())) {
                             LOG.warn("Retrying.", e);
-                            selectedEndpoint = getNextAliveNode(selectedEndpoint);
+                            selectedEndpoint = nodeSelector.getNextAliveNode(selectedEndpoint);
                         } else {
                             throw lastException;
                         }
@@ -2232,24 +2202,7 @@ public class Client implements AutoCloseable {
         this.credentialsManager.setAccessToken(accessToken);
     }
 
-    /**
-     * Returns the first alive endpoint for the initial request attempt.
-     * Keeps affinity to the primary server when it is healthy.
-     */
-    private Endpoint getEndpoint() {
-        return nodeSelector.getEndpoint();
-    }
 
-    /**
-     * Quarantines the failed endpoint and returns the next alive endpoint.
-     * Used inside retry loops after a retryable failure.
-     *
-     * @param failedEndpoint the endpoint that just failed
-     * @return the next alive endpoint
-     */
-    private Endpoint getNextAliveNode(Endpoint failedEndpoint) {
-        return nodeSelector.getNextAliveNode(failedEndpoint);
-    }
 
     public static final String VALUES_LIST_DELIMITER = ",";
 
