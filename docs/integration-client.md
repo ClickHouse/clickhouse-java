@@ -3,8 +3,8 @@
 This guide is a **step-by-step, end-to-end integration path** for the **Java Client V2** (`client-v2`). It is written to be used as context for building an application or a downstream integration spec: each step states the decisions you must make, how to configure them, and the common pitfalls to avoid. It is self-contained — you can work through it from the empty project to a running read/write path without other prerequisites.
 
 > **Configuration philosophy.** This guide names only the properties relevant to each step. It does not repeat the exhaustive property list — that lives in [`ClientConfigProperties`](../client-v2/src/main/java/com/clickhouse/client/api/ClientConfigProperties.java) and the official docs. Configuration splits into two groups:
-> - **Init configuration** — set once when the client is built: endpoint, connection pool size, async mode, authentication. Covered in Steps 1–3.
-> - **Operation configuration** — set per request or as client defaults: formats, buffer sizes, timeouts, retries, dedup tokens. Covered in Steps 4–6.
+> - **Init configuration** — set once when the client is built: endpoint, connection pool size, async mode, authentication. Covered in Steps 1–4.
+> - **Operation configuration** — set per request or as client defaults: formats, buffer sizes, timeouts, retries, dedup tokens. Covered in Steps 5–7.
 
 ## Artifacts
 
@@ -28,17 +28,18 @@ Work through these steps in order. Each one is a decision point; the "Common Pit
 
 | # | Step | Core decision |
 |---|-----------|---------------|
-| 1 | [Instantiation strategy](#step-1--instantiation-strategy) | How many `Client` instances, their lifetime, and pool sizing |
+| 1 | [Instantiation](#step-1--instantiation) | How many `Client` instances, their lifetime |
 | 2 | [Authentication](#step-2--authentication) | Which auth mechanism and how to configure it |
 | 3 | [Transport & connectivity](#step-3--transport--connectivity-tls-proxies-timeouts) | TLS/mTLS, proxies, timeouts, health checks |
-| 4 | [Data formats, readers & writers](#step-4--data-formats-readers--writers) | Which wire format and reader/writer to use |
-| 5 | [Read operations & tuning](#step-5--read-operations--tuning) | Streaming vs materializing; heavy-read tuning; read errors |
-| 6 | [Write operations & tuning](#step-6--write-operations--tuning) | Insert pattern; heavy-ingest tuning; idempotency; write errors |
-| 7 | [Metadata & schema discovery](#step-7--metadata--schema-discovery) | How to obtain schemas without JDBC metadata |
+| 4 | [Connections Configuration](#step-4--connections-configuration) | Pool sizing, async vs sync, sessions |
+| 5 | [Data formats, readers & writers](#step-5--data-formats-readers--writers) | Which wire format and reader/writer to use |
+| 6 | [Read operations & tuning](#step-6--read-operations--tuning) | Streaming vs materializing; heavy-read tuning; read errors |
+| 7 | [Write operations & tuning](#step-7--write-operations--tuning) | Insert pattern; heavy-ingest tuning; idempotency; write errors |
+| 8 | [Metadata & schema discovery](#step-8--metadata--schema-discovery) | How to obtain schemas without JDBC metadata |
 
 ---
 
-## Step 1 — Instantiation strategy
+## Step 1 — Instantiation
 
 **Goal:** decide how many `Client` instances exist, how long they live, and how the internal connection pool is sized.
 
@@ -63,64 +64,20 @@ Client client = new Client.Builder()
     .build();
 ```
 
-### Decisions
+### Instantiation Strategy
 
-| Question | Recommended answer |
-|----------|--------------------|
-| How many instances? | **One long-lived `Client`** shared across the whole application (or one per distinct endpoint/credential set). |
-| Short- or long-lived? | **Long-lived.** Build once at startup, close once at shutdown. |
-| Thread-safe? | **Yes** — `Client` is thread-safe; share it across threads. |
-| Do I need my own pool? | **No.** The `Client` already pools HTTP connections internally. **CONSTRAINT:** Do not wrap it in an external object pool. |
+- **Share a single instance:** A single, shared `Client` instance suits most use cases. It is thread-safe and designed to be reused across your application.
+- **Long-lived lifecycle:** Build the client once at startup and close it once at shutdown. Creating a new client per request or operation is an anti-pattern because initialization takes time to set up internal structures (like the connection pool and schema cache), which adds latency to your requests.
+- **Serverless functions:** For serverless environments (like AWS Lambda), initialize the client outside the function handler so it can be reused across invocations.
+- **Warm-up (optional):** Calling `client.ping()` at startup can help initialize the connectivity part and verify the endpoint before serving live traffic, though it is not strictly required.
+- **Caching:** The application is responsible for holding the reference to the `Client` instance (e.g., via dependency injection or a singleton). The library does not provide a global static cache.
 
-### A "connection" here is an HTTP connection
-
-In the Java Client a "connection" is an **HTTP connection borrowed from the internal pool**, not a long-lived database session. Each operation borrows a connection, sends a request, streams the response, and returns the connection to the pool.
-
-### Init configuration — connection pool sizing (set at build time)
-
-These are the only pool-related properties you normally touch; the rest have safe defaults.
-
-| Property (Builder method) | Purpose | Default |
-|---------------------------|---------|---------|
-| `max_open_connections` (`.setMaxConnections()`) | Pool size — raise it to match peak concurrent operations | 10 |
-| `connection_pool_enabled` (`.enableConnectionPool()`) | Enable/disable pooling (keep enabled) | true |
-| `connection_ttl` (`.setConnectionTTL()`) | Max lifetime of a pooled connection | — |
-| `connection_reuse_strategy` (`.setConnectionReuseStrategy()`) | FIFO or LIFO reuse | — |
-
-### Init configuration — async vs synchronous execution
-
-All operations return `CompletableFuture`. Whether they run on a client-managed executor is controlled once, at build time:
-
-- **`ClientConfigProperties.ASYNC_OPERATIONS`** — when enabled, operations are dispatched on an internal executor and the returned future completes asynchronously. When disabled, the work runs on the calling thread and the returned future is already completed when you receive it.
-- `queryAll(...)` returns a `List<GenericRecord>` directly — it blocks and materializes every row into memory. `queryRecords(...)` returns a `CompletableFuture<Records>` whose `Records` is a **lazy** iterator over the still-open response stream, so it neither blocks the whole read nor materializes all rows. Reserve `queryAll(...)` for small results.
-
-This choice should be made early, as async mode affects how back-pressure and timeouts are propagated throughout the application.
-
-### Sessions (optional, decide now if you need them)
-
-A [`Session`](../client-v2/src/main/java/com/clickhouse/client/api/Session.java) carries ClickHouse HTTP session state (`session_id`, `session_check`, `session_timeout`, `session_timezone`):
-
-- **Client-wide** — `Client.Builder.use(session)` applies to every operation.
-- **Operation-wide** — `QuerySettings.use(session)` / `InsertSettings.use(session)` overrides per request.
-
-### Common Pitfalls
-
-<common-pitfalls>
-- **CONSTRAINT:** Do not create a `Client` per request. It destroys pool warm-up and adds latency on every call — the single most common mistake.
-- **Pool too small** (`max_open_connections`) throttles concurrency; size it to peak concurrent operations, not average.
-- **Sessions behind a load balancer** require **server affinity** (sticky sessions) — a session-bound request routed to a different node fails. See [Sessions example](../examples/client-v2/src/main/java/com/clickhouse/examples/client_v2/Sessions.java).
-- **CONSTRAINT:** Always `close()` the client at shutdown to avoid leaking the pool and its threads.
-
-</common-pitfalls>
----
 
 ## Step 2 — Authentication
 
 **Goal:** configure the authentication mechanism the ClickHouse deployment requires. The mechanism is dictated by the server and any fronting infrastructure, not chosen freely; the task is to identify it and configure it correctly. <constraints>
-**CONSTRAINT:** Configure exactly one primary mechanism — `client-v2`'s `CredentialsManager` rejects a client that mixes password, token, and SSL auth.
+**CONSTRAINT:** Configure exactly one mechanism. Different method cannot be mixed to avoid configuration errors. 
 </constraints>
-
-> This section is intentionally self-contained (it is duplicated, with client-specific configuration, in the [JDBC guide](integration-jdbc.md#milestone-2--authentication)). For the full reference including the Client V1 → V2 migration table, see [authentication.md](authentication.md).
 
 ### Option A — Basic (username + password)
 
@@ -186,6 +143,25 @@ Client client = new Client.Builder()
     .build();
 ```
 
+### Option E — Proxy credentials
+
+If you connect to ClickHouse through an HTTP proxy that requires authentication, you can provide proxy credentials. This is configured alongside the proxy connection details and operates independently of the database authentication mechanism you chose above:
+
+```java
+import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.enums.ProxyType;
+
+Client client = new Client.Builder()
+    .addEndpoint("http://localhost:8123")
+    // Database credentials (e.g. Option A)
+    .setUsername("default")
+    .setPassword("secret")
+    // Proxy configuration and credentials
+    .addProxy(ProxyType.HTTP, "proxy.example.com", 8080)
+    .setProxyCredentials("proxy_user", "proxy_password")
+    .build();
+```
+
 ### Identifying the required mechanism
 
 The mechanism follows from how the server and any fronting infrastructure are configured:
@@ -195,7 +171,8 @@ The mechanism follows from how the server and any fronting infrastructure are co
 | Native ClickHouse users with passwords | Basic — username + password (Option A) |
 | Bearer/token gateway or ClickHouse Cloud token | Token / bearer (Option B) |
 | Certificate-based (zero-trust) access | Mutual TLS (Option C) |
-| Authenticating proxy or API gateway in front of ClickHouse | Custom HTTP headers (Option D) |
+| API gateway / Identity Aware Proxy in front of ClickHouse | Custom HTTP headers (Option D) |
+| HTTP forward proxy requiring authentication | Proxy credentials (Option E) |
 
 Runtime rotation via `updateUserAndPassword` / `updateBearerToken` updates the credentials of the **already-selected** mechanism; it throws `ClientMisconfigurationException` rather than switching to a different mechanism.
 
@@ -224,7 +201,7 @@ See [SSLExamples](../examples/client-v2/src/main/java/com/clickhouse/examples/cl
 | `connection_timeout` (`.setConnectTimeout()`) | TCP connect timeout |
 | `socket_timeout` (`.setSocketTimeout()`) | Socket read/write timeout |
 
-Per-operation network timeouts are set later (Step 5) via `QuerySettings.setNetworkTimeout(long timeout, ChronoUnit unit)`. Note this method returns `void` (it is not chainable), so call it on a `QuerySettings` instance rather than inside a builder chain.
+Per-operation network timeouts are set later (Step 6) via `QuerySettings.setNetworkTimeout(long timeout, ChronoUnit unit)`. Note this method returns `void` (it is not chainable), so call it on a `QuerySettings` instance rather than inside a builder chain.
 
 ### Health check
 
@@ -246,7 +223,65 @@ if (!client.ping()) { throw new RuntimeException("ClickHouse unreachable"); }
 </common-pitfalls>
 ---
 
-## Step 4 — Data formats, readers & writers
+## Step 4 — Connections Configuration
+
+In the Java Client a "connection" is an **HTTP connection borrowed from the internal pool**, not a long-lived database session. Each operation borrows a connection, sends a request, streams the response, and returns the connection to the pool.
+
+### The one decision to make: connection limit (`max_open_connections`)
+
+Unlike the answers above, the pool size depends on your workload — specifically on its **concurrency**, not on how much data it moves. What matters is **how many operations run at the same time**, not the number of rows or bytes any single operation transfers. A pool of 20 connections serves at most 20 simultaneous operations regardless of whether each returns one row or a million. This is the single setting you actually tune. The table below is guidance, not a hard rule: measure under your own load.
+
+| Workload | Concurrent requests | Suggested `max_open_connections` | What happens |
+|----------|---------------------|----------------------------------|--------------|
+| **Short-lived reads, low concurrency** | a few per second | **10–20** | Enough for the traffic; under bursts a few requests briefly **wait for a connection** to be returned to the pool, which is acceptable. |
+| **Short-lived reads, higher concurrency** | tens+ per second | **20–100** | More parallel operations need more connections. Connections are **reused many times**, so `connection_reuse_strategy` and `connection_ttl` start to matter. |
+| **Long-running operations** (large reads/writes, streaming) | any | **no fixed rule** | A connection is held for the whole operation and rarely reused, so pool sizing matters less. Size to the number of concurrent long operations and focus on **data-transfer tuning** (Steps 6–7) instead. |
+
+The reasoning is only valid for **short-lived read operations**, where connections cycle back to the pool quickly enough to be shared. For long operations the bottleneck is data transfer, not connection availability.
+
+### Init configuration — connection pool properties (set at build time)
+
+These are the only pool-related properties you normally touch; the rest have safe defaults.
+
+| Property (Builder method) | Purpose | Default |
+|---------------------------|---------|---------|
+| `max_open_connections` (`.setMaxConnections()`) | Pool size — set from the parallelism guidance above | 10 |
+| `connection_pool_enabled` (`.enableConnectionPool()`) | Enable/disable pooling (keep enabled) | true |
+| `connection_ttl` (`.setConnectionTTL()`) | Max lifetime of a pooled connection | — |
+| `connection_reuse_strategy` (`.setConnectionReuseStrategy()`) | FIFO or LIFO reuse | — |
+
+**`connection_ttl` against ClickHouse Cloud.** Keep it **relatively small** when the endpoint is a Cloud (or otherwise load-balanced) deployment. A short TTL forces connections to be retired and re-established frequently, so new connections keep going through the load balancer, which lets it **redistribute traffic across nodes** instead of pinning long-lived connections to whichever node they first landed on.
+
+**`connection_pool_enabled` is not recommended to change.** Leave pooling **enabled** (the default). The only reason to disable it is a workload with extreme concurrency where the internal Apache HttpClient connection pool itself becomes a contention point — under very high parallel request rates the pool's own bookkeeping can serialize threads. Disabling pooling avoids that bottleneck at the cost of a fresh connection per operation (higher latency, more sockets), so treat it as a last resort after measuring, not a default.
+
+### Init configuration — async vs synchronous execution
+
+All operations return `CompletableFuture`. Whether they run on a client-managed executor is controlled once, at build time:
+
+- **`ClientConfigProperties.ASYNC_OPERATIONS`** — when enabled, operations are dispatched on an internal executor and the returned future completes asynchronously. When disabled, the work runs on the calling thread and the returned future is already completed when you receive it.
+- `queryAll(...)` returns a `List<GenericRecord>` directly — it blocks and materializes every row into memory. `queryRecords(...)` returns a `CompletableFuture<Records>` whose `Records` is a **lazy** iterator over the still-open response stream, so it neither blocks the whole read nor materializes all rows. Reserve `queryAll(...)` for small results.
+
+This choice should be made early, as async mode affects how back-pressure and timeouts are propagated throughout the application.
+
+### Sessions (optional, decide now if you need them)
+
+A [`Session`](../client-v2/src/main/java/com/clickhouse/client/api/Session.java) carries ClickHouse HTTP session state (`session_id`, `session_check`, `session_timeout`, `session_timezone`):
+
+- **Client-wide** — `Client.Builder.use(session)` applies to every operation.
+- **Operation-wide** — `QuerySettings.use(session)` / `InsertSettings.use(session)` overrides per request.
+
+### Common Pitfalls
+
+<common-pitfalls>
+- **CONSTRAINT:** Do not create a `Client` per request. It destroys pool warm-up and adds latency on every call — the single most common mistake.
+- **Pool too small** (`max_open_connections`) throttles concurrency; size it to peak concurrent operations, not average.
+- **Sessions behind a load balancer** require **server affinity** (sticky sessions) — a session-bound request routed to a different node fails. See [Sessions example](../examples/client-v2/src/main/java/com/clickhouse/examples/client_v2/Sessions.java).
+- **CONSTRAINT:** Always `close()` the client at shutdown to avoid leaking the pool and its threads.
+
+</common-pitfalls>
+---
+
+## Step 5 — Data formats, readers & writers
 
 **Goal:** pick the wire format and the reader/writer that match your throughput and interop needs. Format is chosen **per operation**, unlike JDBC which hides it.
 
@@ -300,7 +335,7 @@ Select with `QuerySettings.setFormat(format)` and consume the response stream:
 </common-pitfalls>
 ---
 
-## Step 5 — Read operations & tuning
+## Step 6 — Read operations & tuning
 
 **Goal:** read results efficiently and configure the operation-level settings for heavy analytical reads.
 
@@ -393,7 +428,7 @@ See the [Error model](#error-model) for the exception hierarchy and how to unwra
 </error-handling-rules>
 ---
 
-## Step 6 — Write operations & tuning
+## Step 7 — Write operations & tuning
 
 **Goal:** choose an insert pattern, tune it for bulk ingest, and make retries idempotent.
 
@@ -508,7 +543,7 @@ See the [Error model](#error-model) for the exception hierarchy and how to unwra
 </error-handling-rules>
 ---
 
-## Step 7 — Metadata & schema discovery
+## Step 8 — Metadata & schema discovery
 
 **Goal:** obtain table and query schemas without JDBC `DatabaseMetaData`.
 
@@ -572,7 +607,7 @@ For JDBC-style catalog metadata (`DatabaseMetaData`), use the [JDBC integration 
 <error-handling-rules>
 ## Error model
 
-This is the shared exception reference used by the read ([Step 5](#step-5--read-operations--tuning)) and write ([Step 6](#step-6--write-operations--tuning)) error sections. All exceptions extend [`ClickHouseException`](../client-v2/src/main/java/com/clickhouse/client/api/ClickHouseException.java) (an unchecked `RuntimeException`). Because operations return `CompletableFuture`, a failed operation surfaces its cause wrapped in `java.util.concurrent.ExecutionException` when you call `.get()`; unwrap it with `getCause()`.
+This is the shared exception reference used by the read ([Step 6](#step-6--read-operations--tuning)) and write ([Step 7](#step-7--write-operations--tuning)) error sections. All exceptions extend [`ClickHouseException`](../client-v2/src/main/java/com/clickhouse/client/api/ClickHouseException.java) (an unchecked `RuntimeException`). Because operations return `CompletableFuture`, a failed operation surfaces its cause wrapped in `java.util.concurrent.ExecutionException` when you call `.get()`; unwrap it with `getCause()`.
 
 | Exception | Meaning | Typical cause |
 |-----------|---------|---------------|
@@ -617,7 +652,7 @@ import java.util.List;
 
 public class QuickStart {
     public static void main(String[] args) throws Exception {
-        // Steps 1–3: build one long-lived client
+        // Steps 1–4: build one long-lived client
         try (Client client = new Client.Builder()
                 .addEndpoint("http://localhost:8123")
                 .setUsername("default")
@@ -631,12 +666,12 @@ public class QuickStart {
                 throw new RuntimeException("ClickHouse unreachable");
             }
 
-            // Step 6: write (blocks on the returned future)
+            // Step 7: write (blocks on the returned future)
             try (InputStream data = QuickStart.class.getResourceAsStream("/events.jsonl")) {
                 client.insert("my_table", data, ClickHouseFormat.JSONEachRow).get();
             }
 
-            // Step 5: read a small result
+            // Step 6: read a small result
             List<GenericRecord> rows = client.queryAll("SELECT count() FROM my_table");
             System.out.println("row count = " + rows.get(0).getLong(1));
         } // client.close() runs here
@@ -661,4 +696,4 @@ public class QuickStart {
 - [integration-common.md](integration-common.md) — choosing JDBC vs Client
 - [integration-jdbc.md](integration-jdbc.md) — JDBC integration path
 - [authentication.md](authentication.md) — full authentication and TLS reference (referenced from Steps 2–3)
-- [features.md](features.md) — compatibility contract (referenced from Step 4)
+- [features.md](features.md) — compatibility contract (referenced from Step 5)
