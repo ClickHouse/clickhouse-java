@@ -36,6 +36,7 @@ Work through these steps in order. Each one is a decision point; the "Common Pit
 | 6 | [Read operations & tuning](#step-6--read-operations--tuning) | Streaming vs materializing; heavy-read tuning; read errors |
 | 7 | [Write operations & tuning](#step-7--write-operations--tuning) | Insert pattern; heavy-ingest tuning; idempotency; write errors |
 | 8 | [Metadata & schema discovery](#step-8--metadata--schema-discovery) | How to obtain schemas without JDBC metadata |
+| 9 | [Miscellaneous features](#step-9--miscellaneous-features) | Sessions and other optional capabilities |
 
 ---
 
@@ -196,7 +197,7 @@ Runtime rotation via `updateUserAndPassword` / `updateBearerToken` updates the c
 
 ## Step 3 — Transport & connectivity (TLS, proxies, timeouts)
 
-**Goal:** make the client reach the server reliably under your network topology. This is init configuration set on the builder.
+**Goal:** Configure the client to match the application's networking and infrastructure environment. Because the application determines these requirements, you must understand the physical and logical topology between the client and the server. The client relies on this initialization configuration to establish secure connectivity (TLS, proxies) and gracefully handle network conditions.
 
 ### TLS / mTLS / proxies
 
@@ -212,23 +213,27 @@ See [SSLExamples](../examples/client-v2/src/main/java/com/clickhouse/examples/cl
 
 ### Init configuration — timeouts
 
-| Property (Builder method) | Purpose |
-|----------|---------|
-| `connection_timeout` (`.setConnectTimeout()`) | TCP connect timeout |
-| `socket_timeout` (`.setSocketTimeout()`) | Socket read/write timeout |
+Timeouts are critical parameters that directly impact application stability under load and over long distances:
 
-Per-operation network timeouts are set later (Step 6) via `QuerySettings.setNetworkTimeout(long timeout, ChronoUnit unit)`. Note this method returns `void` (it is not chainable), so call it on a `QuerySettings` instance rather than inside a builder chain.
+- **Connection timeout** (`.setConnectTimeout()`): The TCP connect timeout. Setting this value too low can cause failures when the application and server are in different geographical regions. Additionally, connection timeouts are closely tied to the connection pool: if the application issues concurrent requests that exceed the available pool size, it may manifest as a connection timeout because no free connections are present.
+- **Socket timeout** (`.setSocketTimeout()`): The timeout for underlying socket read/write operations. While it applies strictly to socket activity, it is vital because it dictates how long the client will wait for long-running queries to return data. If your workload involves heavy analytical queries, you may need a very long socket timeout. However, the trade-off of a long socket timeout is the increased risk of encountering stale or silently dropped connections.
+- **TCP keepalive**: Can be enabled to mitigate stale connections, though the host operating system's settings may ultimately override it. System-level TCP keepalive defaults are often several hours; configuring a shorter keepalive period makes sense for long-running operations. Keep in mind that executing extremely long operations over the public internet remains inherently risky.
 
-### Health check
+> **Note on runtime configuration:** You can optionally override the default network timeout on a per-operation basis using `QuerySettings.setNetworkTimeout(long timeout, ChronoUnit unit)`. This allows you to set stricter boundaries on specific queries without altering the client-wide defaults.
+
+### Ping - check connectivity
+
+Checking connectivity is a critical operation in the application lifecycle. The `client.ping()` method provides a lightweight way to verify that the ClickHouse server is reachable and responsive.
 
 ```java
-if (!client.ping()) { throw new RuntimeException("ClickHouse unreachable"); }
+if (!client.ping()) { 
+    // trigger recovery logic, mark service unhealthy, or fail fast
+}
 ```
 
-### Server vs client settings
-
-- **Server settings** control query execution (`max_execution_time`, `max_threads`). Pass them with the `server_setting` prefix or helpers: `.serverSetting("max_execution_time", "60")` at build time, or `QuerySettings.serverSetting(...)` per operation.
-- **Client settings** control HTTP transport, pooling, compression, and timeouts (`compress`, `socket_timeout`, `retry`).
+Key use cases include:
+- **Application health checks**: Wire this method to your application's liveness or readiness probes (e.g., in Kubernetes or behind a load balancer) to automatically route traffic away from the application if the database connection is lost.
+- **Handling recovery**: Use it in circuit breakers, reconnection logic, or recovery loops to verify that connectivity has been restored before resuming bulk operations or restarting failed data pipelines.
 
 ### Common Pitfalls
 
@@ -243,9 +248,9 @@ if (!client.ping()) { throw new RuntimeException("ClickHouse unreachable"); }
 
 In the Java Client a "connection" is an **HTTP connection borrowed from the internal pool**, not a long-lived database session. Each operation borrows a connection, sends a request, streams the response, and returns the connection to the pool.
 
-### The one decision to make: connection limit (`max_open_connections`)
+### Connection limit (`max_open_connections`)
 
-Unlike the answers above, the pool size depends on your workload — specifically on its **concurrency**, not on how much data it moves. What matters is **how many operations run at the same time**, not the number of rows or bytes any single operation transfers. A pool of 20 connections serves at most 20 simultaneous operations regardless of whether each returns one row or a million. This is the single setting you actually tune. The table below is guidance, not a hard rule: measure under your own load.
+The pool size depends on your workload — specifically on its **concurrency**, not on how much data it moves. What matters is **how many operations run at the same time**, not the number of rows or bytes any single operation transfers. A pool of 20 connections serves at most 20 simultaneous operations regardless of whether each returns one row or a million. This is the single setting you actually tune. The table below is guidance, not a hard rule: measure under your own load.
 
 | Workload | Concurrent requests | Suggested `max_open_connections` | What happens |
 |----------|---------------------|----------------------------------|--------------|
@@ -255,7 +260,7 @@ Unlike the answers above, the pool size depends on your workload — specificall
 
 The reasoning is only valid for **short-lived read operations**, where connections cycle back to the pool quickly enough to be shared. For long operations the bottleneck is data transfer, not connection availability.
 
-### Init configuration — connection pool properties (set at build time)
+### Connection pool
 
 These are the only pool-related properties you normally touch; the rest have safe defaults.
 
@@ -270,28 +275,11 @@ These are the only pool-related properties you normally touch; the rest have saf
 
 **`connection_pool_enabled` is not recommended to change.** Leave pooling **enabled** (the default). The only reason to disable it is a workload with extreme concurrency where the internal Apache HttpClient connection pool itself becomes a contention point — under very high parallel request rates the pool's own bookkeeping can serialize threads. Disabling pooling avoids that bottleneck at the cost of a fresh connection per operation (higher latency, more sockets), so treat it as a last resort after measuring, not a default.
 
-### Init configuration — async vs synchronous execution
-
-All operations return `CompletableFuture`. Whether they run on a client-managed executor is controlled once, at build time:
-
-- **`ClientConfigProperties.ASYNC_OPERATIONS`** — when enabled, operations are dispatched on an internal executor and the returned future completes asynchronously. When disabled, the work runs on the calling thread and the returned future is already completed when you receive it.
-- `queryAll(...)` returns a `List<GenericRecord>` directly — it blocks and materializes every row into memory. `queryRecords(...)` returns a `CompletableFuture<Records>` whose `Records` is a **lazy** iterator over the still-open response stream, so it neither blocks the whole read nor materializes all rows. Reserve `queryAll(...)` for small results.
-
-This choice should be made early, as async mode affects how back-pressure and timeouts are propagated throughout the application.
-
-### Sessions (optional, decide now if you need them)
-
-A [`Session`](../client-v2/src/main/java/com/clickhouse/client/api/Session.java) carries ClickHouse HTTP session state (`session_id`, `session_check`, `session_timeout`, `session_timezone`):
-
-- **Client-wide** — `Client.Builder.use(session)` applies to every operation.
-- **Operation-wide** — `QuerySettings.use(session)` / `InsertSettings.use(session)` overrides per request.
-
 ### Common Pitfalls
 
 <common-pitfalls>
 - **CONSTRAINT:** Do not create a `Client` per request. It destroys pool warm-up and adds latency on every call — the single most common mistake.
 - **Pool too small** (`max_open_connections`) throttles concurrency; size it to peak concurrent operations, not average.
-- **Sessions behind a load balancer** require **server affinity** (sticky sessions) — a session-bound request routed to a different node fails. See [Sessions example](../examples/client-v2/src/main/java/com/clickhouse/examples/client_v2/Sessions.java).
 - **CONSTRAINT:** Always `close()` the client at shutdown to avoid leaking the pool and its threads.
 
 </common-pitfalls>
@@ -406,17 +394,16 @@ client.query("SELECT * FROM events WHERE id > {min_id:UInt64}", params, settings
 
 ### Operation configuration — tuning heavy reads
 
-Set these on `QuerySettings` (per query) or as client defaults:
+The most useful **client settings** for reads are configured on `QuerySettings`:
 
 | Setting | Property / method | Notes |
 |---------|-------------------|-------|
-| Response compression | `compress=true` (default) | Server-side LZ4 |
-| Output format | `QuerySettings.setFormat(...)` | Prefer binary for throughput |
-| Read buffer size | `QuerySettings.setReadBufferSize(n)` | Min 8192 bytes; raise for large streams |
-| Execution limit | `QuerySettings.setMaxExecutionTime(seconds)` | Server-side timeout |
-| Max result rows | `serverSetting("max_result_rows", ...)` | Limit rows server-side |
-| Network timeout | `QuerySettings.setNetworkTimeout(long, ChronoUnit)` | Per-operation override; returns `void`, not chainable |
-| Retry policy | `Client.Builder.setMaxRetries(n)` / `retryOnFailures(...)` | Client-level default (init config) |
+| Output format | `QuerySettings.setFormat(...)` | Prefer binary formats for high throughput |
+| Read buffer size | `QuerySettings.setReadBufferSize(n)` | Minimum 8192 bytes; raise for large streams |
+| Network timeout | `QuerySettings.setNetworkTimeout(long, ChronoUnit)` | Per-operation socket timeout override; returns `void` (not chainable) |
+
+> **Server settings**:
+> Server settings control query execution on the ClickHouse server itself. Pass them via `QuerySettings.serverSetting(key, value)`. Examples include `serverSetting("max_result_rows", "10000")` or `serverSetting("max_threads", "4")`. (For limiting execution time, there is a dedicated helper: `QuerySettings.setMaxExecutionTime(seconds)`).
 
 Useful correlation helpers: `settings.setQueryId(...)` and `settings.logComment(...)` surface in `system.query_log`.
 
@@ -504,14 +491,17 @@ Populate each row with `setValue(column, value)` (by name or 1-based index) and 
 
 ### Operation configuration — tuning heavy writes
 
+The most useful **client settings** for writes are configured on `InsertSettings`:
+
 | Setting | Property / method | Notes |
 |---------|-------------------|-------|
-| Client request compression | `InsertSettings.compressClientRequest(true)` | LZ4-compress the insert body |
-| HTTP compression | `InsertSettings.useHttpCompression(true)` | Content-Encoding header |
-| Pre-compressed data | `InsertSettings.appCompressedData(true, "gzip")` | When you compress the data yourself |
-| Copy buffer size | `InsertSettings.setInputStreamCopyBufferSize(n)` | Stream-to-stream copy buffer |
-| Async insert | `serverSetting("async_insert", "1")` | Server-side buffering |
-| Retry policy | `Client.Builder.setMaxRetries(n)` / `retryOnFailures(...)` | Client-level default (init config) |
+| Client request compression | `InsertSettings.compressClientRequest(true)` | LZ4-compress the insert body before sending |
+| HTTP compression | `InsertSettings.useHttpCompression(true)` | Sets Content-Encoding HTTP header |
+| Pre-compressed data | `InsertSettings.appCompressedData(true, "gzip")` | Informs the client you are providing already-compressed data |
+| Copy buffer size | `InsertSettings.setInputStreamCopyBufferSize(n)` | Stream-to-stream copy buffer size |
+
+> **Server settings**:
+> Server settings control how ClickHouse processes the ingested data. Pass them via `InsertSettings.serverSetting(key, value)`. For example, `serverSetting("async_insert", "1")` enables server-side buffering, and `serverSetting("wait_for_async_insert", "1")` determines whether the client waits for the flush.
 
 ### Idempotency — deduplication token
 
@@ -618,6 +608,19 @@ Field-to-column matching is controlled by [`ColumnToMethodMatchingStrategy`](../
 | Server info | `client.loadServerInfo()` (returns `void`) | Refreshes cached server info; then read `getServerVersion()`, `getServerTimeZone()`, `getUser()` |
 
 For JDBC-style catalog metadata (`DatabaseMetaData`), use the [JDBC integration guide](integration-jdbc.md).
+
+---
+
+## Step 9 — Miscellaneous features
+
+### Sessions
+
+A [`Session`](../client-v2/src/main/java/com/clickhouse/client/api/Session.java) carries ClickHouse HTTP session state (`session_id`, `session_check`, `session_timeout`, `session_timezone`). This is completely optional and only needed if your application relies on ClickHouse session context.
+
+- **Client-wide** — `Client.Builder.use(session)` applies to every operation.
+- **Operation-wide** — `QuerySettings.use(session)` / `InsertSettings.use(session)` overrides the session per request.
+
+> **Note on sessions behind a load balancer:** Using sessions behind a load balancer requires **server affinity** (sticky sessions). A session is pinned to a specific ClickHouse node; if a session-bound request is routed to a different node, it will fail. See the [Sessions example](../examples/client-v2/src/main/java/com/clickhouse/examples/client_v2/Sessions.java).
 
 ---
 
