@@ -4,6 +4,11 @@
 
 ### Bug Fixes 
 
+- **[client-v2]** Fixed POJO insert error classification so transport write failures such as java.net.SocketException:
+  Broken pipe (Write failed) are now surfaced as transfer/network errors instead of being wrapped as
+  DataSerializationException. This only changes the exception type reported for request-body transport failures during
+  Client.insert(...); actual POJO reflection/serialization failures are still reported as DataSerializationException.
+  (https://github.com/ClickHouse/clickhouse-java/issues/2729)
 - **[client-v2]** Fixed binary varint decoding for length and count fields so overflowing or overlong values fail with an `IOException` instead of being decoded into corrupted or negative `int` values. (https://github.com/ClickHouse/clickhouse-java/issues/2902)
 
 - **[client-v2]** Fixed container query parameters being sent unquoted, so `Client.query(sql, params, settings)` binding

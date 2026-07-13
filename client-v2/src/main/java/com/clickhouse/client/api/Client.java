@@ -1392,7 +1392,7 @@ public class Client implements AutoCloseable {
                                         for (POJOFieldSerializer serializer : serializersForTable) {
                                             try {
                                                 serializer.serialize(obj, out);
-                                            } catch (InvocationTargetException | IllegalAccessException | IOException e) {
+                                            } catch (InvocationTargetException | IllegalAccessException e) {
                                                 throw new DataSerializationException(obj, serializer, e);
                                             }
                                         }
