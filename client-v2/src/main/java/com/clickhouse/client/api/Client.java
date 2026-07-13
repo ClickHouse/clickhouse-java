@@ -1367,8 +1367,8 @@ public class Client implements AutoCloseable {
         }
 
 
-        Integer retry = (Integer) configuration.get(ClientConfigProperties.RETRY_ON_FAILURE.getKey());
-        final int maxRetries = retry == null ? 0 : retry;
+        final int maxRetries = ClientConfigProperties.RETRY_ON_FAILURE.getOrDefault(requestSettings.getAllSettings());
+        final int maxAttempts = Math.max(maxRetries, endpoints.size() - 1);
 
         requestSettings.setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), format);
         if (requestSettings.getQueryId() == null && queryIdGenerator != null) {
@@ -1380,7 +1380,7 @@ public class Client implements AutoCloseable {
             Endpoint selectedEndpoint = nodeSelector.getEndpoint();
 
             RuntimeException lastException = null;
-            for (int i = 0; i <= maxRetries; i++) {
+            for (int i = 0; i <= maxAttempts; i++) {
                 // Execute request
                 try (ClassicHttpResponse httpResponse =
                         httpClientHelper.executeRequest(selectedEndpoint, requestSettings.getAllSettings(),
@@ -1415,15 +1415,19 @@ public class Client implements AutoCloseable {
                     String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
                     lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
                     if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings())) {
-                        LOG.warn("Retrying.", e);
-                        selectedEndpoint = nodeSelector.getNextAliveNode(selectedEndpoint);
+                        if (i < maxAttempts) {
+                            LOG.warn("Retrying.", e);
+                            selectedEndpoint = nodeSelector.getNextAliveNode(selectedEndpoint);
+                        } else {
+                            nodeSelector.getNextAliveNode(selectedEndpoint);
+                        }
                     } else {
                         throw lastException;
                     }
                 }
             }
 
-            String errMsg = requestExMsg("Insert", retries, durationSince(startTime).toMillis(), requestSettings.getQueryId());
+            String errMsg = requestExMsg("Insert", maxAttempts + 1, durationSince(startTime).toMillis(), requestSettings.getQueryId());
             LOG.warn(errMsg);
             throw (lastException == null ? new ClientException(errMsg) : lastException);        };
 
@@ -1588,13 +1592,15 @@ public class Client implements AutoCloseable {
         if (requestSettings.getQueryId() == null && queryIdGenerator != null) {
             requestSettings.setQueryId(queryIdGenerator.get());
         }
+        final int maxRetries = ClientConfigProperties.RETRY_ON_FAILURE.getOrDefault(requestSettings.getAllSettings());
+        final int maxAttempts = Math.max(maxRetries, endpoints.size() - 1);
         responseSupplier = () -> {
             long startTime = System.nanoTime();
             // Selecting some node
             Endpoint selectedEndpoint = nodeSelector.getEndpoint();
 
             RuntimeException lastException = null;
-            for (int i = 0; i <= retries; i++) {
+            for (int i = 0; i <= maxAttempts; i++) {
                 // Execute request
                 try (ClassicHttpResponse httpResponse =
                              httpClientHelper.executeRequest(selectedEndpoint, requestSettings.getAllSettings(),
@@ -1614,14 +1620,18 @@ public class Client implements AutoCloseable {
                     String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
                     lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
                     if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings())) {
-                        LOG.warn("Retrying.", e);
-                        selectedEndpoint = nodeSelector.getNextAliveNode(selectedEndpoint);
+                        if (i < maxAttempts) {
+                            LOG.warn("Retrying.", e);
+                            selectedEndpoint = nodeSelector.getNextAliveNode(selectedEndpoint);
+                        } else {
+                            nodeSelector.getNextAliveNode(selectedEndpoint);
+                        }
                     } else {
                         throw lastException;
                     }
                 }
 
-                if (i < retries) {
+                if (i < maxAttempts) {
                     try {
                         writer.onRetry();
                     } catch (IOException ioe) {
@@ -1629,7 +1639,7 @@ public class Client implements AutoCloseable {
                     }
                 }
             }
-            String errMsg = requestExMsg("Insert", retries, durationSince(startTime).toMillis(), requestSettings.getQueryId());
+            String errMsg = requestExMsg("Insert", maxAttempts + 1, durationSince(startTime).toMillis(), requestSettings.getQueryId());
             LOG.warn(errMsg);
             throw (lastException == null ? new ClientException(errMsg) : lastException);
         };
@@ -1718,23 +1728,19 @@ public class Client implements AutoCloseable {
             requestSettings.setQueryId(queryIdGenerator.get());
         }
 
+        final int maxRetries = ClientConfigProperties.RETRY_ON_FAILURE.getOrDefault(requestSettings.getAllSettings());
+        final int maxAttempts = Math.max(maxRetries, endpoints.size() - 1);
         Supplier<QueryResponse> responseSupplier = () -> {
                 long startTime = System.nanoTime();
                 // Selecting some node
                 Endpoint selectedEndpoint = nodeSelector.getEndpoint();
                 RuntimeException lastException = null;
-                for (int i = 0; i <= retries; i++) {
+                for (int i = 0; i <= maxAttempts; i++) {
                     ClassicHttpResponse httpResponse = null;
                     try {
-                        boolean  useMultipart = ClientConfigProperties.HTTP_SEND_PARAMS_IN_BODY.getOrDefault(requestSettings.getAllSettings());
-                        if (queryParams != null && useMultipart) {
-                            httpResponse = httpClientHelper.executeMultiPartRequest(selectedEndpoint,
-                                     requestSettings.getAllSettings(), sqlQuery);
-                        } else {
-                            httpResponse = httpClientHelper.executeRequest(selectedEndpoint,
-                                    requestSettings.getAllSettings(),
-                                    sqlQuery);
-                        }
+                        httpResponse = httpClientHelper.executeRequest(selectedEndpoint,
+                                requestSettings.getAllSettings(),
+                                sqlQuery);
 
                         OperationMetrics metrics = new OperationMetrics(clientStats);
                         String summary = HttpAPIClientHelper.getHeaderVal(httpResponse
@@ -1758,14 +1764,18 @@ public class Client implements AutoCloseable {
                         String msg = requestExMsg("Query", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
                         lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
                         if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings())) {
-                            LOG.warn("Retrying.", e);
-                            selectedEndpoint = nodeSelector.getNextAliveNode(selectedEndpoint);
+                            if (i < maxAttempts) {
+                                LOG.warn("Retrying.", e);
+                                selectedEndpoint = nodeSelector.getNextAliveNode(selectedEndpoint);
+                            } else {
+                                nodeSelector.getNextAliveNode(selectedEndpoint);
+                            }
                         } else {
                             throw lastException;
                         }
                     }
                 }
-                String errMsg = requestExMsg("Query", retries, durationSince(startTime).toMillis(), requestSettings.getQueryId());
+                String errMsg = requestExMsg("Query", maxAttempts + 1, durationSince(startTime).toMillis(), requestSettings.getQueryId());
                 LOG.warn(errMsg);
                 throw (lastException == null ? new ClientException(errMsg) : lastException);
             };
