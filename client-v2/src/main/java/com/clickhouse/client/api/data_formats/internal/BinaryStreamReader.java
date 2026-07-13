@@ -609,8 +609,8 @@ public class BinaryStreamReader {
         ArrayValue array;
         ClickHouseColumn itemTypeColumn = column.getNestedColumns().get(0);
         if (len == 0) {
-            Class<?> itemClass = itemTypeColumn.getDataType().getPrimitiveClass();
-            array = new ArrayValue(itemClass == null ? Object.class : itemClass, 0);
+            Class<?> itemClass = resolveArrayItemClass(itemTypeColumn);
+            array = new ArrayValue(itemClass, 0);
         } else if (column.getArrayNestedLevel() == 1) {
             array = readArrayItem(itemTypeColumn, len);
         } else {
@@ -626,7 +626,7 @@ public class BinaryStreamReader {
     public ArrayValue readArrayItem(ClickHouseColumn itemTypeColumn, int len) throws IOException {
         ArrayValue array;
         if (itemTypeColumn.isNullable()) {
-            Class<?> itemClass = resolveNullableArrayItemClass(itemTypeColumn.getDataType());
+            Class<?> itemClass = resolveArrayItemClass(itemTypeColumn);
             array = new ArrayValue(itemClass, len);
             for (int i = 0; i < len; i++) {
                 array.set(i, readValue(itemTypeColumn));
@@ -673,30 +673,60 @@ public class BinaryStreamReader {
     }
 
     /**
-     * Resolves the Java class that {@link #readValue} actually returns for a given data type
-     * so that it can be used as the component type of a nullable array.
+     * Resolves the Java class that {@link #readValue} actually returns for a given column
+     * so that it can be used as the component type of an array.
      *
      * <p>For unsigned integer types, {@code readValue} widens the value (e.g. UInt8 → Short,
-     * UInt32 → Long), so we use {@link ClickHouseDataType#getWiderObjectClass()} which mirrors
-     * that widening. For Enum types, {@code readValue} returns {@link EnumValue} rather than the
-     * declared {@code String.class}. All other types use {@link ClickHouseDataType#getObjectClass()}.
+     * UInt32 → Long), so we use {@link ClickHouseDataType#getWiderObjectClass()} or 
+     * {@link ClickHouseDataType#getWiderPrimitiveClass()} which mirrors that widening.
+     * For Enum types, {@code readValue} returns {@link EnumValue} rather than the
+     * declared {@code String.class}. All other types use {@link ClickHouseDataType#getObjectClass()}
+     * or {@link ClickHouseDataType#getPrimitiveClass()}.
      *
-     * @param dataType the element data type of the array
+     * @param itemTypeColumn the element column of the array
      * @return the Java class to use as the array component type; never {@code null}
      */
-    private static Class<?> resolveNullableArrayItemClass(ClickHouseDataType dataType) {
-        switch (dataType) {
-            case UInt8:
-            case UInt16:
-            case UInt32:
-            case UInt64:
-                return dataType.getWiderObjectClass();
-            case Enum8:
-            case Enum16:
-                return EnumValue.class;
-            default:
-                Class<?> cls = dataType.getObjectClass();
-                return cls == null ? Object.class : cls;
+    private static Class<?> resolveArrayItemClass(ClickHouseColumn itemTypeColumn) {
+        ClickHouseDataType dataType = itemTypeColumn.getDataType();
+        if (itemTypeColumn.isNullable()) {
+            switch (dataType) {
+                case UInt8:
+                case UInt16:
+                case UInt32:
+                case UInt64:
+                    return dataType.getWiderObjectClass();
+                case Enum8:
+                case Enum16:
+                    return EnumValue.class;
+                default:
+                    Class<?> cls = dataType.getObjectClass();
+                    return cls == null ? Object.class : cls;
+            }
+        } else {
+            switch (dataType) {
+                case UInt8:
+                case UInt16:
+                case UInt32:
+                case UInt64:
+                    return dataType.getWiderPrimitiveClass();
+                case Enum8:
+                case Enum16:
+                    return EnumValue.class;
+                case Variant:
+                case Dynamic:
+                case Geometry:
+                    return Object.class;
+                case Array:
+                    return ArrayValue.class;
+                case Tuple:
+                case Nested:
+                    return Object[].class;
+                case Map:
+                    return Map.class;
+                default:
+                    Class<?> cls = dataType.getPrimitiveClass();
+                    return cls == null ? Object.class : cls;
+            }
         }
     }
 

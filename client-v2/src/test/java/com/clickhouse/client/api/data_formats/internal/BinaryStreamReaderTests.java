@@ -275,4 +275,34 @@ public class BinaryStreamReaderTests {
         Assert.assertEquals(array.getArray().getClass().getComponentType(),
                 BinaryStreamReader.EnumValue.class);
     }
+
+    @Test
+    public void testEmptyArrayTypes() throws Exception {
+        assertEmptyArrayComponentType("Array(UInt8)", short.class);
+        assertEmptyArrayComponentType("Array(Nullable(UInt8))", Short.class);
+        assertEmptyArrayComponentType("Array(String)", String.class);
+        assertEmptyArrayComponentType("Array(Nullable(String))", String.class);
+        assertEmptyArrayComponentType("Array(Enum8('a'=1))", BinaryStreamReader.EnumValue.class);
+        assertEmptyArrayComponentType("Array(Nullable(Enum8('a'=1)))", BinaryStreamReader.EnumValue.class);
+        assertEmptyArrayComponentType("Array(Variant(Int32, String))", Object.class);
+        assertEmptyArrayComponentType("Array(Array(String))", BinaryStreamReader.ArrayValue.class);
+    }
+
+    private void assertEmptyArrayComponentType(String columnType, Class<?> expectedComponentType) throws Exception {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        BinaryStreamUtils.writeVarInt(baos, 0); 
+
+        BinaryStreamReader reader = new BinaryStreamReader(
+                new ByteArrayInputStream(baos.toByteArray()),
+                TimeZone.getTimeZone("UTC"),
+                null,
+                new BinaryStreamReader.CachingByteBufferAllocator(),
+                false,
+                null);
+
+        BinaryStreamReader.ArrayValue array = (BinaryStreamReader.ArrayValue) reader.readValue(
+                ClickHouseColumn.of("v", columnType));
+
+        Assert.assertEquals(array.getArray().getClass().getComponentType(), expectedComponentType, "Failed for " + columnType);
+    }
 }
