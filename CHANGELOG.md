@@ -149,6 +149,8 @@ like `ch_db_01`. This is mostly used in k8s environment. (https://github.com/Cli
 
 - **[repo]** Added a contribution guide. Please review and send us your feedback. (https://github.com/ClickHouse/clickhouse-java/pull/2859)
 
+- **[client-v2]** Added endpoint failover support: when multiple endpoints are configured and a request fails with a retryable error (connect timeout, connection refused, HTTP 503, etc.), the client now automatically retries against the next available endpoint instead of always targeting the first one. Failed endpoints are quarantined for 30 seconds before being retried. (https://github.com/ClickHouse/clickhouse-java/issues/2855)
+
 ### Bug Fixes
 
 - **[jdbc-v2, client-v2]** Fixed error handling for responses that not a ClickHouse error, like `404` response. (https://github.com/ClickHouse/clickhouse-java/issues/2803)

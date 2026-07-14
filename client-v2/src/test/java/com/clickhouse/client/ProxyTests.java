@@ -3,6 +3,7 @@ package com.clickhouse.client;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.ClientMisconfigurationException;
+import com.clickhouse.client.api.ClickHouseException;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.insert.InsertResponse;
@@ -199,9 +200,13 @@ public class ProxyTests extends BaseIntegrationTest{
         try {
             client.get().execute("select 1").get();
         } catch (ExecutionException e) {
-            Assert.assertTrue(e.getCause() instanceof ClientException);
-        } catch (ClientException e) {
-            Assert.assertTrue(e.getMessage().contains("Server returned '502 Bad gateway'"));
+            Assert.assertTrue(e.getCause() instanceof ClickHouseException);
+            Throwable cause = e.getCause();
+            Assert.assertTrue(cause.getMessage().contains("Server returned '502 Bad gateway'") ||
+                    (cause.getCause() != null && cause.getCause().getMessage().contains("Server returned '502 Bad gateway'")));
+        } catch (ClickHouseException e) {
+            Assert.assertTrue(e.getMessage().contains("Server returned '502 Bad gateway'") ||
+                    (e.getCause() != null && e.getCause().getMessage().contains("Server returned '502 Bad gateway'")));
         } catch (Exception e) {
             Assert.fail("Should have thrown exception.", e);
         }
