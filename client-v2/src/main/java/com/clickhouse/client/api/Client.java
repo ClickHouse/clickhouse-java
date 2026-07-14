@@ -789,7 +789,8 @@ public class Client implements AutoCloseable {
         /**
          * Restricts the TLS cipher suites the client may negotiate on secure connections. When set, only
          * the listed cipher suites are enabled on the SSL socket (subject to what the JVM and the server
-         * support); when not set, the JVM defaults are used. Suite names use the standard JSSE names, for
+         * support); when not set, the transport defaults are used (Apache HttpClient enables the JVM's
+         * default suites minus those it considers weak). Suite names use the standard JSSE names, for
          * example {@code TLS_AES_256_GCM_SHA384}.
          *
          * @param cipherSuites cipher suite names to enable

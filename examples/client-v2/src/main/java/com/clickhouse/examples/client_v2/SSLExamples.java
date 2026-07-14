@@ -28,7 +28,7 @@ import java.util.List;
  *     Use it only for testing or in fully trusted environments.</li>
  *     <li>Restricting the negotiated TLS cipher suites with
  *     {@link Client.Builder#setSSLCipherSuites(String...)} - useful to enforce a stronger or
- *     compliance-mandated set of cipher suites instead of the JVM defaults.</li>
+ *     compliance-mandated set of cipher suites instead of the transport defaults.</li>
  * </ul>
  *
  * <p>More SSL examples (mTLS, trust stores, SNI) will be added to this class later.</p>
@@ -202,7 +202,7 @@ public class SSLExamples {
      * Connects while restricting the TLS cipher suites the client is allowed to negotiate, using
      * {@link Client.Builder#setSSLCipherSuites(String...)}. Only the listed suites are enabled on the
      * socket (subject to what the JVM and the server support); this is useful to enforce a stronger or
-     * compliance-mandated set of cipher suites rather than relying on the JVM defaults.
+     * compliance-mandated set of cipher suites rather than relying on the transport defaults.
      *
      * <p>The CA certificate is still used to verify the server, and hostname verification stays enabled -
      * cipher-suite selection is independent of the trust configuration and the SSL mode. The suites below

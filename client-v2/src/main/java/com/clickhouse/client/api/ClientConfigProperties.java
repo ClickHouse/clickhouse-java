@@ -118,13 +118,6 @@ public enum ClientConfigProperties {
 
     SSL_MODE("ssl_mode", SSLMode.class, SSLMode.STRICT.name()),
 
-    /**
-     * Comma-separated list of TLS cipher suites the client is allowed to negotiate on secure connections.
-     * When set, only these cipher suites are enabled on the SSL socket (subject to what the JVM and server
-     * support); when unset, the JVM defaults are used.
-     */
-    SSL_CIPHER_SUITES("ssl_cipher_suites", List.class),
-
     RETRY_ON_FAILURE("retry", Integer.class, "3"),
 
     INPUT_OUTPUT_FORMAT("format", ClickHouseFormat.class),
@@ -211,6 +204,17 @@ public enum ClientConfigProperties {
      *  See <a href="https://clickhouse.com/docs/operations/settings/query-level#custom_settings">ClickHouse Docs</a>
      */
     CUSTOM_SETTINGS_PREFIX("custom_settings_prefix", String.class, "custom_"),
+
+    /**
+     * Comma-separated list of TLS cipher suites the client is allowed to negotiate on secure connections.
+     * When set, only these cipher suites are enabled on the SSL socket (subject to what the JVM and server
+     * support); when unset, the transport defaults are used (Apache HttpClient enables the JVM's default
+     * suites minus those it considers weak).
+     * <p>
+     * Appended at the end of the enum on purpose: adding a constant in the middle would shift the ordinal
+     * of every following constant (see {@code docs/changes_checklist.md}).
+     */
+    SSL_CIPHER_SUITES("ssl_cipher_suites", List.class),
     ;
 
     private static final Logger LOG = LoggerFactory.getLogger(ClientConfigProperties.class);

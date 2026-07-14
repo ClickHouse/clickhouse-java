@@ -1087,14 +1087,14 @@ public class HttpAPIClientHelper {
 
         private final SNIHostName defaultSNI;
 
-        // Retained for backward compatibility; delegates with no cipher-suite restriction (JVM defaults).
+        // Retained for backward compatibility; delegates with no cipher-suite restriction (transport defaults).
         public CustomSSLConnectionFactory(String defaultSNI, SSLContext sslContext, HostnameVerifier hostnameVerifier) {
             this(defaultSNI, sslContext, hostnameVerifier, null);
         }
 
         public CustomSSLConnectionFactory(String defaultSNI, SSLContext sslContext, HostnameVerifier hostnameVerifier,
                                           String[] supportedCipherSuites) {
-            // supportedProtocols is left as null (JDK defaults are used); supportedCipherSuites, when
+            // supportedProtocols is left as null (transport defaults apply); supportedCipherSuites, when
             // provided, restricts the cipher suites the base factory enables on each socket. A null
             // hostnameVerifier makes the base factory fall back to its default verifier.
             super(sslContext, null, supportedCipherSuites, hostnameVerifier);

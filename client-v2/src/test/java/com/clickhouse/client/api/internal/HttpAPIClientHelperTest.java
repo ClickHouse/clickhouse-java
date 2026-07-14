@@ -50,7 +50,7 @@ public class HttpAPIClientHelperTest {
 
     /**
      * The three-argument constructor is retained for backward compatibility and must delegate with no cipher
-     * restriction, so callers that do not configure cipher suites keep the JVM defaults.
+     * restriction, so callers that do not configure cipher suites keep the transport defaults.
      */
     @Test
     public void testLegacyConstructorAppliesNoCipherRestriction() throws Exception {
@@ -120,7 +120,7 @@ public class HttpAPIClientHelperTest {
 
     /**
      * TRUST mode opts out of hostname verification, so the factory must receive a permissive (non-null)
-     * verifier; with no cipher suites configured the factory must keep the JVM defaults (no restriction).
+     * verifier; with no cipher suites configured the factory must keep the transport defaults (no restriction).
      */
     @Test
     public void testCreateHttpClientTrustModeInstallsPermissiveVerifierWithoutCipherRestriction() {
@@ -206,7 +206,7 @@ public class HttpAPIClientHelperTest {
     }
 
     /**
-     * Boundary case: an empty cipher-suite list must be treated as "no restriction" (JVM defaults), exactly
+     * Boundary case: an empty cipher-suite list must be treated as "no restriction" (transport defaults), exactly
      * like an unset value - it must NOT be turned into an empty cipher array, which would enable zero suites
      * and make every handshake fail. STRICT with no SNI therefore keeps using the plain factory.
      */
@@ -217,8 +217,8 @@ public class HttpAPIClientHelperTest {
 
         List<List<?>> calls = captureCustomFactoryConstruction(config);
 
-        assertEquals(calls.size(), 0, "an empty cipher-suite list must be treated as no restriction (JVM "
-                + "defaults), so the plain SSLConnectionSocketFactory is used");
+        assertEquals(calls.size(), 0, "an empty cipher-suite list must be treated as no restriction "
+                + "(transport defaults), so the plain SSLConnectionSocketFactory is used");
     }
 
     /**
@@ -247,7 +247,7 @@ public class HttpAPIClientHelperTest {
     /**
      * Boundary case: a cipher-suite list that contains only blank tokens (e.g. from a property that is just
      * commas/whitespace) has no usable suite, so - like an empty or unset list - it must be treated as "no
-     * restriction" (JVM defaults) rather than forwarding an all-blank array that would fail every handshake.
+     * restriction" (transport defaults) rather than forwarding an all-blank array that would fail every handshake.
      */
     @Test
     public void testCreateHttpClientBlankOnlyCipherSuitesTreatedAsNoRestriction() {
@@ -257,7 +257,7 @@ public class HttpAPIClientHelperTest {
         List<List<?>> calls = captureCustomFactoryConstruction(config);
 
         assertEquals(calls.size(), 0, "a cipher-suite list of only blank tokens must be treated as no "
-                + "restriction (JVM defaults), so the plain SSLConnectionSocketFactory is used");
+                + "restriction (transport defaults), so the plain SSLConnectionSocketFactory is used");
     }
 
     /**

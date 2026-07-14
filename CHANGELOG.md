@@ -6,7 +6,7 @@
 
 - **[client-v2, jdbc-v2]** Added TLS cipher suite selection. `Client.Builder.setSSLCipherSuites(String...)` (client-v2)
   and the comma-separated `ssl_cipher_suites` connection property (client-v2 and jdbc-v2) restrict the cipher suites
-  enabled on secure connections; when unset, the JVM defaults are used. Cipher-suite selection is independent of the
+  enabled on secure connections; when unset, the transport defaults are used. Cipher-suite selection is independent of the
   trust configuration and `ssl_mode`. (https://github.com/ClickHouse/clickhouse-java/issues/2882)
 
 ### Bug Fixes 
