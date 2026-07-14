@@ -616,7 +616,10 @@ public class HttpAPIClientHelper {
                 throw new ClientMisconfigurationException("Proxy authentication required. Please check your proxy settings.");
             } else if (httpResponse.getCode() == HttpStatus.SC_BAD_GATEWAY) {
                 httpResponse.close();
-                throw new ClientException("Server returned '502 Bad gateway'. Check network and proxy settings.");
+                throw new ConnectException("Server returned '502 Bad gateway'. Check network and proxy settings.");
+            } else if (httpResponse.getCode() == HttpStatus.SC_SERVICE_UNAVAILABLE) {
+                httpResponse.close();
+                throw new ConnectException("Server returned '503 Service unavailable'.");
             } else if (httpResponse.getCode() >= HttpStatus.SC_BAD_REQUEST || httpResponse.containsHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE)) {
                 try {
                     throw readError(req, httpResponse);

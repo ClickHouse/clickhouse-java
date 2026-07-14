@@ -36,6 +36,7 @@ import com.clickhouse.client.api.serde.DataSerializationException;
 import com.clickhouse.client.api.serde.POJOFieldDeserializer;
 import com.clickhouse.client.api.serde.POJOFieldSerializer;
 import com.clickhouse.client.api.serde.POJOSerDe;
+import com.clickhouse.client.api.transport.ClientNodeSelector;
 import com.clickhouse.client.api.transport.Endpoint;
 import com.clickhouse.client.api.transport.HttpEndpoint;
 import com.clickhouse.client.config.ClickHouseClientOption;
@@ -63,8 +64,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -141,9 +142,9 @@ public class Client implements AutoCloseable {
     private String dbUser;
     private String serverVersion;
     private final Object metricsRegistry;
-    private final int retries;
     private LZ4Factory lz4Factory = null;
     private final Supplier<String> queryIdGenerator;
+    private final ClientNodeSelector nodeSelector;
     private final CredentialsManager credentialsManager;
 
     private Client(Collection<Endpoint> endpoints, Map<String,String> configuration,
@@ -188,9 +189,8 @@ public class Client implements AutoCloseable {
         }
 
         this.endpoints = tmpEndpoints.build();
+        this.nodeSelector = new ClientNodeSelector(this.endpoints);
 
-        String retry = configuration.get(ClientConfigProperties.RETRY_ON_FAILURE.getKey());
-        this.retries = retry == null ? 0 : Integer.parseInt(retry);
         boolean useNativeCompression = !MapUtils.getFlag(configuration, ClientConfigProperties.DISABLE_NATIVE_COMPRESSION.getKey(), false);
         if (useNativeCompression) {
             this.lz4Factory = LZ4Factory.fastestInstance();
@@ -273,7 +273,7 @@ public class Client implements AutoCloseable {
         private Supplier<String> queryIdGenerator;
 
         public Builder() {
-            this.endpoints = new HashSet<>();
+            this.endpoints = new LinkedHashSet<>();
             this.configuration = new HashMap<>();
 
             for (ClientConfigProperties p : ClientConfigProperties.values()) {
@@ -1381,8 +1381,8 @@ public class Client implements AutoCloseable {
         }
 
 
-        Integer retry = (Integer) configuration.get(ClientConfigProperties.RETRY_ON_FAILURE.getKey());
-        final int maxRetries = retry == null ? 0 : retry;
+        final int maxRetries = ClientConfigProperties.RETRY_ON_FAILURE.getOrDefault(requestSettings.getAllSettings());
+        final int maxAttempts = Math.max(maxRetries, endpoints.size() - 1);
 
         requestSettings.setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), format);
         if (requestSettings.getQueryId() == null && queryIdGenerator != null) {
@@ -1391,10 +1391,10 @@ public class Client implements AutoCloseable {
         Supplier<InsertResponse> supplier = () -> {
             long startTime = System.nanoTime();
             // Selecting some node
-            Endpoint selectedEndpoint = getNextAliveNode();
+            Endpoint selectedEndpoint = nodeSelector.getEndpoint();
 
             RuntimeException lastException = null;
-            for (int i = 0; i <= maxRetries; i++) {
+            for (int i = 0; i <= maxAttempts; i++) {
                 // Execute request
                 try (ClassicHttpResponse httpResponse =
                         httpClientHelper.executeRequest(selectedEndpoint, requestSettings.getAllSettings(),
@@ -1409,21 +1409,13 @@ public class Client implements AutoCloseable {
                                         for (POJOFieldSerializer serializer : serializersForTable) {
                                             try {
                                                 serializer.serialize(obj, out);
-                                            } catch (InvocationTargetException | IllegalAccessException | IOException e) {
+                                            } catch (InvocationTargetException | IllegalAccessException e) {
                                                 throw new DataSerializationException(obj, serializer, e);
                                             }
                                         }
                                     }
                                     out.close();
                                 })) {
-
-
-                    // Check response
-                    if (httpResponse.getCode() == HttpStatus.SC_SERVICE_UNAVAILABLE) {
-                        LOG.warn("Failed to get response. Server returned {}. Retrying. (Duration: {})", httpResponse.getCode(), durationSince(startTime));
-                        selectedEndpoint = getNextAliveNode();
-                        continue;
-                    }
 
                     ClientStatisticsHolder clientStats = globalClientStats.remove(operationId);
                     OperationMetrics metrics = new OperationMetrics(clientStats);
@@ -1437,15 +1429,19 @@ public class Client implements AutoCloseable {
                     String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
                     lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
                     if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings())) {
-                        LOG.warn("Retrying.", e);
-                        selectedEndpoint = getNextAliveNode();
+                        if (i < maxAttempts) {
+                            LOG.warn("Retrying.", e);
+                            selectedEndpoint = nodeSelector.getNextAliveNode(selectedEndpoint);
+                        } else {
+                            nodeSelector.getNextAliveNode(selectedEndpoint);
+                        }
                     } else {
                         throw lastException;
                     }
                 }
             }
 
-            String errMsg = requestExMsg("Insert", retries, durationSince(startTime).toMillis(), requestSettings.getQueryId());
+            String errMsg = requestExMsg("Insert", maxAttempts + 1, durationSince(startTime).toMillis(), requestSettings.getQueryId());
             LOG.warn(errMsg);
             throw (lastException == null ? new ClientException(errMsg) : lastException);        };
 
@@ -1610,13 +1606,15 @@ public class Client implements AutoCloseable {
         if (requestSettings.getQueryId() == null && queryIdGenerator != null) {
             requestSettings.setQueryId(queryIdGenerator.get());
         }
+        final int maxRetries = ClientConfigProperties.RETRY_ON_FAILURE.getOrDefault(requestSettings.getAllSettings());
+        final int maxAttempts = Math.max(maxRetries, endpoints.size() - 1);
         responseSupplier = () -> {
             long startTime = System.nanoTime();
             // Selecting some node
-            Endpoint selectedEndpoint = getNextAliveNode();
+            Endpoint selectedEndpoint = nodeSelector.getEndpoint();
 
             RuntimeException lastException = null;
-            for (int i = 0; i <= retries; i++) {
+            for (int i = 0; i <= maxAttempts; i++) {
                 // Execute request
                 try (ClassicHttpResponse httpResponse =
                              httpClientHelper.executeRequest(selectedEndpoint, requestSettings.getAllSettings(),
@@ -1624,14 +1622,6 @@ public class Client implements AutoCloseable {
                                          writer.onOutput(out);
                                          out.close();
                                      })) {
-
-
-                    // Check response
-                    if (httpResponse.getCode() == HttpStatus.SC_SERVICE_UNAVAILABLE) {
-                        LOG.warn("Failed to get response. Server returned {}. Retrying. (Duration: {})", httpResponse.getCode(), durationSince(startTime));
-                        selectedEndpoint = getNextAliveNode();
-                        continue;
-                    }
 
                     OperationMetrics metrics = new OperationMetrics(finalClientStats);
                     String summary = HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_SRV_SUMMARY), "{}");
@@ -1644,14 +1634,18 @@ public class Client implements AutoCloseable {
                     String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
                     lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
                     if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings())) {
-                        LOG.warn("Retrying.", e);
-                        selectedEndpoint = getNextAliveNode();
+                        if (i < maxAttempts) {
+                            LOG.warn("Retrying.", e);
+                            selectedEndpoint = nodeSelector.getNextAliveNode(selectedEndpoint);
+                        } else {
+                            nodeSelector.getNextAliveNode(selectedEndpoint);
+                        }
                     } else {
                         throw lastException;
                     }
                 }
 
-                if (i < retries) {
+                if (i < maxAttempts) {
                     try {
                         writer.onRetry();
                     } catch (IOException ioe) {
@@ -1659,7 +1653,7 @@ public class Client implements AutoCloseable {
                     }
                 }
             }
-            String errMsg = requestExMsg("Insert", retries, durationSince(startTime).toMillis(), requestSettings.getQueryId());
+            String errMsg = requestExMsg("Insert", maxAttempts + 1, durationSince(startTime).toMillis(), requestSettings.getQueryId());
             LOG.warn(errMsg);
             throw (lastException == null ? new ClientException(errMsg) : lastException);
         };
@@ -1748,24 +1742,19 @@ public class Client implements AutoCloseable {
             requestSettings.setQueryId(queryIdGenerator.get());
         }
 
+        final int maxRetries = ClientConfigProperties.RETRY_ON_FAILURE.getOrDefault(requestSettings.getAllSettings());
+        final int maxAttempts = Math.max(maxRetries, endpoints.size() - 1);
         Supplier<QueryResponse> responseSupplier = () -> {
                 long startTime = System.nanoTime();
                 // Selecting some node
-                Endpoint selectedEndpoint = getNextAliveNode();
+                Endpoint selectedEndpoint = nodeSelector.getEndpoint();
                 RuntimeException lastException = null;
-                for (int i = 0; i <= retries; i++) {
+                for (int i = 0; i <= maxAttempts; i++) {
                     ClassicHttpResponse httpResponse = null;
                     try {
                         httpResponse = httpClientHelper.executeRequest(selectedEndpoint,
-                                    requestSettings.getAllSettings(),
-                                    sqlQuery);
-                        // Check response
-                        if (httpResponse.getCode() == HttpStatus.SC_SERVICE_UNAVAILABLE) {
-                            LOG.warn("Failed to get response. Server returned {}. Retrying. (Duration: {})", httpResponse.getCode(), durationSince(startTime));
-                            selectedEndpoint = getNextAliveNode();
-                            HttpAPIClientHelper.closeQuietly(httpResponse);
-                            continue;
-                        }
+                                requestSettings.getAllSettings(),
+                                sqlQuery);
 
                         OperationMetrics metrics = new OperationMetrics(clientStats);
                         String summary = HttpAPIClientHelper.getHeaderVal(httpResponse
@@ -1789,14 +1778,18 @@ public class Client implements AutoCloseable {
                         String msg = requestExMsg("Query", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
                         lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
                         if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings())) {
-                            LOG.warn("Retrying.", e);
-                            selectedEndpoint = getNextAliveNode();
+                            if (i < maxAttempts) {
+                                LOG.warn("Retrying.", e);
+                                selectedEndpoint = nodeSelector.getNextAliveNode(selectedEndpoint);
+                            } else {
+                                nodeSelector.getNextAliveNode(selectedEndpoint);
+                            }
                         } else {
                             throw lastException;
                         }
                     }
                 }
-                String errMsg = requestExMsg("Query", retries, durationSince(startTime).toMillis(), requestSettings.getQueryId());
+                String errMsg = requestExMsg("Query", maxAttempts + 1, durationSince(startTime).toMillis(), requestSettings.getQueryId());
                 LOG.warn(errMsg);
                 throw (lastException == null ? new ClientException(errMsg) : lastException);
             };
@@ -2302,9 +2295,7 @@ public class Client implements AutoCloseable {
         this.credentialsManager.setAccessToken(accessToken);
     }
 
-    private Endpoint getNextAliveNode() {
-        return endpoints.get(0);
-    }
+
 
     public static final String VALUES_LIST_DELIMITER = ",";
 
@@ -2330,7 +2321,7 @@ public class Client implements AutoCloseable {
      * <p>For {@link ClickHouseFormat#JSONEachRow}, callers may opt in to plain JSON numbers by setting
      * {@link ClientConfigProperties#JSON_DISABLE_NUMBER_QUOTING}. Explicit server settings are otherwise
      * left untouched.</p>
-     * <ul>
+     * <ul> 
      *     <li>{@code output_format_json_quote_64bit_integers}</li>
      *     <li>{@code output_format_json_quote_64bit_floats}</li>
      *     <li>{@code output_format_json_quote_decimals}</li>

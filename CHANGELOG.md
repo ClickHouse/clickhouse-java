@@ -11,6 +11,13 @@
 
 ### Bug Fixes 
 
+- **[client-v2]** Fixed POJO insert error classification so transport write failures such as java.net.SocketException:
+  Broken pipe (Write failed) are now surfaced as transfer/network errors instead of being wrapped as
+  DataSerializationException. This only changes the exception type reported for request-body transport failures during
+  Client.insert(...); actual POJO reflection/serialization failures are still reported as DataSerializationException.
+  (https://github.com/ClickHouse/clickhouse-java/issues/2729)
+- **[client-v2]** Fixed binary varint decoding for length and count fields so overflowing or overlong values fail with an `IOException` instead of being decoded into corrupted or negative `int` values. (https://github.com/ClickHouse/clickhouse-java/issues/2902)
+
 - **[client-v2]** Fixed container query parameters being sent unquoted, so `Client.query(sql, params, settings)` binding
   a `List<LocalDate>` (or an array/`Map`) to a placeholder like `{ids:Array(Date)}` was rejected by the server with
   `CANNOT_PARSE_INPUT_ASSERTION_FAILED`. Parameter values are now formatted by
@@ -148,6 +155,8 @@ like `ch_db_01`. This is mostly used in k8s environment. (https://github.com/Cli
 - **[client-v2]** Added example of working with `Apache Arrow` library using client. (https://github.com/ClickHouse/clickhouse-java/pull/2820)
 
 - **[repo]** Added a contribution guide. Please review and send us your feedback. (https://github.com/ClickHouse/clickhouse-java/pull/2859)
+
+- **[client-v2]** Added endpoint failover support: when multiple endpoints are configured and a request fails with a retryable error (connect timeout, connection refused, HTTP 503, etc.), the client now automatically retries against the next available endpoint instead of always targeting the first one. Failed endpoints are quarantined for 30 seconds before being retried. (https://github.com/ClickHouse/clickhouse-java/issues/2855)
 
 ### Bug Fixes
 
