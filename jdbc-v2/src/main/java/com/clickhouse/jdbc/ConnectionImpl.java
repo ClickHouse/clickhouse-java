@@ -706,8 +706,15 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     }
 
     /**
-     * Returns instance of the client used to execute queries by this connection.
-     * @return - client instance
+     * Returns the {@link Client} instance used by this connection.
+     * <p>
+     * This can be used for operations that are not representable through the JDBC
+     * API, such as consuming raw or document-oriented response formats directly
+     * from {@link com.clickhouse.client.api.query.QueryResponse#getInputStream()}.
+     * The returned client is owned by this connection and must not be closed by
+     * callers; closing the connection closes the client.
+     *
+     * @return client instance
      */
     public Client getClient() throws SQLException {
         ensureOpen();

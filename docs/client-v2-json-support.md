@@ -352,6 +352,34 @@ Notes:
 
 ## Usage in `jdbc-v2`
 
+### Document-oriented JSON output
+
+The standard ClickHouse `FORMAT JSON` response is a single JSON document that
+contains metadata, data, row counts, and statistics together. It is not mapped
+to a JDBC `ResultSet` by `Statement.executeQuery(...)`; callers that need the
+server-rendered JSON should use the underlying `client-v2` instance exposed by
+the JDBC connection and consume the `QueryResponse` stream directly.
+
+```java
+try (Connection conn = DriverManager.getConnection(
+        "jdbc:clickhouse://localhost:8123/default", props);
+     QueryResponse response = conn.unwrap(ConnectionImpl.class)
+             .getClient()
+             .query("SELECT 1 AS x FORMAT JSON")
+             .get();
+     BufferedReader reader = new BufferedReader(new InputStreamReader(
+             response.getInputStream(), StandardCharsets.UTF_8))) {
+    String json = reader.lines().collect(Collectors.joining("\n"));
+    // consume the JSON document
+}
+```
+
+The returned `Client` is owned by the JDBC connection. Close each
+`QueryResponse`, as shown above, but do not close the client returned by
+`ConnectionImpl#getClient()`.
+
+### Row-oriented JSONEachRow output
+
 The output format is selected by appending `FORMAT JSONEachRow` to the SQL
 statement. The driver does not rewrite the SQL and does not apply a default
 format on the caller's behalf.
