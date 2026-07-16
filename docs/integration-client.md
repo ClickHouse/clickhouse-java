@@ -76,9 +76,9 @@ Client client = new Client.Builder()
 
 ## Step 2 — Authentication
 
-**Goal:** configure the authentication mechanism the ClickHouse deployment requires. The mechanism is dictated by the server and any fronting infrastructure, not chosen freely; the task is to identify it and configure it correctly. <constraints>
-**CONSTRAINT:** Configure exactly one mechanism. Different method cannot be mixed to avoid configuration errors. 
-</constraints>
+**Goal:** configure the authentication mechanism the ClickHouse deployment requires. The mechanism is dictated by the server and any fronting infrastructure, not chosen freely; the task is to identify it and configure it correctly.
+
+> **CONSTRAINT:** Configure exactly one mechanism. Different method cannot be mixed to avoid configuration errors.
 
 ### Option A — Basic (username + password)
 
@@ -237,11 +237,9 @@ Key use cases include:
 
 ### Common Pitfalls
 
-<common-pitfalls>
-- **Timeouts too aggressive** for heavy analytical queries cause spurious failures — align `socket_timeout` with expected query duration or use per-operation network timeouts.
-- **Proxy credentials omitted** on authenticated proxies produce opaque connection failures.
-
-</common-pitfalls>
+> **Timeouts too aggressive** for heavy analytical queries cause spurious failures — align `socket_timeout` with expected query duration or use per-operation network timeouts.
+> 
+> **Proxy credentials omitted** on authenticated proxies produce opaque connection failures.
 ---
 
 ## Step 4 — Connections Configuration
@@ -277,12 +275,11 @@ These are the only pool-related properties you normally touch; the rest have saf
 
 ### Common Pitfalls
 
-<common-pitfalls>
-- **CONSTRAINT:** Do not create a `Client` per request. It destroys pool warm-up and adds latency on every call — the single most common mistake.
-- **Pool too small** (`max_open_connections`) throttles concurrency; size it to peak concurrent operations, not average.
-- **CONSTRAINT:** Always `close()` the client at shutdown to avoid leaking the pool and its threads.
-
-</common-pitfalls>
+> **CONSTRAINT:** Do not create a `Client` per request. It destroys pool warm-up and adds latency on every call — the single most common mistake.
+> 
+> **Pool too small** (`max_open_connections`) throttles concurrency; size it to peak concurrent operations, not average.
+> 
+> **CONSTRAINT:** Always `close()` the client at shutdown to avoid leaking the pool and its threads.
 ---
 
 ## Step 5 — Data formats, readers & writers
@@ -331,12 +328,11 @@ Select with `QuerySettings.setFormat(format)` and consume the response stream:
 
 ### Common Pitfalls
 
-<common-pitfalls>
-- **Not every `ClickHouseFormat` has a dedicated reader/writer.** Specialized formats (e.g. `CapnProto`, `MySQLDump`) may require raw stream handling — verify a reader exists before committing.
-- **POJO SerDe** covers most types but has known limitations (e.g. `Geometry` shape inference) — see [features.md](features.md).
-- **`Native`** is block-oriented; best when you control both schema and consumption.
-
-</common-pitfalls>
+> **Not every `ClickHouseFormat` has a dedicated reader/writer.** Specialized formats (e.g. `CapnProto`, `MySQLDump`) may require raw stream handling — verify a reader exists before committing.
+> 
+> **POJO SerDe** covers most types but has known limitations (e.g. `Geometry` shape inference) — see [features.md](features.md).
+> 
+> **`Native`** is block-oriented; best when you control both schema and consumption.
 ---
 
 ## Step 6 — Read operations & tuning
@@ -409,17 +405,17 @@ Useful correlation helpers: `settings.setQueryId(...)` and `settings.logComment(
 
 ### Best practices
 
-<best-practices>
-- **Prefer binary formats** over text for production reads.
-- **Stream rather than materialize** — use `QueryResponse` with a binary reader for large datasets; reserve `queryAll()` for small results.
-- **Set server-side limits** (`max_execution_time`, `max_result_rows`) to stop runaway queries.
-- **Register POJOs once** at startup, not per query.
-- **Always close `QueryResponse`** (try-with-resources) — a leaked response holds an HTTP connection.
-
-</best-practices>
+> **Prefer binary formats** over text for production reads.
+> 
+> **Stream rather than materialize** — use `QueryResponse` with a binary reader for large datasets; reserve `queryAll()` for small results.
+> 
+> **Set server-side limits** (`max_execution_time`, `max_result_rows`) to stop runaway queries.
+> 
+> **Register POJOs once** at startup, not per query.
+> 
+> **Always close `QueryResponse`** (try-with-resources) — a leaked response holds an HTTP connection.
 ### Errors & how to handle them
 
-<error-handling-rules>
 See the [Error model](#error-model) for the exception hierarchy and how to unwrap `ExecutionException`. Reads have **no side effects**, so a failed read is always safe to re-run from the start — the decisions are about *whether* it is worth retrying:
 
 | Failure | Surfaces as | Handling |
@@ -428,8 +424,6 @@ See the [Error model](#error-model) for the exception hierarchy and how to unwra
 | Server aborted an excessively heavy query | `ServerException` code `159` (`TIMEOUT_EXCEEDED`) | The query exceeded `max_execution_time`. Raise the limit or optimize the query; do not retry unconditionally. |
 | Transport connect/read timeout | `DataTransferException` / timeout | Often transient. A read is idempotent, so re-running the whole query is safe. |
 | Connection dropped **mid-stream** (after you began iterating) | `DataTransferException` while reading | You cannot resume from the middle — some rows were already consumed. Close the `QueryResponse` and re-run the entire query. Make consumers tolerant of re-reading from the start. |
-
-</error-handling-rules>
 ---
 
 ## Step 7 — Write operations & tuning
@@ -522,17 +516,17 @@ client.insert("events", dataStream, ClickHouseFormat.JSONEachRow, settings).get(
 
 ### Best practices
 
-<best-practices>
-- **Batch large** — thousands to millions of rows per request, never one row per request.
-- **Use binary formats** (`RowBinary`, `Native`, or registered POJOs) for production ingest.
-- **Enable compression** for large payloads.
-- **Set deduplication tokens** on retry-prone pipelines.
-- **Pre-fetch and reuse the table schema** (`getTableSchema` is cached internally).
-
-</best-practices>
+> **Batch large** — thousands to millions of rows per request, never one row per request.
+> 
+> **Use binary formats** (`RowBinary`, `Native`, or registered POJOs) for production ingest.
+> 
+> **Enable compression** for large payloads.
+> 
+> **Set deduplication tokens** on retry-prone pipelines.
+> 
+> **Pre-fetch and reuse the table schema** (`getTableSchema` is cached internally).
 ### Errors & how to handle them
 
-<error-handling-rules>
 See the [Error model](#error-model) for the exception hierarchy and how to unwrap `ExecutionException`. Writes have **side effects**, so error handling is fundamentally harder than for reads:
 
 | Failure | Surfaces as | Handling |
@@ -546,8 +540,6 @@ See the [Error model](#error-model) for the exception hierarchy and how to unwra
 - A one-shot `InputStream`, a drained queue, or a consumed iterator **cannot be re-read** — the retry either fails or sends truncated data. Buffer the batch in memory, hand the client a rewindable source, or implement `onRetry()` to reset your stream.
 - Even a successful retry can **duplicate rows** unless you set a stable `insert_deduplication_token` (see [Idempotency](#idempotency--deduplication-token) above) on a MergeTree-family table.
 - If retries are not safe for your source, disable them (`retry=0`) and handle re-submission at the application level with a dedup token.
-
-</error-handling-rules>
 ---
 
 ## Step 8 — Metadata & schema discovery
@@ -624,7 +616,6 @@ A [`Session`](../client-v2/src/main/java/com/clickhouse/client/api/Session.java)
 
 ---
 
-<error-handling-rules>
 ## Error model
 
 This is the shared exception reference used by the read ([Step 6](#step-6--read-operations--tuning)) and write ([Step 7](#step-7--write-operations--tuning)) error sections. All exceptions extend [`ClickHouseException`](../client-v2/src/main/java/com/clickhouse/client/api/ClickHouseException.java) (an unchecked `RuntimeException`). Because operations return `CompletableFuture`, a failed operation surfaces its cause wrapped in `java.util.concurrent.ExecutionException` when you call `.get()`; unwrap it with `getCause()`.
@@ -652,9 +643,7 @@ try {
 }
 ```
 
-**On built-in retries.** `ServerException.isRetryable()` marks transient server codes (timeouts, network, memory-limit, too-many-parts, ...) and the client's own `retry` policy already re-sends those. Do not add a second retry loop on top without accounting for it. Retries behave very differently for reads vs writes — see the per-operation "Errors & how to handle them" sections for the details (in particular, an insert retry must re-send the whole payload).
-
-</error-handling-rules>
+> **On built-in retries.** `ServerException.isRetryable()` marks transient server codes (timeouts, network, memory-limit, too-many-parts, ...) and the client's own `retry` policy already re-sends those. Do not add a second retry loop on top without accounting for it. Retries behave very differently for reads vs writes — see the per-operation "Errors & how to handle them" sections for the details (in particular, an insert retry must re-send the whole payload).
 
 ---
 
