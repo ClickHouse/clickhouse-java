@@ -145,12 +145,17 @@ public class SerializerUtilsTest {
 
     @Test(dataProvider = "nonNullableEnumTypes")
     public void testNullIntoNonNullableEnumThrowsIllegalArgument(String typeName) {
-        ClickHouseColumn column = ClickHouseColumn.of("v", typeName);
+        ClickHouseColumn column = ClickHouseColumn.of("bs_flag", typeName);
 
         IllegalArgumentException ex = Assert.expectThrows(IllegalArgumentException.class,
                 () -> SerializerUtils.serializeData(new ByteArrayOutputStream(), null, column));
-        Assert.assertTrue(ex.getMessage().contains("Cannot insert null into non-nullable column"),
-                "Unexpected message: " + ex.getMessage());
+        String message = ex.getMessage();
+        Assert.assertTrue(message.contains("Cannot insert null into non-nullable column"),
+                "Unexpected message: " + message);
+        Assert.assertTrue(message.contains("bs_flag"),
+                "Message should name the offending column: " + message);
+        Assert.assertTrue(message.contains(typeName),
+                "Message should include the enum type: " + message);
     }
 
     @DataProvider(name = "nonNullableEnumTypes")
