@@ -555,10 +555,10 @@ public class SerializerUtils {
                 BinaryStreamUtils.writeUnsignedInt256(stream, NumberConverter.toBigInteger(value));
                 break;
             case Float32:
-                BinaryStreamUtils.writeFloat32(stream, (float) value);
+                BinaryStreamUtils.writeFloat32(stream, NumberConverter.toFloat(value));
                 break;
             case Float64:
-                BinaryStreamUtils.writeFloat64(stream, (double) value);
+                BinaryStreamUtils.writeFloat64(stream, NumberConverter.toDouble(value));
                 break;
             case Decimal:
             case Decimal32:
