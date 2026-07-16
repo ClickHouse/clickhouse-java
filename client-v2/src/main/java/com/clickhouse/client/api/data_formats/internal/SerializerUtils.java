@@ -554,6 +554,9 @@ public class SerializerUtils {
             case UInt256:
                 BinaryStreamUtils.writeUnsignedInt256(stream, NumberConverter.toBigInteger(value));
                 break;
+            case BFloat16:
+                BinaryStreamUtils.writeBFloat16(stream, (float) value);
+                break;
             case Float32:
                 BinaryStreamUtils.writeFloat32(stream, (float) value);
                 break;
@@ -1111,6 +1114,11 @@ public class SerializerUtils {
                 readerMethod = "readLongLE";
                 readerMethodReturnType = Type.getDescriptor(long.class);
                 convertOpcode = longToOpcode(targetType);
+                break;
+            case BFloat16:
+                readerMethod = "readBFloat16LE";
+                readerMethodReturnType = Type.getDescriptor(float.class);
+                convertOpcode = floatToOpcode(targetType);
                 break;
             case Float32:
                 readerMethod = "readFloatLE";

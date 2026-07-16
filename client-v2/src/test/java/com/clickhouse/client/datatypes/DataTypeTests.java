@@ -154,6 +154,89 @@ public class DataTypeTests extends BaseIntegrationTest {
         }
     }
 
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class DTOForBFloat16Tests {
+        private int rowId;
+        private float bFloat16;
+        private Float bFloat16Nullable;
+
+        public static String tblCreateSQL(String table) {
+            return tableDefinition(table, "rowId Int16", "bFloat16 BFloat16",
+                    "bFloat16Nullable Nullable(BFloat16)");
+        }
+    }
+
+    // BFloat16 was introduced in ClickHouse 24.11.
+    private static final String BFLOAT16_UNSUPPORTED_VERSIONS = "(,24.10]";
+
+    @Test(groups = {"integration"})
+    public void testBFloat16() throws Exception {
+        if (isVersionMatch(BFLOAT16_UNSUPPORTED_VERSIONS)) {
+            return;
+        }
+
+        final String table = "test_bfloat16";
+        // Only exactly-representable BFloat16 values are used here so a client-side write
+        // followed by a read returns the same value. Truncation of non-representable values
+        // is covered by testBFloat16TruncationMatchesServer.
+        writeReadVerify(table,
+                DTOForBFloat16Tests.tblCreateSQL(table),
+                DTOForBFloat16Tests.class,
+                Arrays.asList(
+                        new DTOForBFloat16Tests(0, 1.5f, -2.5f),
+                        new DTOForBFloat16Tests(1, 0.0f, null),
+                        new DTOForBFloat16Tests(2, 256.0f, 100.0f)),
+                (data, dto) -> {
+                    DTOForBFloat16Tests expected = data.get(dto.getRowId());
+                    Assert.assertEquals(dto.getBFloat16(), expected.getBFloat16(), 0.0f);
+                    Assert.assertEquals(dto.getBFloat16Nullable(), expected.getBFloat16Nullable());
+                });
+    }
+
+    @Test(groups = {"integration"})
+    public void testBFloat16TruncationMatchesServer() throws Exception {
+        if (isVersionMatch(BFLOAT16_UNSUPPORTED_VERSIONS)) {
+            return;
+        }
+
+        // (a) The client must decode a BFloat16 produced by the server (Float32 -> BFloat16
+        //     drops the low mantissa bits) to the same value.
+        List<GenericRecord> cast = client.queryAll(
+                "SELECT CAST(3.14 AS BFloat16) AS v, CAST(0.1 AS BFloat16) AS v2");
+        Assert.assertEquals(cast.get(0).getFloat("v"), 3.125f, 0.0f);        // 0x4048F5C3 -> 0x40480000
+        Assert.assertEquals(cast.get(0).getFloat("v2"), 0.099609375f, 0.0f); // 0x3DCCCCCD -> 0x3DCC0000
+
+        // (b) A value written by the client must be stored byte-for-byte identically to the
+        //     server's own Float32 -> BFloat16 conversion of the same value.
+        final String table = "test_bfloat16_truncation";
+        writeReadVerify(table,
+                DTOForBFloat16Tests.tblCreateSQL(table),
+                DTOForBFloat16Tests.class,
+                Arrays.asList(new DTOForBFloat16Tests(0, 3.14f, 0.1f)),
+                (data, dto) -> {
+                    Assert.assertEquals(dto.getBFloat16(), 3.125f, 0.0f);
+                    Assert.assertEquals(dto.getBFloat16Nullable(), Float.valueOf(0.099609375f));
+                });
+        List<GenericRecord> parity = client.queryAll(
+                "SELECT reinterpretAsUInt16(bFloat16) AS written, " +
+                        "reinterpretAsUInt16(CAST(toFloat32(3.14) AS BFloat16)) AS server FROM " + table);
+        Assert.assertEquals(parity.get(0).getInteger("written"), parity.get(0).getInteger("server"));
+    }
+
+    @Test(groups = {"integration"})
+    public void testBFloat16InDynamicColumn() throws Exception {
+        if (isVersionMatch("(,24.8]") || isVersionMatch(BFLOAT16_UNSUPPORTED_VERSIONS)) {
+            return;
+        }
+
+        // Reading a BFloat16 held in a Dynamic column exercises the dynamic type-tag read path.
+        List<GenericRecord> rows = client.queryAll(
+                "SELECT CAST(CAST(1.5 AS BFloat16) AS Dynamic) AS v SETTINGS allow_experimental_dynamic_type = 1");
+        Assert.assertEquals(rows.get(0).getObject("v"), Float.valueOf(1.5f));
+    }
+
     @Test(groups = {"integration"})
     public void testVariantWithSimpleDataTypes() throws Exception {
         if (isVersionMatch("(,24.8]")) {

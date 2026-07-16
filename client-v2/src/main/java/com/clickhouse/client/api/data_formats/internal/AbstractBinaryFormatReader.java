@@ -323,6 +323,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                 case Int256:
                 case UInt128:
                 case UInt256:
+                case BFloat16:
                 case Float32:
                 case Float64:
                 case Decimal:
