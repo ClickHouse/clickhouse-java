@@ -70,7 +70,7 @@ Client client = new Client.Builder()
 - **Share a single instance:** A single, shared `Client` instance suits most use cases. It is thread-safe and designed to be reused across your application.
 - **Long-lived lifecycle:** Build the client once at startup and close it once at shutdown. Creating a new client per request or operation is an anti-pattern because initialization takes time to set up internal structures (like the connection pool and schema cache), which adds latency to your requests.
 - **Serverless functions:** For serverless environments (like AWS Lambda), initialize the client outside the function handler so it can be reused across invocations.
-- **Warm-up (optional):** Calling `client.ping()` at startup can help initialize the connectivity part and verify the endpoint before serving live traffic, though it is not strictly required.
+- **Warm-up (optional):** Calling `client.ping()` at startup can help initialize the connectivity part and verify the endpoint before serving live traffic, though it is not strictly required. It may also require to wakeup cloud instance.
 - **Caching:** The application is responsible for holding the reference to the `Client` instance (e.g., via dependency injection or a singleton). The library does not provide a global static cache.
 
 
@@ -248,7 +248,9 @@ In the Java Client a "connection" is an **HTTP connection borrowed from the inte
 
 ### Connection limit (`max_open_connections`)
 
-The pool size depends on your workload — specifically on its **concurrency**, not on how much data it moves. What matters is **how many operations run at the same time**, not the number of rows or bytes any single operation transfers. A pool of 20 connections serves at most 20 simultaneous operations regardless of whether each returns one row or a million. This is the single setting you actually tune. The table below is guidance, not a hard rule: measure under your own load.
+The pool size depends on your workload — specifically on its **concurrency**, not on how much data it moves. What matters is **how many operations run at the same time**, not the number of rows or bytes any single operation transfers. A pool of 20 connections serves at most 20 simultaneous operations regardless of whether each returns one row or a million. This is the single setting you actually tune. The table below will help to estimate rough number. Having slightly bigger number than actualy needed is not a problem because unused connections will be garbage collected. It is recommended to perform a load testing with one application instance to detect if estimated number works. 
+Connection limit may acts as a backpreasure for incomming requests if they get blocked by DB access. When request backlog grows it may also slowdowns whole application so it is very important to find a balance between concurrent operations and their execution time. Be aware that in most applications allocated memory is freed only at the end of request.  
+
 
 | Workload | Concurrent requests | Suggested `max_open_connections` | What happens |
 |----------|---------------------|----------------------------------|--------------|
@@ -500,6 +502,7 @@ The most useful **client settings** for writes are configured on `InsertSettings
 ### Idempotency — deduplication token
 
 On a `MergeTree`-family table with deduplication enabled, the **`insert_deduplication_token`** lets the server skip duplicate blocks so retries do not create duplicate rows.
+Please read [official documentation](https://clickhouse.com/docs/guides/developer/deduplicating-inserts-on-retries) and more about [deduplication strategies](https://clickhouse.com/docs/guides/developer/deduplication).
 
 ```java
 import com.clickhouse.client.api.insert.InsertSettings;

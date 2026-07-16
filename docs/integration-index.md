@@ -52,7 +52,7 @@ Choose the Java Client when you:
 - Need maximum read/write throughput
 - Want to work with ClickHouse **native or binary formats** (`Native`, `RowBinary`, `Parquet`, `JSONEachRow`, ...)
 - Need typed POJO serialization/deserialization
-- Process data in **column-oriented** way. 
+- Process data in most effecient way. Client support different binary formats and reads data without additional conversion.  
 - Require fine-grained control over compression, server settings, sessions, and operation-level configuration
 
 The Java Client exposes ClickHouse capabilities directly, with no JDBC abstraction between your code and the wire format. For metadata it offers `Client.getTableSchema(String, String)` as an equivalent to `java.sql.DatabaseMetaData`.
