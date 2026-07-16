@@ -157,6 +157,11 @@ of `NULL` was not set and read. (https://github.com/ClickHouse/clickhouse-java/i
 
 - **[jdbc-v2, client-v2]** Fixed writing nullable marker for nested `Tuple` and `Map values. (https://github.com/ClickHouse/clickhouse-java/issues/2721)
 
+- **[jdbc-v2]** Fixed `ResultSet.getObject` leaking the internal `StringValue` holder for `String`/`FixedString`
+  columns when `binary_string_support` is enabled. `getObject(column, byte[].class)` now returns the exact raw bytes,
+  and `getObject(column, Object.class)` and the no-type `getObject(column)` overloads now return a decoded `String`
+  instead of the internal holder.
+
 ## 0.9.8
 
 ### Improvements 

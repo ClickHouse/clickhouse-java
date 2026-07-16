@@ -1539,6 +1539,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
             for (String[] expected : testData) {
                 assertTrue(rs.next());
                 assertEquals(new String(rs.getBytes("str"), "UTF-8"), expected[0]);
+                assertEquals(new String(rs.getObject("str", byte[].class), "UTF-8"), expected[0]);
                 assertEquals(new String(rs.getBytes("fixed"), "UTF-8").replace("\0", ""), expected[1]);
             }
             assertFalse(rs.next());
@@ -1629,6 +1630,50 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
             assertTrue(rs.wasNull());
             assertNull(rs.getBytes("nullable_str"));
             assertTrue(rs.wasNull());
+
+            assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testBinaryStringSupportGetObject() throws Exception {
+        // With binary_string_support enabled the read path returns an internal StringValue holder for
+        // String/FixedString columns. getObject must never leak that holder: it should return a decoded
+        // String for Object.class and the no-type overload, and exact raw bytes for byte[].class.
+        runQuery("CREATE TABLE test_binary_string_get_object (id Int8, str String, txt String) ENGINE = MergeTree ORDER BY ()");
+
+        String text = "Hello, ClickHouse!";
+        try (Connection conn = getJdbcConnection();
+             PreparedStatement insert = conn.prepareStatement("INSERT INTO test_binary_string_get_object VALUES (?, ?, ?)")) {
+            insert.setInt(1, 1);
+            insert.setBytes(2, CH_LOGO_PNG);
+            insert.setString(3, text);
+            insert.executeUpdate();
+        }
+
+        Properties props = new Properties();
+        props.put(ClientConfigProperties.BINARY_STRING_SUPPORT.getKey(), "true");
+
+        try (Connection conn = getJdbcConnection(props);
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT * FROM test_binary_string_get_object ORDER BY id")) {
+            assertTrue(rs.next());
+
+            // byte[].class must return the exact bytes without lossy decoding
+            Object bytesObj = rs.getObject("str", byte[].class);
+            assertTrue(bytesObj instanceof byte[], "getObject(byte[].class) should return byte[], got: " + bytesObj.getClass().getName());
+            assertEqualsToClickHouseLogo((byte[]) bytesObj);
+            assertFalse(rs.wasNull());
+
+            // Object.class must return a decoded String, not the internal StringValue holder
+            Object textObj = rs.getObject("txt", Object.class);
+            assertTrue(textObj instanceof String, "getObject(Object.class) should return String, got: " + textObj.getClass().getName());
+            assertEquals(textObj, text);
+
+            // The no-type overload must also return a String
+            Object defaultObj = rs.getObject("txt");
+            assertTrue(defaultObj instanceof String, "getObject() should return String, got: " + defaultObj.getClass().getName());
+            assertEquals(defaultObj, text);
 
             assertFalse(rs.next());
         }

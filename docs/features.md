@@ -68,7 +68,7 @@ Compatibility-sensitive traits:
 - SQL parsing and classification: Classifies SQL to distinguish queries, updates, inserts, `USE`, and role-changing statements, with selectable parser backends.
 - JDBC escape processing: Translates supported JDBC escape syntax for dates, timestamps, and functions before execution.
 - Result set streaming: Streams result sets from ClickHouse binary formats and `FORMAT JSONEachRow`, enforces max-row limits, and manages result-set lifecycle correctly.
-- Binary string reads: `ResultSet#getBytes(int|String)` and `ResultSet#getBinaryStream(int|String)` return the raw bytes of a `String`/`FixedString` column. Combined with the `binary_string_support` connection property, non-UTF-8/binary content stored in `String` columns round-trips byte-for-byte; `NULL` values report `null` with `wasNull()` set.
+- Binary string reads: `ResultSet#getBytes(int|String)` and `ResultSet#getBinaryStream(int|String)` return the raw bytes of a `String`/`FixedString` column. Combined with the `binary_string_support` connection property, non-UTF-8/binary content stored in `String` columns round-trips byte-for-byte; `NULL` values report `null` with `wasNull()` set. `ResultSet#getObject(...)` never exposes the internal `StringValue` holder for these columns: `getObject(column, byte[].class)` returns the raw bytes, while `getObject(column, Object.class)` and the no-type `getObject(column)` overloads return a decoded `String`.
 - Result-set metadata: Exposes JDBC `ResultSetMetaData` backed by ClickHouse column schema.
 - Database metadata: Implements JDBC `DatabaseMetaData` for ClickHouse catalogs, schemas, tables, columns, and related capability reporting.
 - Parameter metadata: Reports prepared-statement parameter counts.
