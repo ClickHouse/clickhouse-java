@@ -4,6 +4,12 @@
 
 ### Bug Fixes 
 
+- **[client-v2]** Fixed a `NullPointerException` when serializing a `null` value into a non-nullable
+  `Enum8`/`Enum16` column. `SerializerUtils.serializeEnumData` dereferenced the value before the `null`
+  check, so a `null` in a non-nullable enum column failed the RowBinary insert path with a confusing NPE
+  instead of a clear error. It now throws `IllegalArgumentException` naming the column, consistent with the
+  existing `IllegalArgumentException` for other unsupported enum values. Nullable enum columns are unaffected.
+  (https://github.com/ClickHouse/clickhouse-java/issues/2931)
 - **[client-v2]** Fixed POJO insert error classification so transport write failures such as java.net.SocketException:
   Broken pipe (Write failed) are now surfaced as transfer/network errors instead of being wrapped as
   DataSerializationException. This only changes the exception type reported for request-body transport failures during
