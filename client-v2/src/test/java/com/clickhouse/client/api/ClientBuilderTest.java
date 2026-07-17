@@ -91,41 +91,59 @@ public class ClientBuilderTest {
     }
 
     @Test
-    public void testStringSSLContextRejected() {
-        // ssl_context is an object-only property; a textual value can never be a real context, so the
-        // builder must reject it instead of silently ignoring it (previously parsed to null and dropped).
+    public void testStringSSLContextRejectedBySetOption() {
+        Assert.expectThrows(ClientMisconfigurationException.class,
+                () -> new Client.Builder().setOption(ClientConfigProperties.SSL_CONTEXT.getKey(), "not-a-context"));
+    }
+
+    @DataProvider(name = "sslMaterialWithCustomContext_DP")
+    public static Object[][] sslMaterialWithCustomContext_DP() {
+        return new Object[][] {
+                { ClientConfigProperties.SSL_TRUST_STORE.getKey(), "/path/to/truststore.jks" },
+                { ClientConfigProperties.SSL_KEYSTORE_TYPE.getKey(), "JKS" },
+                { ClientConfigProperties.SSL_KEY_STORE_PASSWORD.getKey(), "secret" },
+                { ClientConfigProperties.SSL_KEY.getKey(), "/path/to/client.key" },
+                { ClientConfigProperties.CA_CERTIFICATE.getKey(), "/path/to/ca.crt" },
+                { ClientConfigProperties.SSL_CERTIFICATE.getKey(), "/path/to/client.crt" },
+        };
+    }
+
+    @Test(dataProvider = "sslMaterialWithCustomContext_DP")
+    public void testCustomSSLContextRejectsOtherSslMaterial(String materialKey, String materialValue) throws Exception {
+        SSLContext customContext = SSLContext.getInstance("TLS");
+        customContext.init(null, null, null);
+
         Assert.expectThrows(ClientMisconfigurationException.class, () -> new Client.Builder()
                 .addEndpoint("https://localhost:8443")
                 .setUsername("default")
                 .setPassword("")
-                .setOption(ClientConfigProperties.SSL_CONTEXT.getKey(), "not-a-context")
+                .setOption(materialKey, materialValue)
+                .setSSLContext(customContext)
                 .build());
     }
 
     @Test
-    public void testCustomSSLContextIgnoresTrustAndKeyMaterialConflict() throws Exception {
+    public void testCustomSSLContextAllowsSslMode() throws Exception {
         SSLContext customContext = SSLContext.getInstance("TLS");
         customContext.init(null, null, null);
 
-        // A trust store and a client certificate normally conflict, but when a custom SSLContext is
-        // supplied that material is ignored, so the conflict must not be reported and the client builds.
         try (Client client = new Client.Builder()
                 .addEndpoint("https://localhost:8443")
                 .setUsername("default")
                 .setPassword("")
-                .setSSLTrustStore("/path/to/truststore.jks")
-                .setClientCertificate("client.crt")
+                .setSSLMode(SSLMode.VERIFY_CA)
                 .setSSLContext(customContext)
                 .build()) {
             Assert.assertSame(extractConfiguration(client).get(ClientConfigProperties.SSL_CONTEXT.getKey()),
-                    customContext, "The application-supplied SSLContext should be used as is");
+                    customContext);
+            Assert.assertEquals(client.getConfiguration().get(ClientConfigProperties.SSL_MODE.getKey()),
+                    SSLMode.VERIFY_CA.name());
         }
     }
 
     @Test
     public void testTrustStoreAndClientCertificateConflictRejectedWithoutCustomContext() {
-        // Contrast case: without a custom SSLContext the trust-store/certificate conflict must still be
-        // rejected exactly as before - the fix only suppresses the check when a context is supplied.
+        // Contrast: without a custom SSLContext the trust-store/certificate conflict is still rejected.
         Assert.expectThrows(ClientMisconfigurationException.class, () -> new Client.Builder()
                 .addEndpoint("https://localhost:8443")
                 .setUsername("default")
@@ -162,23 +180,10 @@ public class ClientBuilderTest {
     }
 
     @Test
-    public void testCreateSSLContextReturnsCustomContext() throws Exception {
+    public void testCreateSSLContextIgnoresCustomContext() throws Exception {
         SSLContext customContext = SSLContext.getInstance("TLS");
         customContext.init(null, null, null);
 
-        try (Client client = new Client.Builder()
-                .addEndpoint("https://localhost:8443")
-                .setUsername("default")
-                .setPassword("")
-                .setSSLContext(customContext)
-                .build()) {
-            HttpAPIClientHelper helper = extractHttpClientHelper(client);
-            SSLContext resolved = helper.createSSLContext(extractConfiguration(client));
-            Assert.assertSame(resolved, customContext,
-                    "createSSLContext must return the application-supplied context as is");
-        }
-
-        // When no custom context is configured, createSSLContext builds a context (not the custom one).
         try (Client client = new Client.Builder()
                 .addEndpoint("https://localhost:8443")
                 .setUsername("default")
@@ -187,10 +192,9 @@ public class ClientBuilderTest {
             HttpAPIClientHelper helper = extractHttpClientHelper(client);
             Map<String, Object> configWithCustom = new HashMap<>(extractConfiguration(client));
             configWithCustom.put(ClientConfigProperties.SSL_CONTEXT.getKey(), customContext);
-            Assert.assertSame(helper.createSSLContext(configWithCustom), customContext,
-                    "createSSLContext must honor a custom context supplied via the configuration map");
-            Assert.assertNotSame(helper.createSSLContext(extractConfiguration(client)), customContext,
-                    "createSSLContext must build its own context when none is supplied");
+            // createSSLContext only builds from trust/key material; selecting a custom context is
+            // createHttpClient's responsibility, so this must not return the supplied context.
+            Assert.assertNotSame(helper.createSSLContext(configWithCustom), customContext);
         }
     }
 

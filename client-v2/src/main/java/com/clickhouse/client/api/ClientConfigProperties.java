@@ -120,13 +120,6 @@ public enum ClientConfigProperties {
 
     SSL_MODE("ssl_mode", SSLMode.class, SSLMode.STRICT.name()),
 
-    /**
-     * A pre-built {@link javax.net.ssl.SSLContext} supplied by the application. When set, the client uses
-     * it as is instead of building one from the configured trust/key material, and {@link #SSL_MODE} then
-     * only controls server hostname verification. The value is a live object, so it can only be provided
-     * programmatically (for example via {@code Client.Builder#setSSLContext}); it is never parsed from a
-     * string and has no textual representation in a configuration map.
-     */
     SSL_CONTEXT("ssl_context", SSLContext.class),
 
     RETRY_ON_FAILURE("retry", Integer.class, "3"),

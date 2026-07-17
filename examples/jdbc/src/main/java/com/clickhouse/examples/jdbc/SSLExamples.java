@@ -221,8 +221,8 @@ public class SSLExamples {
      * behind a connection pool such as HikariCP. Because an {@link SSLContext} cannot be represented
      * as a string, it is added with {@link Properties#put(Object, Object)} (not
      * {@link Properties#setProperty(String, String)}). The driver uses the context as is - the
-     * {@code sslrootcert}/{@code sslcert} properties would be ignored - and {@code ssl_mode}
-     * (default {@code strict}) then only controls hostname verification.</p>
+     * {@code sslrootcert}/{@code sslcert} properties cannot be combined with it and are rejected - and
+     * {@code ssl_mode} (default {@code strict}) then only controls hostname verification.</p>
      */
     static void connectWithCustomSSLContext(String url, String user, String password, String rootCertPath)
             throws SQLException, IOException {

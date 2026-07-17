@@ -2,6 +2,7 @@ package com.clickhouse.jdbc.internal;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.ClientMisconfigurationException;
 import com.clickhouse.client.api.enums.SSLMode;
 
 import com.clickhouse.data.ClickHouseDataType;
@@ -281,6 +282,22 @@ public class JdbcConfigurationTest {
         properties.setProperty(ClientConfigProperties.SSL_CONTEXT.getKey(), "not-a-context");
         assertThrows(SQLException.class,
                 () -> new JdbcConfiguration("jdbc:clickhouse://localhost:8123/", properties));
+    }
+
+    @Test
+    public void testCustomSSLContextRejectsTrustMaterial() throws Exception {
+        SSLContext customContext = SSLContext.getInstance("TLS");
+        customContext.init(null, null, null);
+
+        Properties properties = new Properties();
+        properties.put(ClientConfigProperties.SSL_CONTEXT.getKey(), customContext);
+        properties.setProperty(ClientConfigProperties.CA_CERTIFICATE.getKey(), "/path/to/ca.crt");
+        JdbcConfiguration configuration = new JdbcConfiguration("jdbc:clickhouse://localhost:8123/", properties);
+
+        Client.Builder builder = new Client.Builder();
+        configuration.applyClientProperties(builder);
+        // A live context forwarded from Properties plus trust/key material is invalid configuration.
+        assertThrows(ClientMisconfigurationException.class, builder::build);
     }
 
     @DataProvider(name = "typeMappingsPropertyKey")

@@ -213,10 +213,10 @@ public class SSLExamples {
      * <p>This mirrors an enterprise use-case where certificates and keys are held only in memory
      * (for example fetched and decrypted from a secret store) and must never be written to disk.
      * The whole {@link SSLContext} is assembled by the application and handed to the client, which
-     * uses it as is - the CA certificate, trust store and client certificate/key builder options are
-     * then ignored. {@link SSLMode} still applies to server hostname verification only; here the
-     * default {@link SSLMode#STRICT} keeps full verification because the in-memory trust material
-     * validates the whole certificate chain.</p>
+     * uses it as is; the CA certificate, trust store and client certificate/key builder options cannot
+     * be combined with it and are rejected. {@link SSLMode} still applies to server hostname verification
+     * only; here the default {@link SSLMode#STRICT} keeps full verification because the in-memory trust
+     * material validates the whole certificate chain.</p>
      */
     static void connectWithCustomSSLContext(String endpoint, String database, String user, String password,
                                             String rootCertPath) {
@@ -248,7 +248,7 @@ public class SSLExamples {
                 .setUsername(user)
                 .setPassword(password)
                 .setDefaultDatabase(database)
-                // The client uses this context as is; trust/key builder options would be ignored.
+                // The client uses this context as is; trust/key builder options cannot be combined with it.
                 .setSSLContext(sslContext)
                 .build()) {
 

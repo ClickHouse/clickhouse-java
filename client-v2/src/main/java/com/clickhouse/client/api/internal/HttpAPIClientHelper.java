@@ -154,20 +154,11 @@ public class HttpAPIClientHelper {
     }
 
     /**
-     * Creates or returns default SSL context.
+     * Creates an SSL context from the configured trust/key material.
      *
      * @return SSLContext
      */
     public SSLContext createSSLContext(Map<String, Object> configuration) {
-        // A pre-built SSLContext supplied by the application is used as is; the client does not build one
-        // from the configured trust/key material. Server hostname verification is still governed by the
-        // SSL mode where the connection socket factory is created (see createHttpClient).
-        final Object customSSLContext = configuration.get(ClientConfigProperties.SSL_CONTEXT.getKey());
-        if (customSSLContext instanceof SSLContext) {
-            LOG.debug("Using application-supplied SSLContext; trust/key material options are ignored.");
-            return (SSLContext) customSSLContext;
-        }
-
         final SSLMode sslMode = ClientConfigProperties.SSL_MODE.getOrDefault(configuration);
         final String trustStorePath = (String) configuration.get(ClientConfigProperties.SSL_TRUST_STORE.getKey());
         final String caCertificate = (String) configuration.get(ClientConfigProperties.CA_CERTIFICATE.getKey());
@@ -289,7 +280,15 @@ public class HttpAPIClientHelper {
     public CloseableHttpClient createHttpClient(boolean initSslContext, Map<String, Object> configuration) {
         // Top Level builders
         HttpClientBuilder clientBuilder = HttpClientBuilder.create();
-        SSLContext sslContext = initSslContext ? createSSLContext(configuration) : null;
+        // An application-supplied SSLContext is used as is; otherwise one is built from the configured
+        // trust/key material. Server hostname verification below still applies via the SSL mode.
+        SSLContext sslContext = null;
+        if (initSslContext) {
+            Object customSSLContext = configuration.get(ClientConfigProperties.SSL_CONTEXT.getKey());
+            sslContext = customSSLContext instanceof SSLContext
+                    ? (SSLContext) customSSLContext
+                    : createSSLContext(configuration);
+        }
         LayeredConnectionSocketFactory sslConnectionSocketFactory;
         if (sslContext != null) {
             String socketSNI = (String)configuration.get(ClientConfigProperties.SSL_SOCKET_SNI.getKey());

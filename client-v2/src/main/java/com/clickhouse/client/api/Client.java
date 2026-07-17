@@ -152,8 +152,6 @@ public class Client implements AutoCloseable {
                    Object metricsRegistry, Supplier<String> queryIdGenerator, CredentialsManager cManager,
                    SSLContext sslContext) {
         Map<String, Object> parsedConfiguration = new ConcurrentHashMap<>(ClientConfigProperties.parseConfigMap(configuration));
-        // A pre-built SSLContext is a live object and cannot travel through the string-based configuration
-        // map, so it is injected into the parsed (object) configuration directly.
         if (sslContext != null) {
             parsedConfiguration.put(ClientConfigProperties.SSL_CONTEXT.getKey(), sslContext);
         }
@@ -280,6 +278,17 @@ public class Client implements AutoCloseable {
         private Supplier<String> queryIdGenerator;
         private SSLContext sslContext = null;
 
+        // Trust/key material options that feed a context the client would otherwise build; none of them
+        // may be combined with an application-supplied SSLContext (see build()).
+        private static final ClientConfigProperties[] SSL_MATERIAL_PROPERTIES = {
+                ClientConfigProperties.SSL_TRUST_STORE,
+                ClientConfigProperties.SSL_KEYSTORE_TYPE,
+                ClientConfigProperties.SSL_KEY_STORE_PASSWORD,
+                ClientConfigProperties.SSL_KEY,
+                ClientConfigProperties.CA_CERTIFICATE,
+                ClientConfigProperties.SSL_CERTIFICATE,
+        };
+
         public Builder() {
             this.endpoints = new HashSet<>();
             this.configuration = new HashMap<>();
@@ -353,6 +362,11 @@ public class Client implements AutoCloseable {
          * @param value - configuration option value
          */
         public Builder setOption(String key, String value) {
+            if (key.equals(ClientConfigProperties.SSL_CONTEXT.getKey())) {
+                throw new ClientMisconfigurationException("'" + ClientConfigProperties.SSL_CONTEXT.getKey()
+                        + "' cannot be set as a string; supply a javax.net.ssl.SSLContext object via "
+                        + "Client.Builder.setSSLContext(...)");
+            }
             this.configuration.put(key, value);
             if (key.equals(ClientConfigProperties.PRODUCT_NAME.getKey())) {
                 setClientName(value);
@@ -795,19 +809,10 @@ public class Client implements AutoCloseable {
         }
 
         /**
-         * Supplies a pre-built {@link SSLContext} to be used for secure connections instead of one built
-         * from the configured trust/key material (trust store, CA certificate, client certificate/key).
-         *
-         * <p>When a context is set, the client uses it as is - it is the application's responsibility to
-         * configure it correctly. Trust- and key-material options ({@link Builder#setSSLTrustStore(String)},
-         * {@link Builder#setRootCertificate(String)}, {@link Builder#setClientCertificate(String)}, ...)
-         * are then ignored because they only feed the context the client would otherwise build.
-         * {@link SSLMode} still applies, but only to server hostname verification: {@link SSLMode#TRUST}
-         * and {@link SSLMode#VERIFY_CA} skip the hostname check while {@link SSLMode#STRICT} (default)
-         * enforces it.</p>
-         *
-         * <p>This is primarily useful when certificates and keys are held in memory (for example, loaded
-         * from a secret store) and must never be written to disk.</p>
+         * Supplies a pre-built {@link SSLContext}. When set, it is used as is instead of a context built
+         * from the configured trust/key material (which then cannot be set alongside it). {@link SSLMode}
+         * still applies, but only to server hostname verification: {@link SSLMode#STRICT} (default) enforces
+         * it while {@link SSLMode#TRUST} and {@link SSLMode#VERIFY_CA} skip it.
          *
          * @param sslContext a fully configured SSL context; {@code null} clears any previously set context
          * @return same instance of the builder
@@ -1197,27 +1202,27 @@ public class Client implements AutoCloseable {
 
             CredentialsManager cManager = new CredentialsManager(this.configuration);
 
-            // A pre-built SSLContext is a live object and can only be supplied programmatically via
-            // setSSLContext(SSLContext). A textual 'ssl_context' value (e.g. from setOption(...), a JDBC
-            // property, or a URL query parameter) can never represent a real context, so it is rejected
-            // here instead of being silently ignored when the SSL context is created.
+            // A textual 'ssl_context' can never be a live context (also rejected in setOption).
             if (configuration.containsKey(ClientConfigProperties.SSL_CONTEXT.getKey())) {
                 throw new ClientMisconfigurationException("'" + ClientConfigProperties.SSL_CONTEXT.getKey()
                         + "' cannot be set as a string; supply a javax.net.ssl.SSLContext object via "
                         + "Client.Builder.setSSLContext(...)");
             }
 
-            // Trust- and key-material options only feed a context the client would otherwise build. When
-            // the application supplies its own SSLContext they are ignored (see createSSLContext), so this
-            // conflict cannot arise and must not be reported.
-            if (this.sslContext == null &&
-                    configuration.containsKey(ClientConfigProperties.SSL_TRUST_STORE.getKey()) &&
+            if (this.sslContext != null) {
+                // A custom SSLContext replaces any context the client would build, so trust/key material
+                // cannot be set alongside it. SSL_MODE (hostname verification) is still allowed.
+                for (ClientConfigProperties material : SSL_MATERIAL_PROPERTIES) {
+                    if (configuration.containsKey(material.getKey())) {
+                        throw new ClientMisconfigurationException("'" + material.getKey() + "' cannot be combined"
+                                + " with a custom SSLContext; the supplied context is used as is. Only 'ssl_mode'"
+                                + " (hostname verification) may be set alongside it.");
+                    }
+                }
+            } else if (configuration.containsKey(ClientConfigProperties.SSL_TRUST_STORE.getKey()) &&
                     configuration.containsKey(ClientConfigProperties.SSL_CERTIFICATE.getKey())) {
                 throw new ClientMisconfigurationException("Trust store and certificates cannot be used together");
             }
-
-            // A trust store and a CA certificate are not rejected here: for VERIFY_CA/STRICT the trust
-            // store takes precedence and the CA certificate is ignored with a warning (see createSSLContext).
 
             // Resolve ssl_mode case-insensitively and normalize it to the canonical enum name so that
             // downstream parsing is consistent and an unknown value is reported as a misconfiguration
