@@ -1,12 +1,15 @@
 package com.clickhouse.client.api;
 
 import com.clickhouse.client.api.enums.SSLMode;
+import com.clickhouse.client.api.internal.HttpAPIClientHelper;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
+import javax.net.ssl.SSLContext;
 import java.lang.reflect.Field;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -103,6 +106,57 @@ public class ClientBuilderTest {
     }
 
     @Test
+    public void testStringSSLContextRejectedBySetOption() {
+        Assert.expectThrows(ClientMisconfigurationException.class,
+                () -> new Client.Builder().setOption(ClientConfigProperties.SSL_CONTEXT.getKey(), "not-a-context"));
+    }
+
+    @DataProvider(name = "sslMaterialWithCustomContext_DP")
+    public static Object[][] sslMaterialWithCustomContext_DP() {
+        return new Object[][] {
+                { ClientConfigProperties.SSL_TRUST_STORE.getKey(), "/path/to/truststore.jks" },
+                { ClientConfigProperties.SSL_KEYSTORE_TYPE.getKey(), "JKS" },
+                { ClientConfigProperties.SSL_KEY_STORE_PASSWORD.getKey(), "secret" },
+                { ClientConfigProperties.SSL_KEY.getKey(), "/path/to/client.key" },
+                { ClientConfigProperties.CA_CERTIFICATE.getKey(), "/path/to/ca.crt" },
+                { ClientConfigProperties.SSL_CERTIFICATE.getKey(), "/path/to/client.crt" },
+        };
+    }
+
+    @Test(dataProvider = "sslMaterialWithCustomContext_DP")
+    public void testCustomSSLContextRejectsOtherSslMaterial(String materialKey, String materialValue) throws Exception {
+        SSLContext customContext = SSLContext.getInstance("TLS");
+        customContext.init(null, null, null);
+
+        Assert.expectThrows(ClientMisconfigurationException.class, () -> new Client.Builder()
+                .addEndpoint("https://localhost:8443")
+                .setUsername("default")
+                .setPassword("")
+                .setOption(materialKey, materialValue)
+                .setSSLContext(customContext)
+                .build());
+    }
+
+    @Test
+    public void testCustomSSLContextAllowsSslMode() throws Exception {
+        SSLContext customContext = SSLContext.getInstance("TLS");
+        customContext.init(null, null, null);
+
+        try (Client client = new Client.Builder()
+                .addEndpoint("https://localhost:8443")
+                .setUsername("default")
+                .setPassword("")
+                .setSSLMode(SSLMode.VERIFY_CA)
+                .setSSLContext(customContext)
+                .build()) {
+            Assert.assertSame(extractConfiguration(client).get(ClientConfigProperties.SSL_CONTEXT.getKey()),
+                    customContext);
+            Assert.assertEquals(client.getConfiguration().get(ClientConfigProperties.SSL_MODE.getKey()),
+                    SSLMode.VERIFY_CA.name());
+        }
+    }
+
+    @Test
     public void testSSLCipherSuitesViaSetOptionParsedAsList() throws Exception {
         // The comma-separated string form is the path used by URL/JDBC properties.
         try (Client client = new Client.Builder()
@@ -119,6 +173,44 @@ public class ClientBuilderTest {
     }
 
     @Test
+    public void testTrustStoreAndClientCertificateConflictRejectedWithoutCustomContext() {
+        // Contrast: without a custom SSLContext the trust-store/certificate conflict is still rejected.
+        Assert.expectThrows(ClientMisconfigurationException.class, () -> new Client.Builder()
+                .addEndpoint("https://localhost:8443")
+                .setUsername("default")
+                .setPassword("")
+                .setSSLTrustStore("/path/to/truststore.jks")
+                .setClientCertificate("client.crt")
+                .build());
+    }
+
+    @Test
+    public void testSetSSLContextStoredInConfiguration() throws Exception {
+        SSLContext customContext = SSLContext.getInstance("TLS");
+        customContext.init(null, null, null);
+
+        try (Client client = new Client.Builder()
+                .addEndpoint("https://localhost:8443")
+                .setUsername("default")
+                .setPassword("")
+                .setSSLContext(customContext)
+                .build()) {
+            Assert.assertSame(extractConfiguration(client).get(ClientConfigProperties.SSL_CONTEXT.getKey()),
+                    customContext, "The application-supplied SSLContext should be stored in the configuration");
+        }
+
+        // Without setSSLContext the key must be absent so the client builds its own context.
+        try (Client client = new Client.Builder()
+                .addEndpoint("https://localhost:8443")
+                .setUsername("default")
+                .setPassword("")
+                .build()) {
+            Assert.assertNull(extractConfiguration(client).get(ClientConfigProperties.SSL_CONTEXT.getKey()),
+                    "No SSLContext should be stored when none is supplied");
+        }
+    }
+
+    @Test
     public void testClientBuildsWithCipherSuitesOverHttps() {
         // Exercises the HTTPS connection-socket-factory path with cipher suites configured (STRICT mode,
         // no SNI): the client must build without error.
@@ -130,6 +222,48 @@ public class ClientBuilderTest {
                 .build()) {
             Assert.assertNotNull(client);
         }
+    }
+
+    @Test
+    public void testCreateSSLContextIgnoresCustomContext() throws Exception {
+        SSLContext customContext = SSLContext.getInstance("TLS");
+        customContext.init(null, null, null);
+
+        try (Client client = new Client.Builder()
+                .addEndpoint("https://localhost:8443")
+                .setUsername("default")
+                .setPassword("")
+                .build()) {
+            HttpAPIClientHelper helper = extractHttpClientHelper(client);
+            Map<String, Object> configWithCustom = new HashMap<>(extractConfiguration(client));
+            configWithCustom.put(ClientConfigProperties.SSL_CONTEXT.getKey(), customContext);
+            // createSSLContext only builds from trust/key material; selecting a custom context is
+            // createHttpClient's responsibility, so this must not return the supplied context.
+            Assert.assertNotSame(helper.createSSLContext(configWithCustom), customContext);
+        }
+    }
+
+    @Test
+    public void testCreateHttpClientRejectsNonSSLContextValue() throws Exception {
+        try (Client client = new Client.Builder()
+                .addEndpoint("https://localhost:8443")
+                .setUsername("default")
+                .setPassword("")
+                .build()) {
+            HttpAPIClientHelper helper = extractHttpClientHelper(client);
+            Map<String, Object> configWithBadContext = new HashMap<>(extractConfiguration(client));
+            configWithBadContext.put(ClientConfigProperties.SSL_CONTEXT.getKey(), "not-a-context");
+            // A non-SSLContext value under 'ssl_context' is a misconfiguration; createHttpClient must
+            // reject it instead of silently building a context from trust/key material.
+            Assert.expectThrows(ClientMisconfigurationException.class,
+                    () -> helper.createHttpClient(true, configWithBadContext));
+        }
+    }
+
+    private static HttpAPIClientHelper extractHttpClientHelper(Client client) throws Exception {
+        Field helperField = Client.class.getDeclaredField("httpClientHelper");
+        helperField.setAccessible(true);
+        return (HttpAPIClientHelper) helperField.get(client);
     }
 
     @SuppressWarnings("unchecked")

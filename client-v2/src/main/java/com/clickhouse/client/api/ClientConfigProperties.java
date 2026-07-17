@@ -8,6 +8,8 @@ import com.clickhouse.data.ClickHouseFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.net.ssl.SSLContext;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -117,6 +119,8 @@ public enum ClientConfigProperties {
     SSL_CERTIFICATE("sslcert", String.class),
 
     SSL_MODE("ssl_mode", SSLMode.class, SSLMode.STRICT.name()),
+
+    SSL_CONTEXT("ssl_context", SSLContext.class),
 
     RETRY_ON_FAILURE("retry", Integer.class, "3"),
 

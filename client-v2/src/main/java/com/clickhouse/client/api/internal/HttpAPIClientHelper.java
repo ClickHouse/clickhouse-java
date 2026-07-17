@@ -154,7 +154,7 @@ public class HttpAPIClientHelper {
     }
 
     /**
-     * Creates or returns default SSL context.
+     * Creates an SSL context from the configured trust/key material.
      *
      * @return SSLContext
      */
@@ -280,7 +280,21 @@ public class HttpAPIClientHelper {
     public CloseableHttpClient createHttpClient(boolean initSslContext, Map<String, Object> configuration) {
         // Top Level builders
         HttpClientBuilder clientBuilder = HttpClientBuilder.create();
-        SSLContext sslContext = initSslContext ? createSSLContext(configuration) : null;
+        // An application-supplied SSLContext is used as is; otherwise one is built from the configured
+        // trust/key material. Server hostname verification below still applies via the SSL mode.
+        SSLContext sslContext = null;
+        if (initSslContext) {
+            Object customSSLContext = configuration.get(ClientConfigProperties.SSL_CONTEXT.getKey());
+            if (customSSLContext == null) {
+                sslContext = createSSLContext(configuration);
+            } else if (customSSLContext instanceof SSLContext) {
+                sslContext = (SSLContext) customSSLContext;
+            } else {
+                throw new ClientMisconfigurationException("'" + ClientConfigProperties.SSL_CONTEXT.getKey()
+                        + "' must be a javax.net.ssl.SSLContext instance but was "
+                        + customSSLContext.getClass().getName() + "; supply it via Client.Builder.setSSLContext(...)");
+            }
+        }
         LayeredConnectionSocketFactory sslConnectionSocketFactory;
         if (sslContext != null) {
             String socketSNI = (String)configuration.get(ClientConfigProperties.SSL_SOCKET_SNI.getKey());

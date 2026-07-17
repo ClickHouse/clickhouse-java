@@ -82,6 +82,8 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import javax.net.ssl.SSLContext;
+
 /**
  * <p>Client is the starting point for all interactions with ClickHouse. </p>
  *
@@ -149,8 +151,12 @@ public class Client implements AutoCloseable {
 
     private Client(Collection<Endpoint> endpoints, Map<String,String> configuration,
                    ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy,
-                   Object metricsRegistry, Supplier<String> queryIdGenerator, CredentialsManager cManager) {
+                   Object metricsRegistry, Supplier<String> queryIdGenerator, CredentialsManager cManager,
+                   SSLContext sslContext) {
         Map<String, Object> parsedConfiguration = new ConcurrentHashMap<>(ClientConfigProperties.parseConfigMap(configuration));
+        if (sslContext != null) {
+            parsedConfiguration.put(ClientConfigProperties.SSL_CONTEXT.getKey(), sslContext);
+        }
         this.credentialsManager = cManager;
         this.session = Session.extractFrom(parsedConfiguration);
         this.configuration = new ConcurrentHashMap<>(parsedConfiguration);
@@ -271,6 +277,18 @@ public class Client implements AutoCloseable {
         private ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy;
         private Object metricRegistry = null;
         private Supplier<String> queryIdGenerator;
+        private SSLContext sslContext = null;
+
+        // Trust/key material options that feed a context the client would otherwise build; none of them
+        // may be combined with an application-supplied SSLContext (see build()).
+        private static final ClientConfigProperties[] SSL_MATERIAL_PROPERTIES = {
+                ClientConfigProperties.SSL_TRUST_STORE,
+                ClientConfigProperties.SSL_KEYSTORE_TYPE,
+                ClientConfigProperties.SSL_KEY_STORE_PASSWORD,
+                ClientConfigProperties.SSL_KEY,
+                ClientConfigProperties.CA_CERTIFICATE,
+                ClientConfigProperties.SSL_CERTIFICATE,
+        };
 
         public Builder() {
             this.endpoints = new LinkedHashSet<>();
@@ -345,6 +363,11 @@ public class Client implements AutoCloseable {
          * @param value - configuration option value
          */
         public Builder setOption(String key, String value) {
+            if (key.equals(ClientConfigProperties.SSL_CONTEXT.getKey())) {
+                throw new ClientMisconfigurationException("'" + ClientConfigProperties.SSL_CONTEXT.getKey()
+                        + "' cannot be set as a string; supply a javax.net.ssl.SSLContext object via "
+                        + "Client.Builder.setSSLContext(...)");
+            }
             this.configuration.put(key, value);
             if (key.equals(ClientConfigProperties.PRODUCT_NAME.getKey())) {
                 setClientName(value);
@@ -803,6 +826,20 @@ public class Client implements AutoCloseable {
         }
 
         /**
+         * Supplies a pre-built {@link SSLContext}. When set, it is used as is instead of a context built
+         * from the configured trust/key material (which then cannot be set alongside it). {@link SSLMode}
+         * still applies, but only to server hostname verification: {@link SSLMode#STRICT} (default) enforces
+         * it while {@link SSLMode#TRUST} and {@link SSLMode#VERIFY_CA} skip it.
+         *
+         * @param sslContext a fully configured SSL context; {@code null} clears any previously set context
+         * @return same instance of the builder
+         */
+        public Builder setSSLContext(SSLContext sslContext) {
+            this.sslContext = sslContext;
+            return this;
+        }
+
+        /**
          * Configure client to use server timezone for date/datetime columns. Default is true.
          * If this options is selected then server timezone should be set as well.
          *
@@ -1182,13 +1219,27 @@ public class Client implements AutoCloseable {
 
             CredentialsManager cManager = new CredentialsManager(this.configuration);
 
-            if (configuration.containsKey(ClientConfigProperties.SSL_TRUST_STORE.getKey()) &&
+            // A textual 'ssl_context' can never be a live context (also rejected in setOption).
+            if (configuration.containsKey(ClientConfigProperties.SSL_CONTEXT.getKey())) {
+                throw new ClientMisconfigurationException("'" + ClientConfigProperties.SSL_CONTEXT.getKey()
+                        + "' cannot be set as a string; supply a javax.net.ssl.SSLContext object via "
+                        + "Client.Builder.setSSLContext(...)");
+            }
+
+            if (this.sslContext != null) {
+                // A custom SSLContext replaces any context the client would build, so trust/key material
+                // cannot be set alongside it. SSL_MODE (hostname verification) is still allowed.
+                for (ClientConfigProperties material : SSL_MATERIAL_PROPERTIES) {
+                    if (configuration.containsKey(material.getKey())) {
+                        throw new ClientMisconfigurationException("'" + material.getKey() + "' cannot be combined"
+                                + " with a custom SSLContext; the supplied context is used as is. Only 'ssl_mode'"
+                                + " (hostname verification) may be set alongside it.");
+                    }
+                }
+            } else if (configuration.containsKey(ClientConfigProperties.SSL_TRUST_STORE.getKey()) &&
                     configuration.containsKey(ClientConfigProperties.SSL_CERTIFICATE.getKey())) {
                 throw new ClientMisconfigurationException("Trust store and certificates cannot be used together");
             }
-
-            // A trust store and a CA certificate are not rejected here: for VERIFY_CA/STRICT the trust
-            // store takes precedence and the CA certificate is ignored with a warning (see createSSLContext).
 
             // Resolve ssl_mode case-insensitively and normalize it to the canonical enum name so that
             // downstream parsing is consistent and an unknown value is reported as a misconfiguration
@@ -1246,7 +1297,8 @@ public class Client implements AutoCloseable {
             }
 
             return new Client(this.endpoints, this.configuration, this.sharedOperationExecutor,
-                this.columnToMethodMatchingStrategy, this.metricRegistry, this.queryIdGenerator, cManager);
+                this.columnToMethodMatchingStrategy, this.metricRegistry, this.queryIdGenerator, cManager,
+                this.sslContext);
         }
     }
 
