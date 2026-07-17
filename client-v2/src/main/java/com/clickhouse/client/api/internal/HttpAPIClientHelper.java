@@ -285,9 +285,15 @@ public class HttpAPIClientHelper {
         SSLContext sslContext = null;
         if (initSslContext) {
             Object customSSLContext = configuration.get(ClientConfigProperties.SSL_CONTEXT.getKey());
-            sslContext = customSSLContext instanceof SSLContext
-                    ? (SSLContext) customSSLContext
-                    : createSSLContext(configuration);
+            if (customSSLContext == null) {
+                sslContext = createSSLContext(configuration);
+            } else if (customSSLContext instanceof SSLContext) {
+                sslContext = (SSLContext) customSSLContext;
+            } else {
+                throw new ClientMisconfigurationException("'" + ClientConfigProperties.SSL_CONTEXT.getKey()
+                        + "' must be a javax.net.ssl.SSLContext instance but was "
+                        + customSSLContext.getClass().getName() + "; supply it via Client.Builder.setSSLContext(...)");
+            }
         }
         LayeredConnectionSocketFactory sslConnectionSocketFactory;
         if (sslContext != null) {

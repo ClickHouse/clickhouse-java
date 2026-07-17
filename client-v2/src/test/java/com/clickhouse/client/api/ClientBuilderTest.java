@@ -198,6 +198,23 @@ public class ClientBuilderTest {
         }
     }
 
+    @Test
+    public void testCreateHttpClientRejectsNonSSLContextValue() throws Exception {
+        try (Client client = new Client.Builder()
+                .addEndpoint("https://localhost:8443")
+                .setUsername("default")
+                .setPassword("")
+                .build()) {
+            HttpAPIClientHelper helper = extractHttpClientHelper(client);
+            Map<String, Object> configWithBadContext = new HashMap<>(extractConfiguration(client));
+            configWithBadContext.put(ClientConfigProperties.SSL_CONTEXT.getKey(), "not-a-context");
+            // A non-SSLContext value under 'ssl_context' is a misconfiguration; createHttpClient must
+            // reject it instead of silently building a context from trust/key material.
+            Assert.expectThrows(ClientMisconfigurationException.class,
+                    () -> helper.createHttpClient(true, configWithBadContext));
+        }
+    }
+
     private static HttpAPIClientHelper extractHttpClientHelper(Client client) throws Exception {
         Field helperField = Client.class.getDeclaredField("httpClientHelper");
         helperField.setAccessible(true);
