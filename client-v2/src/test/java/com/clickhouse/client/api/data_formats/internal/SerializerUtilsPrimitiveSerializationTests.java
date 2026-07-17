@@ -111,38 +111,53 @@ public class SerializerUtilsPrimitiveSerializationTests {
                 () -> serializeSingleValue("Float64", new Object()));
     }
 
-    @DataProvider(name = "bFloat16Values")
-    public static Object[][] bFloat16Values() {
-        // input float, expected float after a BFloat16 round-trip. BFloat16 keeps the high
-        // 16 bits of the float32 representation, so writing truncates the low mantissa bits
-        // (matching the ClickHouse server) and reading widens the value back losslessly.
-        return new Object[][] {
-                {0.0f, 0.0f},                    // zero
-                {1.5f, 1.5f},                    // exactly representable
-                {-2.5f, -2.5f},                  // exactly representable, sign preserved
-                {100.0f, 100.0f},                // exactly representable
-                {256.0f, 256.0f},                // exactly representable
-                {3.14f, 3.125f},                 // 0x4048F5C3 -> 0x40480000 (low bits dropped)
-                {0.1f, 0.099609375f},            // 0x3DCCCCCD -> 0x3DCC0000 (low bits dropped)
-        };
+    @Test
+    public void testSerializeBFloat16RoundTripAllValues() throws IOException {
+        // Exhaustively round-trip every one of the 2^16 BFloat16 bit patterns. For pattern b the
+        // canonical float32 is intBitsToFloat(b << 16); the client writes its high 16 bits and reads
+        // them back widened. Every non-NaN pattern - including +/-0, subnormals and +/-Infinity -
+        // must round-trip bit-for-bit. NaN inputs collapse to a single NaN because Float#floatToIntBits
+        // normalizes the payload on write, so they are only required to read back as a NaN.
+        final int count = 1 << 16;
+        Object[] inputs = new Object[count];
+        for (int b = 0; b < count; b++) {
+            inputs[b] = Float.intBitsToFloat(b << 16);
+        }
+
+        RowBinaryWithNamesAndTypesFormatReader reader = serializeColumn("BFloat16", inputs);
+
+        for (int b = 0; b < count; b++) {
+            Assert.assertNotNull(reader.next(), "missing row for BFloat16 pattern " + hex(b));
+            float actual = reader.getFloat("value");
+            if (Float.isNaN((Float) inputs[b])) {
+                Assert.assertTrue(Float.isNaN(actual), "BFloat16 pattern " + hex(b) + " must read back as NaN");
+            } else {
+                Assert.assertEquals(Float.floatToRawIntBits(actual), b << 16,
+                        "BFloat16 pattern " + hex(b) + " did not round-trip");
+            }
+        }
+        Assert.assertNull(reader.next(), "unexpected extra row after all 65,536 BFloat16 patterns");
     }
 
-    @Test(dataProvider = "bFloat16Values")
-    public void testSerializeBFloat16RoundTrip(float input, float expected) throws IOException {
-        RowBinaryWithNamesAndTypesFormatReader reader = serializeSingleValue("BFloat16", input);
-
-        reader.next();
-
-        Assert.assertEquals(reader.getFloat("value"), expected, 0.0f);
+    private static String hex(int bFloat16Bits) {
+        return String.format("0x%04X", bFloat16Bits);
     }
 
     private RowBinaryWithNamesAndTypesFormatReader serializeSingleValue(String type, Object value)
+            throws IOException {
+        return serializeColumn(type, new Object[]{value});
+    }
+
+    private RowBinaryWithNamesAndTypesFormatReader serializeColumn(String type, Object[] values)
             throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         BinaryStreamUtils.writeVarInt(out, 1);
         BinaryStreamUtils.writeString(out, "value");
         BinaryStreamUtils.writeString(out, type);
-        SerializerUtils.serializeData(out, value, ClickHouseColumn.of("value", type));
+        ClickHouseColumn column = ClickHouseColumn.of("value", type);
+        for (Object value : values) {
+            SerializerUtils.serializeData(out, value, column);
+        }
 
         return new RowBinaryWithNamesAndTypesFormatReader(
                 new ByteArrayInputStream(out.toByteArray()),

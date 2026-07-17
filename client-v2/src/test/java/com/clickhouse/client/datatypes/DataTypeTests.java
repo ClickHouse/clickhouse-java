@@ -163,7 +163,7 @@ public class DataTypeTests extends BaseIntegrationTest {
         private Float bFloat16Nullable;
 
         public static String tblCreateSQL(String table) {
-            return tableDefinition(table, "rowId Int16", "bFloat16 BFloat16",
+            return tableDefinition(table, "rowId Int32", "bFloat16 BFloat16",
                     "bFloat16Nullable Nullable(BFloat16)");
         }
     }
@@ -177,22 +177,44 @@ public class DataTypeTests extends BaseIntegrationTest {
             return;
         }
 
+        // Exhaustively cover every one of the 2^16 BFloat16 bit patterns through a full client
+        // write -> server -> client read round-trip (POJO path, incl. Nullable(BFloat16)). For
+        // pattern b the value is Float.intBitsToFloat(b << 16): non-NaN values (incl. +/-0,
+        // subnormals, +/-Infinity) must return bit-for-bit, while NaN inputs collapse to a single
+        // canonical NaN on write and are only required to read back as NaN. Truncation of
+        // non-representable float inputs is covered by testBFloat16TruncationMatchesServer.
         final String table = "test_bfloat16";
-        // Only exactly-representable BFloat16 values are used here so a client-side write
-        // followed by a read returns the same value. Truncation of non-representable values
-        // is covered by testBFloat16TruncationMatchesServer.
+        final int count = 1 << 16;
+        List<DTOForBFloat16Tests> data = new ArrayList<>(count);
+        for (int b = 0; b < count; b++) {
+            float value = Float.intBitsToFloat(b << 16);
+            // Row 0 exercises the null path; every other row round-trips a non-null Nullable(BFloat16).
+            data.add(new DTOForBFloat16Tests(b, value, b == 0 ? null : value));
+        }
+
         writeReadVerify(table,
                 DTOForBFloat16Tests.tblCreateSQL(table),
                 DTOForBFloat16Tests.class,
-                Arrays.asList(
-                        new DTOForBFloat16Tests(0, 1.5f, -2.5f),
-                        new DTOForBFloat16Tests(1, 0.0f, null),
-                        new DTOForBFloat16Tests(2, 256.0f, 100.0f)),
-                (data, dto) -> {
-                    DTOForBFloat16Tests expected = data.get(dto.getRowId());
-                    Assert.assertEquals(dto.getBFloat16(), expected.getBFloat16(), 0.0f);
-                    Assert.assertEquals(dto.getBFloat16Nullable(), expected.getBFloat16Nullable());
+                data,
+                (all, dto) -> {
+                    DTOForBFloat16Tests expected = all.get(dto.getRowId());
+                    assertBFloat16Equals(dto.getBFloat16(), expected.getBFloat16());
+                    assertBFloat16Equals(dto.getBFloat16Nullable(), expected.getBFloat16Nullable());
                 });
+    }
+
+    // BFloat16 keeps the high 16 bits of a float32, so every non-NaN value round-trips bit-for-bit;
+    // NaN inputs collapse to a single canonical NaN on write and are only required to read back as NaN.
+    private static void assertBFloat16Equals(Float actual, Float expected) {
+        if (expected == null) {
+            Assert.assertNull(actual);
+        } else if (Float.isNaN(expected)) {
+            Assert.assertNotNull(actual);
+            Assert.assertTrue(Float.isNaN(actual), "expected a NaN but got " + actual);
+        } else {
+            Assert.assertNotNull(actual);
+            Assert.assertEquals(Float.floatToRawIntBits(actual), Float.floatToRawIntBits(expected));
+        }
     }
 
     @Test(groups = {"integration"})
