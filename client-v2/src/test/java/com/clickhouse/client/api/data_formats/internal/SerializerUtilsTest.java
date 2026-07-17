@@ -217,6 +217,47 @@ public class SerializerUtilsTest {
         };
     }
 
+    @Test(dataProvider = "simpleAggregateFunctionData")
+    public void testSimpleAggregateFunctionRoundTrip(String typeName, Object value) throws Exception {
+        ClickHouseColumn column = ClickHouseColumn.of("v", typeName);
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        SerializerUtils.serializeData(out, value, column);
+
+        Object actual = newReader(out.toByteArray()).readValue(column);
+        Assert.assertEquals(normalize(actual), normalize(value));
+    }
+
+    @DataProvider(name = "simpleAggregateFunctionData")
+    private Object[][] simpleAggregateFunctionData() {
+        return new Object[][] {
+                // Top-level SAF columns - the exact shape reported in the bug, reached directly
+                // through the serializeData switch's SimpleAggregateFunction case.
+                {"SimpleAggregateFunction(sum, UInt64)", BigInteger.valueOf(42)},
+                {"SimpleAggregateFunction(anyLast, Nullable(String))", "present"},
+
+                // A SimpleAggregateFunction(func, T) value serializes byte-identically to its
+                // underlying type T. Each SAF below sits in the MIDDLE of the schema between a
+                // leading Int32 and a trailing Float64, so a dropped or extra byte (such as a
+                // wrongly written null-marker) shifts the trailing Float64 and is detected
+                // positionally. The assertion compares the whole row.
+
+                // Non-nullable fixed-width underlying: no null-marker byte precedes the value.
+                {"Tuple(Int32, SimpleAggregateFunction(sum, UInt64), Float64)",
+                        Arrays.asList(7, BigInteger.valueOf(42), 9.5d)},
+                // Non-nullable variable-length underlying: still no marker. This is the contrast
+                // case - it would misalign if the SAF branch unconditionally wrote a marker.
+                {"Tuple(Int32, SimpleAggregateFunction(anyLast, String), Float64)",
+                        Arrays.asList(7, "kept", 9.5d)},
+                // Nullable underlying, value present: a single present-marker (0x00) precedes it.
+                {"Tuple(Int32, SimpleAggregateFunction(anyLast, Nullable(String)), Float64)",
+                        Arrays.asList(7, "opt", 9.5d)},
+                // Nullable underlying, value null: a single null-marker (0x01) and no value.
+                {"Tuple(Int32, SimpleAggregateFunction(anyLast, Nullable(String)), Float64)",
+                        Arrays.asList(7, null, 9.5d)},
+        };
+    }
+
     // Normalizes Tuple (Object[]) and Array (ArrayValue / List) results to nested Lists so
     // round-tripped values compare structurally regardless of the container representation the
     // reader returns.

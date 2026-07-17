@@ -72,6 +72,12 @@ public class SerializerUtils {
             case Map:
                 serializeMapData(stream, value, column);
                 break;
+            case SimpleAggregateFunction:
+                // A SimpleAggregateFunction(func, T) value serializes identically to its underlying
+                // type T; delegate through serializeNestedData so a Nullable underlying still gets
+                // its RowBinary null-marker byte, mirroring BinaryStreamReader's read path.
+                serializeNestedData(stream, value, column.getNestedColumns().get(0));
+                break;
             case AggregateFunction:
                 serializeAggregateFunction(stream, value, column);
                 break;
