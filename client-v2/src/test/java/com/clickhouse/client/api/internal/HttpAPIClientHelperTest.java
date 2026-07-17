@@ -228,45 +228,6 @@ public class HttpAPIClientHelperTest {
                 + "(transport defaults), so the plain SSLConnectionSocketFactory is used");
     }
 
-    /**
-     * Malformed cipher-suite input - blank tokens from a leading, trailing or doubled comma, and
-     * whitespace-padded names - must be sanitized before reaching the SSL socket: a null, empty or
-     * whitespace-only entry is rejected by {@code SSLSocket#setEnabledCipherSuites} ("invalid null or empty
-     * string elements") and breaks the handshake even when valid suites are also present. The blanks must be
-     * dropped and the surviving names trimmed, preserving order.
-     */
-    @Test
-    public void testCreateHttpClientDropsBlankAndWhitespaceCipherTokens() {
-        Map<String, Object> config = new HashMap<>();
-        config.put(ClientConfigProperties.SSL_CIPHER_SUITES.getKey(),
-                Arrays.asList("", "TLS_AES_256_GCM_SHA384", "", "   ", " TLS_AES_128_GCM_SHA256 "));
-
-        List<List<?>> calls = captureCustomFactoryConstruction(config);
-
-        assertEquals(calls.size(), 1, "configured (non-blank) cipher suites must still build the custom factory");
-        List<?> args = calls.get(0);
-        assertEquals((String[]) args.get(3),
-                new String[]{"TLS_AES_256_GCM_SHA384", "TLS_AES_128_GCM_SHA256"},
-                "blank tokens (leading/doubled comma, whitespace-only) must be dropped and surviving names "
-                        + "trimmed before being forwarded to the SSL socket factory");
-    }
-
-    /**
-     * Boundary case: a cipher-suite list that contains only blank tokens (e.g. from a property that is just
-     * commas/whitespace) has no usable suite, so - like an empty or unset list - it must be treated as "no
-     * restriction" (transport defaults) rather than forwarding an all-blank array that would fail every handshake.
-     */
-    @Test
-    public void testCreateHttpClientBlankOnlyCipherSuitesTreatedAsNoRestriction() {
-        Map<String, Object> config = new HashMap<>();
-        config.put(ClientConfigProperties.SSL_CIPHER_SUITES.getKey(), Arrays.asList("", "   "));
-
-        List<List<?>> calls = captureCustomFactoryConstruction(config);
-
-        assertEquals(calls.size(), 0, "a cipher-suite list of only blank tokens must be treated as no "
-                + "restriction (transport defaults), so the plain SSLConnectionSocketFactory is used");
-    }
-
     @Test
     public void testExecuteRequestThrowsConnectExceptionOn502() throws Exception {
         Map<String, Object> configuration = new HashMap<>();

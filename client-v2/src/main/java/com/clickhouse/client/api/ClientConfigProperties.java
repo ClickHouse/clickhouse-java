@@ -211,10 +211,28 @@ public enum ClientConfigProperties {
      * support); when unset, the transport defaults are used (Apache HttpClient enables the JVM's default
      * suites minus those it considers weak).
      * <p>
+     * The value is parsed into a sanitized list here, in the config-parsing layer (not in transport code):
+     * blank tokens produced by a leading, trailing or doubled comma are dropped and each surviving name is
+     * trimmed, so consumers receive a ready-to-use list. A null, empty or whitespace-only entry would
+     * otherwise be rejected by the SSL socket and break the handshake even alongside valid suites.
+     * <p>
      * Appended at the end of the enum on purpose: adding a constant in the middle would shift the ordinal
      * of every following constant (see {@code docs/changes_checklist.md}).
      */
-    SSL_CIPHER_SUITES("ssl_cipher_suites", List.class),
+    SSL_CIPHER_SUITES("ssl_cipher_suites", List.class) {
+        @Override
+        @SuppressWarnings("unchecked")
+        public Object parseValue(String value) {
+            List<String> suites = (List<String>) super.parseValue(value);
+            if (suites == null) {
+                return null;
+            }
+            return suites.stream()
+                    .filter(s -> s != null && !s.trim().isEmpty())
+                    .map(String::trim)
+                    .collect(Collectors.toList());
+        }
+    },
     ;
 
     private static final Logger LOG = LoggerFactory.getLogger(ClientConfigProperties.class);
