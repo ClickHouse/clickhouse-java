@@ -111,6 +111,51 @@ public class SerializerUtilsPrimitiveSerializationTests {
                 () -> serializeSingleValue("Float64", new Object()));
     }
 
+    @Test(dataProvider = "bFloat16ColumnValues")
+    public void testSerializeBFloat16ColumnFromVariousNumberTypes(Object value, float expected)
+            throws IOException {
+        RowBinaryWithNamesAndTypesFormatReader reader = serializeSingleValue("BFloat16", value);
+
+        reader.next();
+
+        Assert.assertEquals(reader.getFloat("value"), expected, 0.0f);
+    }
+
+    @DataProvider(name = "bFloat16ColumnValues")
+    private Object[][] bFloat16ColumnValues() {
+        // A non-Float value supplied for a BFloat16 column used to throw ClassCastException from the
+        // direct (float) cast; any Number now narrows through NumberConverter.toFloat (Number#floatValue()),
+        // matching the Float32/Float64 branches. Every value below is exactly representable in BFloat16
+        // (its float32 low 16 bits are zero), so the write-side truncation is lossless and the expected
+        // read-back is exact.
+        return new Object[][] {
+                // Same-type value keeps working unchanged (already passed before the fix).
+                {1.5f, 1.5f},
+
+                // A Double (and other Number subtypes) supplied for a BFloat16 column.
+                {1.5d, 1.5f},
+                {-2.5d, -2.5f},
+                {3, 3.0f},
+                {7L, 7.0f},
+                {(short) 5, 5.0f},
+                {(byte) 2, 2.0f},
+                {BigInteger.valueOf(9), 9.0f},
+                {new BigDecimal("1.5"), 1.5f},
+                {new CustomNumber("2.5"), 2.5f},
+
+                // String and Boolean are accepted too, matching the other numeric column branches.
+                {"1.5", 1.5f},
+                {true, 1.0f},
+                {false, 0.0f},
+        };
+    }
+
+    @Test
+    public void testSerializeBFloat16ColumnRejectsUnsupportedValue() {
+        Assert.assertThrows(IllegalArgumentException.class,
+                () -> serializeSingleValue("BFloat16", new Object()));
+    }
+
     @Test
     public void testSerializeBFloat16RoundTripAllValues() throws IOException {
         // Exhaustively round-trip every one of the 2^16 BFloat16 bit patterns. For pattern b the

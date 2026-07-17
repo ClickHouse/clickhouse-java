@@ -555,7 +555,7 @@ public class SerializerUtils {
                 BinaryStreamUtils.writeUnsignedInt256(stream, NumberConverter.toBigInteger(value));
                 break;
             case BFloat16:
-                BinaryStreamUtils.writeBFloat16(stream, (float) value);
+                BinaryStreamUtils.writeBFloat16(stream, NumberConverter.toFloat(value));
                 break;
             case Float32:
                 BinaryStreamUtils.writeFloat32(stream, NumberConverter.toFloat(value));
