@@ -4,6 +4,8 @@
 
 ### Bug Fixes 
 
+- **[client-v2]** Fixed binary array decoding for nullable element types so `Array(Nullable(Float64))` and similar columns now return boxed arrays such as `Double[]` instead of `Object[]`. This keeps null-supporting arrays aligned with their element type while preserving the existing `Object[]` fallback for Variant/Dynamic/Geometry arrays. (https://github.com/ClickHouse/clickhouse-java/issues/2846)
+
 - **[client-v2]** Fixed `Float32`/`Float64` columns throwing `ClassCastException` when a value of a
   non-matching boxed numeric type was supplied through the `Object`-typed insert surface — for example a
   `Double` (the natural type of a Java literal like `1.5`) for a `Float32` column, or a `Float` for a
