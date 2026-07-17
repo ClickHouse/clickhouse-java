@@ -23,6 +23,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
 import org.testng.Assert;
+import org.testng.SkipException;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
@@ -174,7 +175,7 @@ public class DataTypeTests extends BaseIntegrationTest {
     @Test(groups = {"integration"})
     public void testBFloat16() throws Exception {
         if (isVersionMatch(BFLOAT16_UNSUPPORTED_VERSIONS)) {
-            return;
+            throw new SkipException("BFloat16 requires ClickHouse 24.11+");
         }
 
         // Exhaustively cover every one of the 2^16 BFloat16 bit patterns through a full client
@@ -218,9 +219,81 @@ public class DataTypeTests extends BaseIntegrationTest {
     }
 
     @Test(groups = {"integration"})
+    public void testBFloat16ReadFromServerWrittenValues() throws Exception {
+        if (isVersionMatch(BFLOAT16_UNSUPPORTED_VERSIONS)) {
+            throw new SkipException("BFloat16 requires ClickHouse 24.11+");
+        }
+
+        // Exhaustively cover reading every one of the 2^16 BFloat16 bit patterns. The dataset is
+        // written with SQL text literals so the *server* produces the stored bytes; this decouples
+        // the read path under test from the client's binary write path. Row b holds the BFloat16
+        // whose bit pattern is b, so a read must widen it to Float.intBitsToFloat(b << 16) (NaN
+        // inputs collapse to a single canonical NaN on the server and only read back as NaN).
+        final String table = "test_bfloat16_read";
+        final int count = 1 << 16;
+        final int batchSize = 4096; // keep each INSERT well under max_query_size
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        client.execute("CREATE TABLE " + table
+                + " (rowId Int32, v BFloat16, vNull Nullable(BFloat16)) ENGINE = MergeTree ORDER BY rowId").get();
+
+        for (int start = 0; start < count; start += batchSize) {
+            int end = Math.min(start + batchSize, count);
+            StringBuilder insert = new StringBuilder("INSERT INTO ").append(table).append(" VALUES ");
+            for (int b = start; b < end; b++) {
+                String literal = bFloat16Literal(b);
+                if (b > start) {
+                    insert.append(',');
+                }
+                insert.append('(').append(b).append(',').append(literal).append(',')
+                        .append(b == 0 ? "NULL" : literal).append(')');
+            }
+            client.execute(insert.toString()).get();
+        }
+
+        // The server's stored bits are the ground truth for the read: reinterpretAsUInt16(v) yields
+        // the exact 16-bit pattern the server wrote, so a correct read must widen it to
+        // Float.intBitsToFloat(bits << 16). Deriving the expectation from the stored bits (rather than
+        // from rowId) keeps the read assertion correct regardless of how the server converts the text
+        // literal to BFloat16 - in particular the server flushes BFloat16 subnormals to zero, so those
+        // patterns are stored as +/-0 even though the literal named a tiny subnormal.
+        AtomicInteger rowCount = new AtomicInteger(0);
+        client.queryAll("SELECT rowId, v, reinterpretAsUInt16(v) AS bits, vNull FROM " + table + " ORDER BY rowId")
+                .forEach(row -> {
+                    int b = row.getInteger("rowId");
+                    float expected = Float.intBitsToFloat(row.getInteger("bits") << 16);
+                    assertBFloat16Equals(row.getFloat("v"), expected);
+                    if (b == 0) {
+                        Assert.assertNull(row.getObject("vNull"));
+                    } else {
+                        assertBFloat16Equals((Float) row.getObject("vNull"), expected);
+                    }
+                    rowCount.incrementAndGet();
+                });
+        Assert.assertEquals(rowCount.get(), count);
+    }
+
+    // Text form of the exact BFloat16 whose bit pattern is {@code pattern}, suitable for use as a
+    // SQL numeric literal. Non-finite patterns use ClickHouse's nan/inf/-inf tokens; every other
+    // pattern uses the shortest round-trippable decimal of Float.intBitsToFloat(pattern << 16),
+    // which is exactly representable in BFloat16 (its low 16 mantissa bits are zero).
+    private static String bFloat16Literal(int pattern) {
+        float value = Float.intBitsToFloat(pattern << 16);
+        if (Float.isNaN(value)) {
+            return "nan";
+        }
+        if (value == Float.POSITIVE_INFINITY) {
+            return "inf";
+        }
+        if (value == Float.NEGATIVE_INFINITY) {
+            return "-inf";
+        }
+        return Float.toString(value);
+    }
+
+    @Test(groups = {"integration"})
     public void testBFloat16TruncationMatchesServer() throws Exception {
         if (isVersionMatch(BFLOAT16_UNSUPPORTED_VERSIONS)) {
-            return;
+            throw new SkipException("BFloat16 requires ClickHouse 24.11+");
         }
 
         // (a) The client must decode a BFloat16 produced by the server (Float32 -> BFloat16
@@ -250,7 +323,7 @@ public class DataTypeTests extends BaseIntegrationTest {
     @Test(groups = {"integration"})
     public void testBFloat16InDynamicColumn() throws Exception {
         if (isVersionMatch("(,24.8]") || isVersionMatch(BFLOAT16_UNSUPPORTED_VERSIONS)) {
-            return;
+            throw new SkipException("BFloat16 requires ClickHouse 24.11+");
         }
 
         // Reading a BFloat16 held in a Dynamic column exercises the dynamic type-tag read path.
