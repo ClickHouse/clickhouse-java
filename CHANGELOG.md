@@ -8,7 +8,7 @@
   `float` values (widening is lossless) and written from `float`/`Float` values, including through generic records, POJO
   binding, `Nullable(BFloat16)`, and `BFloat16` values held in `Dynamic`/`Variant` columns. On write the client keeps the
   high 16 bits of the `float`, matching the ClickHouse server's own `Float32` → `BFloat16` conversion. Previously reading
-  or writing a `BFloat16` column threw "BFloat16 is not supported yet". (https://github.com/ClickHouse/clickhouse-java/issues/2279)
+  or writing a `BFloat16` column failed with an unsupported-data-type error. (https://github.com/ClickHouse/clickhouse-java/issues/2279)
 
 ### Bug Fixes 
 
