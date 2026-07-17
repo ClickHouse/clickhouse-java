@@ -12,6 +12,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.TimeZone;
 
 public class SerializerUtilsPrimitiveSerializationTests {
@@ -44,6 +45,70 @@ public class SerializerUtilsPrimitiveSerializationTests {
         reader.next();
 
         Assert.assertEquals(reader.getBigDecimal("value"), new BigDecimal("987654.321"));
+    }
+
+    @Test(dataProvider = "floatColumnValues")
+    public void testSerializeFloatColumnFromVariousNumberTypes(String type, Object value, double expected)
+            throws IOException {
+        RowBinaryWithNamesAndTypesFormatReader reader = serializeSingleValue(type, value);
+
+        reader.next();
+
+        Assert.assertEquals(reader.getDouble("value"), expected, 0.0);
+    }
+
+    @DataProvider(name = "floatColumnValues")
+    private Object[][] floatColumnValues() {
+        return new Object[][] {
+                // A Double supplied for a Float32 column (and a Float for a Float64 column) used to
+                // throw ClassCastException; any Number now narrows through Number#floatValue()/
+                // doubleValue(), matching how the Int* branches accept any Number.
+                {"Float32", 1.5d, 1.5},
+                {"Float32", -2.5d, -2.5},
+                {"Float64", 1.5f, 1.5},
+                {"Float64", -2.5f, -2.5},
+
+                // Same-type value keeps working unchanged (these already passed before the fix).
+                {"Float32", 1.5f, 1.5},
+                {"Float64", 2.5d, 2.5},
+
+                // Other Number subtypes are accepted for both float widths.
+                {"Float32", 3, 3.0},
+                {"Float32", 7L, 7.0},
+                {"Float32", (short) 5, 5.0},
+                {"Float32", (byte) 2, 2.0},
+                {"Float32", BigInteger.valueOf(9), 9.0},
+                {"Float32", new BigDecimal("1.5"), 1.5},
+                {"Float32", new CustomNumber("2.5"), 2.5},
+                {"Float64", 3, 3.0},
+                {"Float64", 7L, 7.0},
+                {"Float64", (short) 5, 5.0},
+                {"Float64", (byte) 2, 2.0},
+                {"Float64", BigInteger.valueOf(9), 9.0},
+                {"Float64", new BigDecimal("1.25"), 1.25},
+                {"Float64", new CustomNumber("2.5"), 2.5},
+
+                // String and Boolean are accepted too, matching the other numeric column branches.
+                {"Float32", "1.5", 1.5},
+                {"Float32", true, 1.0},
+                {"Float32", false, 0.0},
+                {"Float64", "1.5", 1.5},
+                {"Float64", true, 1.0},
+                {"Float64", false, 0.0},
+
+                // Out-of-Float-range values (now reachable through the fix) narrow like a primitive
+                // cast: a Double beyond Float range becomes Float32 infinity rather than throwing.
+                {"Float32", Double.MAX_VALUE, Double.POSITIVE_INFINITY},
+                {"Float32", -Double.MAX_VALUE, Double.NEGATIVE_INFINITY},
+        };
+    }
+
+    @Test
+    public void testSerializeFloatColumnRejectsUnsupportedValue() {
+        Assert.assertThrows(IllegalArgumentException.class,
+                () -> serializeSingleValue("Float32", new Object()));
+        Assert.assertThrows(IllegalArgumentException.class,
+                () -> serializeSingleValue("Float64", new Object()));
     }
 
     @DataProvider(name = "bFloat16Values")
