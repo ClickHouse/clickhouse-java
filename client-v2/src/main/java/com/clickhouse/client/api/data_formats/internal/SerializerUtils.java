@@ -72,6 +72,9 @@ public class SerializerUtils {
             case Map:
                 serializeMapData(stream, value, column);
                 break;
+            case Nested:
+                serializeNestedTypeData(stream, value, column);
+                break;
             case AggregateFunction:
                 serializeAggregateFunction(stream, value, column);
                 break;
@@ -128,6 +131,25 @@ public class SerializerUtils {
             writeNonNull(stream);
         }
         serializeData(stream, value, column);
+    }
+
+    /**
+     * Serializes a {@code Nested} column. In {@code RowBinary} a {@code Nested(f1 T1, ..., fN TN)}
+     * column has the same layout as {@code Array(Tuple(T1, ..., TN))}: a var-uint element count
+     * followed by that many tuples, each carrying the N field values in declaration order. The
+     * value is therefore a list (or array) of tuples, matching what
+     * {@link BinaryStreamReader#readNested(ClickHouseColumn)} produces on read.
+     */
+    private static void serializeNestedTypeData(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
+        if (value == null) {
+            writeVarInt(stream, 0);
+            return;
+        }
+        List<?> tuples = convertArrayValueToList(value);
+        writeVarInt(stream, tuples.size());
+        for (Object tuple : tuples) {
+            serializeTupleData(stream, tuple, column);
+        }
     }
 
     private static final Map<Class<?>, ClickHouseColumn> PREDEFINED_TYPE_COLUMNS = getPredefinedTypeColumnsMap();

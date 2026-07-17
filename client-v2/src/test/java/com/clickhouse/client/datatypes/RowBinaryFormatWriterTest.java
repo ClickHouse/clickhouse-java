@@ -535,6 +535,27 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
     }
 
     @Test (groups = { "integration" })
+    public void writeNestedTypeTests() throws Exception {
+        String tableName = "rowBinaryFormatWriterTest_writeNestedTypeTests_" + UUID.randomUUID().toString().replace('-', '_');
+        // flatten_nested = 0 keeps the column typed as Nested(...) in the schema instead of
+        // expanding it into parallel Array(...) sub-columns; the un-flattened Nested type is the
+        // one that has to be serialized as Array(Tuple(...)).
+        String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
+                " (id Int32, " +
+                "  n Nested(a UInt32, b Nullable(String)) " +
+                "  ) Engine = MergeTree ORDER BY id SETTINGS flatten_nested = 0";
+
+        List<Object> nested = Arrays.asList(Arrays.asList(10L, "x"), Arrays.asList(20L, null));
+        Field[][] rows = new Field[][] {{
+                    new Field("id", 1), //Row ID
+                    new Field("n", nested).set(nested) //Nested
+                }
+        };
+
+        writeTest(tableName, tableCreate, rows);
+    }
+
+    @Test (groups = { "integration" })
     public void writeNullableTests() throws Exception {
         String tableName = "rowBinaryFormatWriterTest_writeNullableTests_" + UUID.randomUUID().toString().replace('-', '_');
         String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
