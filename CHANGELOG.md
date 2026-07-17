@@ -5,6 +5,19 @@
 ### Bug Fixes 
 
 - **[client-v2]** Fixed binary array decoding for nullable element types so `Array(Nullable(Float64))` and similar columns now return boxed arrays such as `Double[]` instead of `Object[]`. This keeps null-supporting arrays aligned with their element type while preserving the existing `Object[]` fallback for Variant/Dynamic/Geometry arrays. (https://github.com/ClickHouse/clickhouse-java/issues/2846)
+
+- **[client-v2]** Fixed `Float32`/`Float64` columns throwing `ClassCastException` when a value of a
+  non-matching boxed numeric type was supplied through the `Object`-typed insert surface — for example a
+  `Double` (the natural type of a Java literal like `1.5`) for a `Float32` column, or a `Float` for a
+  `Float64` column. The `RowBinary` serializer now narrows any `Number` (and, like the `Int*` columns,
+  a `String`/`Boolean`) through `Number#floatValue()`/`Number#doubleValue()`, so the float columns accept
+  the same value types the integer columns already did. (https://github.com/ClickHouse/clickhouse-java/issues/2930)
+
+- **[client-v2]** Fixed POJO insert error classification so transport write failures such as java.net.SocketException:
+  Broken pipe (Write failed) are now surfaced as transfer/network errors instead of being wrapped as
+  DataSerializationException. This only changes the exception type reported for request-body transport failures during
+  Client.insert(...); actual POJO reflection/serialization failures are still reported as DataSerializationException.
+  (https://github.com/ClickHouse/clickhouse-java/issues/2729)
 - **[client-v2]** Fixed binary varint decoding for length and count fields so overflowing or overlong values fail with an `IOException` instead of being decoded into corrupted or negative `int` values. (https://github.com/ClickHouse/clickhouse-java/issues/2902)
 
 - **[client-v2]** Fixed container query parameters being sent unquoted, so `Client.query(sql, params, settings)` binding
@@ -144,6 +157,8 @@ like `ch_db_01`. This is mostly used in k8s environment. (https://github.com/Cli
 - **[client-v2]** Added example of working with `Apache Arrow` library using client. (https://github.com/ClickHouse/clickhouse-java/pull/2820)
 
 - **[repo]** Added a contribution guide. Please review and send us your feedback. (https://github.com/ClickHouse/clickhouse-java/pull/2859)
+
+- **[client-v2]** Added endpoint failover support: when multiple endpoints are configured and a request fails with a retryable error (connect timeout, connection refused, HTTP 503, etc.), the client now automatically retries against the next available endpoint instead of always targeting the first one. Failed endpoints are quarantined for 30 seconds before being retried. (https://github.com/ClickHouse/clickhouse-java/issues/2855)
 
 ### Bug Fixes
 

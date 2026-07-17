@@ -69,6 +69,33 @@ Avoid broad dependency, formatting, or unrelated cleanup churn unless required b
 - Favor scenario coverage (boundary values, invalid input, nullable/nested interactions) over raw
   coverage percentage.
 - Keep tests compact, readable, and focused on the scenario being verified. Reduce duplication in test setup and assertions so a reviewer can quickly see what behavior is being tested.
+- When several cases differ only in their inputs/expected values, use a TestNG `@DataProvider`
+  (one parametrized test) rather than multiple near-identical test methods — it stays compact
+  and is trivial to extend with another row.
+- Don't put issue/PR-number references or narrative explanations inside test code. Let the
+  test name and assertions speak; keep the "why" in the commit/PR and `CHANGELOG.md`.
+- For serialization/round-trip tests, place the field under test **in the middle of the
+  schema** with a fixed-width column after it (e.g. `Tuple(Int32, Nullable(X), Float64)`) and
+  assert the **whole** row — a dropped/extra byte then shifts every following field and is
+  actually detected, instead of passing silently on a single-column row.
+- Prefer **integration** tests over unit-only tests for read/deserialization and other
+  behavior that flows through the client's actual runtime path (`client-v2`
+  `BinaryStreamReader`, the query/insert path); a unit test on a helper can pass while the
+  live path stays broken.
+
+## Architecture conventions
+
+- **Put value/parameter conversion in the value-converter classes, not in transport code.**
+  Formatting logic (e.g. rendering a parameter for the HTTP `param_<name>` interface) belongs
+  on the existing converters as reusable **instance** methods — avoid static formatting
+  helpers, and keep `HttpAPIClientHelper` / transport code free of ClickHouse-specific
+  formatting. The transport layer should receive **already-formatted** values.
+- **Prefer an explicit stack (`ArrayDeque`) over recursion** when walking arbitrarily nested
+  containers (Array/Tuple/Map), so deep nesting is bounded by the heap, not the call stack.
+- **Fix read-path bugs where the value is actually read.** `DateTime`/type/timezone handling
+  for results lives in `client-v2` `BinaryStreamReader` (where the column and its timezone are
+  resolved during a read) — not in `clickhouse-data` `ClickHouseColumn`, which is a dead path
+  for that behavior.
 
 ## Closeout checklist
 
