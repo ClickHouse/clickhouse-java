@@ -508,14 +508,16 @@ public class HttpAPIClientHelper {
         return context;
     }
 
-    private URI createRequestURI(Endpoint server, Map<String,Object> requestConfig, boolean addParameters) {
+    private URI createRequestURI(Endpoint server, Map<String,Object> requestConfig, boolean isMultipartRequest) {
         URI uri;
         try {
             URIBuilder uriBuilder = new URIBuilder(server.getURI());
             addRequestParams(requestConfig, uriBuilder::addParameter);
 
-            if (addParameters) {
+            if (!isMultipartRequest) {
                 addStatementParams(requestConfig, uriBuilder::addParameter);
+            } else {
+                uriBuilder.removeParameter(ClickHouseHttpProto.QPARAM_DECOMPRESS); // multipart request doesn't support compression yet
             }
 
             uri = uriBuilder.optimize().build();
@@ -573,35 +575,32 @@ public class HttpAPIClientHelper {
         boolean useMultipart = ClientConfigProperties.HTTP_SEND_PARAMS_IN_BODY.<Boolean>getOrDefault(requestConfig) &&
                 requestConfig.containsKey(HttpAPIClientHelper.KEY_STATEMENT_PARAMS);
 
-        // adjust configuration
-        if (useMultipart) {
-            requestConfig.put(ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey(), false); // turn-off client-req compression
-        }
-
         // create configuration dependent objects
-        final URI uri = createRequestURI(server, requestConfig, !useMultipart);
+        final URI uri = createRequestURI(server, requestConfig, useMultipart);
         final HttpPost req = createPostRequest(uri, requestConfig);
 
+        final HttpEntity httpEntity;
         if (useMultipart) {
             MultipartEntityBuilder multipartEntityBuilder = MultipartEntityBuilder.create();
             addStatementParams(requestConfig, multipartEntityBuilder::addTextBody);
             multipartEntityBuilder.addTextBody(ClickHouseHttpProto.QPARAM_QUERY_STMT, body);
 
-            HttpEntity httpEntity = multipartEntityBuilder.build();
+            httpEntity = multipartEntityBuilder.build();
             req.setHeader(HttpHeaders.CONTENT_TYPE, httpEntity.getContentType()); // set proper content type with generated boundary value
-            req.setEntity(wrapRequestEntity(httpEntity, requestConfig));
-
         } else {
-            final HttpEntity httpEntity;
             try {
                 final String contentEncoding = req.containsHeader(HttpHeaders.CONTENT_ENCODING) ? req.getHeader(HttpHeaders.CONTENT_ENCODING).getValue() : null;
                 httpEntity = new ByteArrayEntity(body.getBytes(StandardCharsets.UTF_8.name()), CONTENT_TYPE, contentEncoding);
             } catch (UnsupportedEncodingException | ProtocolException e) {
                 throw new ClientException("failed to create request body entity", e);
             }
+        }
+        // adjust configuration
+        if (useMultipart) {
+            req.setEntity(httpEntity); // multipart doesn't support compression right now
+        } else {
             req.setEntity(wrapRequestEntity(httpEntity, requestConfig));
         }
-
         return new TransportRequestImpl(req, requestConfig);
     }
 
@@ -723,7 +722,7 @@ public class HttpAPIClientHelper {
     }
 
     public TransportRequest createRequest(Endpoint server, Map<String, Object> requestConfig, IOCallback<OutputStream> writeCallback) {
-        final URI uri = createRequestURI(server, requestConfig, true);
+        final URI uri = createRequestURI(server, requestConfig, false);
         final HttpPost req = createPostRequest(uri, requestConfig);
         try {
             String contentEncoding = req.containsHeader(HttpHeaders.CONTENT_ENCODING) ? req.getHeader(HttpHeaders.CONTENT_ENCODING).getValue() : null;
@@ -852,13 +851,13 @@ public class HttpAPIClientHelper {
             // enable_http_compression make server react on http header
             // for client side compression Content-Encoding should be set
             // for server side compression Accept-Encoding should be set
-            consumer.accept("enable_http_compression", "1");
+            consumer.accept(ClickHouseHttpProto.QPARAM_ENABLE_HTTP_COMPRESSION, "1");
         } else {
             if (serverCompression) {
-                consumer.accept("compress", "1");
+                consumer.accept(ClickHouseHttpProto.QPARAM_COMPRESS, "1");
             }
             if (clientCompression) {
-                consumer.accept("decompress", "1");
+                consumer.accept(ClickHouseHttpProto.QPARAM_DECOMPRESS, "1");
             }
         }
 

@@ -363,7 +363,6 @@ public class TransportBaseTests extends BaseIntegrationTest {
                             new InsertSettings().setQueryId(queryId)).get(35, TimeUnit.SECONDS)) {
                         opFinished.set(true);
                     } catch (Throwable t) {
-                        t.printStackTrace();
                         opError.set(t);
                     }
                 };
