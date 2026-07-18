@@ -2,6 +2,21 @@
 
 [Release Migration Guide](docs/releases/0_11_0.md)
 
+### New Features
+
+- **[client-v2, jdbc-v2]** Added support for the `BFloat16` data type (ClickHouse `24.11+`). `BFloat16` columns are read as
+  Java `float` values (widening is lossless) and written from `float`/`Float` values, including through generic records, POJO
+  binding, `Nullable(BFloat16)`, and `BFloat16` values held in `Dynamic`/`Variant` columns. On write the client keeps the
+  high 16 bits of the `float`, matching the ClickHouse server's own `Float32` → `BFloat16` conversion. In the JDBC driver
+  (`jdbc-v2`) `BFloat16` maps to `java.sql.Types.FLOAT` / `java.lang.Float` and is read and written through the standard
+  `getFloat`/`setFloat` and `getObject` accessors, and reported as such by `ResultSetMetaData` and `DatabaseMetaData`.
+  Previously reading or writing a `BFloat16` column failed with an
+  unsupported-data-type error. (https://github.com/ClickHouse/clickhouse-java/issues/2279)
+- **[client-v2, jdbc-v2]** Added TLS cipher suite selection. `Client.Builder.setSSLCipherSuites(String...)` (client-v2)
+  and the comma-separated `ssl_cipher_suites` connection property (client-v2 and jdbc-v2) restrict the cipher suites
+  enabled on secure connections; when unset, the transport defaults are used. Cipher-suite selection is independent of the
+  trust configuration and `ssl_mode`. (https://github.com/ClickHouse/clickhouse-java/issues/2882)
+
 ### Bug Fixes 
 
 - **[client-v2]** Fixed binary array decoding for nullable element types so `Array(Nullable(Float64))` and similar columns now return boxed arrays such as `Double[]` instead of `Object[]`. This keeps null-supporting arrays aligned with their element type while preserving the existing `Object[]` fallback for Variant/Dynamic/Geometry arrays. (https://github.com/ClickHouse/clickhouse-java/issues/2846)
@@ -94,6 +109,17 @@
   milliseconds consistently. (https://github.com/ClickHouse/clickhouse-java/issues/2358)
 
 ### New Features
+
+- **[client-v2, jdbc-v2]** Added support for an application-supplied `javax.net.ssl.SSLContext`. In client-v2,
+  `Client.Builder.setSSLContext(SSLContext)` hands the client a fully pre-built context that is used as is; in
+  jdbc-v2 the same context may be passed as a live object in the connection `Properties` under the `ssl_context`
+  key (added with `Properties.put`, since it is not a string). Trust/key material options cannot be combined with
+  a custom context and are rejected; `ssl_mode` still applies but only to server hostname verification. This
+  supports in-memory TLS material that must never be written to disk, including behind connection pools that only
+  expose `java.util.Properties`.
+  - Examples for client-v2 https://github.com/ClickHouse/clickhouse-java/blob/main/examples/client-v2/src/main/java/com/clickhouse/examples/client_v2/SSLExamples.java
+  - Examples for jdbc-v2 https://github.com/ClickHouse/clickhouse-java/blob/main/examples/jdbc/src/main/java/com/clickhouse/examples/jdbc/SSLExamples.java
+  (https://github.com/ClickHouse/clickhouse-java/pull/2918, https://github.com/ClickHouse/clickhouse-java/issues/2909)
 
 - **[jdbc-v2, client-v2]** Implemented SSL modes configuration. Now it is possible to set `ssl_mode` to `DISABLED`, 
   `TRUST`, `VERIFY_CA` and `STRICT`. Note for V1 users: `NONE` is supported only by JDBC driver and mapped to `TRUST`.

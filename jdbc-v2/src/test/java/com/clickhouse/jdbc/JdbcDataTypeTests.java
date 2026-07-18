@@ -13,6 +13,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
+import org.testng.SkipException;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
@@ -494,6 +495,176 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
         }
     }
 
+
+    // BFloat16 was introduced in ClickHouse 24.11.
+    private static final String BFLOAT16_UNSUPPORTED_VERSIONS = "(,24.10]";
+
+    @Test(groups = { "integration" })
+    public void testBFloat16() throws SQLException {
+        if (ClickHouseVersion.of(getServerVersion()).check(BFLOAT16_UNSUPPORTED_VERSIONS)) {
+            throw new SkipException("BFloat16 was introduced in ClickHouse 24.11");
+        }
+
+        // Exhaustively cover reading every one of the 2^16 BFloat16 bit patterns through the JDBC
+        // driver, which must expose BFloat16 as java.lang.Float. The dataset is written with SQL
+        // text literals so the *server* produces the stored bytes, decoupling the read path under
+        // test from any write-side codec error. Row b holds the BFloat16 whose bit pattern is b, so
+        // a read must widen it to Float.intBitsToFloat(b << 16) (NaN inputs collapse to a single
+        // canonical NaN on the server and only read back as NaN).
+        final String table = "test_bfloat16";
+        final int count = 1 << 16;
+        final int batchSize = 4096; // keep each INSERT well under max_query_size
+        runQuery("DROP TABLE IF EXISTS " + table);
+        runQuery("CREATE TABLE " + table
+                + " (rowId Int32, v BFloat16, vNull Nullable(BFloat16)) ENGINE = MergeTree ORDER BY rowId");
+
+        try (Connection conn = getJdbcConnection();
+                Statement stmt = conn.createStatement()) {
+            for (int start = 0; start < count; start += batchSize) {
+                int end = Math.min(start + batchSize, count);
+                StringBuilder insert = new StringBuilder("INSERT INTO ").append(table).append(" VALUES ");
+                for (int b = start; b < end; b++) {
+                    String literal = bFloat16Literal(b);
+                    if (b > start) {
+                        insert.append(',');
+                    }
+                    insert.append('(').append(b).append(',').append(literal).append(',')
+                            .append(b == 0 ? "NULL" : literal).append(')');
+                }
+                stmt.executeUpdate(insert.toString());
+            }
+        }
+
+        // The server's stored bits are the ground truth for the read: reinterpretAsUInt16(v) yields
+        // the exact 16-bit pattern the server wrote, so a correct read must widen it to
+        // Float.intBitsToFloat(bits << 16). Deriving the expectation from the stored bits keeps the
+        // assertion correct regardless of how the server converts the text literal to BFloat16 - in
+        // particular the server flushes BFloat16 subnormals to zero, so those patterns are stored as
+        // +/-0 even though the literal named a tiny subnormal.
+        try (Connection conn = getJdbcConnection();
+                Statement stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery(
+                        "SELECT rowId, v, reinterpretAsUInt16(v) AS bits, vNull FROM " + table + " ORDER BY rowId")) {
+            ResultSetMetaData meta = rs.getMetaData();
+            assertEquals(meta.getColumnType(2), Types.FLOAT, "BFloat16 should map to Types.FLOAT");
+            assertEquals(meta.getColumnClassName(2), Float.class.getName(), "BFloat16 should map to java.lang.Float");
+
+            int rows = 0;
+            while (rs.next()) {
+                int b = rs.getInt("rowId");
+                float expected = Float.intBitsToFloat(rs.getInt("bits") << 16);
+                Object obj = rs.getObject("v");
+                assertTrue(obj instanceof Float,
+                        "BFloat16 getObject should return Float but was "
+                                + (obj == null ? "null" : obj.getClass().getName()));
+                assertBFloat16Equals((Float) obj, expected);
+                assertBFloat16Equals(rs.getFloat("v"), expected);
+                if (b == 0) {
+                    assertNull(rs.getObject("vNull"));
+                } else {
+                    assertBFloat16Equals((Float) rs.getObject("vNull"), expected);
+                }
+                rows++;
+            }
+            assertEquals(rows, count);
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testBFloat16WriteAsFloat() throws SQLException {
+        if (ClickHouseVersion.of(getServerVersion()).check(BFLOAT16_UNSUPPORTED_VERSIONS)) {
+            throw new SkipException("BFloat16 was introduced in ClickHouse 24.11");
+        }
+
+        // Writing through the JDBC Float surface: setFloat must store a BFloat16. Exactly
+        // representable values round-trip unchanged; 3.14f is truncated to the high 16 bits
+        // (0x4048F5C3 -> 0x40480000 = 3.125f), matching the server's Float32 -> BFloat16 cast.
+        final String table = "test_bfloat16_write";
+        runQuery("DROP TABLE IF EXISTS " + table);
+        runQuery("CREATE TABLE " + table
+                + " (rowId Int32, v BFloat16, vNull Nullable(BFloat16)) ENGINE = MergeTree ORDER BY rowId");
+
+        float[] inputs = { 0f, 0.5f, 1.5f, -2.5f, 3.14f, 128.0f };
+        try (Connection conn = getJdbcConnection();
+                PreparedStatement ps = conn.prepareStatement("INSERT INTO " + table + " VALUES (?, ?, ?)")) {
+            for (int i = 0; i < inputs.length; i++) {
+                ps.setInt(1, i);
+                ps.setFloat(2, inputs[i]);
+                ps.setFloat(3, inputs[i]);
+                ps.executeUpdate();
+            }
+        }
+
+        try (Connection conn = getJdbcConnection();
+                Statement stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery("SELECT rowId, v, vNull FROM " + table + " ORDER BY rowId")) {
+            for (int i = 0; i < inputs.length; i++) {
+                assertTrue(rs.next());
+                float expected = Float.intBitsToFloat(Float.floatToIntBits(inputs[i]) & 0xFFFF0000);
+                assertEquals(rs.getFloat("v"), expected, 0f);
+                assertEquals(rs.getObject("v"), Float.valueOf(expected));
+                assertEquals(rs.getFloat("vNull"), expected, 0f);
+                assertEquals(rs.getObject("vNull"), Float.valueOf(expected));
+            }
+            assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testBFloat16ResultSetMetaData() throws SQLException {
+        if (ClickHouseVersion.of(getServerVersion()).check(BFLOAT16_UNSUPPORTED_VERSIONS)) {
+            throw new SkipException("BFloat16 was introduced in ClickHouse 24.11");
+        }
+
+        // ResultSetMetaData must report a BFloat16 result column - and a Nullable(BFloat16) one - as
+        // java.sql.Types.FLOAT / java.lang.Float, with the ClickHouse type name preserved verbatim.
+        try (Connection conn = getJdbcConnection();
+                Statement stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery(
+                        "SELECT CAST(1.5 AS BFloat16) AS v, CAST(NULL AS Nullable(BFloat16)) AS vNull")) {
+            ResultSetMetaData meta = rs.getMetaData();
+            assertEquals(meta.getColumnCount(), 2);
+
+            assertEquals(meta.getColumnType(1), Types.FLOAT);
+            assertEquals(meta.getColumnTypeName(1), "BFloat16");
+            assertEquals(meta.getColumnClassName(1), Float.class.getName());
+
+            assertEquals(meta.getColumnType(2), Types.FLOAT);
+            assertEquals(meta.getColumnTypeName(2), "Nullable(BFloat16)");
+            assertEquals(meta.getColumnClassName(2), Float.class.getName());
+        }
+    }
+
+    // Text form of the exact BFloat16 whose bit pattern is {@code pattern}, suitable for use as a
+    // SQL numeric literal. Non-finite patterns use ClickHouse's nan/inf/-inf tokens; every other
+    // pattern uses the shortest round-trippable decimal of Float.intBitsToFloat(pattern << 16),
+    // which is exactly representable in BFloat16 (its low 16 mantissa bits are zero).
+    private static String bFloat16Literal(int pattern) {
+        float value = Float.intBitsToFloat(pattern << 16);
+        if (Float.isNaN(value)) {
+            return "nan";
+        }
+        if (value == Float.POSITIVE_INFINITY) {
+            return "inf";
+        }
+        if (value == Float.NEGATIVE_INFINITY) {
+            return "-inf";
+        }
+        return Float.toString(value);
+    }
+
+    // BFloat16 keeps the high 16 bits of a float32, so every non-NaN value round-trips bit-for-bit;
+    // NaN inputs collapse to a single canonical NaN on the server and only read back as NaN.
+    private static void assertBFloat16Equals(Float actual, Float expected) {
+        if (expected == null) {
+            assertNull(actual);
+        } else if (Float.isNaN(expected)) {
+            assertTrue(actual != null && Float.isNaN(actual), "expected a NaN but got " + actual);
+        } else {
+            assertTrue(actual != null, "expected " + expected + " but got null");
+            assertEquals(Float.floatToRawIntBits(actual), Float.floatToRawIntBits(expected));
+        }
+    }
 
     @Test(groups = { "integration" })
     public void testUUIDTypes() throws Exception {

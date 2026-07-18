@@ -986,6 +986,21 @@ public final class BinaryStreamUtils {
     }
 
     /**
+     * Write a bfloat16 value to given output stream. {@code BFloat16} occupies the
+     * high 16 bits of the IEEE-754 {@code float} representation, so the low 16 bits of
+     * the mantissa are dropped (truncated toward zero), which matches how the ClickHouse
+     * server converts {@code Float32} to {@code BFloat16}.
+     *
+     * @param output non-null output stream
+     * @param value  float value to be stored as bfloat16
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeBFloat16(OutputStream output, float value) throws IOException {
+        writeInt16(output, (short) (Float.floatToIntBits(value) >>> 16));
+    }
+
+    /**
      * Read a double value from given input stream.
      *
      * @param input non-null input stream

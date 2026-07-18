@@ -164,6 +164,8 @@ public class BinaryStreamReader {
                     return (T) readDecimal(ClickHouseDataType.Decimal128.getMaxPrecision(), scale);
                 case Decimal256:
                     return (T) readDecimal(ClickHouseDataType.Decimal256.getMaxPrecision(), scale);
+                case BFloat16:
+                    return (T) (Float)readBFloat16LE();
                 case Float32:
                     return (T) (Float)readFloatLE();
                 case Float64:
@@ -507,6 +509,18 @@ public class BinaryStreamReader {
      */
     public float readFloatLE() throws IOException {
         return Float.intBitsToFloat(readIntLE());
+    }
+
+    /**
+     * Reads a little-endian {@code BFloat16} value from the internal input stream and
+     * widens it to a {@code float}. {@code BFloat16} carries the high 16 bits of the
+     * IEEE-754 {@code float} representation, so widening (shifting them back into the
+     * high bits) is lossless.
+     * @return float value
+     * @throws IOException when IO error occurs
+     */
+    public float readBFloat16LE() throws IOException {
+        return Float.intBitsToFloat(readUnsignedShortLE() << 16);
     }
 
     private static final byte[] B1 = new byte[8];
@@ -1268,6 +1282,7 @@ public class BinaryStreamReader {
             case Int32:
             case UInt32:
             case Int64:
+            case BFloat16:
             case Float32:
             case Float64:
             case Bool:
@@ -1473,8 +1488,6 @@ public class BinaryStreamReader {
             }
             case AggregateFunction:
                 throw new ClientException("Aggregate functions are not supported yet");
-            case BFloat16:
-                throw new ClientException("BFloat16 is not supported yet");
             default:
                 return ClickHouseColumn.of("v", type, false, 0, 0);
         }

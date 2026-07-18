@@ -111,13 +111,53 @@ public class SerializerUtilsPrimitiveSerializationTests {
                 () -> serializeSingleValue("Float64", new Object()));
     }
 
+    @Test
+    public void testSerializeBFloat16RoundTripAllValues() throws IOException {
+        // Exhaustively round-trip every one of the 2^16 BFloat16 bit patterns. For pattern b the
+        // canonical float32 is intBitsToFloat(b << 16); the client writes its high 16 bits and reads
+        // them back widened. Every non-NaN pattern - including +/-0, subnormals and +/-Infinity -
+        // must round-trip bit-for-bit. NaN inputs collapse to a single NaN because Float#floatToIntBits
+        // normalizes the payload on write, so they are only required to read back as a NaN.
+        final int count = 1 << 16;
+        Object[] inputs = new Object[count];
+        for (int b = 0; b < count; b++) {
+            inputs[b] = Float.intBitsToFloat(b << 16);
+        }
+
+        RowBinaryWithNamesAndTypesFormatReader reader = serializeColumn("BFloat16", inputs);
+
+        for (int b = 0; b < count; b++) {
+            Assert.assertNotNull(reader.next(), "missing row for BFloat16 pattern " + hex(b));
+            float actual = reader.getFloat("value");
+            if (Float.isNaN((Float) inputs[b])) {
+                Assert.assertTrue(Float.isNaN(actual), "BFloat16 pattern " + hex(b) + " must read back as NaN");
+            } else {
+                Assert.assertEquals(Float.floatToRawIntBits(actual), b << 16,
+                        "BFloat16 pattern " + hex(b) + " did not round-trip");
+            }
+        }
+        Assert.assertNull(reader.next(), "unexpected extra row after all 65,536 BFloat16 patterns");
+    }
+
+    private static String hex(int bFloat16Bits) {
+        return String.format("0x%04X", bFloat16Bits);
+    }
+
     private RowBinaryWithNamesAndTypesFormatReader serializeSingleValue(String type, Object value)
+            throws IOException {
+        return serializeColumn(type, new Object[]{value});
+    }
+
+    private RowBinaryWithNamesAndTypesFormatReader serializeColumn(String type, Object[] values)
             throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         BinaryStreamUtils.writeVarInt(out, 1);
         BinaryStreamUtils.writeString(out, "value");
         BinaryStreamUtils.writeString(out, type);
-        SerializerUtils.serializeData(out, value, ClickHouseColumn.of("value", type));
+        ClickHouseColumn column = ClickHouseColumn.of("value", type);
+        for (Object value : values) {
+            SerializerUtils.serializeData(out, value, column);
+        }
 
         return new RowBinaryWithNamesAndTypesFormatReader(
                 new ByteArrayInputStream(out.toByteArray()),
