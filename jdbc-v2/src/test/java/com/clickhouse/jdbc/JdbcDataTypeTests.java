@@ -610,6 +610,31 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
         }
     }
 
+    @Test(groups = { "integration" })
+    public void testBFloat16ResultSetMetaData() throws SQLException {
+        if (ClickHouseVersion.of(getServerVersion()).check(BFLOAT16_UNSUPPORTED_VERSIONS)) {
+            throw new SkipException("BFloat16 was introduced in ClickHouse 24.11");
+        }
+
+        // ResultSetMetaData must report a BFloat16 result column - and a Nullable(BFloat16) one - as
+        // java.sql.Types.FLOAT / java.lang.Float, with the ClickHouse type name preserved verbatim.
+        try (Connection conn = getJdbcConnection();
+                Statement stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery(
+                        "SELECT CAST(1.5 AS BFloat16) AS v, CAST(NULL AS Nullable(BFloat16)) AS vNull")) {
+            ResultSetMetaData meta = rs.getMetaData();
+            assertEquals(meta.getColumnCount(), 2);
+
+            assertEquals(meta.getColumnType(1), Types.FLOAT);
+            assertEquals(meta.getColumnTypeName(1), "BFloat16");
+            assertEquals(meta.getColumnClassName(1), Float.class.getName());
+
+            assertEquals(meta.getColumnType(2), Types.FLOAT);
+            assertEquals(meta.getColumnTypeName(2), "Nullable(BFloat16)");
+            assertEquals(meta.getColumnClassName(2), Float.class.getName());
+        }
+    }
+
     // Text form of the exact BFloat16 whose bit pattern is {@code pattern}, suitable for use as a
     // SQL numeric literal. Non-finite patterns use ClickHouse's nan/inf/-inf tokens; every other
     // pattern uses the shortest round-trippable decimal of Float.intBitsToFloat(pattern << 16),
