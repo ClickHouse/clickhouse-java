@@ -31,6 +31,8 @@ import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import javax.net.ssl.SSLContext;
+
 public class JdbcConfiguration {
     public static final Logger LOG = LoggerFactory.getLogger(JdbcConfiguration.class);
 
@@ -72,6 +74,13 @@ public class JdbcConfiguration {
     final Map<String, String> clientProperties;
     public Map<String, String> getClientProperties() {
         return ImmutableMap.copyOf(clientProperties);
+    }
+
+    // A pre-built SSLContext can be passed only as a live object in the connection Properties, so it is
+    // kept apart from the string-only clientProperties and forwarded to the underlying client directly.
+    private SSLContext sslContext;
+    public SSLContext getSslContext() {
+        return sslContext;
     }
 
     private final Map<String, String> driverProperties;
@@ -347,6 +356,11 @@ public class JdbcConfiguration {
         for (Map.Entry<Object, Object> entry : providedProperties.entrySet()) {
             if (entry.getKey() instanceof String && entry.getValue() instanceof String) {
                 props.put((String) entry.getKey(), (String) entry.getValue());
+            } else if (ClientConfigProperties.SSL_CONTEXT.getKey().equals(entry.getKey())
+                    && entry.getValue() instanceof SSLContext) {
+                // A pre-built SSLContext is the one property allowed to carry a live object: it cannot be
+                // represented as a string, so it is captured here and forwarded to the client separately.
+                this.sslContext = (SSLContext) entry.getValue();
             } else {
                 throw new IllegalArgumentException("Property key and value should be a string");
             }
@@ -397,6 +411,16 @@ public class JdbcConfiguration {
             }
         }
 
+        // A pre-built SSLContext can only be supplied as a live object via Properties.put(...); such an
+        // object is captured above and never lands in clientProperties. A textual 'ssl_context' value
+        // (from a URL query parameter or setProperty) can never be a valid context, so reject it here
+        // instead of silently forwarding it to the client where it would be ignored.
+        if (clientProperties.containsKey(ClientConfigProperties.SSL_CONTEXT.getKey())) {
+            throw new SQLException("Property '" + ClientConfigProperties.SSL_CONTEXT.getKey()
+                    + "' must be a javax.net.ssl.SSLContext object supplied via Properties.put(...); "
+                    + "it cannot be provided as a string or URL query parameter");
+        }
+
         // Fill list of client properties information, add not specified properties (doesn't affect client properties)
         for (ClientConfigProperties clientProp : ClientConfigProperties.values()) {
             DriverPropertyInfo propertyInfo = propertyInfos.get(clientProp.getKey());
@@ -445,6 +469,9 @@ public class JdbcConfiguration {
         builder.addEndpoint(connectionUrl)
                 .setOptions(clientProperties)
                 .typeHintMapping(defaultTypeHintMapping());
+        if (sslContext != null) {
+            builder.setSSLContext(sslContext);
+        }
         return builder;
     }
 

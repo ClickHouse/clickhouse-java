@@ -5,10 +5,16 @@ import com.clickhouse.client.api.enums.SSLMode;
 import com.clickhouse.client.api.query.GenericRecord;
 import lombok.extern.slf4j.Slf4j;
 
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManagerFactory;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.security.KeyStore;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
 import java.util.List;
 
 /**
@@ -26,6 +32,14 @@ import java.util.List;
  *     <li>Connecting to a server with a self-signed certificate without any trust material -
  *     {@link SSLMode#TRUST} accepts any server certificate and skips hostname verification.
  *     Use it only for testing or in fully trusted environments.</li>
+ *     <li>Restricting the negotiated TLS cipher suites with
+ *     {@link Client.Builder#setSSLCipherSuites(String...)} - useful to enforce a stronger or
+ *     compliance-mandated set of cipher suites instead of the transport defaults.</li>
+ *     <li>Supplying a fully pre-built {@link javax.net.ssl.SSLContext} with
+ *     {@link Client.Builder#setSSLContext(javax.net.ssl.SSLContext)} - useful when the trust/key
+ *     material is assembled entirely in memory (e.g. fetched and decrypted from a secret store) and
+ *     must never be written to disk. The client uses the context as is; {@link SSLMode} then only
+ *     controls hostname verification.</li>
  * </ul>
  *
  * <p>More SSL examples (mTLS, trust stores, SNI) will be added to this class later.</p>
@@ -70,6 +84,8 @@ public class SSLExamples {
             if (rootCert != null) {
                 connectWithCustomRootCertificate(endpoint, database, user, password, rootCert);
                 connectWithRootCertificateAsString(endpoint, database, user, password, rootCert);
+                connectWithCipherSuites(endpoint, database, user, password, rootCert);
+                connectWithCustomSSLContext(endpoint, database, user, password, rootCert);
             } else {
                 log.info("chRootCert is not set - skipping the custom CA certificate examples. "
                         + "Pass the path to the CA certificate (PEM) that signed the server certificate to run them.");
@@ -87,6 +103,10 @@ public class SSLExamples {
             connectWithCustomRootCertificate(server.getEndpoint(), database,
                     SecureServerSupport.USER, SecureServerSupport.PASSWORD, server.getCaCertPath());
             connectWithRootCertificateAsString(server.getEndpoint(), database,
+                    SecureServerSupport.USER, SecureServerSupport.PASSWORD, server.getCaCertPath());
+            connectWithCipherSuites(server.getEndpoint(), database,
+                    SecureServerSupport.USER, SecureServerSupport.PASSWORD, server.getCaCertPath());
+            connectWithCustomSSLContext(server.getEndpoint(), database,
                     SecureServerSupport.USER, SecureServerSupport.PASSWORD, server.getCaCertPath());
         } catch (Exception e) {
             log.error("Failed to run the SSL example against a local Docker server", e);
@@ -189,6 +209,92 @@ public class SSLExamples {
                     rows.get(0).getString("user"), rows.get(0).getString("version"));
         } catch (Exception e) {
             log.error("Secure connection with a CA certificate passed as a string failed", e);
+        }
+    }
+
+    /**
+     * Connects while restricting the TLS cipher suites the client is allowed to negotiate, using
+     * {@link Client.Builder#setSSLCipherSuites(String...)}. Only the listed suites are enabled on the
+     * socket (subject to what the JVM and the server support); this is useful to enforce a stronger or
+     * compliance-mandated set of cipher suites rather than relying on the transport defaults.
+     *
+     * <p>The CA certificate is still used to verify the server, and hostname verification stays enabled -
+     * cipher-suite selection is independent of the trust configuration and the SSL mode. The suites below
+     * cover TLS 1.3 and TLS 1.2; keep at least one suite the server actually supports, or the handshake
+     * fails.</p>
+     */
+    static void connectWithCipherSuites(String endpoint, String database, String user, String password,
+                                        String rootCert) {
+        log.info("Connecting to {} with a restricted set of TLS cipher suites", endpoint);
+        try (Client client = new Client.Builder()
+                .addEndpoint(endpoint)
+                .setUsername(user)
+                .setPassword(password)
+                .setDefaultDatabase(database)
+                .setRootCertificate(rootCert)
+                // Restrict negotiation to these cipher suites (TLS 1.3 and TLS 1.2).
+                .setSSLCipherSuites("TLS_AES_256_GCM_SHA384", "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384")
+                .build()) {
+
+            List<GenericRecord> rows = client.queryAll("SELECT currentUser() AS user, version() AS version");
+            log.info("Connected securely (restricted cipher suites) as '{}' to ClickHouse {}",
+                    rows.get(0).getString("user"), rows.get(0).getString("version"));
+        } catch (Exception e) {
+            log.error("Secure connection with restricted cipher suites failed", e);
+        }
+    }
+
+    /**
+     * Connects using a fully pre-built {@link SSLContext} supplied with
+     * {@link Client.Builder#setSSLContext(SSLContext)}.
+     *
+     * <p>This mirrors an enterprise use-case where certificates and keys are held only in memory
+     * (for example fetched and decrypted from a secret store) and must never be written to disk.
+     * The whole {@link SSLContext} is assembled by the application and handed to the client, which
+     * uses it as is; the CA certificate, trust store and client certificate/key builder options cannot
+     * be combined with it and are rejected. {@link SSLMode} still applies to server hostname verification
+     * only; here the default {@link SSLMode#STRICT} keeps full verification because the in-memory trust
+     * material validates the whole certificate chain.</p>
+     */
+    static void connectWithCustomSSLContext(String endpoint, String database, String user, String password,
+                                            String rootCertPath) {
+        final SSLContext sslContext;
+        try {
+            // Build the trust material entirely in memory. In a real application the PEM bytes would come
+            // from a secret manager; here we read the file generated for this example to keep it runnable.
+            byte[] caPem = Files.readAllBytes(Paths.get(rootCertPath));
+            CertificateFactory cf = CertificateFactory.getInstance("X.509");
+            X509Certificate caCert = (X509Certificate) cf.generateCertificate(new ByteArrayInputStream(caPem));
+
+            KeyStore trustStore = KeyStore.getInstance(KeyStore.getDefaultType());
+            trustStore.load(null, null);
+            trustStore.setCertificateEntry("ca", caCert);
+
+            TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+            tmf.init(trustStore);
+
+            sslContext = SSLContext.getInstance("TLS");
+            sslContext.init(null, tmf.getTrustManagers(), null);
+        } catch (Exception e) {
+            log.error("Failed to build the in-memory SSLContext from {}", rootCertPath, e);
+            return;
+        }
+
+        log.info("Connecting to {} using an application-supplied in-memory SSLContext", endpoint);
+        try (Client client = new Client.Builder()
+                .addEndpoint(endpoint)
+                .setUsername(user)
+                .setPassword(password)
+                .setDefaultDatabase(database)
+                // The client uses this context as is; trust/key builder options cannot be combined with it.
+                .setSSLContext(sslContext)
+                .build()) {
+
+            List<GenericRecord> rows = client.queryAll("SELECT currentUser() AS user, version() AS version");
+            log.info("Connected securely (custom SSLContext) as '{}' to ClickHouse {}",
+                    rows.get(0).getString("user"), rows.get(0).getString("version"));
+        } catch (Exception e) {
+            log.error("Secure connection with a custom SSLContext failed", e);
         }
     }
 

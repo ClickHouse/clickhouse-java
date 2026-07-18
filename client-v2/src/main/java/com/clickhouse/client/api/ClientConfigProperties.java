@@ -8,6 +8,8 @@ import com.clickhouse.data.ClickHouseFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.net.ssl.SSLContext;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -118,6 +120,8 @@ public enum ClientConfigProperties {
 
     SSL_MODE("ssl_mode", SSLMode.class, SSLMode.STRICT.name()),
 
+    SSL_CONTEXT("ssl_context", SSLContext.class),
+
     RETRY_ON_FAILURE("retry", Integer.class, "3"),
 
     INPUT_OUTPUT_FORMAT("format", ClickHouseFormat.class),
@@ -204,6 +208,35 @@ public enum ClientConfigProperties {
      *  See <a href="https://clickhouse.com/docs/operations/settings/query-level#custom_settings">ClickHouse Docs</a>
      */
     CUSTOM_SETTINGS_PREFIX("custom_settings_prefix", String.class, "custom_"),
+
+    /**
+     * Comma-separated list of TLS cipher suites the client is allowed to negotiate on secure connections.
+     * When set, only these cipher suites are enabled on the SSL socket (subject to what the JVM and server
+     * support); when unset, the transport defaults are used (Apache HttpClient enables the JVM's default
+     * suites minus those it considers weak).
+     * <p>
+     * The value is parsed into a sanitized list here, in the config-parsing layer (not in transport code):
+     * blank tokens produced by a leading, trailing or doubled comma are dropped and each surviving name is
+     * trimmed, so consumers receive a ready-to-use list. A null, empty or whitespace-only entry would
+     * otherwise be rejected by the SSL socket and break the handshake even alongside valid suites.
+     * <p>
+     * Appended at the end of the enum on purpose: adding a constant in the middle would shift the ordinal
+     * of every following constant (see {@code docs/changes_checklist.md}).
+     */
+    SSL_CIPHER_SUITES("ssl_cipher_suites", List.class) {
+        @Override
+        @SuppressWarnings("unchecked")
+        public Object parseValue(String value) {
+            List<String> suites = (List<String>) super.parseValue(value);
+            if (suites == null) {
+                return null;
+            }
+            return suites.stream()
+                    .filter(s -> s != null && !s.trim().isEmpty())
+                    .map(String::trim)
+                    .collect(Collectors.toList());
+        }
+    },
     ;
 
     private static final Logger LOG = LoggerFactory.getLogger(ClientConfigProperties.class);
