@@ -60,6 +60,7 @@ import java.time.Duration;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -805,6 +806,22 @@ public class Client implements AutoCloseable {
          */
         public Builder setSSLMode(SSLMode sslMode) {
             this.configuration.put(ClientConfigProperties.SSL_MODE.getKey(), sslMode.name());
+            return this;
+        }
+
+        /**
+         * Restricts the TLS cipher suites the client may negotiate on secure connections. When set, only
+         * the listed cipher suites are enabled on the SSL socket (subject to what the JVM and the server
+         * support); when not set, the transport defaults are used (Apache HttpClient enables the JVM's
+         * default suites minus those it considers weak). Suite names use the standard JSSE names, for
+         * example {@code TLS_AES_256_GCM_SHA384}.
+         *
+         * @param cipherSuites cipher suite names to enable
+         * @return same instance of the builder
+         */
+        public Builder setSSLCipherSuites(String... cipherSuites) {
+            this.configuration.put(ClientConfigProperties.SSL_CIPHER_SUITES.getKey(),
+                    ClientConfigProperties.commaSeparated(Arrays.asList(cipherSuites)));
             return this;
         }
 

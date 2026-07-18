@@ -302,8 +302,23 @@ public class HttpAPIClientHelper {
             // Trust and VerifyCa skip hostname verification. The same applies when a custom SNI is
             // set because the connection hostname will not match the certificate.
             boolean trustAllHostnames = sslMode == SSLMode.TRUST || sslMode == SSLMode.VERIFY_CA;
-            if (socketSNI != null && !socketSNI.trim().isEmpty() || trustAllHostnames) {
-                sslConnectionSocketFactory = new CustomSSLConnectionFactory(socketSNI, sslContext, (hostname, session) -> true);
+            boolean hasSNI = socketSNI != null && !socketSNI.trim().isEmpty();
+            // ssl_cipher_suites is parsed and sanitized in ClientConfigProperties (blank tokens dropped,
+            // names trimmed); an unset or empty list means "no restriction" so the transport defaults apply.
+            List<String> cipherSuites = ClientConfigProperties.SSL_CIPHER_SUITES.getOrDefault(configuration);
+            String[] enabledCipherSuites = cipherSuites == null || cipherSuites.isEmpty() ? null
+                    : cipherSuites.toArray(new String[0]);
+            if (hasSNI || trustAllHostnames || enabledCipherSuites != null) {
+                // Skip hostname verification only for trust-all modes or when a custom SNI is used (the
+                // connection hostname would not match the certificate); otherwise a null verifier makes the
+                // factory fall back to the JDK/HttpClient default verifier, keeping STRICT verification.
+                // java:S5527 - the permissive verifier is applied only for SSLMode.TRUST/VERIFY_CA (where the
+                // user has explicitly opted out of hostname verification) or a custom SNI; STRICT keeps the
+                // default verifying behaviour, so secure-by-default hostname verification is preserved.
+                @SuppressWarnings("java:S5527")
+                HostnameVerifier hostnameVerifier = trustAllHostnames || hasSNI ? (hostname, session) -> true : null;
+                sslConnectionSocketFactory = new CustomSSLConnectionFactory(socketSNI, sslContext, hostnameVerifier,
+                        enabledCipherSuites);
             } else {
                 sslConnectionSocketFactory = new SSLConnectionSocketFactory(sslContext);
             }
@@ -1082,8 +1097,14 @@ public class HttpAPIClientHelper {
 
         private final SNIHostName defaultSNI;
 
+        // Retained for backward compatibility; delegates with no cipher-suite restriction (transport defaults).
         public CustomSSLConnectionFactory(String defaultSNI, SSLContext sslContext, HostnameVerifier hostnameVerifier) {
-            super(sslContext, hostnameVerifier);
+            this(defaultSNI, sslContext, hostnameVerifier, null);
+        }
+
+        public CustomSSLConnectionFactory(String defaultSNI, SSLContext sslContext, HostnameVerifier hostnameVerifier,
+                                          String[] supportedCipherSuites) {
+            super(sslContext, null /* supportedProtocols */, supportedCipherSuites, hostnameVerifier);
             this.defaultSNI = defaultSNI == null || defaultSNI.trim().isEmpty() ? null : new SNIHostName(defaultSNI);
         }
 
