@@ -202,6 +202,7 @@ public enum ClickHouseDataType implements SQLType {
         map.put(String, setOf(String.class));
         map.put(Float64, setOf(float.class, Float.class, double.class, Double.class));
         map.put(Float32, setOf(float.class, Float.class));
+        map.put(BFloat16, setOf(float.class, Float.class));
         map.put(Decimal, setOf(float.class, Float.class, double.class, Double.class, BigDecimal.class));
         map.put(Decimal256, setOf(float.class, Float.class, double.class, Double.class, BigDecimal.class));
         map.put(Decimal128, setOf(float.class, Float.class, double.class, Double.class, BigDecimal.class));

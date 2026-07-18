@@ -4,6 +4,14 @@
 
 ### New Features
 
+- **[client-v2, jdbc-v2]** Added support for the `BFloat16` data type (ClickHouse `24.11+`). `BFloat16` columns are read as
+  Java `float` values (widening is lossless) and written from `float`/`Float` values, including through generic records, POJO
+  binding, `Nullable(BFloat16)`, and `BFloat16` values held in `Dynamic`/`Variant` columns. On write the client keeps the
+  high 16 bits of the `float`, matching the ClickHouse server's own `Float32` → `BFloat16` conversion. In the JDBC driver
+  (`jdbc-v2`) `BFloat16` maps to `java.sql.Types.FLOAT` / `java.lang.Float` and is read and written through the standard
+  `getFloat`/`setFloat` and `getObject` accessors, and reported as such by `ResultSetMetaData` and `DatabaseMetaData`.
+  Previously reading or writing a `BFloat16` column failed with an
+  unsupported-data-type error. (https://github.com/ClickHouse/clickhouse-java/issues/2279)
 - **[client-v2, jdbc-v2]** Added TLS cipher suite selection. `Client.Builder.setSSLCipherSuites(String...)` (client-v2)
   and the comma-separated `ssl_cipher_suites` connection property (client-v2 and jdbc-v2) restrict the cipher suites
   enabled on secure connections; when unset, the transport defaults are used. Cipher-suite selection is independent of the

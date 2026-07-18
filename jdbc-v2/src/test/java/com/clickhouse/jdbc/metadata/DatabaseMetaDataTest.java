@@ -8,6 +8,7 @@ import com.clickhouse.jdbc.DriverProperties;
 import com.clickhouse.jdbc.JdbcIntegrationTest;
 import com.clickhouse.jdbc.internal.JdbcUtils;
 import org.testng.Assert;
+import org.testng.SkipException;
 import org.testng.annotations.Test;
 
 import java.sql.Connection;
@@ -142,6 +143,48 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
                 assertEquals(rs.getObject("DATA_TYPE"), Types.ARRAY);
                 assertEquals(rs.getString("TYPE_NAME"), "Array(Int8)");
                 assertFalse(rs.getBoolean("NULLABLE"));
+            }
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testGetColumnsBFloat16() throws Exception {
+        if (isVersionMatch("(,24.10]")) {
+            throw new SkipException("BFloat16 was introduced in ClickHouse 24.11");
+        }
+
+        try (Connection conn = getJdbcConnection()) {
+            final String tableName = "get_columns_bfloat16_test";
+            try (Statement stmt = conn.createStatement()) {
+                stmt.executeUpdate("DROP TABLE IF EXISTS " + tableName);
+                stmt.executeUpdate("CREATE TABLE " + tableName
+                        + " (id Int32, v BFloat16, vNull Nullable(BFloat16)) ENGINE MergeTree ORDER BY id");
+            }
+
+            DatabaseMetaData dbmd = conn.getMetaData();
+            try (ResultSet rs = dbmd.getColumns(null, getDatabase(), tableName, null)) {
+                // Sibling Int32 column: a contrast case confirming only the BFloat16 columns are affected.
+                assertTrue(rs.next());
+                assertEquals(rs.getString("TABLE_NAME"), tableName);
+                assertEquals(rs.getString("COLUMN_NAME"), "id");
+                assertEquals(rs.getInt("DATA_TYPE"), Types.INTEGER);
+                assertEquals(rs.getString("TYPE_NAME"), "Int32");
+
+                // BFloat16 must be reported as java.sql.Types.FLOAT with the ClickHouse type name preserved.
+                assertTrue(rs.next());
+                assertEquals(rs.getString("COLUMN_NAME"), "v");
+                assertEquals(rs.getInt("DATA_TYPE"), Types.FLOAT);
+                assertEquals(rs.getObject("DATA_TYPE"), Types.FLOAT);
+                assertEquals(rs.getString("TYPE_NAME"), "BFloat16");
+                assertFalse(rs.getBoolean("NULLABLE"));
+
+                // Nullable(BFloat16): same SQL type, nullable, with the full ClickHouse type name.
+                assertTrue(rs.next());
+                assertEquals(rs.getString("COLUMN_NAME"), "vNull");
+                assertEquals(rs.getInt("DATA_TYPE"), Types.FLOAT);
+                assertEquals(rs.getObject("DATA_TYPE"), Types.FLOAT);
+                assertEquals(rs.getString("TYPE_NAME"), "Nullable(BFloat16)");
+                assertTrue(rs.getBoolean("NULLABLE"));
             }
         }
     }
