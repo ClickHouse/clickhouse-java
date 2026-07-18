@@ -17,7 +17,9 @@ import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseVersion;
 import org.apache.commons.lang3.RandomStringUtils;
+import org.testng.Assert;
 import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
@@ -251,6 +253,86 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
         }};
 
         writeTest(tableName, tableCreate, rows);
+    }
+
+
+    @Test (groups = { "integration" })
+    public void writeEnumZeroLikeValuesTest() throws Exception {
+        String tableName = "rowBinaryFormatWriterTest_enumZeroLike_" + UUID.randomUUID().toString().replace('-', '_');
+        String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
+                " (id Int32, " +
+                "  e8 Enum8('' = 0, 'a' = 1, 'neg' = -5), " +
+                "  e16 Enum16('zero' = 0, 'big' = 30000, 'nb' = -20000), " +
+                "  tail Float64" +
+                "  ) Engine = MergeTree ORDER BY id";
+
+        Field[][] rows = new Field[][] {
+                // Zero-like written by enum name: an empty-string name and a named zero both map to 0.
+                {new Field("id", 1), new Field("e8", ""), new Field("e16", "zero"), new Field("tail", 1.5)},
+                // The same zero-like members written by their underlying int 0.
+                {new Field("id", 2), new Field("e8", 0).set(""), new Field("e16", 0).set("zero"), new Field("tail", 2.5)},
+                // Negative members (Enum8/Enum16 are signed) written by name.
+                {new Field("id", 3), new Field("e8", "neg"), new Field("e16", "nb"), new Field("tail", 3.5)},
+                // The same negative members written by their underlying int.
+                {new Field("id", 4), new Field("e8", -5).set("neg"), new Field("e16", -20000).set("nb"), new Field("tail", 4.5)},
+                // Ordinary positive members.
+                {new Field("id", 5), new Field("e8", "a"), new Field("e16", "big"), new Field("tail", 5.5)},
+        };
+
+        writeTest(tableName, tableCreate, rows);
+    }
+
+
+    // A null element in a non-nullable Enum sub-column reaches serializeEnumData directly (no
+    // per-element null preamble is written for non-nullable nested columns), which is the path
+    // that used to throw an opaque NullPointerException. Covers every container seam that routes
+    // an element through serializeEnumData: Array (level 1), Tuple, Map value, and a nested Array.
+    @DataProvider(name = "nullEnumContainers")
+    private Object[][] nullEnumContainers() {
+        return new Object[][] {
+                {"Array(Enum8('a' = 1, 'b' = 2))", Arrays.asList("a", null)},
+                {"Tuple(Enum8('a' = 1, 'b' = 2), Int32)", Arrays.asList(null, 7)},
+                {"Map(String, Enum16('a' = 1, 'b' = 2))", singleEntryMap("k", null)},
+                {"Array(Array(Enum8('a' = 1, 'b' = 2)))", Arrays.asList(Arrays.asList("a", null))},
+        };
+    }
+
+    @Test (groups = { "integration" }, dataProvider = "nullEnumContainers")
+    public void writeNullEnumInContainerThrowsTest(String columnType, Object valueWithNullEnum) throws Exception {
+        String tableName = "rowBinaryFormatWriterTest_enumContainerNull_" + UUID.randomUUID().toString().replace('-', '_');
+        initTable(tableName,
+                "CREATE TABLE \"" + tableName + "\" (id Int32, c " + columnType + ") Engine = MergeTree ORDER BY id",
+                new CommandSettings());
+        TableSchema schema = client.getTableSchema(tableName);
+        ClickHouseFormat format = ClickHouseFormat.RowBinaryWithDefaults;
+
+        Exception thrown = null;
+        try (InsertResponse response = client.insert(tableName, out -> {
+            RowBinaryFormatWriter w = new RowBinaryFormatWriter(out, schema, format);
+            w.setValue(schema.nameToColumnIndex("id"), 1);
+            w.setValue(schema.nameToColumnIndex("c"), valueWithNullEnum);
+            w.commitRow();
+        }, format, settings).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS)) {
+            // The insert must not succeed: a null Enum element in a non-nullable container is invalid.
+        } catch (Exception e) {
+            thrown = e;
+        }
+
+        Assert.assertNotNull(thrown, "Expected the insert to fail for a null Enum element in " + columnType);
+        boolean clearMessage = false;
+        for (Throwable t = thrown; t != null; t = t.getCause()) {
+            if (t.getMessage() != null && t.getMessage().contains("Cannot write NULL into non-nullable Enum column")) {
+                clearMessage = true;
+                break;
+            }
+        }
+        Assert.assertTrue(clearMessage, "Expected a clear non-nullable Enum error for " + columnType + ", but got: " + thrown);
+    }
+
+    private static Map<String, Object> singleEntryMap(String key, Object value) {
+        Map<String, Object> map = new HashMap<>();
+        map.put(key, value);
+        return map;
     }
 
 

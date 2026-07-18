@@ -143,6 +143,44 @@ public class SerializerUtilsTest {
                         ClickHouseColumn.of("v", "Geometry")));
     }
 
+    @Test(dataProvider = "nonNullableEnumTypes")
+    public void testNullIntoNonNullableEnumThrowsIllegalArgument(String typeName) {
+        ClickHouseColumn column = ClickHouseColumn.of("bs_flag", typeName);
+
+        IllegalArgumentException ex = Assert.expectThrows(IllegalArgumentException.class,
+                () -> SerializerUtils.serializeData(new ByteArrayOutputStream(), null, column));
+        String message = ex.getMessage();
+        Assert.assertTrue(message.contains("Cannot write NULL into non-nullable Enum column"),
+                "Unexpected message: " + message);
+        Assert.assertTrue(message.contains("bs_flag"),
+                "Message should name the offending column: " + message);
+        Assert.assertTrue(message.contains(typeName),
+                "Message should include the enum type: " + message);
+    }
+
+    @DataProvider(name = "nonNullableEnumTypes")
+    private Object[][] nonNullableEnumTypes() {
+        return new Object[][] {
+                {"Enum8('B' = 1, 'S' = 2)"},
+                {"Enum16('B' = 1, 'S' = 2)"},
+        };
+    }
+
+    @Test
+    public void testEnumSerializationUnaffectedByNullGuard() throws Exception {
+        // A Nullable(Enum) with null still takes the early null-marker path and never reaches
+        // enum serialization, so a single null-marker byte is written.
+        ByteArrayOutputStream nullableOut = new ByteArrayOutputStream();
+        SerializerUtils.serializeData(nullableOut, null,
+                ClickHouseColumn.of("v", "Nullable(Enum8('B' = 1, 'S' = 2))"));
+        Assert.assertEquals(nullableOut.toByteArray(), new byte[] {1});
+
+        // A present value in a non-nullable Enum column still serializes to its mapped numeric value.
+        ByteArrayOutputStream valueOut = new ByteArrayOutputStream();
+        SerializerUtils.serializeData(valueOut, "S", ClickHouseColumn.of("v", "Enum8('B' = 1, 'S' = 2)"));
+        Assert.assertEquals(valueOut.toByteArray(), new byte[] {2});
+    }
+
     @Test(dataProvider = "nestedNullableData")
     public void testNestedNullableRoundTrip(String typeName, Object value) throws Exception {
         ClickHouseColumn column = ClickHouseColumn.of("v", typeName);

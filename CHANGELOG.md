@@ -28,6 +28,12 @@
   a `String`/`Boolean`) through `Number#floatValue()`/`Number#doubleValue()`, so the float columns accept
   the same value types the integer columns already did. (https://github.com/ClickHouse/clickhouse-java/issues/2930)
 
+- **[client-v2]** Fixed a `NullPointerException` when serializing a `null` value into a non-nullable
+  `Enum8`/`Enum16` column. `SerializerUtils.serializeEnumData` had no `null` guard, so a `null` in a
+  non-nullable enum column reached `value.getClass()` and failed the RowBinary insert path with a confusing
+  NPE instead of a clear error. It now throws `IllegalArgumentException` naming the column, consistent with
+  the existing `IllegalArgumentException` for other unsupported enum values. Nullable enum columns are
+  unaffected. (https://github.com/ClickHouse/clickhouse-java/issues/2931)
 - **[client-v2]** Fixed POJO insert error classification so transport write failures such as java.net.SocketException:
   Broken pipe (Write failed) are now surfaced as transfer/network errors instead of being wrapped as
   DataSerializationException. This only changes the exception type reported for request-body transport failures during

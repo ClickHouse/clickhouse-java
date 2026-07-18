@@ -709,6 +709,10 @@ public class SerializerUtils {
     }
 
     public static void serializeEnumData(OutputStream stream, ClickHouseColumn column, Object value) throws IOException {
+        if (value == null) {
+            throw new IllegalArgumentException("Cannot write NULL into non-nullable Enum column " + column.getColumnName()
+                    + " of type " + column.getOriginalTypeName());
+        }
         int enumValue = -1;
         if (value instanceof String) {
             enumValue = column.getEnumConstants().value((String) value);
