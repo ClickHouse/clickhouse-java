@@ -1179,6 +1179,68 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
     }
 
     @Test(groups = { "integration" })
+    public void testEnumZeroLikeValues() throws SQLException {
+        runQuery("DROP TABLE IF EXISTS test_enum_zero_like");
+        runQuery("CREATE TABLE test_enum_zero_like (order Int8, "
+                + "e8 Enum8('' = 0, 'a' = 1, 'neg' = -5), e16 Enum16('zero' = 0, 'big' = 30000, 'nb' = -20000)"
+                + ") ENGINE = MergeTree ORDER BY ()");
+
+        try (Connection conn = getJdbcConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_enum_zero_like VALUES ( ?, ?, ? )")) {
+                // Zero-like written by name: an empty-string name and a named zero both map to 0.
+                stmt.setInt(1, 1);
+                stmt.setString(2, "");
+                stmt.setString(3, "zero");
+                stmt.addBatch();
+                // The same zero-like members written by their underlying int 0.
+                stmt.setInt(1, 2);
+                stmt.setInt(2, 0);
+                stmt.setInt(3, 0);
+                stmt.addBatch();
+                // Negative members (Enum8/Enum16 are signed) written by name.
+                stmt.setInt(1, 3);
+                stmt.setString(2, "neg");
+                stmt.setString(3, "nb");
+                stmt.addBatch();
+                // The same negative members written by their underlying int.
+                stmt.setInt(1, 4);
+                stmt.setInt(2, -5);
+                stmt.setInt(3, -20000);
+                stmt.addBatch();
+                stmt.executeBatch();
+            }
+        }
+
+        try (Connection conn = getJdbcConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_enum_zero_like ORDER BY order")) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getString("e8"), "");
+                    assertEquals(rs.getInt("e8"), 0);
+                    assertEquals(rs.getString("e16"), "zero");
+                    assertEquals(rs.getInt("e16"), 0);
+                    assertTrue(rs.next());
+                    assertEquals(rs.getString("e8"), "");
+                    assertEquals(rs.getInt("e8"), 0);
+                    assertEquals(rs.getString("e16"), "zero");
+                    assertEquals(rs.getInt("e16"), 0);
+                    assertTrue(rs.next());
+                    assertEquals(rs.getString("e8"), "neg");
+                    assertEquals(rs.getInt("e8"), -5);
+                    assertEquals(rs.getString("e16"), "nb");
+                    assertEquals(rs.getInt("e16"), -20000);
+                    assertTrue(rs.next());
+                    assertEquals(rs.getString("e8"), "neg");
+                    assertEquals(rs.getInt("e8"), -5);
+                    assertEquals(rs.getString("e16"), "nb");
+                    assertEquals(rs.getInt("e16"), -20000);
+                    assertFalse(rs.next());
+                }
+            }
+        }
+    }
+
+    @Test(groups = { "integration" })
     public void testIpAddressTypes() throws SQLException, UnknownHostException {
         runQuery("CREATE TABLE test_ips (order Int8, "
                 + "ipv4_ip IPv4, ipv4_name IPv4, ipv6 IPv6, ipv4_as_ipv6 IPv6"

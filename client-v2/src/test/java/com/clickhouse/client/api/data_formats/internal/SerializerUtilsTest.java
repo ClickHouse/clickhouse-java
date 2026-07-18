@@ -150,7 +150,7 @@ public class SerializerUtilsTest {
         IllegalArgumentException ex = Assert.expectThrows(IllegalArgumentException.class,
                 () -> SerializerUtils.serializeData(new ByteArrayOutputStream(), null, column));
         String message = ex.getMessage();
-        Assert.assertTrue(message.contains("Cannot insert null into non-nullable column"),
+        Assert.assertTrue(message.contains("Cannot write NULL into non-nullable Enum column"),
                 "Unexpected message: " + message);
         Assert.assertTrue(message.contains("bs_flag"),
                 "Message should name the offending column: " + message);
