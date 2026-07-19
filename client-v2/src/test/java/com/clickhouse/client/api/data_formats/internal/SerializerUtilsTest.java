@@ -170,6 +170,35 @@ public class SerializerUtilsTest {
         };
     }
 
+    @Test(dataProvider = "qbitWrongType")
+    public void testQBitSerializationRejectsNonArrayValue(Object value) {
+        // A non-null QBit value that is neither a Java array nor a List cannot carry a vector. It must
+        // be rejected up-front: otherwise it falls through to the Array serializer, which writes no
+        // bytes for the column, desynchronizing the RowBinary stream and corrupting the following
+        // columns. Writing into a byte sink so any (wrongly) emitted payload would be observable.
+        ClickHouseColumn column = ClickHouseColumn.of("vec", "QBit(Float32, 8)");
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+        IllegalArgumentException ex = Assert.expectThrows(IllegalArgumentException.class,
+                () -> SerializerUtils.serializeData(out, value, column));
+        Assert.assertTrue(ex.getMessage().contains("vec"),
+                "Message should name the column: " + ex.getMessage());
+        Assert.assertEquals(out.size(), 0,
+                "Nothing should be written to the stream when the value is rejected");
+    }
+
+    @DataProvider(name = "qbitWrongType")
+    private Object[][] qbitWrongType() {
+        // Values that are neither a Java array nor a List: a String, boxed scalars of the element
+        // type, and a Map. None of these can represent a QBit(E, N) vector.
+        return new Object[][] {
+                {"not-a-vector"},
+                {3.14f},
+                {42d},
+                {newMap("k", "v")},
+        };
+    }
+
     @Test
     public void testQBitSerializationAcceptsExactDimensionAndMatchesArray() throws Exception {
         float[] vec = {1f, -2f, 3.5f, 4f, 5f, 6f, 7f, 8f};

@@ -480,18 +480,25 @@ public class SerializerUtils {
      * count is validated up-front so a wrong-sized (including empty) vector fails fast on the client
      * with a clear message instead of a late server {@code SERIALIZATION_ERROR}, mirroring the
      * client-side length enforcement already applied to the other fixed-size type,
-     * {@code FixedString(N)}.
+     * {@code FixedString(N)}. A non-null value that is neither a Java array nor a {@code List} cannot
+     * carry a vector and is rejected as well — otherwise it would fall through to
+     * {@link #serializeArrayData} and write no bytes for the column, desynchronizing the
+     * {@code RowBinary} stream and corrupting the columns that follow.
      */
     private static void serializeQBitData(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
         if (value != null) {
-            int length = -1;
+            int length;
             if (value.getClass().isArray()) {
                 length = Array.getLength(value);
             } else if (value instanceof List) {
                 length = ((List<?>) value).size();
+            } else {
+                throw new IllegalArgumentException("QBit column '" + column.getColumnName()
+                        + "' expects a Java array or List of its element type but got "
+                        + value.getClass().getName());
             }
             int dimension = column.getPrecision();
-            if (length >= 0 && length != dimension) {
+            if (length != dimension) {
                 throw new IllegalArgumentException("QBit column '" + column.getColumnName()
                         + "' expects exactly " + dimension + " elements but got " + length);
             }
