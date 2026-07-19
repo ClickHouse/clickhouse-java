@@ -64,7 +64,8 @@ public class SerializerUtils {
         //Serialize the value to the stream based on the data type
         switch (column.getDataType()) {
             case QBit:
-                // QBit(element_type, dimension) is serialized like Array(element_type).
+                serializeQBitData(stream, value, column);
+                break;
             case Array:
                 serializeArrayData(stream, value, column);
                 break;
@@ -470,6 +471,32 @@ public class SerializerUtils {
                 serializeData(stream, val, column.getNestedColumns().get(0));
             }
         }
+    }
+
+    /**
+     * Serializes a {@code QBit(element_type, dimension)} value. On the wire a {@code QBit} is
+     * transmitted exactly like {@code Array(element_type)} — a var-int length followed by that many
+     * element values — but the element count is fixed and must equal the declared dimension. The
+     * count is validated up-front so a wrong-sized (including empty) vector fails fast on the client
+     * with a clear message instead of a late server {@code SERIALIZATION_ERROR}, mirroring the
+     * client-side length enforcement already applied to the other fixed-size type,
+     * {@code FixedString(N)}.
+     */
+    private static void serializeQBitData(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
+        if (value != null) {
+            int length = -1;
+            if (value.getClass().isArray()) {
+                length = Array.getLength(value);
+            } else if (value instanceof List) {
+                length = ((List<?>) value).size();
+            }
+            int dimension = column.getPrecision();
+            if (length >= 0 && length != dimension) {
+                throw new IllegalArgumentException("QBit column '" + column.getColumnName()
+                        + "' expects exactly " + dimension + " elements but got " + length);
+            }
+        }
+        serializeArrayData(stream, value, column);
     }
 
     /**

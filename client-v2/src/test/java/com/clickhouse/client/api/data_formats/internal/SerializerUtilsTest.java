@@ -143,6 +143,47 @@ public class SerializerUtilsTest {
                         ClickHouseColumn.of("v", "Geometry")));
     }
 
+    @Test(dataProvider = "qbitWrongDimension")
+    public void testQBitSerializationRejectsWrongDimension(String typeName, Object value, int actualLength) {
+        ClickHouseColumn column = ClickHouseColumn.of("vec", typeName);
+
+        IllegalArgumentException ex = Assert.expectThrows(IllegalArgumentException.class,
+                () -> SerializerUtils.serializeData(new ByteArrayOutputStream(), value, column));
+        String message = ex.getMessage();
+        Assert.assertTrue(message.contains("vec"), "Message should name the column: " + message);
+        Assert.assertTrue(message.contains("8"), "Message should state the expected dimension: " + message);
+        Assert.assertTrue(message.contains("got " + actualLength),
+                "Message should state the actual length: " + message);
+    }
+
+    @DataProvider(name = "qbitWrongDimension")
+    private Object[][] qbitWrongDimension() {
+        // A QBit(E, 8) column requires exactly 8 elements: empty, too-short, and too-long vectors are
+        // all invalid, for both the Java-array and List representations and every element type.
+        return new Object[][] {
+                {"QBit(Float32, 8)", new float[0], 0},
+                {"QBit(Float32, 8)", new float[] {1f, 2f, 3f, 4f, 5f}, 5},
+                {"QBit(Float32, 8)", new float[] {1f, 2f, 3f, 4f, 5f, 6f, 7f, 8f, 9f, 10f}, 10},
+                {"QBit(Float64, 8)", new double[] {1d, 2d, 3d, 4d, 5d}, 5},
+                {"QBit(BFloat16, 8)", new float[] {1f, 2f, 3f}, 3},
+                {"QBit(Float32, 8)", Arrays.asList(1f, 2f, 3f), 3},
+        };
+    }
+
+    @Test
+    public void testQBitSerializationAcceptsExactDimensionAndMatchesArray() throws Exception {
+        float[] vec = {1f, -2f, 3.5f, 4f, 5f, 6f, 7f, 8f};
+
+        ByteArrayOutputStream qbitOut = new ByteArrayOutputStream();
+        SerializerUtils.serializeData(qbitOut, vec, ClickHouseColumn.of("vec", "QBit(Float32, 8)"));
+
+        // A correctly-sized QBit passes validation and is serialized byte-for-byte identically to
+        // Array(element_type), which is the wire contract the reader relies on.
+        ByteArrayOutputStream arrayOut = new ByteArrayOutputStream();
+        SerializerUtils.serializeData(arrayOut, vec, ClickHouseColumn.of("vec", "Array(Float32)"));
+        Assert.assertEquals(qbitOut.toByteArray(), arrayOut.toByteArray());
+    }
+
     @Test(dataProvider = "nonNullableEnumTypes")
     public void testNullIntoNonNullableEnumThrowsIllegalArgument(String typeName) {
         ClickHouseColumn column = ClickHouseColumn.of("bs_flag", typeName);
