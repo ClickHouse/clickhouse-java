@@ -117,7 +117,7 @@ public class JdbcUtils {
         map.put(ClickHouseDataType.AggregateFunction, JDBCType.OTHER);
         map.put(ClickHouseDataType.Variant, JDBCType.OTHER);
         map.put(ClickHouseDataType.Dynamic, JDBCType.OTHER);
-        map.put(ClickHouseDataType.QBit, JDBCType.OTHER);
+        map.put(ClickHouseDataType.QBit, JDBCType.ARRAY);
 
 
         return ImmutableMap.copyOf(map);

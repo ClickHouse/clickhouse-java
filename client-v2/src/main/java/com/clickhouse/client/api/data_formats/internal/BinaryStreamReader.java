@@ -234,6 +234,8 @@ public class BinaryStreamReader {
                         return (T) readJsonData(input, actualColumn);
                     }
 //                case Object: // deprecated https://clickhouse.com/docs/en/sql-reference/data-types/object-data-type
+                case QBit:
+                    // QBit(element_type, dimension) is transmitted like Array(element_type).
                 case Array:
                     if (typeHint == null) { typeHint = arrayDefaultTypeHint;}
                     return convertArray(readArray(actualColumn), typeHint);

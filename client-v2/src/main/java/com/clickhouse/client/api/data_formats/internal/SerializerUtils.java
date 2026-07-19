@@ -63,6 +63,8 @@ public class SerializerUtils {
     public static void serializeData(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
         //Serialize the value to the stream based on the data type
         switch (column.getDataType()) {
+            case QBit:
+                // QBit(element_type, dimension) is serialized like Array(element_type).
             case Array:
                 serializeArrayData(stream, value, column);
                 break;

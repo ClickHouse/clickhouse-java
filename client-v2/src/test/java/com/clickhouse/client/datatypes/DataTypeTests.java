@@ -92,8 +92,17 @@ public class DataTypeTests extends BaseIntegrationTest {
 
     private <T> void writeReadVerify(String table, String tableDef, Class<T> dtoClass, List<T> data,
                                      BiConsumer<List<T>, T> rowVerifier) throws Exception {
+        writeReadVerify(table, tableDef, dtoClass, data, rowVerifier, null);
+    }
+
+    private <T> void writeReadVerify(String table, String tableDef, Class<T> dtoClass, List<T> data,
+                                     BiConsumer<List<T>, T> rowVerifier, CommandSettings ddlSettings) throws Exception {
         client.execute("DROP TABLE IF EXISTS " + table).get();
-        client.execute(tableDef);
+        if (ddlSettings == null) {
+            client.execute(tableDef);
+        } else {
+            client.execute(tableDef, ddlSettings).get();
+        }
 
         final TableSchema tableSchema = client.getTableSchema(table);
         client.register(dtoClass, tableSchema);
@@ -105,6 +114,88 @@ public class DataTypeTests extends BaseIntegrationTest {
         });
 
         Assert.assertEquals(rowCount.get(), data.size());
+    }
+
+    // QBit was introduced in ClickHouse 25.10.
+    private static final String QBIT_UNSUPPORTED_VERSIONS = "(,25.9]";
+
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class QBitFloat32DTO {
+        private long rowId;
+        private float[] vec;
+        private int tail;
+
+        public static String tblCreateSQL(String table) {
+            return tableDefinition(table, "rowId Int64", "vec QBit(Float32, 8)", "tail Int32");
+        }
+    }
+
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class QBitFloat64DTO {
+        private long rowId;
+        private double[] vec;
+        private int tail;
+
+        public static String tblCreateSQL(String table) {
+            return tableDefinition(table, "rowId Int64", "vec QBit(Float64, 8)", "tail Int32");
+        }
+    }
+
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class QBitBFloat16DTO {
+        private long rowId;
+        private float[] vec;
+        private int tail;
+
+        public static String tblCreateSQL(String table) {
+            return tableDefinition(table, "rowId Int64", "vec QBit(BFloat16, 8)", "tail Int32");
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testQBit() throws Exception {
+        if (isVersionMatch(QBIT_UNSUPPORTED_VERSIONS)) {
+            throw new SkipException("QBit requires ClickHouse 25.10+");
+        }
+
+        // A QBit(element_type, dimension) value is transmitted over RowBinary exactly like an
+        // Array(element_type): a var-int length followed by that many element values. The full
+        // client write -> server -> client read round-trip is verified for every supported
+        // element type. The trailing Int32 column would shift (and the assertion fail) if the
+        // QBit codec consumed the wrong number of bytes.
+        CommandSettings ddl = (CommandSettings) new CommandSettings()
+                .serverSetting("allow_experimental_qbit_type", "1");
+
+        final float[] f32 = {1f, -2f, 3.5f, 4f, 5f, 6f, 7f, 8f};
+        writeReadVerify("test_qbit_f32", QBitFloat32DTO.tblCreateSQL("test_qbit_f32"),
+                QBitFloat32DTO.class, Arrays.asList(new QBitFloat32DTO(0, f32, 42)),
+                (all, dto) -> {
+                    Assert.assertEquals(dto.getVec(), f32);
+                    Assert.assertEquals(dto.getTail(), 42);
+                }, ddl);
+
+        final double[] f64 = {1d, -2d, 3.5d, 4d, 5d, 6d, 7d, 8d};
+        writeReadVerify("test_qbit_f64", QBitFloat64DTO.tblCreateSQL("test_qbit_f64"),
+                QBitFloat64DTO.class, Arrays.asList(new QBitFloat64DTO(0, f64, 42)),
+                (all, dto) -> {
+                    Assert.assertEquals(dto.getVec(), f64);
+                    Assert.assertEquals(dto.getTail(), 42);
+                }, ddl);
+
+        // Integers up to 256 are exactly representable in BFloat16, so these round-trip bit-for-bit.
+        final float[] bf16 = {1f, 2f, 4f, 8f, 16f, 32f, 64f, 128f};
+        writeReadVerify("test_qbit_bf16", QBitBFloat16DTO.tblCreateSQL("test_qbit_bf16"),
+                QBitBFloat16DTO.class, Arrays.asList(new QBitBFloat16DTO(0, bf16, 42)),
+                (all, dto) -> {
+                    Assert.assertEquals(dto.getVec(), bf16);
+                    Assert.assertEquals(dto.getTail(), 42);
+                }, ddl);
     }
 
     @Test(groups = {"integration"})

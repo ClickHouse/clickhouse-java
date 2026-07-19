@@ -570,6 +570,61 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
         }
     }
 
+    // QBit was introduced in ClickHouse 25.10.
+    private static final String QBIT_UNSUPPORTED_VERSIONS = "(,25.9]";
+
+    @Test(groups = { "integration" })
+    public void testQBit() throws SQLException {
+        if (ClickHouseVersion.of(getServerVersion()).check(QBIT_UNSUPPORTED_VERSIONS)) {
+            throw new SkipException("QBit was introduced in ClickHouse 25.10");
+        }
+
+        // QBit(element_type, dimension) is exposed through JDBC as an ARRAY of its element type
+        // (the same way Array/Geometry are), written from and read as a Java array. The
+        // experimental type flag is only required to create the column, so the insert/read
+        // connection does not need it.
+        final String table = "test_qbit_jdbc";
+        Properties properties = new Properties();
+        properties.setProperty(ClientConfigProperties.serverSetting("allow_experimental_qbit_type"), "1");
+        runQuery("DROP TABLE IF EXISTS " + table);
+        runQuery("CREATE TABLE " + table
+                + " (rowId Int32, vec QBit(Float32, 8)) ENGINE = MergeTree ORDER BY rowId", properties);
+
+        final float[] expected = { 1f, 2f, 3f, 4f, 5f, 6f, 7f, 8f };
+
+        // Write path: a Java float[] bound to a QBit parameter is rendered as an array literal.
+        try (Connection conn = getJdbcConnection();
+                PreparedStatement ps = conn.prepareStatement("INSERT INTO " + table + " VALUES (?, ?)")) {
+            ps.setInt(1, 1);
+            ps.setObject(2, expected);
+            ps.executeUpdate();
+        }
+
+        // Read path: metadata reports ARRAY with the element type, and getArray/getObject return
+        // a java.sql.Array of the element values.
+        try (Connection conn = getJdbcConnection();
+                Statement stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery("SELECT rowId, vec FROM " + table + " ORDER BY rowId")) {
+            ResultSetMetaData meta = rs.getMetaData();
+            assertEquals(meta.getColumnType(2), Types.ARRAY, "QBit should map to Types.ARRAY");
+
+            assertTrue(rs.next());
+            java.sql.Array array = rs.getArray("vec");
+            assertTrue(array != null, "getArray must return the QBit vector");
+            assertEquals(array.getBaseType(), Types.FLOAT, "QBit(Float32) element type should be Types.FLOAT");
+            assertEquals(array.getBaseTypeName(), "Float32", "QBit(Float32) element type name should be Float32");
+            Object elements = array.getArray();
+            assertEquals(java.lang.reflect.Array.getLength(elements), expected.length);
+            for (int i = 0; i < expected.length; i++) {
+                assertEquals(((Number) java.lang.reflect.Array.get(elements, i)).floatValue(), expected[i]);
+            }
+
+            assertTrue(rs.getObject("vec") instanceof java.sql.Array,
+                    "getObject on a QBit column should return java.sql.Array");
+            assertFalse(rs.next());
+        }
+    }
+
     @Test(groups = { "integration" })
     public void testBFloat16WriteAsFloat() throws SQLException {
         if (ClickHouseVersion.of(getServerVersion()).check(BFLOAT16_UNSUPPORTED_VERSIONS)) {
