@@ -237,6 +237,13 @@ public class SerializerUtilsTest {
                 {"Nested(a Int32, b String)",
                         Arrays.asList(Arrays.asList(1, "x"), Arrays.asList(2, "y"))},
 
+                // Same value as arrays instead of Lists: an Object[][] of Object[] rows (a
+                // "matrix" array). convertArrayValueToList takes the array branch and each row is
+                // serialized by serializeTupleData's array branch, producing the same bytes as the
+                // List-shaped case above.
+                {"Nested(a Int32, b String)",
+                        new Object[][] {{1, "x"}, {2, "y"}}},
+
                 // A Nullable field in the MIDDLE of the nested tuple, with a trailing fixed-width
                 // Float64: a dropped null-marker byte misaligns the Float64 and is caught. The
                 // second row exercises the null branch of that field.
