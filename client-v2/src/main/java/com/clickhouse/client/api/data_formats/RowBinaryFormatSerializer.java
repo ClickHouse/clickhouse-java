@@ -204,10 +204,9 @@ public class RowBinaryFormatSerializer {
                     SerializerUtils.writeNonNull(out);
                     SerializerUtils.writeNull(out);//Then we send null, write 1
                     return false;//And we're done
-                } else if (dataType == ClickHouseDataType.Array) {//If the column is an array
-                    SerializerUtils.writeNonNull(out);//Then we send nonNull
                 } else if (dataType == ClickHouseDataType.Dynamic) {
-                    SerializerUtils.writeNonNull(out);
+                    // A Dynamic column can hold a null: it is serialized below as the implicit `Nothing` type.
+                    SerializerUtils.writeNonNull(out);//Write 0 for no default
                 } else {
                     throw new IllegalArgumentException(String.format("An attempt to write null into not nullable column '%s'", column));
                 }
@@ -220,10 +219,8 @@ public class RowBinaryFormatSerializer {
                 }
                 SerializerUtils.writeNonNull(out);
             } else if (value == null) {
-                if (dataType == ClickHouseDataType.Array) {
-                    SerializerUtils.writeNonNull(out);
-                } else if (dataType == ClickHouseDataType.Dynamic) {
-                    // do nothing
+                if (dataType == ClickHouseDataType.Dynamic) {
+                    // A Dynamic column can hold a null: it is serialized below as the implicit `Nothing` type.
                 } else {
                     throw new IllegalArgumentException(String.format("An attempt to write null into not nullable column '%s'", column));
                 }

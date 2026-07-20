@@ -34,6 +34,15 @@
   NPE instead of a clear error. It now throws `IllegalArgumentException` naming the column, consistent with
   the existing `IllegalArgumentException` for other unsupported enum values. Nullable enum columns are
   unaffected. (https://github.com/ClickHouse/clickhouse-java/issues/2931)
+- **[client-v2]** Fixed silent data corruption when serializing a Java `null` into a non-nullable
+  `Array(...)` column via `RowBinaryFormatWriter`. `RowBinaryFormatSerializer.writeValuePreamble`
+  special-cased `Array`, emitting a stray marker byte on top of the array length; the server read the
+  extra byte as a phantom extra row (single-column inserts) or as a column shift that failed the insert
+  with `CANNOT_READ_ALL_DATA` (multi-column inserts). A non-nullable `Array` cannot represent a `null`,
+  so it now throws `IllegalArgumentException` naming the column — consistent with every other non-nullable
+  type — in both the `RowBinary` and `RowBinaryWithDefaults` paths. Empty arrays (`[]`) still serialize
+  correctly, and `Dynamic` columns, which can hold a `null` as the implicit `Nothing` type, are
+  unaffected. (https://github.com/ClickHouse/clickhouse-java/issues/2938)
 - **[client-v2]** Fixed POJO insert error classification so transport write failures such as java.net.SocketException:
   Broken pipe (Write failed) are now surfaced as transfer/network errors instead of being wrapped as
   DataSerializationException. This only changes the exception type reported for request-body transport failures during

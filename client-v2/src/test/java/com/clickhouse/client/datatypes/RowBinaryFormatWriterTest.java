@@ -335,6 +335,123 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
         return map;
     }
 
+    @DataProvider(name = "rowBinaryWriterFormats")
+    private Object[][] rowBinaryWriterFormats() {
+        return new Object[][] {
+                {ClickHouseFormat.RowBinary},
+                {ClickHouseFormat.RowBinaryWithDefaults},
+        };
+    }
+
+    // A non-nullable Array column cannot represent a null, so writing a Java null into it must fail
+    // loudly like every other non-nullable type instead of emitting a stray marker byte on top of the
+    // array length. That stray byte was read by the server as a phantom extra row (single column) or
+    // shifted every following column (multi column). 'tail' sits after the array so a stray byte corrupts it.
+    @Test (groups = { "integration" }, dataProvider = "rowBinaryWriterFormats")
+    public void writeNullIntoNonNullableArrayThrowsTest(ClickHouseFormat format) throws Exception {
+        String tableName = "rowBinaryFormatWriterTest_nonNullableArrayNull_" + UUID.randomUUID().toString().replace('-', '_');
+        initTable(tableName,
+                "CREATE TABLE \"" + tableName + "\" (id Int32, arr Array(Int32), tail Int32) Engine = MergeTree ORDER BY id",
+                new CommandSettings());
+        TableSchema schema = client.getTableSchema(tableName);
+
+        Exception thrown = null;
+        try (InsertResponse response = client.insert(tableName, out -> {
+            RowBinaryFormatWriter w = new RowBinaryFormatWriter(out, schema, format);
+            w.setValue(schema.nameToColumnIndex("id"), 1);
+            w.setValue(schema.nameToColumnIndex("arr"), null);
+            w.setValue(schema.nameToColumnIndex("tail"), 7);
+            w.commitRow();
+        }, format, settings).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS)) {
+            // The insert must not succeed: a null in a non-nullable Array column is invalid.
+        } catch (Exception e) {
+            thrown = e;
+        }
+
+        Assert.assertNotNull(thrown, "Expected the insert to fail for a null in a non-nullable Array column using " + format);
+        boolean clearMessage = false;
+        for (Throwable t = thrown; t != null; t = t.getCause()) {
+            if (t.getMessage() != null && t.getMessage().contains("An attempt to write null into not nullable column")) {
+                clearMessage = true;
+                break;
+            }
+        }
+        Assert.assertTrue(clearMessage, "Expected a clear non-nullable column error using " + format + ", but got: " + thrown);
+    }
+
+    // Contrast: an empty (and a populated) non-nullable Array must still round-trip, and the fixed-width
+    // 'tail' column after it keeps its value - proving the array length is still written as a single
+    // leading byte and that rejecting null did not perturb valid array writes.
+    @Test (groups = { "integration" }, dataProvider = "rowBinaryWriterFormats")
+    public void writeNonNullableArrayRoundTripsTest(ClickHouseFormat format) throws Exception {
+        String tableName = "rowBinaryFormatWriterTest_nonNullableArrayRoundTrip_" + UUID.randomUUID().toString().replace('-', '_');
+        initTable(tableName,
+                "CREATE TABLE \"" + tableName + "\" (id Int32, arr Array(Int32), tail Int32) Engine = MergeTree ORDER BY id",
+                new CommandSettings());
+        TableSchema schema = client.getTableSchema(tableName);
+
+        try (InsertResponse response = client.insert(tableName, out -> {
+            RowBinaryFormatWriter w = new RowBinaryFormatWriter(out, schema, format);
+            w.setValue(schema.nameToColumnIndex("id"), 1);
+            w.setValue(schema.nameToColumnIndex("arr"), new ArrayList<Integer>());
+            w.setValue(schema.nameToColumnIndex("tail"), 7);
+            w.commitRow();
+            w.setValue(schema.nameToColumnIndex("id"), 2);
+            w.setValue(schema.nameToColumnIndex("arr"), Arrays.asList(1, 2, 3));
+            w.setValue(schema.nameToColumnIndex("tail"), 8);
+            w.commitRow();
+        }, format, settings).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS)) {
+            // inserted
+        }
+
+        List<GenericRecord> records = client.queryAll(
+                "SELECT id, toInt32(length(arr)) AS alen, arrayStringConcat(arr, ',') AS acat, tail FROM \""
+                        + tableName + "\" ORDER BY id");
+        Assert.assertEquals(records.size(), 2);
+
+        GenericRecord row1 = records.get(0);
+        Assert.assertEquals(row1.getInteger("alen"), 0);
+        Assert.assertEquals(row1.getString("acat"), "");
+        Assert.assertEquals(row1.getInteger("tail"), 7);
+
+        GenericRecord row2 = records.get(1);
+        Assert.assertEquals(row2.getInteger("alen"), 3);
+        Assert.assertEquals(row2.getString("acat"), "1,2,3");
+        Assert.assertEquals(row2.getInteger("tail"), 8);
+    }
+
+    // Contrast: with RowBinaryWithDefaults, a null into a non-nullable Array column that HAS a DDL
+    // default must still fall back to that default (the null-to-default coercion is decided before the
+    // type dispatch), not throw - proving the fix only rejects null for non-nullable arrays with no default.
+    @Test (groups = { "integration" })
+    public void writeNullIntoDefaultedArrayUsesDefaultTest() throws Exception {
+        String tableName = "rowBinaryFormatWriterTest_defaultedArrayNull_" + UUID.randomUUID().toString().replace('-', '_');
+        initTable(tableName,
+                "CREATE TABLE \"" + tableName + "\" (id Int32, arr Array(Int32) DEFAULT [1, 2], tail Int32) Engine = MergeTree ORDER BY id",
+                new CommandSettings());
+        TableSchema schema = client.getTableSchema(tableName);
+        ClickHouseFormat format = ClickHouseFormat.RowBinaryWithDefaults;
+
+        try (InsertResponse response = client.insert(tableName, out -> {
+            RowBinaryFormatWriter w = new RowBinaryFormatWriter(out, schema, format);
+            w.setValue(schema.nameToColumnIndex("id"), 1);
+            w.setValue(schema.nameToColumnIndex("arr"), null);
+            w.setValue(schema.nameToColumnIndex("tail"), 7);
+            w.commitRow();
+        }, format, settings).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS)) {
+            // inserted; the null arr must fall back to the DDL default
+        }
+
+        List<GenericRecord> records = client.queryAll(
+                "SELECT toInt32(length(arr)) AS alen, arrayStringConcat(arr, ',') AS acat, tail FROM \""
+                        + tableName + "\" ORDER BY id");
+        Assert.assertEquals(records.size(), 1);
+        GenericRecord row = records.get(0);
+        Assert.assertEquals(row.getInteger("alen"), 2);
+        Assert.assertEquals(row.getString("acat"), "1,2");
+        Assert.assertEquals(row.getInteger("tail"), 7);
+    }
+
 
     @Test (groups = { "integration" })
     public void writeNumbersTest() throws Exception {
