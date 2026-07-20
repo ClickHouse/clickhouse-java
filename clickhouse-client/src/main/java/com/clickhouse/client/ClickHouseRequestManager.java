@@ -1,9 +1,9 @@
 package com.clickhouse.client;
 
+import java.util.ServiceLoader;
 import java.util.UUID;
 
 import com.clickhouse.data.ClickHouseChecker;
-import com.clickhouse.data.ClickHouseUtils;
 
 /**
  * Request manager is responsible for generating query and session ID, as well
@@ -17,11 +17,21 @@ public class ClickHouseRequestManager {
      * Inner class for static initialization.
      */
     static final class InstanceHolder {
-        private static final ClickHouseRequestManager instance = ClickHouseUtils
-                .getService(ClickHouseRequestManager.class, ClickHouseRequestManager::new);
+        private static final ClickHouseRequestManager instance = loadManager();
 
         private InstanceHolder() {
         }
+    }
+
+    private static ClickHouseRequestManager loadManager() {
+        for (ClickHouseRequestManager manager : ServiceLoader.load(ClickHouseRequestManager.class,
+                ClickHouseRequestManager.class.getClassLoader())) {
+            if (manager != null) {
+                return manager;
+            }
+        }
+
+        return new ClickHouseRequestManager();
     }
 
     /**

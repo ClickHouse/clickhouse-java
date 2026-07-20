@@ -4,6 +4,11 @@
 
 ### Bug Fixes 
 
+- **[clickhouse-client]** Fixed JPMS/module-path service loading for `ClickHouseRequestManager` by loading client
+  services from the `com.clickhouse.client` module, which declares the required `uses` directives. This avoids
+  `ServiceConfigurationError` failures from `com.clickhouse.data` when applications run on the module path.
+  (https://github.com/ClickHouse/clickhouse-java/issues/2669)
+
 - **[client-v2]** Fixed binary varint decoding for length and count fields so overflowing or overlong values fail with an `IOException` instead of being decoded into corrupted or negative `int` values. (https://github.com/ClickHouse/clickhouse-java/issues/2902)
 
 - **[client-v2]** Fixed container query parameters being sent unquoted, so `Client.query(sql, params, settings)` binding

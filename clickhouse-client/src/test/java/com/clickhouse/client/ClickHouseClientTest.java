@@ -5,6 +5,9 @@ import org.testng.annotations.Test;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.concurrent.ExecutionException;
 
 import com.clickhouse.client.ClickHouseRequest.Mutation;
@@ -64,5 +67,20 @@ public class ClickHouseClientTest {
         Assert.assertEquals(req.getFormat(), client.getConfig().getFormat());
         Assert.assertNull(req.sql);
         Assert.assertNull(req.table("my_table").format(ClickHouseFormat.RowBinary).execute().get());
+    }
+
+    @Test(groups = { "unit" })
+    public void testClientModuleDeclaresLoadedServices() throws IOException {
+        Assert.assertNotNull(ClickHouseDnsResolver.getInstance());
+        Assert.assertNotNull(ClickHouseRequestManager.getInstance());
+        assertModuleInfoDeclaresUses("src/main/java9/module-info.java");
+        assertModuleInfoDeclaresUses("src/main/java11/module-info.java");
+    }
+
+    private static void assertModuleInfoDeclaresUses(String moduleInfo) throws IOException {
+        String baseDir = System.getProperty("basedir", ".");
+        String content = new String(Files.readAllBytes(Paths.get(baseDir, moduleInfo)), StandardCharsets.UTF_8);
+        Assert.assertTrue(content.contains("uses com.clickhouse.client.ClickHouseDnsResolver;"), moduleInfo);
+        Assert.assertTrue(content.contains("uses com.clickhouse.client.ClickHouseRequestManager;"), moduleInfo);
     }
 }
