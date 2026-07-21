@@ -1688,7 +1688,7 @@ public class Client implements AutoCloseable {
                     } catch (Exception e) {
                         String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
                         lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
-                        if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings())) {
+                        if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings()) && requestIsNotCancelled(requestSettings.getQueryId())) {
                             if (i < maxAttempts) {
                                 LOG.warn("Retrying.", e);
                                 selectedEndpoint = nodeSelector.getNextAliveNode(selectedEndpoint);
