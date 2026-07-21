@@ -15,6 +15,8 @@ import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.enums.SSLMode;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.transport.Endpoint;
+import com.clickhouse.client.api.transport.internal.TransportRequest;
+import com.clickhouse.client.api.transport.internal.TransportResponse;
 import com.clickhouse.data.ClickHouseFormat;
 import net.jpountz.lz4.LZ4Factory;
 import org.apache.commons.compress.compressors.CompressorStreamFactory;
@@ -25,6 +27,7 @@ import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.entity.mime.MultipartEntityBuilder;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
+import org.apache.hc.client5.http.impl.classic.RequestFailedException;
 import org.apache.hc.client5.http.impl.io.BasicHttpClientConnectionManager;
 import org.apache.hc.client5.http.impl.io.ManagedHttpClientConnectionFactory;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
@@ -43,8 +46,10 @@ import org.apache.hc.core5.http.HttpEntity;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.HttpRequest;
+import org.apache.hc.core5.http.HttpResponse;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.NoHttpResponseException;
+import org.apache.hc.core5.http.ProtocolException;
 import org.apache.hc.core5.http.URIScheme;
 import org.apache.hc.core5.http.config.CharCodingConfig;
 import org.apache.hc.core5.http.config.Http1Config;
@@ -99,6 +104,7 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -365,10 +371,7 @@ public class HttpAPIClientHelper {
      * @return exception object with server code
      */
     public Exception readError(HttpPost req, ClassicHttpResponse httpResponse) {
-        final Header serverQueryIdHeader = httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID);
-        final Header clientQueryIdHeader = req.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID);
-        final Header queryHeader = Stream.of(serverQueryIdHeader, clientQueryIdHeader).filter(Objects::nonNull).findFirst().orElse(null);
-        final String queryId = queryHeader == null ? "" : queryHeader.getValue();
+        final String queryId = getQueryId(httpResponse, req);
         int serverCode = getHeaderInt(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE), 0);
         try {
             return serverCode > 0 ? readClickHouseError(httpResponse.getEntity(), serverCode, queryId, httpResponse.getCode()) :
@@ -505,14 +508,16 @@ public class HttpAPIClientHelper {
         return context;
     }
 
-    private URI createRequestURI(Endpoint server, Map<String,Object> requestConfig, boolean addParameters) {
+    private URI createRequestURI(Endpoint server, Map<String,Object> requestConfig, boolean isMultipartRequest) {
         URI uri;
         try {
             URIBuilder uriBuilder = new URIBuilder(server.getURI());
             addRequestParams(requestConfig, uriBuilder::addParameter);
 
-            if (addParameters) {
+            if (!isMultipartRequest) {
                 addStatementParams(requestConfig, uriBuilder::addParameter);
+            } else {
+                uriBuilder.removeParameter(ClickHouseHttpProto.QPARAM_DECOMPRESS); // multipart request doesn't support compression yet
             }
 
             uri = uriBuilder.optimize().build();
@@ -529,59 +534,138 @@ public class HttpAPIClientHelper {
         return req;
     }
 
-    public ClassicHttpResponse executeRequest(Endpoint server, Map<String, Object> requestConfig,
-                                              String body) throws Exception {
+    private static final class TransportRequestImpl implements TransportRequest {
+        private final HttpPost delegate;
+        private final Map<String, Object> config;
+        private final AtomicBoolean cancelled = new AtomicBoolean(false);
 
+        TransportRequestImpl(HttpPost delegate, Map<String, Object> config) {
+            this.delegate = delegate;
+            this.config = config;
+        }
+
+        @Override
+        public boolean cancel() {
+            cancelled.set(true);
+            if (delegate.isCancelled()) {
+                return true;
+            }
+            return delegate.cancel();
+        }
+
+        @Override
+        public boolean isCancelled() {
+            return cancelled.get();
+        }
+
+        @Override
+        public Map<String, Object> getConfig() {
+            return config;
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public <T> T getDelegate() {
+            return (T) delegate;
+        }
+    }
+
+    public TransportRequest createRequest(Endpoint server, Map<String, Object> requestConfig,
+                                          String body) {
         boolean useMultipart = ClientConfigProperties.HTTP_SEND_PARAMS_IN_BODY.<Boolean>getOrDefault(requestConfig) &&
                 requestConfig.containsKey(HttpAPIClientHelper.KEY_STATEMENT_PARAMS);
 
-        // adjust configuration
-        if (useMultipart) {
-            requestConfig.put(ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey(), false); // turn-off client-req compression
-        }
-
         // create configuration dependent objects
-        final URI uri = createRequestURI(server, requestConfig, !useMultipart);
+        final URI uri = createRequestURI(server, requestConfig, useMultipart);
         final HttpPost req = createPostRequest(uri, requestConfig);
 
+        final HttpEntity httpEntity;
         if (useMultipart) {
             MultipartEntityBuilder multipartEntityBuilder = MultipartEntityBuilder.create();
             addStatementParams(requestConfig, multipartEntityBuilder::addTextBody);
             multipartEntityBuilder.addTextBody(ClickHouseHttpProto.QPARAM_QUERY_STMT, body);
 
-            HttpEntity httpEntity = multipartEntityBuilder.build();
+            httpEntity = multipartEntityBuilder.build();
             req.setHeader(HttpHeaders.CONTENT_TYPE, httpEntity.getContentType()); // set proper content type with generated boundary value
-            req.setEntity(wrapRequestEntity(httpEntity, requestConfig));
-
         } else {
-            final String contentEncoding = req.containsHeader(HttpHeaders.CONTENT_ENCODING) ? req.getHeader(HttpHeaders.CONTENT_ENCODING).getValue() : null;
-
-            HttpEntity httpEntity = new ByteArrayEntity(body.getBytes(StandardCharsets.UTF_8.name()), CONTENT_TYPE, contentEncoding);
+            try {
+                final String contentEncoding = req.containsHeader(HttpHeaders.CONTENT_ENCODING) ? req.getHeader(HttpHeaders.CONTENT_ENCODING).getValue() : null;
+                httpEntity = new ByteArrayEntity(body.getBytes(StandardCharsets.UTF_8.name()), CONTENT_TYPE, contentEncoding);
+            } catch (UnsupportedEncodingException | ProtocolException e) {
+                throw new ClientException("failed to create request body entity", e);
+            }
+        }
+        // adjust configuration
+        if (useMultipart) {
+            req.setEntity(httpEntity); // multipart doesn't support compression right now
+        } else {
             req.setEntity(wrapRequestEntity(httpEntity, requestConfig));
         }
-
-        // execute
-        return doPostRequest(requestConfig, req);
+        return new TransportRequestImpl(req, requestConfig);
     }
 
-    public ClassicHttpResponse executeRequest(Endpoint server, Map<String, Object> requestConfig,
-                                              IOCallback<OutputStream> writeCallback) throws Exception {
 
-        final URI uri = createRequestURI(server, requestConfig, true);
-        final HttpPost req = createPostRequest(uri, requestConfig);
-        String contentEncoding = req.containsHeader(HttpHeaders.CONTENT_ENCODING) ? req.getHeader(HttpHeaders.CONTENT_ENCODING).getValue() : null;
-        req.setEntity(wrapRequestEntity(
-                new EntityTemplate(-1, CONTENT_TYPE, contentEncoding , writeCallback),
-                requestConfig));
+    private static final class TransportResponseImpl implements TransportResponse {
 
-        return doPostRequest(requestConfig, req);
+        private final ClassicHttpResponse delegate;
+
+        TransportResponseImpl(ClassicHttpResponse delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public ClickHouseFormat getDataFormat() {
+            Header formatHeader = delegate.getFirstHeader(ClickHouseHttpProto.HEADER_FORMAT);
+            return formatHeader == null ? null : ClickHouseFormat.valueOf(formatHeader.getValue());
+        }
+
+        @Override
+        public String getSummaryJson() {
+            return HttpAPIClientHelper.getHeaderVal(delegate
+                    .getFirstHeader(ClickHouseHttpProto.HEADER_SRV_SUMMARY), "{}");
+        }
+
+        @Override
+        public String getQueryId() {
+            return HttpAPIClientHelper.getHeaderVal(delegate
+                    .getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID), null);
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public <T> T getDelegate() {
+            return (T) delegate;
+        }
+
+        @Override
+        public Map<String, String> getHeaders() {
+            return HttpAPIClientHelper.collectResponseHeaders(delegate);
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.close();
+        }
+
+        @Override
+        public InputStream createDataInputStream() {
+            try {
+                return delegate.getEntity().getContent();
+            } catch (Exception e) {
+                throw new ClientException("Failed to construct input stream", e);
+            }
+        }
     }
 
-    private ClassicHttpResponse doPostRequest(Map<String, Object> requestConfig, HttpPost req) throws Exception {
+    public TransportResponse executeRequest(TransportRequest transportRequest) throws Exception {
+
+        final Map<String, Object> requestConfig = transportRequest.getConfig();
+        final HttpPost req = transportRequest.getDelegate();
 
         doPoolVent();
 
         ClassicHttpResponse httpResponse = null;
+        boolean closeResponse = true;
         HttpContext context = createRequestHttpContext(requestConfig);
         try {
             httpResponse = httpClient.executeOpen(null, req, context);
@@ -590,43 +674,73 @@ public class HttpAPIClientHelper {
                     httpResponse.getCode(),
                     requestConfig));
 
-            if (httpResponse.getCode() == HttpStatus.SC_PROXY_AUTHENTICATION_REQUIRED) {
-                throw new ClientMisconfigurationException("Proxy authentication required. Please check your proxy settings.");
-            } else if (httpResponse.getCode() == HttpStatus.SC_BAD_GATEWAY) {
-                httpResponse.close();
-                throw new ClientException("Server returned '502 Bad gateway'. Check network and proxy settings.");
-            } else if (httpResponse.getCode() >= HttpStatus.SC_BAD_REQUEST || httpResponse.containsHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE)) {
-                try {
-                    throw readError(req, httpResponse);
-                } finally {
-                    httpResponse.close();
-                }
+            if (httpResponse.containsHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE)) {
+                throw readError(req, httpResponse);
             }
-            return httpResponse;
 
+            int statusCode = httpResponse.getCode();
+            switch (statusCode) {
+                case HttpStatus.SC_OK:
+                    closeResponse = false;
+                    return new TransportResponseImpl(httpResponse);
+                case HttpStatus.SC_PROXY_AUTHENTICATION_REQUIRED:
+                    throw new ClientMisconfigurationException("Proxy authentication required. Please check your proxy settings.");
+                case HttpStatus.SC_BAD_GATEWAY:
+                    throw new ClientException("Server returned '502 Bad gateway'. Check network and proxy settings.");
+                case HttpStatus.SC_SERVICE_UNAVAILABLE:
+                    throw new ConnectException("Server returned '503 Service Unavailable'. Check network settings.");
+                case HttpStatus.SC_BAD_REQUEST:
+                case HttpStatus.SC_UNAUTHORIZED:
+                case HttpStatus.SC_FORBIDDEN:
+                case HttpStatus.SC_SERVER_ERROR:
+                case HttpStatus.SC_NOT_FOUND:
+                    // ClickHouse usually uses SC_BAD_REQUEST and SC_SERVER_ERROR to return error.
+                    // SC_UNAUTHORIZED, SC_FORBIDDEN is for authentication
+                    // SC_NOT_FOUND can be returned by ClickHouse when path doesn't match database, but also by proxy
+                    // others we cannot handle properly
+                    throw readError(req, httpResponse);
+                default:
+                    throw new ClientException("Unexpected result status " + statusCode);
+            }
         } catch (UnknownHostException e) {
-            closeQuietly(httpResponse);
             LOG.warn("Host '{}' unknown", req.getAuthority());
             throw e;
         } catch (ConnectException | NoRouteToHostException e) {
-            closeQuietly(httpResponse);
             LOG.warn("Failed to connect to '{}': {}", req.getAuthority(), e.getMessage());
             throw e;
         } catch (Exception e) {
-            closeQuietly(httpResponse);
             LOG.debug("Failed to execute request to '{}': {}", req.getAuthority(), e.getMessage(), e);
+            if (e instanceof RequestFailedException && req.isCancelled()) {
+                throw new TransportException("Request was cancelled on client side", e, getQueryId(httpResponse, req));
+            }
             throw e;
+        } finally {
+            if (closeResponse) {
+                ClientUtils.quietClose(httpResponse, LOG);
+            }
         }
     }
 
-    public static void closeQuietly(ClassicHttpResponse httpResponse) {
-        if (httpResponse != null) {
-            try {
-                httpResponse.close();
-            } catch (IOException e) {
-                LOG.warn("Failed to close response");
-            }
+    public TransportRequest createRequest(Endpoint server, Map<String, Object> requestConfig, IOCallback<OutputStream> writeCallback) {
+        final URI uri = createRequestURI(server, requestConfig, false);
+        final HttpPost req = createPostRequest(uri, requestConfig);
+        try {
+            String contentEncoding = req.containsHeader(HttpHeaders.CONTENT_ENCODING) ? req.getHeader(HttpHeaders.CONTENT_ENCODING).getValue() : null;
+            req.setEntity(wrapRequestEntity(
+                    new EntityTemplate(-1, CONTENT_TYPE, contentEncoding, writeCallback),
+                    requestConfig));
+        } catch (ProtocolException e) {
+            throw new ClientException("failed to create request body entity", e);
         }
+
+        return new TransportRequestImpl(req, requestConfig);
+    }
+
+    private String getQueryId(HttpResponse httpResponse, HttpPost httpRequest) {
+        final Header serverQueryIdHeader = httpResponse == null ? null : httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID);
+        final Header clientQueryIdHeader = httpRequest == null ? null : httpRequest.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID);
+        final Header queryHeader = Stream.of(serverQueryIdHeader, clientQueryIdHeader).filter(Objects::nonNull).findFirst().orElse(null);
+        return queryHeader == null ? "" : queryHeader.getValue();
     }
 
     private static final ContentType CONTENT_TYPE = ContentType.create(ContentType.TEXT_PLAIN.getMimeType(), "UTF-8");
@@ -737,13 +851,13 @@ public class HttpAPIClientHelper {
             // enable_http_compression make server react on http header
             // for client side compression Content-Encoding should be set
             // for server side compression Accept-Encoding should be set
-            consumer.accept("enable_http_compression", "1");
+            consumer.accept(ClickHouseHttpProto.QPARAM_ENABLE_HTTP_COMPRESSION, "1");
         } else {
             if (serverCompression) {
-                consumer.accept("compress", "1");
+                consumer.accept(ClickHouseHttpProto.QPARAM_COMPRESS, "1");
             }
             if (clientCompression) {
-                consumer.accept("decompress", "1");
+                consumer.accept(ClickHouseHttpProto.QPARAM_DECOMPRESS, "1");
             }
         }
 
@@ -820,7 +934,10 @@ public class HttpAPIClientHelper {
             ClickHouseHttpProto.HEADER_SRV_SUMMARY,
             ClickHouseHttpProto.HEADER_SRV_DISPLAY_NAME,
             ClickHouseHttpProto.HEADER_DATABASE,
-            ClickHouseHttpProto.HEADER_DB_USER
+            ClickHouseHttpProto.HEADER_DB_USER,
+            ClickHouseHttpProto.HEADER_TIMEZONE,
+            ClickHouseHttpProto.HEADER_FORMAT,
+            ClickHouseHttpProto.HEADER_PROGRESS
     ));
 
     /**
@@ -893,8 +1010,11 @@ public class HttpAPIClientHelper {
     // This method wraps some client specific exceptions into specific ClientException or just ClientException
     // ClientException will be also wrapped
     public RuntimeException wrapException(String message, Exception cause, String queryId) {
-        if (cause instanceof ClientException || cause instanceof ServerException) {
-            return (RuntimeException) cause;
+        // Already-classified exceptions (ClientException, ServerException, ConnectionInitiationException, ...)
+        // are returned as-is so their specific type is preserved instead of being reboxed as a generic
+        // ClickHouseException.
+        if (cause instanceof ClickHouseException) {
+            return (ClickHouseException) cause;
         }
 
         if (cause instanceof SSLException) {
