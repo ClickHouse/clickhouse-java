@@ -716,9 +716,6 @@ public class HttpAPIClientHelper {
                     throw new ClientMisconfigurationException("Proxy authentication required. Please check your proxy settings.");
                 case HttpStatus.SC_BAD_GATEWAY:
                     throw new ConnectException("Server returned '502 Bad gateway'. Check network and proxy settings.");
-            } else if (httpResponse.getCode() == HttpStatus.SC_SERVICE_UNAVAILABLE) {
-                httpResponse.close();
-                throw new ConnectException("Server returned '503 Service unavailable'.");
                 case HttpStatus.SC_SERVICE_UNAVAILABLE:
                     throw new ConnectException("Server returned '503 Service Unavailable'. Check network settings.");
                 case HttpStatus.SC_BAD_REQUEST:

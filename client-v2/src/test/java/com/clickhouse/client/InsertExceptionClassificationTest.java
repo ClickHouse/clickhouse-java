@@ -6,9 +6,10 @@ import com.clickhouse.client.api.internal.HttpAPIClientHelper;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.serde.DataSerializationException;
 import com.clickhouse.client.api.transport.Endpoint;
+import com.clickhouse.client.api.transport.internal.TransportRequest;
+import com.clickhouse.client.api.transport.internal.TransportResponse;
 import com.clickhouse.data.ClickHouseColumn;
 import net.jpountz.lz4.LZ4Factory;
-import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.io.IOCallback;
 import org.mockito.Mockito;
 import org.testng.Assert;
@@ -20,6 +21,7 @@ import java.io.OutputStream;
 import java.lang.reflect.Field;
 import java.net.SocketException;
 import java.util.Collections;
+import java.util.Map;
 
 public class InsertExceptionClassificationTest {
 
@@ -96,17 +98,27 @@ public class InsertExceptionClassificationTest {
 
     private static final class CallbackHttpClientHelper extends HttpAPIClientHelper {
         private final OutputStream outputStream;
-
+        private IOCallback<OutputStream> writeCallback;
         private CallbackHttpClientHelper(OutputStream outputStream) {
             super(Collections.emptyMap(), null, false, LZ4Factory.fastestJavaInstance());
             this.outputStream = outputStream;
         }
 
         @Override
-        public ClassicHttpResponse executeRequest(Endpoint server, java.util.Map<String, Object> requestConfig,
-                                                  IOCallback<OutputStream> writeCallback) throws Exception {
+        public TransportRequest createRequest(Endpoint server, Map<String, Object> requestConfig, String body) {
+            return null;
+        }
+
+        @Override
+        public TransportRequest createRequest(Endpoint server, Map<String, Object> requestConfig, IOCallback<OutputStream> writeCallback) {
+            this.writeCallback = writeCallback;
+            return null;
+        }
+
+        @Override
+        public TransportResponse executeRequest(TransportRequest request) throws Exception {
             writeCallback.execute(outputStream);
-            return Mockito.mock(ClassicHttpResponse.class);
+            return Mockito.mock(TransportResponse.class);
         }
 
         @Override

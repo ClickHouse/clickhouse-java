@@ -1688,11 +1688,15 @@ public class Client implements AutoCloseable {
                     } catch (Exception e) {
                         String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
                         lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
-                        if (i < maxAttempts) {
-                            LOG.warn("Retrying.", e);
-                            selectedEndpoint = nodeSelector.getNextAliveNode(selectedEndpoint);
+                        if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings())) {
+                            if (i < maxAttempts) {
+                                LOG.warn("Retrying.", e);
+                                selectedEndpoint = nodeSelector.getNextAliveNode(selectedEndpoint);
+                            } else {
+                                nodeSelector.getNextAliveNode(selectedEndpoint);
+                            }
                         } else {
-                            nodeSelector.getNextAliveNode(selectedEndpoint);
+                            throw lastException;
                         }
                     } finally {
                         // Insert completes once the request returns; the response exposes no stream to read afterwards,
