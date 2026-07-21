@@ -30,6 +30,7 @@ This document lists stable, user-visible behavior in `client-v2` and `jdbc-v2` t
 - Server information loading: Can refresh server version, current user, and server time zone information.
 - Compression support: Supports response compression, ClickHouse LZ4 request/response compression, HTTP content compression, and caller-supplied precompressed insert bodies.
 - Retry behavior: Can retry failed operations for configured failure causes and retry limits.
+- Client-side request cancellation: `Client.cancelTransportRequest(String queryId)` aborts the in-flight HTTP request and its IO for the operation started with the given query id. It requires the caller to set the query id in operation settings, is best-effort (it cancels client-side IO but the result is not guaranteed), and does not issue a server-side `KILL QUERY` - the server stops the query on its own once the client disconnects.
 - Metrics and observability: Exposes client/server operation metrics and optionally integrates connection-pool gauges with Micrometer.
 - Configuration surface: Supports arbitrary client options, cookies, custom headers, server-setting prefixes, client naming, query id suppliers, and buffer sizing.
 - SQL helpers: Includes SQL quoting and temporal formatting helpers used by callers building SQL text safely.

@@ -21,13 +21,19 @@ import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.internal.DataTypeConverter;
+import com.clickhouse.client.api.internal.HttpAPIClientHelper;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.internal.ValidationUtils;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
+import com.clickhouse.client.api.transport.Endpoint;
+import com.clickhouse.client.api.transport.HttpEndpoint;
+import com.clickhouse.client.api.transport.internal.TransportRequest;
+import com.clickhouse.client.api.transport.internal.TransportResponse;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseFormat;
+import net.jpountz.lz4.LZ4Factory;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.client.WireMock;
 import com.github.tomakehurst.wiremock.common.ConsoleNotifier;
@@ -64,6 +70,7 @@ import org.testng.annotations.Test;
 import javax.net.ssl.SSLHandshakeException;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.io.StringWriter;
 import java.math.BigInteger;
 import java.net.InetAddress;
@@ -102,11 +109,16 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.zip.GZIPOutputStream;
 
 import static com.github.tomakehurst.wiremock.stubbing.Scenario.STARTED;
+import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.fail;
 
 @Test(groups = {"integration"})
@@ -2102,6 +2114,101 @@ public class HttpTransportTests extends BaseIntegrationTest {
         };
     }
 
+    @Test(groups = {"integration"})
+    public void test503ServiceUnavailableSurfacesAsConnectionInitiationException() throws Exception {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
+        WireMockServer mockServer = new WireMockServer(WireMockConfiguration
+                .options().dynamicPort().notifier(new ConsoleNotifier(false)));
+        mockServer.start();
+
+        try {
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .willReturn(WireMock.aResponse()
+                            .withStatus(HttpStatus.SC_SERVICE_UNAVAILABLE)
+                            .withBody("Service Unavailable"))
+                    .build());
+
+            try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
+                    .setUsername("default")
+                    .setPassword(ClickHouseServerForTest.getPassword())
+                    .compressServerResponse(false)
+                    .retryOnFailures(ClientFaultCause.None)
+                    .build()) {
+
+                Throwable thrown = Assert.expectThrows(Throwable.class,
+                        () -> client.query("SELECT 1").get(10, TimeUnit.SECONDS));
+
+                ConnectionInitiationException connectionInitiationException =
+                        findCause(thrown, ConnectionInitiationException.class);
+                Assert.assertNotNull(connectionInitiationException,
+                        "Expected 503 to be reported as a ConnectionInitiationException, but was: " + thrown);
+
+                Assert.assertTrue(containsMessageInCauseChain(thrown, "503 Service Unavailable"),
+                        "Expected '503 Service Unavailable' in failure message chain, but was: " + thrown);
+
+                Assert.assertNull(findServerException(thrown),
+                        "A bare 503 (no ClickHouse exception code) should not be reported as a ServerException, but was: " + thrown);
+            }
+        } finally {
+            mockServer.stop();
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void test503ServiceUnavailableIsRetried() throws Exception {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
+        WireMockServer mockServer = new WireMockServer(WireMockConfiguration
+                .options().dynamicPort().notifier(new ConsoleNotifier(false)));
+        mockServer.start();
+
+        try {
+            // First request fails with a retryable 503 server error
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .inScenario("ServiceUnavailable")
+                    .withRequestBody(WireMock.containing("SELECT 1"))
+                    .whenScenarioStateIs(STARTED)
+                    .willSetStateTo("Recovered")
+                    .willReturn(WireMock.aResponse()
+                            .withStatus(HttpStatus.SC_SERVICE_UNAVAILABLE)
+                            .withHeader("X-ClickHouse-Exception-Code", "202")
+                            .withBody("Code: 202. DB::Exception: Too many simultaneous queries. (TOO_MANY_SIMULTANEOUS_QUERIES)"))
+                    .build());
+
+            // Second request (retry) succeeds
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .inScenario("ServiceUnavailable")
+                    .withRequestBody(WireMock.containing("SELECT 1"))
+                    .whenScenarioStateIs("Recovered")
+                    .willReturn(WireMock.aResponse()
+                            .withStatus(HttpStatus.SC_OK)
+                            .withHeader("X-ClickHouse-Summary", "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}"))
+                    .build());
+
+            try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
+                    .setUsername("default")
+                    .setPassword(ClickHouseServerForTest.getPassword())
+                    .compressServerResponse(false)
+                    .setMaxRetries(1)
+                    .retryOnFailures(ClientFaultCause.ServerRetryable)
+                    .build()) {
+
+                try (QueryResponse response = client.query("SELECT 1").get(10, TimeUnit.SECONDS)) {
+                    Assert.assertNotNull(response);
+                }
+            }
+
+            mockServer.verify(2, WireMock.postRequestedFor(WireMock.anyUrl()));
+        } finally {
+            mockServer.stop();
+        }
+    }
+
     private byte[] fetchBinaryPayload(String query, int networkBufferSize, int timeoutSec) throws Exception {
         QuerySettings querySettings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
         try (Client client = newClient()
@@ -2531,5 +2638,174 @@ public class HttpTransportTests extends BaseIntegrationTest {
             pemWriter.writeObject(certificate);
         }
         return stringWriter.toString();
+    }
+
+    /**
+     * Exercises {@code HttpAPIClientHelper.TransportRequestImpl#cancel()}, which is not reachable through the
+     * high-level {@link Client} API. A {@link HttpAPIClientHelper} is created directly and used to start a request
+     * for an effectively endless stream (reading from {@code system.numbers}) to emulate a long-running query.
+     * The test verifies the whole life cycle against the server:
+     * <ol>
+     *     <li>the query is observed running on the server ({@code system.processes});</li>
+     *     <li>the in-flight request is cancelled from another thread and the reader stops with an error;</li>
+     *     <li>the query is no longer running on the server;</li>
+     *     <li>{@code system.query_log} contains a record proving the query was interrupted (not finished).</li>
+     * </ol>
+     */
+    @Test(groups = {"integration"})
+    @SuppressWarnings("java:S2925")
+    public void testTransportRequestCancel() throws Exception {
+        if (isCloud()) {
+            return; // relies on direct transport access and local system tables (processes / query_log)
+        }
+
+        ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
+        String queryId = "transport-cancel-" + UUID.randomUUID();
+
+        Map<String, Object> configuration = new HashMap<>();
+        configuration.put(ClientConfigProperties.USER.getKey(), "default");
+        configuration.put(ClientConfigProperties.PASSWORD.getKey(), ClickHouseServerForTest.getPassword());
+        configuration.put(ClientConfigProperties.DATABASE.getKey(), ClickHouseServerForTest.getDatabase());
+        configuration.put(ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getKey(), Boolean.FALSE);
+        configuration.put(ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey(), Boolean.FALSE);
+
+        HttpAPIClientHelper helper = new HttpAPIClientHelper(new HashMap<>(configuration), null, false,
+                LZ4Factory.fastestInstance());
+
+        try (Client verifyClient = new Client.Builder()
+                .addEndpoint(Protocol.HTTP, server.getHost(), server.getPort(), false)
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
+                .compressClientRequest(false)
+                .compressServerResponse(false)
+                .build()) {
+
+            Endpoint endpoint = new HttpEndpoint(server.getHost(), server.getPort(), false, "/");
+
+            Map<String, Object> requestConfig = new HashMap<>(configuration);
+            requestConfig.put(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), ClickHouseFormat.TSV);
+            requestConfig.put(ClientConfigProperties.QUERY_ID.getKey(), queryId);
+
+            // Endless result set so the query stays active on the server until the request is cancelled.
+            TransportRequest request = helper.createRequest(endpoint, requestConfig,
+                    "SELECT number FROM system.numbers");
+
+            AtomicBoolean readStarted = new AtomicBoolean(false);
+            AtomicLong bytesRead = new AtomicLong(0);
+            AtomicReference<Throwable> readError = new AtomicReference<>();
+
+            Thread reader = new Thread(() -> {
+                long start = System.currentTimeMillis();
+                try (TransportResponse response = helper.executeRequest(request);
+                     InputStream in = response.createDataInputStream()) {
+                    byte[] buffer = new byte[8192];
+                    int read;
+                    while ((read = in.read(buffer)) != -1) {
+                        readStarted.set(true);
+                        bytesRead.addAndGet(read);
+                        // Safety valve so the test can never hang on the endless stream if cancel() fails.
+                        if (System.currentTimeMillis() - start > 30_000) {
+                            break;
+                        }
+                    }
+                } catch (Throwable t) {
+                    readStarted.set(true);
+                    readError.set(t);
+                }
+            }, "transport-request-reader");
+            reader.start();
+
+            // 1. The query must actually be running on the server.
+            Assert.assertTrue(waitForCondition(() -> isQueryRunning(verifyClient, queryId), 20_000),
+                    "query was not observed running on the server (query_id=" + queryId + ")");
+            Assert.assertNull(readError.get(), "reading should still be in progress while the query runs");
+
+            // 2. Cancel the in-flight request from a separate thread.
+            AtomicBoolean cancelled = new AtomicBoolean(false);
+            AtomicReference<Throwable> cancelError = new AtomicReference<>();
+            Thread canceller = new Thread(() -> {
+                try {
+                    cancelled.set(request.cancel());
+                } catch (Throwable t) {
+                    cancelError.set(t);
+                }
+            }, "transport-request-canceller");
+            canceller.start();
+            canceller.join(5_000);
+
+            Assert.assertNull(cancelError.get(), "cancel() must not throw");
+            Assert.assertTrue(cancelled.get(), "cancel() should report the request as cancelled");
+
+            // The reader must stop with an error once the underlying connection is aborted.
+            reader.join(15_000);
+            Assert.assertFalse(reader.isAlive(), "reading must stop after the request was cancelled");
+            Assert.assertNotNull(readError.get(),
+                    "reading a cancelled request must fail, but read " + bytesRead.get() + " bytes");
+
+            // 3. The server must stop running the query shortly after the client disconnects.
+            Assert.assertTrue(waitForCondition(() -> !isQueryRunning(verifyClient, queryId), 20_000),
+                    "query is still running on the server after cancellation (query_id=" + queryId + ")");
+
+            // 4. The query_log must show the query was interrupted instead of finishing successfully.
+            assertQueryWasInterrupted(verifyClient, queryId);
+            assertTrue(request.cancel());
+        } finally {
+            helper.close();
+        }
+    }
+
+    private static boolean isQueryRunning(Client client, String queryId) {
+        List<GenericRecord> rows = client.queryAll(
+                "SELECT count() AS c FROM system.processes WHERE query_id = '" + queryId + "'");
+        return !rows.isEmpty() && rows.get(0).getLong("c") > 0;
+    }
+
+    private static boolean waitForCondition(Supplier<Boolean> condition, long timeoutMillis)
+            throws InterruptedException {
+        long deadline = System.currentTimeMillis() + timeoutMillis;
+        while (System.currentTimeMillis() < deadline) {
+            try {
+                if (Boolean.TRUE.equals(condition.get())) {
+                    return true;
+                }
+            } catch (Exception ignore) {
+                // transient query failures (e.g. server busy) are retried until the timeout elapses
+            }
+            Thread.sleep(100);
+        }
+        return false;
+    }
+
+    private static void assertQueryWasInterrupted(Client client, String queryId) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + 30_000;
+        String seenTypes = "";
+        while (System.currentTimeMillis() < deadline) {
+            client.queryAll("SYSTEM FLUSH LOGS");
+            List<GenericRecord> rows = client.queryAll(
+                    "SELECT toString(type) AS type, exception_code FROM system.query_log " +
+                            "WHERE query_id = '" + queryId + "' AND event_date >= today() - 1");
+
+            StringBuilder types = new StringBuilder();
+            for (GenericRecord row : rows) {
+                String type = row.getString("type");
+                int exceptionCode = row.getInteger("exception_code");
+                types.append(type).append('(').append(exceptionCode).append(") ");
+
+                Assert.assertNotEquals(type, "QueryFinish",
+                        "query unexpectedly finished successfully instead of being interrupted (query_id="
+                                + queryId + ")");
+                if ("ExceptionWhileProcessing".equals(type)) {
+                    Assert.assertNotEquals(exceptionCode, 0,
+                            "an interrupted query must be logged with a non-zero exception code (query_id="
+                                    + queryId + ")");
+                    return; // found the proof the query was interrupted on the server
+                }
+            }
+            seenTypes = types.toString();
+            Thread.sleep(250);
+        }
+        Assert.fail("no query_log record proving the query was interrupted (query_id=" + queryId
+                + ", seen types: [" + seenTypes + "])");
     }
 }

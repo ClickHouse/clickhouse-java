@@ -108,6 +108,17 @@
   previously set in milliseconds but mistakenly retrieved and used in seconds in some places. Now it correctly uses
   milliseconds consistently. (https://github.com/ClickHouse/clickhouse-java/issues/2358)
 
+- **[client-v2]** HTTP `503 Service Unavailable` responses are now surfaced as a connection-style failure (
+  `java.net.ConnectException`) and are retried by default. Previously a `503` was treated as a server error (
+  `ServerException`) and fell under the `ServerRetryable` fault cause. It has been moved to the `ConnectTimeout` fault
+  cause category so that connectivity/availability failures are handled uniformly with other connection errors. Callers
+  that specifically excluded `ServerRetryable` to avoid retrying `503` should now adjust their
+  `client_retry_on_failures` configuration to exclude `ConnectTimeout` instead.
+
+- **[client-v2]** Unexpected/unknown HTTP status codes (those the client cannot interpret as a ClickHouse response) now
+  throw a `ClientException` instead of a `ServerException`. Since the client cannot meaningfully handle these responses,
+  they are reported as a client-side error rather than being attributed to the server.
+
 ### New Features
 
 - **[client-v2, jdbc-v2]** Added support for an application-supplied `javax.net.ssl.SSLContext`. In client-v2,
@@ -173,6 +184,12 @@
   as `key=value[,]` list (For example, `Int32=Long,UInt64=String`). Deprecation notice: V1 property `typeMappings` is 
   supported but will be removed. Please migrate to the new property. 
   (https://github.com/ClickHouse/clickhouse-java/issues/2858)
+
+- **[client-v2]** Added `Client#cancelTransportRequest(String queryId)` to cancel an in-flight request that has not yet
+  received a response from the server, identified by the query id supplied in the operation settings. This aborts the
+  request on the client side (cancels the underlying IO operation) but does **not** issue a `KILL QUERY` on the server,
+  so a query that already started executing may continue to run server-side. It is recommended to use operation timeout
+  settings where possible; this API is intended for explicitly aborting a request from the client.
 
 ### Improvements 
 

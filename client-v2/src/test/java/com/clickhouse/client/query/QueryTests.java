@@ -11,6 +11,7 @@ import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.command.CommandSettings;
+import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.enums.Protocol;
@@ -1464,6 +1465,54 @@ public class QueryTests extends BaseIntegrationTest {
 
             Assert.assertEquals(metrics.getMetric(ServerMetrics.NUM_ROWS_READ).getLong(), 30);
             Assert.assertTrue(metrics.getMetric(ServerMetrics.RESULT_ROWS).getLong() > 0);
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testQueryResponseGettersAndHeaders() throws Exception {
+        String uuid = UUID.randomUUID().toString();
+        QuerySettings settings = new QuerySettings()
+                .setFormat(ClickHouseFormat.TabSeparated)
+                .waitEndOfQuery(true)
+                .setQueryId(uuid);
+
+        try (QueryResponse response = client.query("SELECT number FROM system.numbers LIMIT 10", settings).get()) {
+            // Format getter
+            Assert.assertEquals(response.getFormat(), ClickHouseFormat.TabSeparated);
+
+            // Metrics getters
+            Assert.assertNotNull(response.getMetrics(), "metrics should be present");
+            Assert.assertEquals(response.getReadRows(), 10);
+            Assert.assertTrue(response.getReadBytes() > 0, "read bytes should be positive");
+            Assert.assertTrue(response.getWrittenRows() >= 0, "written rows should be non-negative");
+            Assert.assertTrue(response.getWrittenBytes() >= 0, "written bytes should be non-negative");
+            Assert.assertTrue(response.getServerTime() >= 0, "server time should be non-negative");
+            Assert.assertTrue(response.getResultRows() > 0, "result rows should be positive");
+            Assert.assertTrue(response.getTotalRowsToRead() >= 0, "total rows to read should be non-negative");
+            Assert.assertEquals(response.getQueryId(), uuid);
+
+            // Timezone and settings getters
+            Assert.assertNotNull(response.getTimeZone(), "server timezone should be resolved from response header");
+            Assert.assertNotNull(response.getSettings(), "settings should be present");
+
+            // Server display name getter
+            Assert.assertNotNull(response.getServerDisplayName(), "server display name header should be present");
+
+            // All whitelisted response headers must be returned
+            Map<String, String> headers = response.getResponseHeaders();
+            Assert.assertNotNull(headers, "response headers map should be present");
+            Assert.assertEquals(headers.get(ClickHouseHttpProto.HEADER_QUERY_ID), uuid,
+                    "query id header should round-trip");
+            Assert.assertNotNull(headers.get(ClickHouseHttpProto.HEADER_TIMEZONE),
+                    "timezone header should be present");
+            Assert.assertNotNull(headers.get(ClickHouseHttpProto.HEADER_FORMAT),
+                    "format header should be present");
+            Assert.assertNotNull(headers.get(ClickHouseHttpProto.HEADER_SRV_DISPLAY_NAME),
+                    "server display name header should be present");
+            Assert.assertNotNull(headers.get(ClickHouseHttpProto.HEADER_SRV_SUMMARY),
+                    "summary header should be present");
+            Assert.assertEquals(headers.get(ClickHouseHttpProto.HEADER_SRV_DISPLAY_NAME),
+                    response.getServerDisplayName(), "getter should match header map value");
         }
     }
 
