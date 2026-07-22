@@ -17,6 +17,7 @@ import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.sql.SQLUtils;
 import com.clickhouse.data.ClickHouseDataType;
+import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseVersion;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -99,7 +100,7 @@ public class DataTypeTests extends BaseIntegrationTest {
                                      BiConsumer<List<T>, T> rowVerifier, CommandSettings ddlSettings) throws Exception {
         client.execute("DROP TABLE IF EXISTS " + table).get();
         if (ddlSettings == null) {
-            client.execute(tableDef);
+            client.execute(tableDef).get();
         } else {
             client.execute(tableDef, ddlSettings).get();
         }
@@ -196,6 +197,42 @@ public class DataTypeTests extends BaseIntegrationTest {
                     Assert.assertEquals(dto.getVec(), bf16);
                     Assert.assertEquals(dto.getTail(), 42);
                 }, ddl);
+    }
+
+    @Test(groups = {"integration"})
+    public void testQBitNativeFormatRejected() throws Exception {
+        if (isVersionMatch(QBIT_UNSUPPORTED_VERSIONS)) {
+            throw new SkipException("QBit requires ClickHouse 25.10+");
+        }
+
+        // In the Native format the server transmits a QBit column using its internal bit-transposed
+        // layout, which is NOT the Array(element_type)-like representation the client decodes for QBit
+        // over RowBinary. Reading QBit via Native must therefore fail loudly with a clear error rather
+        // than silently decoding garbage and misaligning the trailing column that follows it.
+        QuerySettings settings = new QuerySettings()
+                .setFormat(ClickHouseFormat.Native)
+                .serverSetting("allow_experimental_qbit_type", "1");
+        try (QueryResponse response = client.query(
+                "SELECT CAST([1, 2, 3, 4, 5, 6, 7, 8] AS QBit(Float32, 8)) AS q, 42 AS tail", settings).get()) {
+            ClientException ex = Assert.expectThrows(ClientException.class,
+                    () -> client.newBinaryFormatReader(response));
+            Assert.assertTrue(ex.getMessage().contains("QBit"),
+                    "Expected a clear QBit message, got: " + ex.getMessage());
+            Assert.assertTrue(ex.getMessage().contains("Native"),
+                    "Expected the message to mention the Native format, got: " + ex.getMessage());
+        }
+
+        // The same rejection applies to a QBit nested inside another type (here Map(String, QBit)),
+        // which the server does support and would otherwise be misread column-by-column.
+        try (QueryResponse response = client.query(
+                "SELECT CAST(map('a', [1, 2, 3]) AS Map(String, QBit(Float32, 3))) AS m", settings).get()) {
+            ClientException ex = Assert.expectThrows(ClientException.class,
+                    () -> client.newBinaryFormatReader(response));
+            Assert.assertTrue(ex.getMessage().contains("QBit"),
+                    "Expected a clear QBit message for the nested case, got: " + ex.getMessage());
+            Assert.assertTrue(ex.getMessage().contains("Native"),
+                    "Expected the message to mention the Native format, got: " + ex.getMessage());
+        }
     }
 
     @Test(groups = {"integration"})

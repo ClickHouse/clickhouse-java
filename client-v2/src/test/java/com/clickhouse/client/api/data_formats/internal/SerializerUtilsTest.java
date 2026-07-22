@@ -213,6 +213,47 @@ public class SerializerUtilsTest {
         Assert.assertEquals(qbitOut.toByteArray(), arrayOut.toByteArray());
     }
 
+    @Test
+    public void testQBitSerializationRejectsNull() {
+        // A QBit has a fixed dimension, so a null value cannot satisfy it. A top-level null
+        // non-nullable QBit is already rejected by RowBinaryFormatSerializer.writeValuePreamble, but a
+        // QBit nested inside a Tuple/Map/Array is serialized through serializeNestedData, which does
+        // NOT route a non-nullable element through that preamble. Without an explicit guard the null
+        // would delegate to the Array serializer and be written as a zero-length vector (var-int 0),
+        // desynchronizing the RowBinary stream and corrupting the following columns. Writing into a
+        // byte sink so any (wrongly) emitted payload would be observable.
+        ClickHouseColumn column = ClickHouseColumn.of("vec", "QBit(Float32, 8)");
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+        IllegalArgumentException ex = Assert.expectThrows(IllegalArgumentException.class,
+                () -> SerializerUtils.serializeData(out, null, column));
+        Assert.assertTrue(ex.getMessage().contains("vec"),
+                "Message should name the column: " + ex.getMessage());
+        Assert.assertTrue(ex.getMessage().contains("null"),
+                "Message should state the value cannot be null: " + ex.getMessage());
+        Assert.assertEquals(out.size(), 0,
+                "Nothing should be written to the stream when a null QBit is rejected");
+    }
+
+    @Test
+    public void testQBitNestedInTupleRejectsNullElement() throws Exception {
+        // Exercises the production-reachable path for the null guard: a non-nullable QBit nested in a
+        // Tuple is written through serializeNestedData, which does NOT apply the top-level
+        // writeValuePreamble null-into-non-nullable check to a non-nullable element. Without the guard
+        // in serializeQBitData the null element would be written as a zero-length vector (var-int 0),
+        // desynchronizing the stream and corrupting the rest of the row.
+        ClickHouseColumn tuple = ClickHouseColumn.of("t", "Tuple(QBit(Float32, 8))");
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        List<Object> tupleValue = Arrays.asList((Object) null);
+
+        IllegalArgumentException ex = Assert.expectThrows(IllegalArgumentException.class,
+                () -> SerializerUtils.serializeData(out, tupleValue, tuple));
+        Assert.assertTrue(ex.getMessage().contains("cannot be null"),
+                "Message should explain the null QBit is rejected: " + ex.getMessage());
+        Assert.assertEquals(out.size(), 0,
+                "Nothing should be written when the nested null QBit element is rejected");
+    }
+
     @Test(dataProvider = "nonNullableEnumTypes")
     public void testNullIntoNonNullableEnumThrowsIllegalArgument(String typeName) {
         ClickHouseColumn column = ClickHouseColumn.of("bs_flag", typeName);
