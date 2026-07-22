@@ -67,7 +67,7 @@
   The Gradle wrapper and build scripts were removed and each project now has a standalone `pom.xml`.
   (https://github.com/ClickHouse/clickhouse-java/issues/2915)
 
-## 0.10.0-rc1,  
+## 0.10.0,  
 
 [Release Migration Guide](docs/releases/0_10_0.md)
 
@@ -115,7 +115,11 @@
   previously set in milliseconds but mistakenly retrieved and used in seconds in some places. Now it correctly uses
   milliseconds consistently. (https://github.com/ClickHouse/clickhouse-java/issues/2358)
 
-- **[client-v2]** The public `ClickHouseBinaryFormatWriter` interface gained two methods, `setString(String, byte[])` and `setString(int, byte[])`, for writing raw `String`/`FixedString` bytes. Code that only *uses* the interface is unaffected, but any third party that *implements* `ClickHouseBinaryFormatWriter` directly is source- and binary-incompatible until it adds these methods (recompiling against the new version is required; otherwise an `AbstractMethodError` can occur at runtime).
+- **[client-v2]** The public `ClickHouseBinaryFormatWriter` interface gained two methods, `setString(String, byte[])`
+  and `setString(int, byte[])`, for writing raw `String`/`FixedString` bytes. Code that only *uses* the interface is
+  unaffected, but any third party that *implements* `ClickHouseBinaryFormatWriter` directly is source- and
+  binary-incompatible until it adds these methods (recompiling against the new version is required; otherwise an
+  `AbstractMethodError` can occur at runtime).
 
 - **[client-v2]** HTTP `503 Service Unavailable` responses are now surfaced as a connection-style failure (
   `java.net.ConnectException`) and are retried by default. Previously a `503` was treated as a server error (
@@ -229,7 +233,10 @@ like `ch_db_01`. This is mostly used in k8s environment. (https://github.com/Cli
 
 - **[repo]** Added a contribution guide. Please review and send us your feedback. (https://github.com/ClickHouse/clickhouse-java/pull/2859)
 
-- **[client-v2]** Added endpoint failover support: when multiple endpoints are configured and a request fails with a retryable error (connect timeout, connection refused, HTTP 503, etc.), the client now automatically retries against the next available endpoint instead of always targeting the first one. Failed endpoints are quarantined for 30 seconds before being retried. (https://github.com/ClickHouse/clickhouse-java/issues/2855)
+- **[client-v2]** Added endpoint failover support: when multiple endpoints are configured and a request fails with a
+  retryable error (connect timeout, connection refused, HTTP 503, etc.), the client now automatically retries against
+  the next available endpoint instead of always targeting the first one. Failed endpoints are quarantined for 30 seconds
+  before being retried. (https://github.com/ClickHouse/clickhouse-java/issues/2855)
 
 ### Bug Fixes
 
