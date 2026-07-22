@@ -222,7 +222,8 @@ public class BinaryStreamReaderTests {
                 null,
                 new BinaryStreamReader.CachingByteBufferAllocator(),
                 false,
-                null);
+                null,
+                false);
 
         BinaryStreamReader.ArrayValue array = (BinaryStreamReader.ArrayValue) reader.readValue(
                 ClickHouseColumn.of("v", "Array(Nullable(Float64))"));
@@ -245,7 +246,8 @@ public class BinaryStreamReaderTests {
                 null,
                 new BinaryStreamReader.CachingByteBufferAllocator(),
                 false,
-                null);
+                null,
+                false);
 
         BinaryStreamReader.ArrayValue array = (BinaryStreamReader.ArrayValue) reader.readValue(
                 ClickHouseColumn.of("v", "Array(Nullable(UInt8))"));
@@ -268,7 +270,8 @@ public class BinaryStreamReaderTests {
                 null,
                 new BinaryStreamReader.CachingByteBufferAllocator(),
                 false,
-                null);
+                null,
+                false);
 
         BinaryStreamReader.ArrayValue array = (BinaryStreamReader.ArrayValue) reader.readValue(
                 ClickHouseColumn.of("v", "Array(Nullable(Enum8('a'=1,'b'=2)))"));
@@ -299,7 +302,8 @@ public class BinaryStreamReaderTests {
                 null,
                 new BinaryStreamReader.CachingByteBufferAllocator(),
                 false,
-                null);
+                null,
+                false);
 
         BinaryStreamReader.ArrayValue array = (BinaryStreamReader.ArrayValue) reader.readValue(
                 ClickHouseColumn.of("v", columnType));
