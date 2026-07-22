@@ -5,6 +5,7 @@ import com.clickhouse.client.api.enums.SSLMode;
 import com.clickhouse.client.api.internal.HttpAPIClientHelper.CustomSSLConnectionFactory;
 import com.clickhouse.client.api.transport.Endpoint;
 import com.clickhouse.client.api.transport.HttpEndpoint;
+import com.clickhouse.client.api.transport.internal.TransportRequest;
 import net.jpountz.lz4.LZ4Factory;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
@@ -247,7 +248,8 @@ public class HttpAPIClientHelperTest {
 
         Endpoint endpoint = new HttpEndpoint("localhost", 8123, false, "/");
         try {
-            helper.executeRequest(endpoint, new HashMap<>(), "SELECT 1");
+            TransportRequest req = helper.createRequest(endpoint, new HashMap<>(), "SELECT 1");
+            helper.executeRequest(req).close();
             Assert.fail("Expected ConnectException to be thrown");
         } catch (ConnectException e) {
             // expected
@@ -275,7 +277,8 @@ public class HttpAPIClientHelperTest {
 
         Endpoint endpoint = new HttpEndpoint("localhost", 8123, false, "/");
         try {
-            helper.executeRequest(endpoint, new HashMap<>(), "SELECT 1");
+            TransportRequest req = helper.createRequest(endpoint, new HashMap<>(), "SELECT 1");
+            helper.executeRequest(req).close();
             Assert.fail("Expected ConnectException to be thrown");
         } catch (ConnectException e) {
             // expected
