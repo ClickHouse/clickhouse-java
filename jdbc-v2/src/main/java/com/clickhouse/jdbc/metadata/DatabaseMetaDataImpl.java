@@ -873,6 +873,11 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         map.put("PaimonLocal", TableType.REMOTE_TABLE.getTypeName());
         map.put("PaimonS3", TableType.REMOTE_TABLE.getTypeName());
 
+        // Remote engines (appended 07/21/2026)
+        map.put("QueryRunner", TableType.REMOTE_TABLE.getTypeName());
+        map.put("Remote", TableType.REMOTE_TABLE.getTypeName());
+        map.put("RemoteSecure", TableType.REMOTE_TABLE.getTypeName());
+
         // Special
         map.put("TimeSeries", TableType.TABLE.getTypeName());
         map.put("Null", TableType.TABLE.getTypeName());
