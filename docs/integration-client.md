@@ -609,6 +609,54 @@ Field-to-column matching is controlled by [`ColumnToMethodMatchingStrategy`](../
 
 ## Step 9 — Miscellaneous features
 
+### Runtime credentials & Access Tokens
+
+ClickHouse supports authentication via access tokens (e.g., JWTs) instead of traditional username/password credentials. This is common in cloud deployments or when using an authentication proxy.
+
+You can configure token authentication when building the client:
+
+```java
+Client client = new Client.Builder()
+    .addEndpoint("https://my-cluster:8443")
+    // Use either setAccessToken (raw token) OR useBearerTokenAuth (prepends "Bearer ")
+    .useBearerTokenAuth("my_jwt_token")
+    .build();
+```
+
+> **Constraint:** You cannot mix authentication mechanisms. A client must be built with either a username/password OR a token, not both.
+
+**Realtime credential updates**
+
+If your application uses short-lived credentials (like expiring JWTs or rotated passwords), you can update the credentials on an existing `Client` instance without recreating it. All subsequent requests will use the new credentials:
+
+```java
+// If the client was built with a bearer token:
+client.updateBearerToken("new_jwt_token");
+
+// If the client was built with a raw access token:
+client.updateAccessToken("new_raw_token");
+
+// If the client was built with a username/password:
+client.updateUserAndPassword("user", "new_password");
+```
+
+> **Note:** The authentication *method* is fixed at construction time. If you built the client with a password, you cannot switch to a token at runtime (and vice versa). Attempting to do so will throw a `ClientMisconfigurationException`.
+
+**Impersonation and Roles**
+
+Updating the username and password at runtime is particularly useful for **impersonation** (e.g., a proxy or BI tool switching to a specific user's context). When using this pattern, the initial user passed to the `Client.Builder` should have limited permissions (e.g., only enough to bootstrap or `CREATE USER`/`GRANT`).
+
+Alternatively, you can manage access using **roles** instead of switching users. Roles can be set globally on the client or overridden per-operation:
+
+```java
+// Set roles globally for all subsequent operations on this client
+client.setDBRoles(Arrays.asList("analyst_role", "reporting_role"));
+
+// Or set roles per-operation
+QuerySettings settings = new QuerySettings().setDBRoles(Arrays.asList("admin_role"));
+client.query("SELECT * FROM sensitive_data", settings).get();
+```
+
 ### Sessions
 
 A [`Session`](../client-v2/src/main/java/com/clickhouse/client/api/Session.java) carries ClickHouse HTTP session state (`session_id`, `session_check`, `session_timeout`, `session_timezone`). This is completely optional and only needed if your application relies on ClickHouse session context.
