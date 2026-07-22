@@ -60,6 +60,13 @@
   backtick-quoted `INSERT` column-name component before the by-name server-schema lookup, matching how the
   table and database identifiers are already handled. (https://github.com/ClickHouse/clickhouse-java/issues/2896)
 
+### Docs & Examples
+
+- **[examples]** Converted the remaining Gradle-based example projects (`client-v2-apache-arrow`, `demo-service`,
+  `demo-kotlin-service`) to Maven so that every project under `examples/` builds with a single, consistent toolchain.
+  The Gradle wrapper and build scripts were removed and each project now has a standalone `pom.xml`.
+  (https://github.com/ClickHouse/clickhouse-java/issues/2915)
+
 ## 0.10.0-rc1,  
 
 [Release Migration Guide](docs/releases/0_10_0.md)

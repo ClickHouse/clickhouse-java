@@ -14,17 +14,18 @@ The example shows:
   into another table by streaming the same `VectorSchemaRoot` straight back to
   `client.insert(...)`.
 
-Unlike the other examples in this repository, this one is built with **Gradle**
-(JDK 17 toolchain) and is not part of the Maven multi-module build.
+Like the other examples in this repository, this one is built with **Maven**
+(targeting JDK 17). It is a standalone project and is not part of the Maven
+multi-module build.
 
 ## Requirements
 
-- JDK 17 or newer (the Gradle toolchain will fetch one if it is missing).
+- JDK 17 or newer.
 - A running ClickHouse server reachable from the machine running the example.
 
 Apache Arrow needs access to direct memory and a few internal JDK APIs. The
-required `--add-opens` flags are already wired into `applicationDefaultJvmArgs`
-in `build.gradle.kts`, so running the example through Gradle just works:
+required `--add-opens` flags are wired into `.mvn/jvm.config`, so running the
+example through `mvn ... exec:java` (which runs in the Maven JVM) just works:
 
 ```text
 --add-opens=java.base/java.nio=ALL-UNNAMED
@@ -39,7 +40,7 @@ If you run the produced jar manually, pass these flags to the JVM yourself.
 From this directory:
 
 ```shell
-./gradlew run
+mvn compile exec:java
 ```
 
 Connection properties can be supplied as system properties:
@@ -52,7 +53,7 @@ Connection properties can be supplied as system properties:
 Example with custom connection properties:
 
 ```shell
-./gradlew run \
+mvn compile exec:java \
   -DchEndpoint=http://localhost:8123 \
   -DchUser=default \
   -DchPassword= \
@@ -62,7 +63,7 @@ Example with custom connection properties:
 To see the wire-level data flow, raise the SLF4J log level:
 
 ```shell
-./gradlew run -Dorg.slf4j.simpleLogger.defaultLogLevel=DEBUG
+mvn compile exec:java -Dorg.slf4j.simpleLogger.defaultLogLevel=DEBUG
 ```
 
 ## Executable Example

@@ -616,7 +616,7 @@ For these types, callers should obtain the parsed value through
 
 ## Examples
 
-Two runnable Gradle examples are provided under `examples/`:
+Two runnable Maven examples are provided under `examples/`:
 
 - `examples/client-v2-json-processors` exercises the `client-v2` API
   directly, switching between Jackson and Gson factories against a shared sample

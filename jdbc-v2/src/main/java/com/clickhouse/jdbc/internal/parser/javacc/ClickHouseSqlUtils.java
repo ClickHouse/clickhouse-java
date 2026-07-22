@@ -71,7 +71,9 @@ public final class ClickHouseSqlUtils {
                 // Appended 06/10/2026
                 "IPV4_PREFIX_BITS", "IPV6_PREFIX_BITS", "TIMEZONE_HOUR", "TIMEZONE_MINUTE",
                 // Appended 06/26/2026
-                "ENUM", "HYPOTHETICAL", "WHATIF"
+                "ENUM", "HYPOTHETICAL", "WHATIF",
+                // Appended 07/21/2026
+                "ANALYZE", "AT", "MANIFEST", "RESERVATION"
             );
     }
 
