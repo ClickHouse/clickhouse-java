@@ -84,6 +84,10 @@ public interface ClickHouseBinaryFormatWriter {
 
     void setString(int colIndex, String value);
 
+    void setString(String column, byte[] value);
+
+    void setString(int colIndex, byte[] value);
+
     void setDate(String column, LocalDate value);
 
     void setDate(int colIndex, LocalDate value);

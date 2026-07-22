@@ -3,6 +3,7 @@ package com.clickhouse.jdbc.internal;
 import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.data_formats.internal.InetAddressConverter;
+import com.clickhouse.client.api.data_formats.internal.StringValue;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.Tuple;
@@ -12,6 +13,7 @@ import com.google.common.collect.ImmutableMap;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.sql.Date;
 import java.sql.JDBCType;
@@ -291,6 +293,11 @@ public class JdbcUtils {
             return value;
         }
 
+        // Special case
+        if (value instanceof StringValue && type == Object.class) {
+            return ((StringValue)value).asString();
+        }
+
         type = unwrapPrimitiveType(type);
         if (type.isInstance(value)) {
             return value;
@@ -344,6 +351,12 @@ public class JdbcUtils {
         try {
             if (type == String.class) {
                 return value.toString();
+            } else if (type == byte[].class && value instanceof StringValue) {
+                // Raw bytes of a String/FixedString column read as a StringValue (binary_string_support).
+                // String and numeric targets already work through the value.toString() branches below.
+                return ((StringValue) value).toByteArray();
+            } else if (type == byte[].class && value instanceof String) {
+                return ((String)value).getBytes(StandardCharsets.UTF_8);
             } else if (type == Boolean.class) {
                 String str = value.toString();
                 return !("false".equalsIgnoreCase(str) || "0".equalsIgnoreCase(str));

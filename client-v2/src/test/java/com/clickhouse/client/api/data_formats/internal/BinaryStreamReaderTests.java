@@ -201,7 +201,8 @@ public class BinaryStreamReaderTests {
                 null,
                 new BinaryStreamReader.CachingByteBufferAllocator(),
                 false,
-                null);
+                null,
+                false);
 
         Assert.assertNull(reader.readValue(column));
     }

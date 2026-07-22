@@ -5,11 +5,13 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
+import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseVersion;
 import com.clickhouse.data.ClickHouseDataType;
 import org.testng.Assert;
@@ -28,6 +30,7 @@ import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 @Test(groups = {"integration"})
 public class BaseReaderTests extends BaseIntegrationTest {
@@ -572,4 +575,197 @@ public class BaseReaderTests extends BaseIntegrationTest {
                 .setPassword(ClickHouseServerForTest.getPassword());
     }
 
+    @Test(groups = {"integration"})
+    public void testReadingStringValue() throws Exception {
+        final String table = "test_reading_stringvalue";
+
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        client.execute("CREATE TABLE " + table + " (id Int32, s String, fs FixedString(5), e FixedString(1)) ENGINE = MergeTree ORDER BY id").get();
+        client.execute("INSERT INTO " + table + " VALUES (1, 'hello', 'world', 'a'), (2, 'ClickHouse', 'Rocks', 'b')").get();
+
+        Client customClient = newClient()
+                .binaryStringSupport(true)
+                .build();
+
+        try {
+            try (QueryResponse response = customClient.query("SELECT * FROM " + table + " ORDER BY id").get()) {
+                ClickHouseBinaryFormatReader reader = customClient.newBinaryFormatReader(response);
+
+                // Test reading multiple strings in a row and check that their content differs
+                Assert.assertNotNull(reader.next());
+                Assert.assertEquals(reader.getInteger("id"), 1);
+                StringValue s1 = (StringValue) reader.readValue("s");
+                StringValue fs1 = (StringValue) reader.readValue("fs");
+                StringValue e1 = (StringValue) reader.readValue("e");
+
+                Assert.assertEquals(s1.asString(), "hello");
+                Assert.assertEquals(fs1.asString(), "world");
+                Assert.assertEquals(e1.asString(), "a");
+
+                // Test getting read value multiple times
+                Assert.assertSame(s1, reader.readValue("s"), "Consecutive reads for the same row should return the same instance or equal value");
+                Assert.assertEquals(reader.getString("s"), "hello");
+                // Test reading byte[] from String columns
+                Assert.assertEquals(reader.getByteArray("s"), "hello".getBytes());
+                Assert.assertEquals(reader.getByteArray("fs"), "world".getBytes());
+                Assert.assertEquals(reader.getByteArray("e"), "a".getBytes());
+
+                Assert.assertNotNull(reader.next());
+                Assert.assertEquals(reader.getInteger("id"), 2);
+                StringValue s2 = (StringValue) reader.readValue("s");
+                StringValue fs2 = (StringValue) reader.readValue("fs");
+                StringValue e2 = (StringValue) reader.readValue("e");
+
+                Assert.assertEquals(s2.asString(), "ClickHouse");
+                Assert.assertEquals(fs2.asString(), "Rocks");
+                Assert.assertEquals(e2.asString(), "b");
+
+                Assert.assertNotEquals(s1.asString(), s2.asString());
+                Assert.assertNotEquals(fs1.asString(), fs2.asString());
+            }
+
+            // test queryAll with string value
+            List<GenericRecord> records = customClient.queryAll("SELECT * FROM " + table + " ORDER BY id");
+            Assert.assertEquals(records.size(), 2);
+
+            Assert.assertEquals(records.get(0).getInteger("id"), 1);
+            Assert.assertEquals(records.get(0).getString("s"), "hello");
+            Assert.assertEquals(records.get(0).getString("fs"), "world");
+            Assert.assertEquals(records.get(0).getByteArray("s"), "hello".getBytes());
+            Assert.assertEquals(records.get(0).getByteArray("fs"), "world".getBytes());
+            Assert.assertEquals(records.get(0).getByteArray("e"), "a".getBytes());
+
+            Assert.assertEquals(records.get(1).getInteger("id"), 2);
+            Assert.assertEquals(records.get(1).getString("s"), "ClickHouse");
+            Assert.assertEquals(records.get(1).getString("fs"), "Rocks");
+            Assert.assertEquals(records.get(1).getByteArray("s"), "ClickHouse".getBytes());
+            Assert.assertEquals(records.get(1).getByteArray("fs"), "Rocks".getBytes());
+            Assert.assertEquals(records.get(1).getByteArray("e"), "b".getBytes());
+        } finally {
+            customClient.close();
+        }
+    }
+
+    /**
+     * Regression test for https://github.com/ClickHouse/clickhouse-java/issues/1397: a String value that holds
+     * arbitrary binary content (here a SHA-512 hash, which is almost never valid UTF-8) must be read back byte
+     * for byte instead of being mangled by lossy UTF-8 decoding.
+     */
+    @Test(groups = {"integration"})
+    public void testReadingBinaryStringFromHash() throws Exception {
+        final String message = "abc";
+        final byte[] expectedHash = java.security.MessageDigest.getInstance("SHA-512")
+                .digest(message.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        Assert.assertEquals(expectedHash.length, 64);
+
+        Client customClient = newClient()
+                .binaryStringSupport(true)
+                .build();
+
+        final String query = "SELECT SHA512('" + message + "') AS hash";
+        try {
+            try (QueryResponse response = customClient.query(query).get()) {
+                ClickHouseBinaryFormatReader reader = customClient.newBinaryFormatReader(response);
+                Assert.assertNotNull(reader.next());
+
+                StringValue hash = (StringValue) reader.readValue("hash");
+                Assert.assertEquals(hash.size(), expectedHash.length);
+                Assert.assertEquals(hash.toByteArray(), expectedHash,
+                        "Binary hash bytes must be preserved exactly");
+                // getByteArray must agree with the raw StringValue bytes
+                Assert.assertEquals(reader.getByteArray("hash"), expectedHash);
+            }
+
+            List<GenericRecord> records = customClient.queryAll(query);
+            Assert.assertEquals(records.size(), 1);
+            Assert.assertEquals(records.get(0).getByteArray("hash"), expectedHash,
+                    "Binary hash read via queryAll must match the locally computed digest");
+        } finally {
+            customClient.close();
+        }
+    }
+
+    /**
+     * String values nested inside a JSON column must be read as plain {@link String} even when
+     * {@code binary_string_support} is enabled, consistent with all other container types. Only top-level
+     * String/FixedString columns are promoted to {@link StringValue}.
+     */
+    @Test(groups = {"integration"})
+    public void testJsonStringPathsStayStringWithBinaryStringSupport() throws Exception {
+        if (isCloud()) {
+            return; // TODO: add support on cloud
+        }
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
+        final String table = "test_json_binary_string_support";
+        CommandSettings commandSettings = new CommandSettings();
+        commandSettings.serverSetting("allow_experimental_json_type", "1");
+        client.execute("DROP TABLE IF EXISTS " + table, commandSettings).get();
+        client.execute("CREATE TABLE " + table + " (id Int32, json JSON) ENGINE = MergeTree ORDER BY id", commandSettings).get();
+        client.execute("INSERT INTO " + table + " VALUES (1, '{\"name\" : \"hello\"}')", commandSettings).get();
+
+        Client customClient = newClient()
+                .binaryStringSupport(true)
+                .build();
+
+        try (QueryResponse response = customClient.query("SELECT json FROM " + table + " ORDER BY id").get()) {
+            ClickHouseBinaryFormatReader reader = customClient.newBinaryFormatReader(response);
+            Assert.assertNotNull(reader.next());
+
+            Map<String, Object> json = reader.readValue("json");
+            Object name = json.get("name");
+            Assert.assertTrue(name instanceof String,
+                    "String values nested in JSON must stay plain String, but got " +
+                            (name == null ? "null" : name.getClass().getName()));
+            Assert.assertEquals(name, "hello");
+        } finally {
+            customClient.close();
+        }
+    }
+
+    /**
+     * Binary string support is resolved per operation from the merged client and query settings, so two reads of the
+     * same table issued from the same client must honor each operation's {@code binary_string_support} override
+     * independently. The client default is left disabled here; one query opts in while the other relies on the
+     * default.
+     */
+    @Test(groups = {"integration"})
+    public void testBinaryStringSupportIsPerOperation() throws Exception {
+        final String table = "test_binary_string_support_per_operation";
+
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        client.execute("CREATE TABLE " + table + " (id Int32, s String) ENGINE = Memory").get();
+        client.execute("INSERT INTO " + table + " VALUES (1, 'hello')").get();
+
+        // The shared client keeps binary string support disabled (the default).
+        final String query = "SELECT s FROM " + table + " ORDER BY id";
+
+        // First operation: opt-in via per-operation QuerySettings -> reads a StringValue.
+        QuerySettings enabled = new QuerySettings()
+                .setOption(ClientConfigProperties.BINARY_STRING_SUPPORT.getKey(), true);
+        try (QueryResponse response = client.query(query, enabled).get()) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+            Assert.assertNotNull(reader.next());
+            Object value = reader.readValue("s");
+            Assert.assertTrue(value instanceof StringValue,
+                    "With binary_string_support enabled for the operation, top-level String must be a StringValue, but got " +
+                            (value == null ? "null" : value.getClass().getName()));
+            Assert.assertEquals(((StringValue) value).asString(), "hello");
+        }
+
+        // Second operation on the same table/client without the override -> reads a plain String.
+        QuerySettings disabled = new QuerySettings()
+                .setOption(ClientConfigProperties.BINARY_STRING_SUPPORT.getKey(), false);
+        try (QueryResponse response = client.query(query, disabled).get()) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+            Assert.assertNotNull(reader.next());
+            Object value = reader.readValue("s");
+            Assert.assertTrue(value instanceof String,
+                    "With binary_string_support disabled for the operation, top-level String must stay a plain String, but got " +
+                            (value == null ? "null" : value.getClass().getName()));
+            Assert.assertEquals(value, "hello");
+        }
+    }
 }
