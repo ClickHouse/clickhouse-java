@@ -286,20 +286,13 @@ These are the only pool-related properties you normally touch; the rest have saf
 
 ## Step 5 — Data formats, readers & writers
 
-**Goal:** pick the wire format and the reader/writer that match your throughput and interop needs. Format is chosen **per operation**, unlike JDBC which hides it.
-
 All formats are defined in [`ClickHouseFormat`](../clickhouse-data/src/main/java/com/clickhouse/data/ClickHouseFormat.java); each declares whether it supports input, output, binary encoding, headers, and row layout.
 
-### Format categories
+The client provides support for the `RowBinary` and `Native` format families through built-in readers and writers (see the list below). Users can also implement their own readers and writers, as the client provides direct access to the underlying `InputStream` and `OutputStream`.
 
-| Category | Examples | Typical use |
-|----------|----------|-------------|
-| Binary (high throughput) | `RowBinary`, `RowBinaryWithNamesAndTypes`, `Native` | Production ingest and ETL |
-| Text (human-readable) | `TabSeparated`, `CSV`, `JSONEachRow` | Debugging, ad-hoc export, interop |
-| Columnar file | `Parquet`, `Arrow`, `ORC`, `Avro` | Data-lake integration |
-| Schema-aware binary | `RowBinaryWithNamesAndTypes` | Self-describing streams without a prior schema |
+We recommend using libraries like [Jackson](https://github.com/FasterXML/jackson) for processing text formats such as `JSON` or `CSV`. Any library capable of reading from a standard Java `InputStream` will work seamlessly. 
 
-### Readers (for reads)
+**Readers**
 
 Select with `QuerySettings.setFormat(format)` and consume the response stream:
 
@@ -307,35 +300,24 @@ Select with `QuerySettings.setFormat(format)` and consume the response stream:
 |--------------|---------|
 | [`NativeFormatReader`](../client-v2/src/main/java/com/clickhouse/client/api/data_formats/NativeFormatReader.java) | `Native` |
 | [`RowBinaryFormatReader`](../client-v2/src/main/java/com/clickhouse/client/api/data_formats/RowBinaryFormatReader.java) | `RowBinary` variants |
-| [`ClickHouseBinaryFormatReader`](../client-v2/src/main/java/com/clickhouse/client/api/data_formats/ClickHouseBinaryFormatReader.java) | General binary access |
-| Text / JSON | Read `QueryResponse.getInputStream()` directly |
 
-### Writers (for writes)
+**Writers**
 
 | Writer class | Use |
 |--------------|-----|
 | [`RowBinaryFormatWriter`](../client-v2/src/main/java/com/clickhouse/client/api/data_formats/RowBinaryFormatWriter.java) | Row-oriented binary insert |
-| [`ClickHouseBinaryFormatWriter`](../client-v2/src/main/java/com/clickhouse/client/api/data_formats/ClickHouseBinaryFormatWriter.java) | General binary insert |
 
-### How to choose
 
-| Goal | Recommended format |
-|------|--------------------|
-| Maximum read throughput | `Native` or `RowBinaryWithNamesAndTypes` |
-| Maximum write throughput | `RowBinary` or `Native` |
-| Interop with other systems | `JSONEachRow`, `CSV`, `Parquet` |
-| Debugging / inspection | `TabSeparated`, `JSONEachRow` |
-| Schema-less exploration | `RowBinaryWithNamesAndTypes` (Wire format carries column names + types, avoiding need for out-of-band schema) |
-| POJO-based ingest | Register POJO + default RowBinary writer |
+**Choosing a format**
 
-### Common Pitfalls
+There is no silver bullet when choosing a data format—the best choice depends entirely on your data's origin, destination, and processing constraints. 
 
-> **Not every `ClickHouseFormat` has a dedicated reader/writer.** Specialized formats (e.g. `CapnProto`, `MySQLDump`) may require raw stream handling — verify a reader exists before committing.
-> 
-> **POJO SerDe** covers most types but has known limitations (e.g. `Geometry` shape inference) — see [features.md](features.md).
-> 
-> **`Native`** is block-oriented; best when you control both schema and consumption.
----
+Consider these trade-offs:
+- **Binary formats (e.g., `RowBinary`, `Native`):** Highly compact and CPU-efficient. Best for general-purpose, high-throughput data transfer where you are mapping Java objects directly to ClickHouse rows.
+- **Text formats (e.g., `JSONEachRow`, `CSV`):** Ideal for zero-copy passthrough. If your application receives newline-delimited JSON from an upstream service, passing `JSONEachRow` directly to ClickHouse avoids the CPU overhead of parsing JSON into Java objects only to serialize them back into a binary format.
+- **Columnar formats (e.g., `Parquet`, `Arrow`):** Excellent for bulk data exports or interoperability with other analytical systems.
+
+Always pick the format that minimizes unnecessary transcoding in your application layer.
 
 ## Step 6 — Read operations & tuning
 
