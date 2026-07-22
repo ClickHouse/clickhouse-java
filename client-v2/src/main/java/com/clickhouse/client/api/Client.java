@@ -3,6 +3,7 @@ package com.clickhouse.client.api;
 import com.clickhouse.client.api.command.CommandResponse;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
+import com.clickhouse.client.api.data_formats.ClickHouseFormatReader;
 import com.clickhouse.client.api.data_formats.NativeFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatReader;
@@ -1120,6 +1121,20 @@ public class Client implements AutoCloseable {
                     ClientConfigProperties.mapToString(typeHintMapping, (v) -> {
                         return ((Class<?>) v).getName();
                     }));
+            return this;
+        }
+
+        /**
+         * Enables reading {@code String} and {@code FixedString} columns into an intermediate {@code byte[]}
+         * (a new array each time) instead of decoding them into a {@link String}. This improves working with
+         * large strings and allows {@link ClickHouseFormatReader#getByteArray} to be used more effectively. Can also be configured
+         * per operation.
+         *
+         * @param enable - if the feature is enabled
+         * @return this builder instance
+         */
+        public Builder binaryStringSupport(boolean enable) {
+            this.configuration.put(ClientConfigProperties.BINARY_STRING_SUPPORT.getKey(), String.valueOf(enable));
             return this;
         }
 

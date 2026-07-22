@@ -1,5 +1,6 @@
 package com.clickhouse.client.api;
 
+import com.clickhouse.client.api.data_formats.ClickHouseFormatReader;
 import com.clickhouse.client.api.data_formats.internal.AbstractBinaryFormatReader;
 import com.clickhouse.client.api.enums.SSLMode;
 import com.clickhouse.client.api.internal.ClickHouseLZ4OutputStream;
@@ -180,6 +181,13 @@ public enum ClientConfigProperties {
      * Used by binary readers to convert values into desired Java type.
      */
     TYPE_HINT_MAPPING("type_hint_mapping", Map.class),
+
+    /**
+     * When enabled, {@code String} and {@code FixedString} columns are read into an intermediate {@code byte[]}
+     * instead of decoding them into a {@link String}. Improves working with large strings and lets
+     * {@link ClickHouseFormatReader#getByteArray} be used more effectively. Can be configured per operation.
+     */
+    BINARY_STRING_SUPPORT("binary_string_support", Boolean.class, "false"),
 
     /**
      * SNI SSL parameter that will be set for each outbound SSL socket.

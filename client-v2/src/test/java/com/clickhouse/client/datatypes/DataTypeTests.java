@@ -154,6 +154,84 @@ public class DataTypeTests extends BaseIntegrationTest {
         }
     }
 
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class DTOForBinaryStringTests {
+        private int rowId;
+
+        // Mapped to a ClickHouse String column but holds raw (non-UTF-8) bytes.
+        private byte[] binaryString;
+
+        // Mapped to a ClickHouse FixedString(N) column, also holding raw bytes.
+        private byte[] fixedBinary;
+
+        public static String tblCreateSQL(String table, int fixedLength) {
+            return tableDefinition(table, "rowId Int32", "binaryString String",
+                    "fixedBinary FixedString(" + fixedLength + ")");
+        }
+    }
+
+    /**
+     * Verifies that raw, non-UTF-8 binary content survives a round-trip through {@code String} and
+     * {@code FixedString} columns when binary string support is enabled. The check covers both the
+     * binary format reader ({@link ClickHouseBinaryFormatReader#getByteArray}) and the POJO mapping
+     * path (a {@code byte[]} field bound to a string-backed column).
+     */
+    @Test(groups = {"integration"})
+    public void testBinaryStringRoundTrip() throws Exception {
+        final String table = "test_binary_string_round_trip";
+        final int fixedLength = 16;
+
+        // A blob with every possible byte value guarantees invalid UTF-8 sequences (e.g. lone 0x80).
+        final byte[] binaryBlob = new byte[256];
+        for (int i = 0; i < binaryBlob.length; i++) {
+            binaryBlob[i] = (byte) i;
+        }
+        final byte[] fixedBlob = new byte[fixedLength];
+        for (int i = 0; i < fixedLength; i++) {
+            fixedBlob[i] = (byte) (0xFF - i);
+        }
+
+        final DTOForBinaryStringTests sample = new DTOForBinaryStringTests(1, binaryBlob, fixedBlob);
+
+        try (Client binClient = newClient().binaryStringSupport(true).build()) {
+            binClient.execute("DROP TABLE IF EXISTS " + table).get();
+            binClient.execute(DTOForBinaryStringTests.tblCreateSQL(table, fixedLength)).get();
+
+            final TableSchema tableSchema = binClient.getTableSchema(table);
+            binClient.register(DTOForBinaryStringTests.class, tableSchema);
+            binClient.insert(table, Collections.singletonList(sample)).get().close();
+
+            // Reader path: getByteArray must return the original raw bytes.
+            try (QueryResponse response = binClient.query("SELECT * FROM " + table).get()) {
+                ClickHouseBinaryFormatReader reader = binClient.newBinaryFormatReader(response);
+                Assert.assertNotNull(reader.next());
+                Assert.assertEquals(reader.getByteArray("binaryString"), binaryBlob);
+                Assert.assertEquals(reader.getByteArray("fixedBinary"), fixedBlob);
+            }
+
+            // POJO path: a byte[] field bound to a string-backed column must receive the raw bytes.
+            List<DTOForBinaryStringTests> pojos =
+                    binClient.queryAll("SELECT * FROM " + table + " ORDER BY rowId",
+                            DTOForBinaryStringTests.class, tableSchema);
+            Assert.assertEquals(pojos.size(), 1);
+            Assert.assertEquals(pojos.get(0).getBinaryString(), binaryBlob);
+            Assert.assertEquals(pojos.get(0).getFixedBinary(), fixedBlob);
+        }
+
+        // Negative control: without binary string support the String column is decoded as UTF-8,
+        // which is lossy for this blob, so the round-tripped bytes must NOT match the original.
+        try (QueryResponse response = client.query("SELECT * FROM " + table).get()) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+            Assert.assertNotNull(reader.next());
+            Assert.assertFalse(Arrays.equals(reader.getByteArray("binaryString"), binaryBlob),
+                    "Expected lossy UTF-8 decoding without binary string support");
+        }
+
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+    }
+
     @Test(groups = {"integration"})
     public void testVariantWithSimpleDataTypes() throws Exception {
         if (isVersionMatch("(,24.8]")) {
