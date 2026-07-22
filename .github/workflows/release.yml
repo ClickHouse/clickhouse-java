@@ -88,27 +88,29 @@ jobs:
             clickhouse-r2dbc/target/clickhouse*.jar
             client-v2/target/client-v2*.jar
             jdbc-v2/target/jdbc-v2*.jar
-      # Tableau users install the latest JDBC driver manually, so a release
-      # regression hits them with no connector release in between - trigger the
-      # TDVT suite in ClickHouse/connectors on every release.
-      # https://github.com/ClickHouse/connectors/issues/71
-      - name: Mint a token to dispatch into connectors
+  # Mirror Tableau TDVT after release (non-blocking).
+  tdvt:
+    name: "Tableau TDVT"
+    needs: release
+    if: ${{ needs.release.result == 'success' && startsWith(github.repository, 'ClickHouse/') }}
+    runs-on: "ubuntu-latest"
+    timeout-minutes: 150 # the TDVT matrix (latest/head/cloud, single-threaded) runs ~1h; allow for a queue
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v4
+      - name: Mint a token for the TDVT repo (dispatch + read the run)
         id: tdvt-token
-        if: success()
-        continue-on-error: true # a TDVT dispatch failure must never fail the release
         uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.WORKFLOW_AUTH_PUBLIC_APP_ID }}
           private-key: ${{ secrets.WORKFLOW_AUTH_PUBLIC_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
-          repositories: "connectors"
-      - name: Trigger Tableau TDVT in connectors
-        if: success()
-        continue-on-error: true # a TDVT dispatch failure must never fail the release
+          repositories: "clickhouse-tableau-tdvt"
+      - name: Run Tableau TDVT and mirror its result
         env:
           GH_TOKEN: ${{ steps.tdvt-token.outputs.token }}
         run: |
-          echo "Dispatching TDVT for clickhouse-jdbc ${{ github.event.inputs.version }}"
-          gh api repos/ClickHouse/connectors/dispatches \
-            -f event_type=jdbc-release \
-            -F "client_payload[jdbc_version]=${{ github.event.inputs.version }}"
+          python3 .github/scripts/mirror_tdvt.py \
+            --event-type jdbc-release \
+            --version "${{ github.event.inputs.version }}" \
+            --correlation-id "${{ github.repository }}#${{ github.run_id }}-${{ github.run_attempt }}"
