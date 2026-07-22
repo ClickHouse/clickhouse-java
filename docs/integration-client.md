@@ -323,17 +323,38 @@ Always pick the format that minimizes unnecessary transcoding in your applicatio
 
 **Goal:** read results efficiently and configure the operation-level settings for heavy analytical reads.
 
-### General interface
+### Query methods overview
+
+The `Client` interface offers multiple ways to read data, allowing you to balance memory constraints with data mapping requirements:
+
+1. **`queryAll(...)`**: Materializes the entire result set into memory as a `List<GenericRecord>` or a list of POJOs. This is the simplest approach but should **only be used for small datasets**. For large result sets, it will consume significant heap space and risk an `OutOfMemoryError`.
+2. **`queryRecords(...)`**: Returns an iterable `Records` object. This is ideal for iterating over rows sequentially as `GenericRecord` objects without loading the entire dataset into memory.
+3. **`query(...)`**: Returns a `QueryResponse` object, offering the lowest-level control. Use this to initialize a `ClickHouseBinaryFormatReader` for high-performance streaming or to access the raw `InputStream` directly.
+
+### POJO mapping
+
+Mapping rows directly to Plain Old Java Objects (POJOs) is highly efficient when your class structure closely mirrors the table schema. However, before reading or writing POJOs, you **must** register the class and its corresponding schema with the client. This one-time registration compiles the necessary serializers and deserializers:
+
+```java
+TableSchema schema = client.getTableSchema("events");
+client.register(Event.class, schema);
+
+// Now you can read directly into your POJO
+List<Event> events = client.queryAll("SELECT * FROM events", Event.class, schema);
+```
+
+### Streaming with Readers
+
+Readers (such as `ClickHouseBinaryFormatReader`) enable true data streaming. Because only a small buffer is kept in memory, processed rows become immediately eligible for garbage collection as new data is fetched from the network.
+
+*Note:* To maintain high throughput, your application's processing loop must be fast enough to keep up with the incoming stream; otherwise, network backpressure will slow down the transfer.
 
 ```java
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.query.QueryResponse;
-import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.data.ClickHouseFormat;
 import java.util.concurrent.TimeUnit;
-import java.util.List;
-import java.util.Map;
 
 QuerySettings settings = new QuerySettings()
     .setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
@@ -348,12 +369,17 @@ try (QueryResponse response = client.query("SELECT * FROM events", settings)
         String name = reader.getString("name");
     }
 }
-
-// Convenience: materialize all rows (small results only)
-List<GenericRecord> rows = client.queryAll("SELECT count() FROM events");
 ```
 
 > **Reader schema source.** The one-argument `client.newBinaryFormatReader(response)` only works when the format carries its own schema (e.g. `RowBinaryWithNamesAndTypes`, `Native`). For a plain `RowBinary` stream, which has no embedded column names/types, use the two-argument overload `client.newBinaryFormatReader(response, schema)` and pass a `TableSchema`, or the reader cannot decode the rows.
+
+### Direct InputStream access
+
+The `QueryResponse` object also provides direct access to the underlying input stream via `response.getInputStream()`. This is incredibly useful when you want to read text formats using third-party libraries (like Jackson for JSON or OpenCSV for CSV). 
+
+Because of this direct stream access, it is also possible to stream columnar formats directly into memory structures like **Apache Arrow**. (See our [examples directory](../examples/src/main/java/com/clickhouse/examples) for reference implementations).
+
+### Parameterized queries
 
 Parameterized queries use ClickHouse placeholder syntax `{name:Type}`:
 
@@ -387,17 +413,6 @@ The most useful **client settings** for reads are configured on `QuerySettings`:
 
 Useful correlation helpers: `settings.setQueryId(...)` and `settings.logComment(...)` surface in `system.query_log`.
 
-### Best practices
-
-> **Prefer binary formats** over text for production reads.
-> 
-> **Stream rather than materialize** — use `QueryResponse` with a binary reader for large datasets; reserve `queryAll()` for small results.
-> 
-> **Set server-side limits** (`max_execution_time`, `max_result_rows`) to stop runaway queries.
-> 
-> **Register POJOs once** at startup, not per query.
-> 
-> **Always close `QueryResponse`** (try-with-resources) — a leaked response holds an HTTP connection.
 ### Errors & how to handle them
 
 See the [Error model](#error-model) for the exception hierarchy and how to unwrap `ExecutionException`. Reads have **no side effects**, so a failed read is always safe to re-run from the start — the decisions are about *whether* it is worth retrying:
@@ -414,16 +429,29 @@ See the [Error model](#error-model) for the exception hierarchy and how to unwra
 
 **Goal:** choose an insert pattern, tune it for bulk ingest, and make retries idempotent.
 
-### Insert patterns
+### Insert methods overview
 
-**1. POJO list insert** (simplest for typed data):
+The `Client` interface offers multiple ways to insert data, allowing you to choose the right balance of convenience and performance:
+
+1. **`insert(..., List<T> pojos, ...)`**: The simplest approach for typed data. You pass a `List` of POJOs directly to the client.
+2. **`insert(..., InputStream data, ...)`**: The best approach for bulk ingest or pre-serialized data. You pass an `InputStream` directly to the client, avoiding intermediate memory allocations.
+3. **`insert(..., DataStreamWriter writer, ...)`**: The best approach for generating binary data on the fly. The client provides an `OutputStream` via a callback, allowing you to write rows directly to the network.
+
+### POJO mapping
+
+Just like with read operations, inserting POJOs requires you to register the class and schema first. This compiles the necessary serializers:
 
 ```java
-client.register(Event.class, client.getTableSchema("events"));
+TableSchema schema = client.getTableSchema("events");
+client.register(Event.class, schema);
+
+// Now you can insert a list of POJOs directly
 client.insert("events", List.of(new Event(...), new Event(...))).get();
 ```
 
-**2. Stream insert** (best for bulk / pre-serialized data):
+### Direct InputStream access
+
+If you already have serialized data (e.g., a file containing JSON or CSV, or data arriving from another network stream), you can pipe it directly into ClickHouse. This is highly efficient because it avoids parsing the data into Java objects.
 
 ```java
 import com.clickhouse.client.api.insert.InsertSettings;
@@ -436,7 +464,11 @@ try (InputStream data = openJsonLinesStream()) {
 }
 ```
 
-**3. Callback writer** (best for generated binary data). The writer-based `insert` requires an explicit `InsertSettings`, a `TableSchema`, and the `format` argument; the client opens the stream, invokes your `DataStreamWriter`, and closes the stream for you:
+### Callback writer
+
+For maximum performance when generating data programmatically, use the callback-based `insert`. The client opens the stream, invokes your `DataStreamWriter`, and closes the stream for you. 
+
+This approach is highly efficient because it writes directly to the network socket. By avoiding intermediate in-memory buffers (like building a massive `List` or a large `byte[]`), you eliminate extra memory allocations and garbage collection overhead—which can otherwise cause serious performance degradation on large datasets.
 
 ```java
 import com.clickhouse.client.api.metadata.TableSchema;
@@ -457,7 +489,7 @@ client.insert("events", out -> {
 }, format, new InsertSettings()).get();
 ```
 
-Populate each row with `setValue(column, value)` (by name or 1-based index) and finish it with `commitRow()`. Do not close the stream yourself — the client does it.
+Populate each row with `setValue(column, value)` (by name or 1-based index) and finish it with `commitRow()`. Do not close the stream yourself — the client manages the lifecycle.
 
 **Key classes:**
 
@@ -499,17 +531,6 @@ client.insert("events", dataStream, ClickHouseFormat.JSONEachRow, settings).get(
 - Use it for retry-safe pipelines and at-least-once sources (Kafka, SQS, file reprocessing).
 - Requires a `MergeTree` engine with deduplication configured. See [`InsertTests.testInsertSettingsDeduplicationToken`](../client-v2/src/test/java/com/clickhouse/client/insert/InsertTests.java).
 
-### Best practices
-
-> **Batch large** — thousands to millions of rows per request, never one row per request.
-> 
-> **Use binary formats** (`RowBinary`, `Native`, or registered POJOs) for production ingest.
-> 
-> **Enable compression** for large payloads.
-> 
-> **Set deduplication tokens** on retry-prone pipelines.
-> 
-> **Pre-fetch and reuse the table schema** (`getTableSchema` is cached internally).
 ### Errors & how to handle them
 
 See the [Error model](#error-model) for the exception hierarchy and how to unwrap `ExecutionException`. Writes have **side effects**, so error handling is fundamentally harder than for reads:
@@ -529,7 +550,7 @@ See the [Error model](#error-model) for the exception hierarchy and how to unwra
 
 ## Step 8 — Metadata & schema discovery
 
-**Goal:** obtain table and query schemas without JDBC `DatabaseMetaData`.
+**Goal:** obtain table and query schemas using the client API.
 
 ### Table schema from a table name
 
@@ -583,8 +604,6 @@ Field-to-column matching is controlled by [`ColumnToMethodMatchingStrategy`](../
 | POJO registry | `register(Class, schema)` | Typed query/insert |
 | Column metadata | `TableSchema.getColumnByName(name)` | Type-aware read/write |
 | Server info | `client.loadServerInfo()` (returns `void`) | Refreshes cached server info; then read `getServerVersion()`, `getServerTimeZone()`, `getUser()` |
-
-For JDBC-style catalog metadata (`DatabaseMetaData`), use the [JDBC integration guide](integration-jdbc.md).
 
 ---
 
@@ -687,7 +706,7 @@ public class QuickStart {
 
 **Related documents in this repository:**
 
-- [integration-common.md](integration-common.md) — choosing JDBC vs Client
+- [integration-index.md](integration-index.md) — choosing JDBC vs Client
 - [integration-jdbc.md](integration-jdbc.md) — JDBC integration path
 - [authentication.md](authentication.md) — full authentication and TLS reference (referenced from Steps 2–3)
 - [features.md](features.md) — compatibility contract (referenced from Step 5)
