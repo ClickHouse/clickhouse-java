@@ -508,4 +508,33 @@ public class ClickHouseColumnTest {
                 {"JSON(max_dynamic_types=3,max_dynamic_paths=3, SKIP REGEXP '^-.*',SKIP ff,   flags Array(Array(Array(Int8))), SKIP alt_count)", 2, Arrays.asList("flags")},
         };
     }
+
+    @DataProvider(name = "qbitTypesProvider")
+    private static Object[][] qbitTypesProvider() {
+        return new Object[][] {
+                { "QBit(BFloat16, 4)", ClickHouseDataType.BFloat16, 4 },
+                { "QBit(Float32, 8)", ClickHouseDataType.Float32, 8 },
+                { "QBit(Float64, 1536)", ClickHouseDataType.Float64, 1536 },
+        };
+    }
+
+    @Test(groups = { "unit" }, dataProvider = "qbitTypesProvider")
+    public void testParseQBit(String typeName, ClickHouseDataType elementType, int dimension) {
+        ClickHouseColumn column = ClickHouseColumn.of("vec", typeName);
+        Assert.assertEquals(column.getDataType(), ClickHouseDataType.QBit);
+        Assert.assertEquals(column.getOriginalTypeName(), typeName);
+        // QBit(element_type, dimension) is a one-level array of its element type on the wire.
+        Assert.assertEquals(column.getArrayNestedLevel(), 1);
+        Assert.assertNotNull(column.getArrayBaseColumn());
+        Assert.assertEquals(column.getArrayBaseColumn().getDataType(), elementType);
+        Assert.assertEquals(column.getNestedColumns().size(), 1);
+        Assert.assertEquals(column.getNestedColumns().get(0).getDataType(), elementType);
+        // The fixed vector dimension is retained as the column precision.
+        Assert.assertEquals(column.getPrecision(), dimension);
+    }
+
+    @Test(groups = { "unit" }, expectedExceptions = IllegalArgumentException.class)
+    public void testParseQBitRequiresDimension() {
+        ClickHouseColumn.of("vec", "QBit(Float32)");
+    }
 }

@@ -12,6 +12,16 @@
   `getFloat`/`setFloat` and `getObject` accessors, and reported as such by `ResultSetMetaData` and `DatabaseMetaData`.
   Previously reading or writing a `BFloat16` column failed with an
   unsupported-data-type error. (https://github.com/ClickHouse/clickhouse-java/issues/2279)
+- **[client-v2, jdbc-v2]** Added support for the experimental `QBit(element_type, dimension)` vector data type
+  (ClickHouse `25.10+`; the `allow_experimental_qbit_type` server setting is required to create a column), with
+  `BFloat16`, `Float32`, or `Float64` element types. A `QBit` value is transmitted over `RowBinary` exactly like
+  `Array(element_type)`, so it is read and written as a Java array of the element type (`float[]` for
+  `BFloat16`/`Float32`, `double[]` for `Float64`) through generic records, binary readers, and POJO binding. In the
+  JDBC driver (`jdbc-v2`) `QBit` maps to `java.sql.Types.ARRAY` and is returned as a `java.sql.Array` from
+  `getObject`/`getArray`. Previously `QBit` was an unimplemented type constant and reading or writing such a column
+  failed. Reading `QBit` through the `Native` output format is not supported — the server transmits it there using a
+  different internal layout — and fails fast with a clear error; use a `RowBinary` format instead.
+  (https://github.com/ClickHouse/clickhouse-java/issues/2610)
 - **[client-v2, jdbc-v2]** Added TLS cipher suite selection. `Client.Builder.setSSLCipherSuites(String...)` (client-v2)
   and the comma-separated `ssl_cipher_suites` connection property (client-v2 and jdbc-v2) restrict the cipher suites
   enabled on secure connections; when unset, the transport defaults are used. Cipher-suite selection is independent of the

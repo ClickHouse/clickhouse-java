@@ -67,6 +67,8 @@ public class DataTypeConverter {
             case IPv4:
             case IPv6:
                 return ipvToString(value, column);
+            case QBit:
+                // QBit is rendered as an array literal of its element type, like Array(element_type).
             case Array:
                 return  arrayToString(value, column);
             case Point:

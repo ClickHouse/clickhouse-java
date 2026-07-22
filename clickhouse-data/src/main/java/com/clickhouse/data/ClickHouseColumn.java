@@ -73,6 +73,7 @@ public final class ClickHouseColumn implements Serializable {
     private static final String KEYWORD_NESTED = ClickHouseDataType.Nested.name();
     private static final String KEYWORD_VARIANT = ClickHouseDataType.Variant.name();
     private static final String KEYWORD_JSON = ClickHouseDataType.JSON.name();
+    private static final String KEYWORD_QBIT = ClickHouseDataType.QBit.name();
 
     private int columnCount;
     private int columnIndex;
@@ -144,6 +145,17 @@ public final class ClickHouseColumn implements Serializable {
                             break;
                         }
                     }
+                }
+                break;
+            case QBit:
+                // QBit(element_type, dimension) is a one-level array of its element type on the
+                // wire; the dimension parameter is kept as the column precision.
+                if (!column.nested.isEmpty()) {
+                    column.arrayLevel = 1;
+                    column.arrayBaseColumn = column.nested.get(0);
+                }
+                if (size > 1) {
+                    column.precision = Integer.parseInt(column.parameters.get(1).trim());
                 }
                 break;
             case Bool:
@@ -567,6 +579,26 @@ public final class ClickHouseColumn implements Serializable {
                 fixedLength = false;
                 estimatedLength++;
             }
+        } else if (args.startsWith(KEYWORD_QBIT, i)) {
+            int index = args.indexOf('(', i + KEYWORD_QBIT.length());
+            if (index < i) {
+                throw new IllegalArgumentException(ERROR_MISSING_NESTED_TYPE);
+            }
+            List<String> params = new LinkedList<>();
+            i = ClickHouseUtils.readParameters(args, index, len, params);
+            if (params.size() < 2) {
+                throw new IllegalArgumentException(
+                        "QBit requires an element type and a dimension, e.g. QBit(Float32, 8)");
+            }
+            // QBit(element_type, dimension) is transmitted over RowBinary exactly like
+            // Array(element_type): a var-int length followed by that many element values. The
+            // first parameter is the element type and drives the nested (item) column.
+            List<ClickHouseColumn> nestedColumns = new LinkedList<>();
+            nestedColumns.add(ClickHouseColumn.of("", params.get(0)));
+            column = new ClickHouseColumn(ClickHouseDataType.QBit, name, args.substring(startIndex, i),
+                    nullable, lowCardinality, params, nestedColumns);
+            fixedLength = false;
+            estimatedLength++;
         }
 
         if (column == null) {

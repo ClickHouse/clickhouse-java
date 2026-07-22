@@ -63,6 +63,9 @@ public class SerializerUtils {
     public static void serializeData(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
         //Serialize the value to the stream based on the data type
         switch (column.getDataType()) {
+            case QBit:
+                serializeQBitData(stream, value, column);
+                break;
             case Array:
                 serializeArrayData(stream, value, column);
                 break;
@@ -468,6 +471,52 @@ public class SerializerUtils {
                 serializeData(stream, val, column.getNestedColumns().get(0));
             }
         }
+    }
+
+    /**
+     * Serializes a {@code QBit(element_type, dimension)} value. On the wire a {@code QBit} is
+     * transmitted exactly like {@code Array(element_type)} — a var-int length followed by that many
+     * element values — but the element count is fixed and must equal the declared dimension. The
+     * count is validated up-front so a wrong-sized (including empty) vector fails fast on the client
+     * with a clear message instead of a late server {@code SERIALIZATION_ERROR}, mirroring the
+     * client-side length enforcement already applied to the other fixed-size type,
+     * {@code FixedString(N)}. A non-null value that is neither a Java array nor a {@code List} cannot
+     * carry a vector and is rejected as well — otherwise it would fall through to
+     * {@link #serializeArrayData} and write no bytes for the column, desynchronizing the
+     * {@code RowBinary} stream and corrupting the columns that follow.
+     * <p>
+     * A {@code null} value is rejected for the same reason: a fixed-dimension {@code QBit} cannot be
+     * represented by {@code null}. A top-level {@code null} non-nullable {@code QBit} is already
+     * rejected by
+     * {@link com.clickhouse.client.api.data_formats.RowBinaryFormatSerializer#writeValuePreamble},
+     * but a {@code QBit} nested inside a container ({@code Tuple}/{@code Map}/{@code Array}) is written
+     * through {@link #serializeNestedData}, which does not route a non-nullable element through that
+     * preamble; without this guard the {@code null} would delegate to {@link #serializeArrayData} and
+     * be written as a zero-length vector (var-int {@code 0}), again desynchronizing the stream. (A
+     * {@code Nullable(QBit)} {@code null} never reaches here: its null-marker is written earlier by the
+     * preamble or by {@link #serializeNestedData}, which then return.)
+     */
+    private static void serializeQBitData(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
+        if (value == null) {
+            throw new IllegalArgumentException("QBit column '" + column.getColumnName()
+                    + "' cannot be null; expected exactly " + column.getPrecision() + " elements");
+        }
+        int length;
+        if (value.getClass().isArray()) {
+            length = Array.getLength(value);
+        } else if (value instanceof List) {
+            length = ((List<?>) value).size();
+        } else {
+            throw new IllegalArgumentException("QBit column '" + column.getColumnName()
+                    + "' expects a Java array or List of its element type but got "
+                    + value.getClass().getName());
+        }
+        int dimension = column.getPrecision();
+        if (length != dimension) {
+            throw new IllegalArgumentException("QBit column '" + column.getColumnName()
+                    + "' expects exactly " + dimension + " elements but got " + length);
+        }
+        serializeArrayData(stream, value, column);
     }
 
     /**
