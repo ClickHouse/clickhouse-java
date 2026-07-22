@@ -3,7 +3,6 @@ package com.clickhouse.client.api.data_formats.internal;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.internal.DataTypeConverter;
-import com.clickhouse.client.api.metadata.NoSuchColumnException;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.NullValueException;
@@ -13,7 +12,6 @@ import com.clickhouse.data.value.ClickHouseGeoMultiPolygonValue;
 import com.clickhouse.data.value.ClickHouseGeoPointValue;
 import com.clickhouse.data.value.ClickHouseGeoPolygonValue;
 import com.clickhouse.data.value.ClickHouseGeoRingValue;
-import com.google.common.collect.ImmutableList;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -276,6 +274,14 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public byte[] getByteArray(String colName) {
+        Object value = readValue(colName);
+        if (value == null) {
+            return null;
+        }
+        byte[] bytes = AbstractBinaryFormatReader.stringLikeToBytes(value);
+        if (bytes != null) {
+            return bytes;
+        }
         return getPrimitiveArray(colName);
     }
 
@@ -319,6 +325,10 @@ public class MapBackedRecord implements GenericRecord {
             BinaryStreamReader.ArrayValue array = (BinaryStreamReader.ArrayValue) value;
             if (array.itemType == String.class) {
                 return (String[]) array.getArray();
+            } else if (array.itemType == StringValue.class) {
+                StringValue[] stringValues = (StringValue[]) array.getArray();
+                return Arrays.stream(stringValues)
+                        .map(sv -> sv == null ? null : sv.asString()).toArray(String[]::new);
             } else if (array.itemType == BinaryStreamReader.EnumValue.class) {
                 BinaryStreamReader.EnumValue[] enumValues = (BinaryStreamReader.EnumValue[]) array.getArray();
                 return Arrays.stream(enumValues).map(BinaryStreamReader.EnumValue::getName).toArray(String[]::new);
@@ -465,7 +475,7 @@ public class MapBackedRecord implements GenericRecord {
 
     @Override
     public byte[] getByteArray(int index) {
-        return getPrimitiveArray(schema.columnIndexToName(index));
+        return getByteArray(schema.columnIndexToName(index));
     }
 
     @Override

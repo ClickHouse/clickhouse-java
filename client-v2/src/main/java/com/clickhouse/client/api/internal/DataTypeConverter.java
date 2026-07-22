@@ -2,6 +2,7 @@ package com.clickhouse.client.api.internal;
 
 import com.clickhouse.client.api.ClickHouseException;
 import com.clickhouse.client.api.DataTypeUtils;
+import com.clickhouse.client.api.data_formats.internal.StringValue;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
@@ -90,7 +91,9 @@ public class DataTypeConverter {
         if (column.isArray()) {
             sb.append(QUOTE);
         }
-        if (bytesOrString instanceof CharSequence) {
+        if (bytesOrString instanceof StringValue) {
+            sb.append(((StringValue) bytesOrString).asString());
+        } else if (bytesOrString instanceof CharSequence) {
             sb.append(((CharSequence) bytesOrString));
         } else if (bytesOrString instanceof byte[]) {
             sb.append(new String((byte[]) bytesOrString));
