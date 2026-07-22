@@ -68,7 +68,7 @@ public class MetricsTest extends BaseIntegrationTest {
             Assert.assertEquals((int) leased.value(), 0);
 
             Runnable task = () -> {
-                final long maxDelay = 15;
+                final long maxDelay = isCloud() ? 130 : 15;
                 long t1 = System.currentTimeMillis();
                 try (QueryResponse response = client.query("SELECT 1").get()) {
                     long t = System.currentTimeMillis() - t1;

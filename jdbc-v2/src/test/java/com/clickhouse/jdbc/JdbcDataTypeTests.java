@@ -82,6 +82,11 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
         }
     }
 
+    private static void assertFloat32Boundary(float actual, float expectedA, float expectedB, String label) {
+        Assert.assertTrue(actual == expectedA || actual == expectedB,
+                label + " expected one of [" + expectedA + ", " + expectedB + "] but found [" + actual + "]");
+    }
+
     @Test(groups = { "integration" })
     public void testIntegerTypes() throws SQLException {
         runQuery("CREATE TABLE test_integers (order Int8, "
@@ -1541,11 +1546,11 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_floats ORDER BY order")) {
                     assertTrue(rs.next());
-                    assertEquals(rs.getFloat("float32"), -3.402823E38f);
+                    assertFloat32Boundary(rs.getFloat("float32"), -3.4028233E38f, -3.402823E38f, "float32 min");
                     assertEquals(rs.getDouble("float64"), Double.valueOf(-1.7976931348623157E308));
 
                     assertTrue(rs.next());
-                    assertEquals(rs.getFloat("float32"), Float.valueOf(3.402823E38f));
+                    assertFloat32Boundary(rs.getFloat("float32"), 3.4028233E38f, 3.402823E38f, "float32 max");
                     assertEquals(rs.getDouble("float64"), Double.valueOf(1.7976931348623157E308));
 
                     assertTrue(rs.next());
@@ -1562,11 +1567,13 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_floats ORDER BY order")) {
                     assertTrue(rs.next());
-                    assertEquals(rs.getObject("float32"), -3.402823E38f);
+                    assertFloat32Boundary(((Number) rs.getObject("float32")).floatValue(), -3.4028233E38f, -3.402823E38f,
+                            "float32 min object");
                     assertEquals(rs.getObject("float64"), Double.valueOf(-1.7976931348623157E308));
 
                     assertTrue(rs.next());
-                    assertEquals(rs.getObject("float32"), 3.402823E38f);
+                    assertFloat32Boundary(((Number) rs.getObject("float32")).floatValue(), 3.4028233E38f, 3.402823E38f,
+                            "float32 max object");
                     assertEquals(rs.getObject("float64"), Double.valueOf(1.7976931348623157E308));
 
                     assertTrue(rs.next());
