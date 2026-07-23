@@ -19,6 +19,13 @@
 
 ### Bug Fixes 
 
+- **[client-v2]** Fixed the `RowBinary` writer throwing
+  `UnsupportedOperationException: Unsupported data type: SimpleAggregateFunction` when inserting into a
+  `SimpleAggregateFunction(func, T)` column (the reader already supported these columns). The value is now
+  serialized identically to its underlying type `T`, writing the `Nullable` null-marker byte when the
+  underlying type is nullable (e.g. `SimpleAggregateFunction(anyLast, Nullable(String))`), mirroring the
+  read path. (https://github.com/ClickHouse/clickhouse-java/issues/2477)
+
 - **[client-v2]** Fixed binary array decoding for nullable element types so `Array(Nullable(Float64))` and similar columns now return boxed arrays such as `Double[]` instead of `Object[]`. This keeps null-supporting arrays aligned with their element type while preserving the existing `Object[]` fallback for Variant/Dynamic/Geometry arrays. (https://github.com/ClickHouse/clickhouse-java/issues/2846)
 
 - **[client-v2]** Fixed `Float32`/`Float64` columns throwing `ClassCastException` when a value of a

@@ -839,19 +839,23 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
     }
 
 
-    //TODO: Do we support this?
-    @Test (groups = { "integration" }, enabled = false)
+    @Test (groups = { "integration" })
     public void writeSimpleAggregateFunctionTests() throws Exception {
         String tableName = "rowBinaryFormatWriterTest_writeSimpleAggregateFunctionTests_" + UUID.randomUUID().toString().replace('-', '_');
         String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
                 " (id Int32, " +
-                "  simple_aggregate_function SimpleAggregateFunction(count, Int8), " +
-                "  ) Engine = MergeTree ORDER BY id";
+                "  saf_sum SimpleAggregateFunction(sum, UInt64), " +
+                "  saf_str SimpleAggregateFunction(anyLast, Nullable(String)), " +
+                "  tail Int32 " +
+                "  ) Engine = AggregatingMergeTree ORDER BY id";
 
-        // Insert random (valid) values
+        // The SimpleAggregateFunction columns sit between id and a trailing Int32 so a byte
+        // dropped/added while writing them misaligns "tail" and is detected.
         Field[][] rows = new Field[][] {{
-                    new Field("id", 1), //Row ID
-                    new Field("simple_aggregate_function", Arrays.asList((byte) 1)).set(Arrays.asList((byte) 1)), //SimpleAggregateFunction
+                    new Field("id", 1),
+                    new Field("saf_sum", BigInteger.valueOf(42)),
+                    new Field("saf_str", "hello"),
+                    new Field("tail", 7),
                 }
         };
 
