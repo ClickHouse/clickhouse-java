@@ -39,6 +39,20 @@ public class SerializerUtilsTests {
     }
 
     @Test
+    public void testDynamicNullWithoutDefaultsWritesNothingTag() throws Exception {
+        // A non-nullable Dynamic column can still hold a null (serialized as the implicit `Nothing`
+        // type), unlike a plain non-nullable Array which must reject null. This pins that behavior in
+        // the plain RowBinary path: no null-marker, just the single Nothing type tag.
+        ClickHouseColumn column = ClickHouseColumn.of("dyn", "Dynamic");
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+        Assert.assertTrue(RowBinaryFormatSerializer.writeValuePreamble(out, false, column, null));
+        SerializerUtils.serializeData(out, null, column);
+
+        Assert.assertEquals(out.toByteArray(), new byte[]{0});
+    }
+
+    @Test
     public void testSerializeNumbersRoundTrip() throws IOException {
         String[] names = new String[]{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o",
                 "p", "q", "r"};
