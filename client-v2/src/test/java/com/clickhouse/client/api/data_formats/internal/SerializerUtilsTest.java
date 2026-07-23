@@ -256,6 +256,44 @@ public class SerializerUtilsTest {
         };
     }
 
+    @Test(dataProvider = "rowBinaryTypeData")
+    public void testRowBinaryTypeRoundTrip(String typeName, Object value) throws Exception {
+        ClickHouseColumn column = ClickHouseColumn.of("v", typeName);
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        SerializerUtils.serializeData(out, value, column);
+
+        Object actual = newReader(out.toByteArray()).readValue(column);
+        Assert.assertEquals(normalize(actual), normalize(value));
+    }
+
+    @DataProvider(name = "rowBinaryTypeData")
+    private Object[][] rowBinaryTypeData() {
+        return new Object[][] {
+                // A Nested(...) column has the same RowBinary layout as Array(Tuple(...)): a
+                // var-uint row count followed by that many tuples. Two rows detect a wrong count
+                // or a dropped field byte, which would shift every following tuple.
+                {"Nested(a Int32, b String)",
+                        Arrays.asList(Arrays.asList(1, "x"), Arrays.asList(2, "y"))},
+
+                // Same value as arrays instead of Lists: an Object[][] of Object[] rows (a
+                // "matrix" array). convertArrayValueToList takes the array branch and each row is
+                // serialized by serializeTupleData's array branch, producing the same bytes as the
+                // List-shaped case above.
+                {"Nested(a Int32, b String)",
+                        new Object[][] {{1, "x"}, {2, "y"}}},
+
+                // A Nullable field in the MIDDLE of the nested tuple, with a trailing fixed-width
+                // Float64: a dropped null-marker byte misaligns the Float64 and is caught. The
+                // second row exercises the null branch of that field.
+                {"Nested(a Int32, b Nullable(String), c Float64)",
+                        Arrays.asList(Arrays.asList(7, "opt", 9.5d), Arrays.asList(7, null, 8.5d))},
+
+                // An empty Nested serializes as a zero-length array.
+                {"Nested(a Int32, b String)", Arrays.asList()},
+        };
+    }
+
     // Normalizes Tuple (Object[]) and Array (ArrayValue / List) results to nested Lists so
     // round-tripped values compare structurally regardless of the container representation the
     // reader returns.
