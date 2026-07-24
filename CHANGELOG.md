@@ -19,6 +19,13 @@
 
 ### Bug Fixes 
 
+- **[client-v2]** Fixed the `Native` format reader (`NativeFormatReader`) misreading `Array` columns in multi-row
+  results whose rows have different lengths. Native encodes an array column as cumulative row offsets followed by the
+  flattened elements, but the reader used the first row's offset as the element count for every row — truncating later
+  rows and desyncing the columns that follow the array in the same block. Each row's length is now derived from the
+  difference between consecutive offsets, and empty array rows (`len == 0`) no longer read a phantom element. Results
+  with uniform array lengths were unaffected. (https://github.com/ClickHouse/clickhouse-java/issues/2955)
+
 - **[client-v2]** Fixed binary array decoding for nullable element types so `Array(Nullable(Float64))` and similar columns now return boxed arrays such as `Double[]` instead of `Object[]`. This keeps null-supporting arrays aligned with their element type while preserving the existing `Object[]` fallback for Variant/Dynamic/Geometry arrays. (https://github.com/ClickHouse/clickhouse-java/issues/2846)
 
 - **[client-v2]** Fixed `Float32`/`Float64` columns throwing `ClassCastException` when a value of a

@@ -482,6 +482,52 @@ public class QueryTests extends BaseIntegrationTest {
         }
     }
 
+    @DataProvider(name = "multiRowArrayCases")
+    Object[][] getMultiRowArrayCases() {
+        String nonUniform = "SELECT id, arr, tag FROM values("
+                + "'id UInt32, arr Array(Int32), tag Int32', "
+                + "(1, [10], 100), (2, [20, 21], 200), (3, [], 300), (4, [30, 31, 32], 400), (5, [40], 500)"
+                + ") ORDER BY id";
+        List<Object[]> nonUniformRows = Arrays.asList(
+                new Object[]{1L, Arrays.asList(10), 100},
+                new Object[]{2L, Arrays.asList(20, 21), 200},
+                new Object[]{3L, Collections.emptyList(), 300},
+                new Object[]{4L, Arrays.asList(30, 31, 32), 400},
+                new Object[]{5L, Arrays.asList(40), 500});
+
+        String uniform = "SELECT id, arr, tag FROM values("
+                + "'id UInt32, arr Array(Int32), tag Int32', "
+                + "(1, [10, 11], 100), (2, [20, 21], 200), (3, [30, 31], 300)"
+                + ") ORDER BY id";
+        List<Object[]> uniformRows = Arrays.asList(
+                new Object[]{1L, Arrays.asList(10, 11), 100},
+                new Object[]{2L, Arrays.asList(20, 21), 200},
+                new Object[]{3L, Arrays.asList(30, 31), 300});
+
+        return new Object[][]{
+                {ClickHouseFormat.Native, nonUniform, nonUniformRows},
+                {ClickHouseFormat.Native, uniform, uniformRows},
+                {ClickHouseFormat.RowBinaryWithNamesAndTypes, nonUniform, nonUniformRows},
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "multiRowArrayCases")
+    public void testReadingMultiRowArrays(ClickHouseFormat format, String sql, List<Object[]> expectedRows)
+            throws Exception {
+        QuerySettings settings = new QuerySettings().setFormat(format);
+        try (QueryResponse response = client.query(sql, settings).get()) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+            for (Object[] expected : expectedRows) {
+                Map<String, Object> record = reader.next();
+                Assert.assertNotNull(record, "Expected a row for id " + expected[0]);
+                Assert.assertEquals(record.get("id"), expected[0]);
+                Assert.assertEquals(((BinaryStreamReader.ArrayValue) record.get("arr")).asList(), expected[1]);
+                Assert.assertEquals(record.get("tag"), expected[2]);
+            }
+            Assert.assertNull(reader.next());
+        }
+    }
+
     @Test(groups = {"integration"})
     public void testBinaryStreamReader() throws Exception {
         final String table = "dynamic_schema_test_table";
