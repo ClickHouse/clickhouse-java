@@ -6,6 +6,8 @@
 
 - **[client-v2]** Fixed `RowBinaryFormatWriter` throwing `UnsupportedOperationException: Unsupported data type: Nested` when inserting into a table with an un-flattened `Nested(...)` column (created with `flatten_nested = 0`). The `RowBinary` writer now serializes a `Nested(f1 T1, ..., fN TN)` column the same way it is read — identically to `Array(Tuple(T1, ..., TN))`. (https://github.com/ClickHouse/clickhouse-java/issues/2477)
 
+- **[jdbc-v2]** Fixed `java.sql.Array#getResultSet()` on an un-flattened `Nested(...)` column throwing `Value of class [Ljava.lang.Object; cannot be converted to class java.lang.Byte`. The array `ResultSet` now exposes each nested row as its `Tuple(f1 T1, ..., fN TN)` element type instead of the first nested field, so `getObject` returns the whole tuple. Insert (via `Connection#createArrayOf` + `setArray` or `setObject`) and read (via `getArray`/`getObject`) of `Nested(...)` columns are covered by tests. (https://github.com/ClickHouse/clickhouse-java/issues/2477)
+
 - **[client-v2]** Fixed binary array decoding for nullable element types so `Array(Nullable(Float64))` and similar columns now return boxed arrays such as `Double[]` instead of `Object[]`. This keeps null-supporting arrays aligned with their element type while preserving the existing `Object[]` fallback for Variant/Dynamic/Geometry arrays. (https://github.com/ClickHouse/clickhouse-java/issues/2846)
 
 - **[client-v2]** Fixed `Float32`/`Float64` columns throwing `ClassCastException` when a value of a

@@ -1517,6 +1517,92 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
     }
 
     @Test(groups = { "integration" })
+    public void testNestedType() throws SQLException {
+        runQuery("DROP TABLE IF EXISTS test_nested_jdbc");
+        runQuery("CREATE TABLE test_nested_jdbc (order Int8, "
+                + "n Nested(a Int8, b Nullable(String)), "
+                + "tail Int32"
+                + ") ENGINE = MergeTree ORDER BY (order) SETTINGS flatten_nested = 0");
+
+        // A null in the Nullable field exercises null propagation through every read path.
+        Tuple[] nested = new Tuple[] {
+                new Tuple((byte) 1, "x"),
+                new Tuple((byte) 2, null),
+        };
+        Tuple[] empty = new Tuple[0];
+
+        // Row 1: insert the Nested column through java.sql.Array (Connection#createArrayOf + setArray).
+        try (Connection conn = getJdbcConnection();
+             PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_nested_jdbc VALUES (1, ?, 100)")) {
+            stmt.setArray(1, conn.createArrayOf("Tuple(Int8, String)", nested));
+            stmt.executeUpdate();
+        }
+
+        // Row 2: insert the same Nested value as a plain Java array of tuples (setObject).
+        try (Connection conn = getJdbcConnection();
+             PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_nested_jdbc VALUES (2, ?, 200)")) {
+            stmt.setObject(1, nested);
+            stmt.executeUpdate();
+        }
+
+        // Row 3: an empty Nested value, so the read paths cover a zero-row array.
+        try (Connection conn = getJdbcConnection();
+             PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_nested_jdbc VALUES (3, ?, 300)")) {
+            stmt.setObject(1, empty);
+            stmt.executeUpdate();
+        }
+
+        try (Connection conn = getJdbcConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT order, n, tail FROM test_nested_jdbc ORDER BY order")) {
+            // Row 1 read through getArray
+            assertTrue(rs.next());
+            assertEquals(rs.getByte("order"), (byte) 1);
+            assertNestedEquals(rs.getArray("n"), nested);
+            assertEquals(rs.getInt("tail"), 100);
+
+            // Row 2 read through getObject
+            assertTrue(rs.next());
+            assertEquals(rs.getByte("order"), (byte) 2);
+            assertNestedEquals((Array) rs.getObject("n"), nested);
+            assertEquals(rs.getInt("tail"), 200);
+
+            // Row 3: empty Nested -> empty array and an empty getResultSet().
+            assertTrue(rs.next());
+            assertEquals(rs.getByte("order"), (byte) 3);
+            assertNestedEquals(rs.getArray("n"), empty);
+            assertEquals(rs.getInt("tail"), 300);
+
+            assertFalse(rs.next());
+        }
+    }
+
+    private static void assertNestedEquals(Array nestedColumn, Tuple[] expected) throws SQLException {
+        // getArray() yields one element per nested row, each an Object[] of the tuple field values.
+        Object[] rows = (Object[]) nestedColumn.getArray();
+        assertEquals(rows.length, expected.length);
+        for (int i = 0; i < expected.length; i++) {
+            assertTupleEquals((Object[]) rows[i], expected[i]);
+        }
+
+        // getResultSet() exposes the same rows as (INDEX, VALUE) pairs.
+        try (ResultSet ars = nestedColumn.getResultSet()) {
+            int seen = 0;
+            while (ars.next()) {
+                assertEquals(ars.getInt(1), seen + 1);
+                assertTupleEquals((Object[]) ars.getObject(2), expected[seen]);
+                seen++;
+            }
+            assertEquals(seen, expected.length);
+        }
+    }
+
+    private static void assertTupleEquals(Object[] actual, Tuple expected) {
+        assertEquals(String.valueOf(actual[0]), String.valueOf(expected.getValue(0)));
+        assertEquals(actual[1], expected.getValue(1)); // Nullable(String): null stays null
+    }
+
+    @Test(groups = { "integration" })
     public void testStringsUsedAsBytes() throws Exception {
         runQuery("CREATE TABLE test_strings_as_bytes (order Int8, str String, fixed FixedString(10)) ENGINE = MergeTree ORDER BY ()");
 
