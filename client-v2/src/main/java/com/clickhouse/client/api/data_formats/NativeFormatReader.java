@@ -93,12 +93,18 @@ public class NativeFormatReader extends AbstractBinaryFormatReader {
 
             List<Object> values = new ArrayList<>(nRows);
             if (column.isArray()) {
-                int[] sizes = new int[nRows];
+                // Native encodes an Array column as nRows cumulative offsets followed by the
+                // flattened elements; each row's element count is the delta between consecutive
+                // offsets, not the first offset.
+                long[] offsets = new long[nRows];
                 for (int j = 0; j < nRows; j++) {
-                    sizes[j] = Math.toIntExact(binaryStreamReader.readLongLE());
+                    offsets[j] = binaryStreamReader.readLongLE();
                 }
+                long prevOffset = 0;
                 for (int j = 0; j < nRows; j++) {
-                    values.add(binaryStreamReader.readArrayItem(column.getNestedColumns().get(0), sizes[0]));
+                    int len = Math.toIntExact(offsets[j] - prevOffset);
+                    values.add(binaryStreamReader.readArrayItem(column.getNestedColumns().get(0), len));
+                    prevOffset = offsets[j];
                 }
             } else {
                 for (int j = 0; j < nRows; j++) {
