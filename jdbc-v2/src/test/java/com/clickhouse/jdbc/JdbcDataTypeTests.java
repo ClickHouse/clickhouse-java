@@ -1534,7 +1534,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
         // Row 1: insert the Nested column through java.sql.Array (Connection#createArrayOf + setArray).
         try (Connection conn = getJdbcConnection();
              PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_nested_jdbc VALUES (1, ?, 100)")) {
-            stmt.setArray(1, conn.createArrayOf("Tuple(Int8, String)", nested));
+            stmt.setArray(1, conn.createArrayOf("Tuple(Int8, Nullable(String))", nested));
             stmt.executeUpdate();
         }
 
