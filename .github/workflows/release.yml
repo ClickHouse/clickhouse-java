@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 env:
-  CH_VERSION: "25.3"
+  CH_VERSION: "25.8"
 
 jobs:
   release:
