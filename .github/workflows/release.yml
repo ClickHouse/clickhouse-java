@@ -109,5 +109,5 @@ jobs:
         run: |
           python3 .github/scripts/mirror_tdvt.py \
             --event-type jdbc-release \
-            --version "${{ github.event.inputs.version }}" \
+            --version "$(cat VERSION)" \
             --correlation-id "${{ github.repository }}#${{ github.run_id }}-${{ github.run_attempt }}"
