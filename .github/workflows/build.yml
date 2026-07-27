@@ -32,7 +32,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  PREFERRED_LTS_VERSION: "25.3"
+  PREFERRED_LTS_VERSION: "25.8"
 
 jobs:
   compile:
@@ -151,7 +151,7 @@ jobs:
       matrix:
         # most recent LTS releases as well as latest stable builds
         # https://github.com/ClickHouse/ClickHouse/pulls?q=is%3Aopen+is%3Apr+label%3Arelease
-        clickhouse: ["25.3", "25.8", "latest"]
+        clickhouse: ["25.8", "26.3", "latest"]
         project: ["clickhouse-http-client", "client-v2"]
       fail-fast: false
     timeout-minutes: 15
@@ -303,7 +303,7 @@ jobs:
     needs: test-java-client
     strategy:
       matrix:
-        clickhouse: ["25.3", "25.8", "latest"]
+        clickhouse: ["25.8", "26.3", "latest"]
         # here http, http_client and apache_http_client represent different value of http_connection_provider
 #        protocol: ["http", "http_client", "apache_http_client"]
         protocol: ["apache_http_client"]
@@ -363,7 +363,7 @@ jobs:
     needs: test-jdbc-driver
     strategy:
       matrix:
-        clickhouse: ["25.3", "25.8", "latest"]
+        clickhouse: ["25.8", "26.3", "latest"]
         # grpc is not fully supported, and http_client and apache_http_client do not work in CI environment(due to limited threads?)
         protocol: ["http"]
         r2dbc: ["1.0.0.RELEASE", "0.9.1.RELEASE"]
