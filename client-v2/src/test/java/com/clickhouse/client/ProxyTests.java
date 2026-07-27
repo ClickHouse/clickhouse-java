@@ -1,9 +1,9 @@
 package com.clickhouse.client;
 
+import com.clickhouse.client.api.ClickHouseException;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.ClientMisconfigurationException;
-import com.clickhouse.client.api.ClickHouseException;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.insert.InsertResponse;
@@ -25,9 +25,7 @@ import org.testng.annotations.Test;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
@@ -223,9 +221,8 @@ public class ProxyTests extends BaseIntegrationTest{
     }
 
     private int initProxy() {
-        int port = ThreadLocalRandom.current().nextInt(10000, 50000);
         WireMockServer wireMock = new WireMockServer(WireMockConfiguration.options()
-                .port(port)
+                .dynamicPort()
 //                .notifier(new Slf4jNotifier(true))
         );
         wireMock.start();
