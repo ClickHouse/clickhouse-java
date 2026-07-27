@@ -19,6 +19,18 @@
 
 ### Bug Fixes 
 
+- **[client-v2, jdbc-v2]** Fixed scalar `String` query parameters containing a tab (`0x09`), newline
+  (`0x0a`) or backslash being mishandled through the server's `param_<name>` interface. A `{name:String}`
+  parameter value is parsed by the server with `deserializeTextEscaped`, which treated a raw tab or
+  newline as a field delimiter (failing the query with `BAD_QUERY_PARAMETER: ... isn't parsed completely`)
+  and a raw backslash as the start of an escape sequence (silently corrupting the value, e.g. `C:\temp`
+  became `C:<tab>emp`). `Client.query(sql, params, ...)` now escapes the backslash, tab and newline in a
+  scalar `String` parameter so any value round-trips; every other character the server reads verbatim —
+  including the single quote and carriage return — is left unchanged, so `Identifier` values and
+  pre-formatted `Array`/`Map` literals passed as a `String` still round-trip. The JDBC driver (`jdbc-v2`),
+  which inlines parameters as SQL literals and already escaped the backslash and single quote, is
+  unchanged and covered by a new regression test. (https://github.com/ClickHouse/clickhouse-java/issues/2781)
+
 - **[client-v2]** Fixed binary array decoding for nullable element types so `Array(Nullable(Float64))` and similar columns now return boxed arrays such as `Double[]` instead of `Object[]`. This keeps null-supporting arrays aligned with their element type while preserving the existing `Object[]` fallback for Variant/Dynamic/Geometry arrays. (https://github.com/ClickHouse/clickhouse-java/issues/2846)
 
 - **[client-v2]** Fixed `Float32`/`Float64` columns throwing `ClassCastException` when a value of a
