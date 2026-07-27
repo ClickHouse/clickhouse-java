@@ -85,3 +85,29 @@ jobs:
             clickhouse-r2dbc/target/clickhouse*.jar \
             client-v2/target/client-v2*.jar \
             jdbc-v2/target/jdbc-v2*.jar
+  # Mirror Tableau TDVT after release (non-blocking).
+  tdvt:
+    name: "Tableau TDVT"
+    needs: release
+    if: ${{ needs.release.result == 'success' && startsWith(github.repository, 'ClickHouse/') }}
+    runs-on: "ubuntu-latest"
+    timeout-minutes: 150 # the TDVT matrix (latest/head/cloud, single-threaded) runs ~1h; allow for a queue
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v4
+      - name: Mint a token for the TDVT repo (dispatch + read the run)
+        id: tdvt-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.WORKFLOW_AUTH_PUBLIC_APP_ID }}
+          private-key: ${{ secrets.WORKFLOW_AUTH_PUBLIC_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: "clickhouse-tableau-tdvt"
+      - name: Run Tableau TDVT and mirror its result
+        env:
+          GH_TOKEN: ${{ steps.tdvt-token.outputs.token }}
+        run: |
+          python3 .github/scripts/mirror_tdvt.py \
+            --event-type jdbc-release \
+            --version "$(cat VERSION)" \
+            --correlation-id "${{ github.repository }}#${{ github.run_id }}-${{ github.run_attempt }}"
