@@ -55,15 +55,18 @@ def list_runs(repo: str, created_since: str) -> list[dict]:
     return data.get("workflow_runs", [])
 
 
+def title_has_correlation(display_title: str, correlation_id: str) -> bool:
+    # TDVT run-name: "... [corr:{correlation_id}]" — match the bracketed token exactly.
+    return f"[corr:{correlation_id}]" in display_title
+
+
 def find_run_id(runs: list[dict], threshold: int, correlation_id: str) -> int | None:
-    # The TDVT run-name embeds the correlation id ("TDVT (JDBC <ver>) [corr:<id>]"), and that id is
-    # unique per dispatch (repo#run_id-attempt), so match STRICTLY on it.
     matches = [
         run
         for run in runs
-        if run.get("id", 0) > threshold and correlation_id in run.get("display_title", "")
+        if run.get("id", 0) > threshold
+        and title_has_correlation(run.get("display_title", ""), correlation_id)
     ]
-    # 0 matches = the run has not registered yet (keep polling). A unique id can't match >1 run.
     return matches[0]["id"] if len(matches) == 1 else None
 
 
