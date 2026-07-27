@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import subprocess
 import sys
 import time
@@ -56,51 +55,16 @@ def list_runs(repo: str, created_since: str) -> list[dict]:
     return data.get("workflow_runs", [])
 
 
-def title_has_version(display_title: str, version: str) -> bool:
-    # TDVT run-name is "TDVT (JDBC {version})" — require the closing ")" boundary.
-    return re.search(r"\(JDBC " + re.escape(version) + r"\)", display_title) is not None
-
-
-def version_matches(runs: list[dict], threshold: int, version: str) -> list[dict]:
-    return [
+def find_run_id(runs: list[dict], threshold: int, correlation_id: str) -> int | None:
+    # The TDVT run-name embeds the correlation id ("TDVT (JDBC <ver>) [corr:<id>]"), and that id is
+    # unique per dispatch (repo#run_id-attempt), so match STRICTLY on it.
+    matches = [
         run
         for run in runs
-        if run.get("id", 0) > threshold
-        and title_has_version(run.get("display_title", ""), version)
+        if run.get("id", 0) > threshold and correlation_id in run.get("display_title", "")
     ]
-
-
-def parse_github_time(value: str) -> datetime:
-    return datetime.fromisoformat(value.replace("Z", "+00:00"))
-
-
-def find_run_id(
-    runs: list[dict],
-    threshold: int,
-    version: str,
-    correlation_id: str,
-    *,
-    final: bool = False,
-    dispatch_after: datetime | None = None,
-) -> int | None:
-    matches = version_matches(runs, threshold, version)
-
-    corr = [run for run in matches if correlation_id in run.get("display_title", "")]
-    if len(corr) == 1:
-        return corr[0]["id"]
-    if len(corr) > 1:
-        return None
-    if len(matches) > 1:
-        return None
-    if len(matches) == 1:
-        new_runs = [run for run in runs if run.get("id", 0) > threshold]
-        if len(new_runs) > 1:
-            return matches[0]["id"]
-        if final and dispatch_after is not None:
-            created = parse_github_time(matches[0]["created_at"])
-            if created >= dispatch_after - timedelta(seconds=10):
-                return matches[0]["id"]
-    return None
+    # 0 matches = the run has not registered yet (keep polling). A unique id can't match >1 run.
+    return matches[0]["id"] if len(matches) == 1 else None
 
 
 def write_summary(version: str, run_url: str, info: dict) -> None:
@@ -144,7 +108,6 @@ def main() -> None:
     created_since = (
         datetime.now(timezone.utc) - timedelta(seconds=CREATED_FILTER_SKEW_SEC)
     ).strftime("%Y-%m-%dT%H:%M:%SZ")
-    dispatch_after = datetime.now(timezone.utc)
     gh_api_call(
         f"repos/{args.tdvt_repo}/dispatches",
         f"event_type={args.event_type}",
@@ -154,29 +117,13 @@ def main() -> None:
 
     run_id = None
     for _ in range(POLL_ATTEMPTS):
-        run_id = find_run_id(
-            list_runs(args.tdvt_repo, created_since),
-            prev_id,
-            args.version,
-            args.correlation_id,
-        )
+        run_id = find_run_id(list_runs(args.tdvt_repo, created_since), prev_id, args.correlation_id)
         if run_id is not None:
             break
         time.sleep(POLL_INTERVAL_SEC)
 
     if run_id is None:
-        runs = list_runs(args.tdvt_repo, created_since)
-        run_id = find_run_id(
-            runs, prev_id, args.version, args.correlation_id,
-            final=True, dispatch_after=dispatch_after,
-        )
-        if run_id is None:
-            if len(version_matches(runs, prev_id, args.version)) > 1:
-                fail(
-                    f"Multiple TDVT runs match JDBC {args.version} after dispatch; "
-                    "cannot pick the correct run safely"
-                )
-            fail("TDVT run did not appear after dispatch")
+        fail(f"TDVT run for correlation id '{args.correlation_id}' did not appear after dispatch")
 
     run_url = f"https://github.com/{args.tdvt_repo}/actions/runs/{run_id}"
     print(f"TDVT run: {run_url}")
