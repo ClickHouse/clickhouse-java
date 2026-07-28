@@ -12,11 +12,15 @@
   `getFloat`/`setFloat` and `getObject` accessors, and reported as such by `ResultSetMetaData` and `DatabaseMetaData`.
   Previously reading or writing a `BFloat16` column failed with an
   unsupported-data-type error. (https://github.com/ClickHouse/clickhouse-java/issues/2279)
-- **[client-v2, jdbc-v2]** Added support for the experimental `QBit(element_type, dimension)` vector data type
-  (ClickHouse `25.10+`; the `allow_experimental_qbit_type` server setting is required to create a column), with
-  `BFloat16`, `Float32`, or `Float64` element types. A `QBit` value is transmitted over `RowBinary` exactly like
+- **[client-v2, jdbc-v2]** Added support for the experimental `QBit(element_type, dimension[, stride])` vector data type
+  (ClickHouse `25.10+`; the `allow_experimental_qbit_type` server setting is required to create a column). The type-name
+  parser accepts two or three parameters (the optional third is the stride) and recognizes the documented element types
+  `Int8`, `BFloat16`, `Float32`, and `Float64`; an element type outside that set is parsed with a warning rather than
+  rejected, so a newer server-side element type keeps parsing. A `QBit` value is transmitted over `RowBinary` exactly like
   `Array(element_type)`, so it is read and written as a Java array of the element type (`float[]` for
-  `BFloat16`/`Float32`, `double[]` for `Float64`) through generic records, binary readers, and POJO binding. In the
+  `BFloat16`/`Float32`, `double[]` for `Float64`) through generic records, binary readers, and POJO binding, via a
+  dedicated `QBit` read/serialize path. A `QBit` held inside a `Dynamic`/`Variant`/`JSON` column is also decoded (its
+  binary type encoding is read back to the concrete `QBit(...)` type). In the
   JDBC driver (`jdbc-v2`) `QBit` maps to `java.sql.Types.ARRAY` and is returned as a `java.sql.Array` from
   `getObject`/`getArray`. Previously `QBit` was an unimplemented type constant and reading or writing such a column
   failed. Reading `QBit` through the `Native` output format is not supported — the server transmits it there using a

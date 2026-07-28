@@ -236,6 +236,24 @@ public class DataTypeTests extends BaseIntegrationTest {
     }
 
     @Test(groups = {"integration"})
+    public void testQBitInDynamicColumn() throws Exception {
+        if (isVersionMatch(QBIT_UNSUPPORTED_VERSIONS)) {
+            throw new SkipException("QBit requires ClickHouse 25.10+");
+        }
+
+        // A QBit held in a Dynamic column encodes its concrete type on the wire as
+        // 0x36 <element_type_encoding> <var_uint dimension>. The binary type-encoding reader must
+        // consume the element type AND the dimension; otherwise the following column ("tail") would
+        // misalign. The trailing 42 is the desync guard.
+        List<GenericRecord> rows = client.queryAll(
+                "SELECT CAST(CAST([1, 2, 3] AS QBit(Float32, 3)) AS Dynamic) AS d, 42 AS tail " +
+                        "SETTINGS allow_experimental_qbit_type = 1, allow_experimental_dynamic_type = 1");
+        Assert.assertEquals(rows.size(), 1);
+        Assert.assertEquals(rows.get(0).getFloatArray("d"), new float[]{1f, 2f, 3f});
+        Assert.assertEquals(rows.get(0).getInteger("tail"), 42);
+    }
+
+    @Test(groups = {"integration"})
     public void testNestedDataTypes() throws Exception {
         final String table = "test_nested_types";
         writeReadVerify(table,

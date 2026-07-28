@@ -235,7 +235,7 @@ public class BinaryStreamReader {
                     }
 //                case Object: // deprecated https://clickhouse.com/docs/en/sql-reference/data-types/object-data-type
                 case QBit:
-                    // QBit(element_type, dimension) is transmitted like Array(element_type).
+                    return readQBit(actualColumn, typeHint);
                 case Array:
                     if (typeHint == null) { typeHint = arrayDefaultTypeHint;}
                     return convertArray(readArray(actualColumn), typeHint);
@@ -611,6 +611,25 @@ public class BinaryStreamReader {
         }
 
         return bytes;
+    }
+
+    /**
+     * Reads a {@code QBit(element_type, dimension)} value.
+     * <p>
+     * Over RowBinary a QBit is transmitted exactly like {@code Array(element_type)} — a var-int
+     * element count followed by that many element values — so the array reader is reused for the
+     * wire decoding. This is deliberately a dedicated method (rather than folding QBit into the
+     * {@code Array} case) because QBit is a distinct type whose Array-like RowBinary layout is an
+     * implementation detail, not an equivalence: in the Native format QBit uses a different internal
+     * layout (see {@link com.clickhouse.client.api.data_formats.NativeFormatReader}).
+     *
+     * @param column   QBit column information
+     * @param typeHint requested element/array representation, may be {@code null}
+     * @return materialized QBit value
+     * @throws IOException when an IO error occurs
+     */
+    private <T> T readQBit(ClickHouseColumn column, Class<?> typeHint) throws IOException {
+        return convertArray(readArray(column), typeHint == null ? arrayDefaultTypeHint : typeHint);
     }
 
     /**
@@ -1471,6 +1490,14 @@ public class BinaryStreamReader {
             case Nullable:  {
                 ClickHouseColumn column = readDynamicData();
                 return ClickHouseColumn.of("v", "Nullable(" + column.getOriginalTypeName() + ")");
+            }
+            case QBit: {
+                // 0x36 <element_type_encoding> <var_uint dimension> -> QBit(T, N).
+                // The element type and dimension MUST be consumed here so a QBit nested in a
+                // Dynamic/Variant/JSON column does not desynchronize the stream.
+                ClickHouseColumn elementColumn = readDynamicData();
+                int dimension = readVarInt(input);
+                return ClickHouseColumn.of("v", "QBit(" + elementColumn.getOriginalTypeName() + ", " + dimension + ")");
             }
             case Time64: {
                 byte precision = readByte();

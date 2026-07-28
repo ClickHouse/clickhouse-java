@@ -68,7 +68,7 @@ public class DataTypeConverter {
             case IPv6:
                 return ipvToString(value, column);
             case QBit:
-                // QBit is rendered as an array literal of its element type, like Array(element_type).
+                return qbitToString(value, column);
             case Array:
                 return  arrayToString(value, column);
             case Point:
@@ -85,6 +85,18 @@ public class DataTypeConverter {
             default:
                 return value.toString();
         }
+    }
+
+    /**
+     * Renders a {@code QBit(element_type, dimension)} value as SQL text.
+     * <p>
+     * A QBit value is rendered as an array literal of its element type, mirroring the RowBinary
+     * representation it shares with {@code Array(element_type)}. This is deliberately a dedicated
+     * method (rather than folding QBit into the {@code Array} case) because QBit is a distinct type
+     * whose array-like rendering is an implementation detail, not an equivalence.
+     */
+    public String qbitToString(Object value, ClickHouseColumn column) {
+        return arrayToString(value, column);
     }
 
     public String stringToString(Object bytesOrString, ClickHouseColumn column) {
