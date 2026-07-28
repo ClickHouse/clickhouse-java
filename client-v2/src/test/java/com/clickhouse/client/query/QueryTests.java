@@ -1745,6 +1745,40 @@ public class QueryTests extends BaseIntegrationTest {
         Assert.assertEquals(records.get(0).getString("v"), expected);
     }
 
+    @DataProvider(name = "scalarStringQueryParameters")
+    Object[][] scalarStringQueryParameters() {
+        // Scalar {p:String} values that must round-trip byte-for-byte through the server's
+        // param_<name> interface. A raw tab/newline previously failed with BAD_QUERY_PARAMETER and a
+        // raw backslash was silently corrupted; the client now emits the TSV "escaped" form.
+        return new Object[][]{
+                {"plain value"},
+                {""},                             // empty string: boundary
+                {"hello\tworld"},                 // tab: rejected with BAD_QUERY_PARAMETER before the fix
+                {"line1\nline2"},                 // newline: rejected with BAD_QUERY_PARAMETER before the fix
+                {"C:\\temp"},                      // backslash before 't': silently corrupted to a tab before the fix
+                {"carriage\rreturn"},             // CR: read verbatim, must survive round-trip
+                {"quote'inside"},                 // single quote: read verbatim, must survive round-trip
+                {"mix\tof\nall\\the'specials"},
+                {"unicode é中😀"},                 // multi-byte UTF-8 must be untouched
+                {"a\u0000b"},                     // NUL: read verbatim, must survive round-trip
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "scalarStringQueryParameters")
+    public void testScalarStringQueryParamsRoundTrip(String value) {
+        // A scalar {p:String} parameter containing a tab, newline or backslash must round-trip
+        // unchanged. Before the fix the value was sent raw, so the server's deserializeTextEscaped
+        // treated a tab/newline as a field delimiter (BAD_QUERY_PARAMETER) or read a backslash as an
+        // escape sequence, corrupting the value. The trailing constant column detects a parameter
+        // parse that consumes the wrong number of bytes.
+        Map<String, Object> params = Collections.singletonMap("p", value);
+        List<GenericRecord> records = client.queryAll("SELECT {p:String} AS v, 'END' AS tail", params);
+
+        Assert.assertEquals(records.size(), 1);
+        Assert.assertEquals(records.get(0).getString("v"), value);
+        Assert.assertEquals(records.get(0).getString("tail"), "END");
+    }
+
     @Test(groups = {"integration"})
     public void testExecuteQueryParam() throws ExecutionException, InterruptedException, TimeoutException {
 

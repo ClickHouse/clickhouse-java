@@ -178,6 +178,23 @@ public class DataTypeConverterTest {
                 {new BigDecimal("1.50"), "1.50"},
                 {null, "null"},
 
+                // --- Scalar String special characters: the server parses a {name:String} value with
+                // deserializeTextEscaped, so the client escapes the three characters that reader treats
+                // as structural. A raw tab or newline previously failed with BAD_QUERY_PARAMETER and a
+                // raw backslash silently corrupted the value. ---
+                {"hello\tworld", "hello\\tworld"},
+                {"line1\nline2", "line1\\nline2"},
+                {"a\\tb", "a\\\\tb"},
+                {"x\ty\nz\\w", "x\\ty\\nz\\\\w"},
+                // Contrast: characters the server reads verbatim are NOT escaped. Over-escaping (e.g. the
+                // single quote) would corrupt values that are already valid server text, such as a
+                // pre-formatted Array literal or an Identifier passed as a String.
+                {"", ""},                                                  // empty string: boundary
+                {"a\rb", "a\rb"},                                          // carriage return: not a delimiter
+                {"O'Brien", "O'Brien"},                                    // single quote: not a delimiter
+                {"['COLLATIONS','ENGINES']", "['COLLATIONS','ENGINES']"},  // pre-formatted Array literal
+                {"`db`.`tbl`", "`db`.`tbl`"},                              // Identifier-style value
+
                 // --- Array/List with String/temporal leaves: single-quoted so the server's array
                 // text parser accepts them (previously emitted e.g. [2026-05-13] -> HTTP 400). ---
                 {Arrays.asList(LocalDate.of(2026, 5, 13), LocalDate.of(2026, 5, 14)), "['2026-05-13','2026-05-14']"},
