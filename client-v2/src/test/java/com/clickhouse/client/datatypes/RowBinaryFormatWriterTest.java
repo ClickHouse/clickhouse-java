@@ -847,7 +847,7 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
                 "  saf_sum SimpleAggregateFunction(sum, UInt64), " +
                 "  saf_str SimpleAggregateFunction(anyLast, Nullable(String)), " +
                 "  tail Int32 " +
-                "  ) Engine = AggregatingMergeTree ORDER BY id";
+                "  ) Engine = MergeTree ORDER BY id";
 
         // The SimpleAggregateFunction columns sit between id and a trailing Int32 so a byte
         // dropped/added while writing them misaligns "tail" and is detected.
