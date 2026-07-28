@@ -2,6 +2,7 @@ package com.clickhouse.client.api.internal;
 
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.enums.SSLMode;
+import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.internal.HttpAPIClientHelper.CustomSSLConnectionFactory;
 import com.clickhouse.client.api.transport.Endpoint;
 import com.clickhouse.client.api.transport.HttpEndpoint;
@@ -11,6 +12,7 @@ import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
 import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.message.BasicHeader;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedConstruction;
 import org.testng.Assert;
@@ -21,6 +23,9 @@ import javax.net.ssl.SNIServerName;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLSocket;
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
+import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Field;
 import java.net.ConnectException;
 import java.util.ArrayList;
@@ -37,8 +42,10 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertNull;
+import static org.testng.Assert.assertTrue;
 
 public class HttpAPIClientHelperTest {
 
@@ -284,6 +291,126 @@ public class HttpAPIClientHelperTest {
             // expected
         } catch (Exception e) {
             Assert.fail("Expected ConnectException to be thrown, but got: " + e.getClass().getName(), e);
+        }
+    }
+
+    /**
+     * A server error response must be logged once at WARN before the exception is thrown, carrying the
+     * status code, query id and the server exception-code header - so a failure that is retried away (and
+     * never surfaced to the caller) is still diagnosable. The response body is intentionally never logged.
+     */
+    @Test
+    public void testExecuteRequestLogsServerErrorResponse() throws Exception {
+        HttpAPIClientHelper helper = new HttpAPIClientHelper(new HashMap<>(), null, false, LZ4Factory.fastestInstance());
+        injectMockHttpClient(helper, mockErrorResponse(404, "241"));
+
+        Map<String, Object> reqConfig = new HashMap<>();
+        reqConfig.put(ClientConfigProperties.QUERY_ID.getKey(), "qid-log-test");
+        Endpoint endpoint = new HttpEndpoint("localhost", 8123, false, "/");
+
+        String logged = captureStdErr(() -> {
+            try {
+                helper.executeRequest(helper.createRequest(endpoint, reqConfig, "SELECT 1")).close();
+            } catch (Exception expected) {
+                // the server error is rethrown to the caller; we assert on what was logged before that
+            }
+        });
+
+        assertTrue(logged.contains("Server returned error response"),
+                "a server error must be logged at WARN: " + logged);
+        assertTrue(logged.contains("404"), "the HTTP status code must be logged: " + logged);
+        assertTrue(logged.contains("qid-log-test"), "the query id must be logged: " + logged);
+        assertTrue(logged.contains("241"), "the server exception-code header value must be logged: " + logged);
+    }
+
+    /**
+     * Contrast case: a successful (200) response must NOT emit the server-error WARN, so normal traffic
+     * stays quiet and only genuine error responses are logged.
+     */
+    @Test
+    public void testExecuteRequestSuccessDoesNotLogServerError() throws Exception {
+        HttpAPIClientHelper helper = new HttpAPIClientHelper(new HashMap<>(), null, false, LZ4Factory.fastestInstance());
+        ClassicHttpResponse ok = mock(ClassicHttpResponse.class);
+        when(ok.getCode()).thenReturn(200);
+        when(ok.getEntity()).thenReturn(mock(HttpEntity.class));
+        injectMockHttpClient(helper, ok);
+
+        Endpoint endpoint = new HttpEndpoint("localhost", 8123, false, "/");
+        String logged = captureStdErr(() -> {
+            try {
+                helper.executeRequest(helper.createRequest(endpoint, new HashMap<>(), "SELECT 1")).close();
+            } catch (Exception e) {
+                // not expected for a 200 response
+            }
+        });
+
+        assertFalse(logged.contains("Server returned error response"),
+                "a successful response must not be logged as a server error: " + logged);
+    }
+
+    /**
+     * A single transport-configuration summary is emitted at INFO on startup and must never contain
+     * secrets (passwords, tokens, proxy credentials).
+     */
+    @Test
+    public void testStartupLogsTransportConfigSummaryWithoutSecrets() {
+        Map<String, Object> config = new HashMap<>();
+        config.put(ClientConfigProperties.PASSWORD.getKey(), "s3cr3t-pw");
+
+        String logged = captureStdErr(() ->
+                new HttpAPIClientHelper(config, null, false, LZ4Factory.fastestInstance()));
+
+        assertTrue(logged.contains("client-v2 transport configured"),
+                "a transport-config summary must be logged at startup: " + logged);
+        assertTrue(logged.contains("authMode=") && logged.contains("sslMode=") && logged.contains("lz4Factory="),
+                "the summary must include the resolved transport fields: " + logged);
+        assertFalse(logged.contains("s3cr3t-pw"),
+                "the transport-config summary must not leak the password: " + logged);
+    }
+
+    private static ClassicHttpResponse mockErrorResponse(int statusCode, String serverExceptionCode) {
+        ClassicHttpResponse response = mock(ClassicHttpResponse.class);
+        when(response.getCode()).thenReturn(statusCode);
+        when(response.containsHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE)).thenReturn(true);
+        when(response.getFirstHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE))
+                .thenReturn(new BasicHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE, serverExceptionCode));
+        when(response.getEntity()).thenReturn(mock(HttpEntity.class));
+        return response;
+    }
+
+    private static void injectMockHttpClient(HttpAPIClientHelper helper, ClassicHttpResponse response) throws Exception {
+        CloseableHttpClient mockHttpClient = mock(CloseableHttpClient.class);
+        when(mockHttpClient.executeOpen(any(), any(), any())).thenReturn(response);
+        Field httpClientField = HttpAPIClientHelper.class.getDeclaredField("httpClient");
+        httpClientField.setAccessible(true);
+        httpClientField.set(helper, mockHttpClient);
+    }
+
+    /**
+     * Captures everything written to {@code System.err} (the slf4j-simple target) while {@code action}
+     * runs. slf4j-simple resolves {@code System.err} dynamically per log call, so the temporary swap
+     * reliably captures WARN/INFO output emitted during the action.
+     */
+    private static String captureStdErr(Runnable action) {
+        PrintStream original = System.err;
+        ByteArrayOutputStream buf = new ByteArrayOutputStream();
+        PrintStream capture;
+        try {
+            capture = new PrintStream(buf, true, "UTF-8");
+        } catch (UnsupportedEncodingException e) {
+            throw new RuntimeException(e);
+        }
+        System.setErr(capture);
+        try {
+            action.run();
+        } finally {
+            capture.flush();
+            System.setErr(original);
+        }
+        try {
+            return buf.toString("UTF-8");
+        } catch (UnsupportedEncodingException e) {
+            throw new RuntimeException(e);
         }
     }
 

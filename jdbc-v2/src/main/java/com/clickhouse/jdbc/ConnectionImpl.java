@@ -695,7 +695,9 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
             try {
                 this.abort(networkTimeoutExecutor);
             } catch (SQLException e) {
-                throw new RuntimeException("Failed to abort connection", e);
+                // Runs on the executor thread: a rethrown exception would be swallowed by the executor,
+                // so log it here to keep the abort failure observable.
+                LOG.error("Failed to abort connection on network timeout", e);
             }
         });
     }

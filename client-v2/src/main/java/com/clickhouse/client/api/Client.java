@@ -1499,8 +1499,9 @@ public class Client implements AutoCloseable {
                     lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
                     if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings()) && requestIsNotCancelled(queryId)) {
                         if (i < maxAttempts) {
-                            LOG.warn("Retrying.", e);
                             selectedEndpoint = nodeSelector.getNextAliveNode(selectedEndpoint);
+                            LOG.warn("Insert attempt {}/{} failed (queryId: {}); retrying on endpoint {}",
+                                    i + 1, maxAttempts + 1, queryId, selectedEndpoint, e);
                         } else {
                             nodeSelector.getNextAliveNode(selectedEndpoint);
                         }
@@ -1513,7 +1514,7 @@ public class Client implements AutoCloseable {
             }
 
             String errMsg = requestExMsg("Insert", maxAttempts + 1, durationSince(startTime).toMillis(), requestSettings.getQueryId());
-            LOG.warn(errMsg);
+            LOG.warn(errMsg, lastException);
             throw (lastException == null ? new ClientException(errMsg) : lastException);
         };
 
@@ -1705,8 +1706,9 @@ public class Client implements AutoCloseable {
                         lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
                         if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings()) && requestIsNotCancelled(requestSettings.getQueryId())) {
                             if (i < maxAttempts) {
-                                LOG.warn("Retrying.", e);
                                 selectedEndpoint = nodeSelector.getNextAliveNode(selectedEndpoint);
+                                LOG.warn("Insert attempt {}/{} failed (queryId: {}); retrying on endpoint {}",
+                                        i + 1, maxAttempts + 1, queryId, selectedEndpoint, e);
                             } else {
                                 nodeSelector.getNextAliveNode(selectedEndpoint);
                             }
@@ -1732,7 +1734,7 @@ public class Client implements AutoCloseable {
             }
 
             String errMsg = requestExMsg("Insert", maxAttempts + 1, durationSince(startTime).toMillis(), requestSettings.getQueryId());
-            LOG.warn(errMsg);
+            LOG.warn(errMsg, lastException);
             throw (lastException == null ? new ClientException(errMsg) : lastException);
         };
 
@@ -1849,8 +1851,9 @@ public class Client implements AutoCloseable {
                             lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
                             if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings()) && requestIsNotCancelled(requestSettings.getQueryId())) {
                                 if (i < maxAttempts) {
-                                    LOG.warn("Retrying.", e);
                                     selectedEndpoint = nodeSelector.getNextAliveNode(selectedEndpoint);
+                                    LOG.warn("Query attempt {}/{} failed (queryId: {}); retrying on endpoint {}",
+                                            i + 1, maxAttempts + 1, queryId, selectedEndpoint, e);
                                 } else {
                                     nodeSelector.getNextAliveNode(selectedEndpoint);
                                 }
@@ -1864,7 +1867,7 @@ public class Client implements AutoCloseable {
                     unregisterTransportReq(queryId);
                 }
                 String errMsg = requestExMsg("Query", maxAttempts + 1, durationSince(startTime).toMillis(), requestSettings.getQueryId());
-                LOG.warn(errMsg);
+                LOG.warn(errMsg, lastException);
                 throw (lastException == null ? new ClientException(errMsg) : lastException);
             };
 

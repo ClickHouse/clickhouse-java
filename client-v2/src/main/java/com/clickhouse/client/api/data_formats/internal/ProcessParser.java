@@ -3,11 +3,16 @@ package com.clickhouse.client.api.data_formats.internal;
 import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.metrics.ServerMetrics;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
 public class ProcessParser {
+
+    private static final Logger LOG = LoggerFactory.getLogger(ProcessParser.class);
 
     private static final String[] SUMMARY_FIELDS = {
             "read_rows", "read_bytes", "written_rows", "written_bytes",
@@ -82,7 +87,8 @@ public class ProcessParser {
                 long value = Long.parseLong(valueStr);
                 result.put(key, value);
             } catch (NumberFormatException e) {
-                // ignore error
+                // Unknown/non-numeric summary fields are skipped; keep going so the rest still parse.
+                LOG.debug("Skipping summary field '{}' with non-numeric value '{}'", key, valueStr, e);
             }
         }
 

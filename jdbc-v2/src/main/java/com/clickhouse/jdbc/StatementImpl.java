@@ -199,8 +199,9 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
                 long writtenRows = 0L;
                 try {
                     writtenRows = response.getWrittenRows();
-                } catch (Exception ignore) {
+                } catch (Exception e) {
                     // Best effort: leave writtenRows as 0 if we can't obtain it.
+                    LOG.debug("Failed to read written-rows count from response; defaulting to 0", e);
                 }
                 this.currentUpdateCount = (int) Math.min(writtenRows, Integer.MAX_VALUE);
                 try {
