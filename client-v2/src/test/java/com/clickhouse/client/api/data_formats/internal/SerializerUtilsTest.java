@@ -1,5 +1,6 @@
 package com.clickhouse.client.api.data_formats.internal;
 
+import com.clickhouse.client.api.ClientException;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.value.ClickHouseGeoPolygonValue;
@@ -142,6 +143,40 @@ public class SerializerUtilsTest {
                 () -> SerializerUtils.serializeData(new ByteArrayOutputStream(),
                         Arrays.asList(Arrays.asList(1D, 2D, 3D)),
                         ClickHouseColumn.of("v", "Geometry")));
+    }
+
+    @DataProvider(name = "dynamicDecimalTypeInference")
+    public Object[][] dynamicDecimalTypeInference() {
+        return new Object[][]{
+                // value, inferred width, inferred scale. The width must hold integerDigits + scale,
+                // and the scale is kept as wide as the width allows (maxScale - integerDigits).
+                {new BigDecimal("0.5"), ClickHouseDataType.Decimal32, 9},                 // sub-1, unchanged
+                {new BigDecimal("19.99"), ClickHouseDataType.Decimal32, 7},               // integer part 2
+                {new BigDecimal("-19.99"), ClickHouseDataType.Decimal32, 7},              // sign is irrelevant
+                {new BigDecimal("1000"), ClickHouseDataType.Decimal32, 5},                // integer, scale 0
+                {new BigDecimal("1E3"), ClickHouseDataType.Decimal32, 5},                 // negative scale (-3)
+                {new BigDecimal("0"), ClickHouseDataType.Decimal32, 8},
+                {new BigDecimal("1.23456789"), ClickHouseDataType.Decimal32, 8},          // required precision == 9 boundary
+                {new BigDecimal("0.0123456789"), ClickHouseDataType.Decimal64, 18},       // scale 10 > Decimal32 max
+                {new BigDecimal("123456789.123456789"), ClickHouseDataType.Decimal64, 9},
+                {new BigDecimal("0.00012345678901234567"), ClickHouseDataType.Decimal128, 38}, // scale 20 > Decimal64 max
+                {new BigDecimal("12345678901234567890.12345678901234567890"), ClickHouseDataType.Decimal256, 56}, // 20 int + 20 frac
+                {new BigDecimal("0.12345678901234567890123456789012345678901"), ClickHouseDataType.Decimal256, 76}, // scale 41
+        };
+    }
+
+    @Test(dataProvider = "dynamicDecimalTypeInference")
+    public void testValueToColumnForDynamicTypeSizesDecimal(BigDecimal value, ClickHouseDataType expectedType, int expectedScale) {
+        ClickHouseColumn column = SerializerUtils.valueToColumnForDynamicType(value);
+        Assert.assertEquals(column.getDataType(), expectedType);
+        Assert.assertEquals(column.getScale(), expectedScale);
+    }
+
+    @Test
+    public void testValueToColumnForDynamicTypeRejectsOversizedDecimal() {
+        // 10^76 has 77 integer digits, one more than Decimal256 can represent: fail loudly, never truncate.
+        Assert.assertThrows(ClientException.class,
+                () -> SerializerUtils.valueToColumnForDynamicType(new BigDecimal(BigInteger.TEN.pow(76))));
     }
 
     @Test(dataProvider = "nonNullableEnumTypes")
