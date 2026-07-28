@@ -8,6 +8,7 @@ import org.testng.annotations.Test;
 
 import javax.net.ssl.SSLContext;
 import java.lang.reflect.Field;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -91,6 +92,20 @@ public class ClientBuilderTest {
     }
 
     @Test
+    public void testSetSSLCipherSuitesStoredInConfiguration() throws Exception {
+        try (Client client = new Client.Builder()
+                .addEndpoint("https://localhost:8443")
+                .setUsername("default")
+                .setPassword("")
+                .setSSLCipherSuites("TLS_AES_256_GCM_SHA384", "TLS_AES_128_GCM_SHA256")
+                .build()) {
+            Assert.assertEquals(extractConfiguration(client).get(ClientConfigProperties.SSL_CIPHER_SUITES.getKey()),
+                    Arrays.asList("TLS_AES_256_GCM_SHA384", "TLS_AES_128_GCM_SHA256"),
+                    "Cipher suites set via the builder should be stored as a parsed list");
+        }
+    }
+
+    @Test
     public void testStringSSLContextRejectedBySetOption() {
         Assert.expectThrows(ClientMisconfigurationException.class,
                 () -> new Client.Builder().setOption(ClientConfigProperties.SSL_CONTEXT.getKey(), "not-a-context"));
@@ -142,6 +157,22 @@ public class ClientBuilderTest {
     }
 
     @Test
+    public void testSSLCipherSuitesViaSetOptionParsedAsList() throws Exception {
+        // The comma-separated string form is the path used by URL/JDBC properties.
+        try (Client client = new Client.Builder()
+                .addEndpoint("https://localhost:8443")
+                .setUsername("default")
+                .setPassword("")
+                .setOption(ClientConfigProperties.SSL_CIPHER_SUITES.getKey(),
+                        "TLS_AES_256_GCM_SHA384,TLS_AES_128_GCM_SHA256")
+                .build()) {
+            Assert.assertEquals(extractConfiguration(client).get(ClientConfigProperties.SSL_CIPHER_SUITES.getKey()),
+                    Arrays.asList("TLS_AES_256_GCM_SHA384", "TLS_AES_128_GCM_SHA256"),
+                    "Comma-separated cipher suites should be parsed into a list");
+        }
+    }
+
+    @Test
     public void testTrustStoreAndClientCertificateConflictRejectedWithoutCustomContext() {
         // Contrast: without a custom SSLContext the trust-store/certificate conflict is still rejected.
         Assert.expectThrows(ClientMisconfigurationException.class, () -> new Client.Builder()
@@ -176,6 +207,20 @@ public class ClientBuilderTest {
                 .build()) {
             Assert.assertNull(extractConfiguration(client).get(ClientConfigProperties.SSL_CONTEXT.getKey()),
                     "No SSLContext should be stored when none is supplied");
+        }
+    }
+
+    @Test
+    public void testClientBuildsWithCipherSuitesOverHttps() {
+        // Exercises the HTTPS connection-socket-factory path with cipher suites configured (STRICT mode,
+        // no SNI): the client must build without error.
+        try (Client client = new Client.Builder()
+                .addEndpoint("https://localhost:8443")
+                .setUsername("default")
+                .setPassword("")
+                .setSSLCipherSuites("TLS_AES_256_GCM_SHA384")
+                .build()) {
+            Assert.assertNotNull(client);
         }
     }
 

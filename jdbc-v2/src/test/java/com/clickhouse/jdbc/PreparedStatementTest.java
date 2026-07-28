@@ -175,6 +175,36 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         }
     }
 
+    @DataProvider(name = "specialCharacterStrings")
+    Object[][] specialCharacterStrings() {
+        return new Object[][] {
+                {"plain value"},
+                {"tab\tinside"},
+                {"newline\ninside"},
+                {"C:\\temp"},
+                {"quote'inside"},
+                {"mixed\t'quote'\nand\\backslash"},
+                {"unicode é中😀"},
+        };
+    }
+
+    @Test(groups = { "integration" }, dataProvider = "specialCharacterStrings")
+    public void testSetStringWithSpecialCharacters(String value) throws Exception {
+        // A String bound with setString is inlined into the SQL as a single-quoted literal, so the
+        // backslash and single quote must be escaped (a tab or newline is a valid literal character).
+        // The value must round-trip byte-for-byte.
+        try (Connection conn = getJdbcConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT ?")) {
+                stmt.setString(1, value);
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getString(1), value);
+                    assertFalse(rs.next());
+                }
+            }
+        }
+    }
+
     @Test(groups = { "integration" })
     public void testSetBytes() throws Exception {
         // see com.clickhouse.jdbc.JdbcDataTypeTests.testStringsUsedAsBytes
