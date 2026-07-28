@@ -19,12 +19,13 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import java.time.temporal.ChronoUnit;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static org.testng.Assert.assertEquals;
-import static org.testng.Assert.fail;
 
 public class MetricsTest extends BaseIntegrationTest {
     private MeterRegistry meterRegistry;
@@ -67,25 +68,38 @@ public class MetricsTest extends BaseIntegrationTest {
             Assert.assertEquals((int) available.value(), 1);
             Assert.assertEquals((int) leased.value(), 0);
 
-            final long maxDelay = isCloud() ? 300 : 15;
+            CountDownLatch responsesReady = new CountDownLatch(2);
+            CountDownLatch releaseResponses = new CountDownLatch(1);
             Runnable task = () -> {
-                long t1 = System.currentTimeMillis();
                 try (QueryResponse response = client.query("SELECT 1").get()) {
-                    long t = System.currentTimeMillis() - t1;
-                    Assert.assertTrue(t < maxDelay, "Unexpected delay (t = " + t + ", but expected < " + maxDelay + " ms)");
-                    Assert.assertEquals((int) available.value(), 0);
-                    Assert.assertEquals((int) leased.value(), 1);
+                    responsesReady.countDown();
+                    Assert.assertTrue(releaseResponses.await(10, TimeUnit.SECONDS),
+                            "Timed out waiting to release query responses");
                 } catch (Exception e) {
-                    e.printStackTrace();
-                    fail("Failed to to request", e);
+                    throw new RuntimeException("Failed to execute request", e);
                 }
             };
 
-            ExecutorService executor = Executors.newFixedThreadPool(3);
-            executor.submit(task);
-            executor.submit(task);
-            executor.shutdown();
-            executor.awaitTermination(10, TimeUnit.SECONDS);
+            ExecutorService executor = Executors.newFixedThreadPool(2);
+            Future<?> firstQuery = executor.submit(task);
+            Future<?> secondQuery = executor.submit(task);
+            try {
+                try {
+                    Assert.assertTrue(responsesReady.await(10, TimeUnit.SECONDS),
+                            "Timed out waiting for concurrent query responses");
+                    Assert.assertEquals((int) available.value(), 0);
+                    Assert.assertEquals((int) leased.value(), 2);
+                } finally {
+                    releaseResponses.countDown();
+                }
+                firstQuery.get(10, TimeUnit.SECONDS);
+                secondQuery.get(10, TimeUnit.SECONDS);
+            } finally {
+                releaseResponses.countDown();
+                executor.shutdownNow();
+            }
+            Assert.assertTrue(executor.awaitTermination(10, TimeUnit.SECONDS),
+                    "Timed out waiting for query executor to terminate");
 
             Assert.assertEquals((int) available.value(), 2);
             Assert.assertEquals((int) leased.value(), 0);
@@ -95,7 +109,10 @@ public class MetricsTest extends BaseIntegrationTest {
             Assert.assertEquals((int) available.value(), 2);
             Assert.assertEquals((int) leased.value(), 0);
 
-            task.run();
+            try (QueryResponse response = client.query("SELECT 1").get()) {
+                Assert.assertEquals((int) available.value(), 0);
+                Assert.assertEquals((int) leased.value(), 1);
+            }
 
             Assert.assertEquals((int) available.value(), 1);
             Assert.assertEquals((int) leased.value(), 0);
