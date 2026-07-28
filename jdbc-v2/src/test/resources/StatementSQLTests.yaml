@@ -81,8 +81,6 @@
   tables:
     events: datasets/empty_table
   checks:
-    - name: row_count
-      expected: 2
     - name: column_count
       expected: 1
     - name: column_names

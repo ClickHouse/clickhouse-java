@@ -3,6 +3,7 @@ package com.clickhouse.client.api;
 import com.clickhouse.client.api.command.CommandResponse;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
+import com.clickhouse.client.api.data_formats.ClickHouseFormatReader;
 import com.clickhouse.client.api.data_formats.NativeFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatReader;
@@ -17,6 +18,7 @@ import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.internal.ClientStatisticsHolder;
+import com.clickhouse.client.api.internal.ClientUtils;
 import com.clickhouse.client.api.internal.CredentialsManager;
 import com.clickhouse.client.api.internal.DataTypeConverter;
 import com.clickhouse.client.api.internal.HttpAPIClientHelper;
@@ -39,6 +41,8 @@ import com.clickhouse.client.api.serde.POJOSerDe;
 import com.clickhouse.client.api.transport.ClientNodeSelector;
 import com.clickhouse.client.api.transport.Endpoint;
 import com.clickhouse.client.api.transport.HttpEndpoint;
+import com.clickhouse.client.api.transport.internal.TransportRequest;
+import com.clickhouse.client.api.transport.internal.TransportResponse;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
@@ -46,9 +50,6 @@ import com.clickhouse.data.ClickHouseFormat;
 import com.google.common.collect.ImmutableList;
 import net.jpountz.lz4.LZ4Factory;
 import org.apache.hc.core5.concurrent.DefaultThreadFactory;
-import org.apache.hc.core5.http.ClassicHttpResponse;
-import org.apache.hc.core5.http.Header;
-import org.apache.hc.core5.http.HttpStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -60,6 +61,7 @@ import java.time.Duration;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -67,6 +69,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.StringJoiner;
 import java.util.TimeZone;
@@ -117,6 +120,8 @@ import javax.net.ssl.SSLContext;
 public class Client implements AutoCloseable {
     private static final Logger LOG = LoggerFactory.getLogger(Client.class);
 
+    private static final int REQ_REGISTRY_SIZE = 1000; // initial capacity hint for the ongoing-request registry, not a hard limit; no separate config needed.
+
     private HttpAPIClientHelper httpClientHelper = null;
 
     private final List<Endpoint> endpoints;
@@ -138,6 +143,8 @@ public class Client implements AutoCloseable {
     private final Map<String, Boolean> tableSchemaHasDefaults = new ConcurrentHashMap<>();
 
     private final Map<ClickHouseDataType, Class<?>> typeHintMapping;
+
+    private final ConcurrentHashMap<String, TransportRequest> ongoingRequests = new ConcurrentHashMap<>(REQ_REGISTRY_SIZE);
 
     // Server context
     private String dbUser;
@@ -238,7 +245,6 @@ public class Client implements AutoCloseable {
     public String getDefaultDatabase() {
         return (String) this.configuration.get(ClientConfigProperties.DATABASE.getKey());
     }
-
 
     /**
      * Frees the resources associated with the client.
@@ -809,6 +815,22 @@ public class Client implements AutoCloseable {
         }
 
         /**
+         * Restricts the TLS cipher suites the client may negotiate on secure connections. When set, only
+         * the listed cipher suites are enabled on the SSL socket (subject to what the JVM and the server
+         * support); when not set, the transport defaults are used (Apache HttpClient enables the JVM's
+         * default suites minus those it considers weak). Suite names use the standard JSSE names, for
+         * example {@code TLS_AES_256_GCM_SHA384}.
+         *
+         * @param cipherSuites cipher suite names to enable
+         * @return same instance of the builder
+         */
+        public Builder setSSLCipherSuites(String... cipherSuites) {
+            this.configuration.put(ClientConfigProperties.SSL_CIPHER_SUITES.getKey(),
+                    ClientConfigProperties.commaSeparated(Arrays.asList(cipherSuites)));
+            return this;
+        }
+
+        /**
          * Supplies a pre-built {@link SSLContext}. When set, it is used as is instead of a context built
          * from the configured trust/key material (which then cannot be set alongside it). {@link SSLMode}
          * still applies, but only to server hostname verification: {@link SSLMode#STRICT} (default) enforces
@@ -1157,6 +1179,20 @@ public class Client implements AutoCloseable {
             return this;
         }
 
+        /**
+         * Enables reading {@code String} and {@code FixedString} columns into an intermediate {@code byte[]}
+         * (a new array each time) instead of decoding them into a {@link String}. This improves working with
+         * large strings and allows {@link ClickHouseFormatReader#getByteArray} to be used more effectively. Can also be configured
+         * per operation.
+         *
+         * @param enable - if the feature is enabled
+         * @return this builder instance
+         */
+        public Builder binaryStringSupport(boolean enable) {
+            this.configuration.put(ClientConfigProperties.BINARY_STRING_SUPPORT.getKey(), String.valueOf(enable));
+            return this;
+        }
+
 
         /**
          * SNI SSL parameter that will be set for each outbound SSL socket.
@@ -1427,43 +1463,41 @@ public class Client implements AutoCloseable {
             long startTime = System.nanoTime();
             // Selecting some node
             Endpoint selectedEndpoint = nodeSelector.getEndpoint();
-
+            final String queryId = requestSettings.getQueryId();
             RuntimeException lastException = null;
             for (int i = 0; i <= maxAttempts; i++) {
                 // Execute request
-                try (ClassicHttpResponse httpResponse =
-                        httpClientHelper.executeRequest(selectedEndpoint, requestSettings.getAllSettings(),
-                                out -> {
-                                    out.write("INSERT INTO ".getBytes());
-                                    out.write(tableName.getBytes());
-                                    out.write(" \n FORMAT ".getBytes());
-                                    out.write(format.name().getBytes());
-                                    out.write(" \n".getBytes());
-                                    for (Object obj : data) {
+                TransportRequest transportRequest = httpClientHelper.createRequest(selectedEndpoint, requestSettings.getAllSettings(),
+                        out -> {
+                            out.write("INSERT INTO ".getBytes());
+                            out.write(tableName.getBytes());
+                            out.write(" \n FORMAT ".getBytes());
+                            out.write(format.name().getBytes());
+                            out.write(" \n".getBytes());
+                            for (Object obj : data) {
 
-                                        for (POJOFieldSerializer serializer : serializersForTable) {
-                                            try {
-                                                serializer.serialize(obj, out);
-                                            } catch (InvocationTargetException | IllegalAccessException e) {
-                                                throw new DataSerializationException(obj, serializer, e);
-                                            }
-                                        }
+                                for (POJOFieldSerializer serializer : serializersForTable) {
+                                    try {
+                                        serializer.serialize(obj, out);
+                                    } catch (InvocationTargetException | IllegalAccessException e) {
+                                        throw new DataSerializationException(obj, serializer, e);
                                     }
-                                    out.close();
-                                })) {
+                                }
+                            }
+                            out.close();
+                        });
 
+                registerTransportReq(queryId, transportRequest);
+
+                try (TransportResponse transportResponse = httpClientHelper.executeRequest(transportRequest)) {
                     ClientStatisticsHolder clientStats = globalClientStats.remove(operationId);
-                    OperationMetrics metrics = new OperationMetrics(clientStats);
-                    String summary = HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_SRV_SUMMARY), "{}");
-                    ProcessParser.parseSummary(summary, metrics);
-                    String queryId =  HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID), requestSettings.getQueryId(), String::valueOf);
-                    metrics.operationComplete();
-                    metrics.setQueryId(queryId);
-                    return new InsertResponse(metrics, HttpAPIClientHelper.collectResponseHeaders(httpResponse));
+                    OperationMetrics metrics = completeOperation(transportResponse, clientStats, requestSettings.getQueryId());
+
+                    return new InsertResponse(transportResponse, metrics);
                 } catch (Exception e) {
                     String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
                     lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
-                    if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings())) {
+                    if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings()) && requestIsNotCancelled(queryId)) {
                         if (i < maxAttempts) {
                             LOG.warn("Retrying.", e);
                             selectedEndpoint = nodeSelector.getNextAliveNode(selectedEndpoint);
@@ -1473,15 +1507,17 @@ public class Client implements AutoCloseable {
                     } else {
                         throw lastException;
                     }
+                } finally {
+                    unregisterTransportReq(queryId);
                 }
             }
 
             String errMsg = requestExMsg("Insert", maxAttempts + 1, durationSince(startTime).toMillis(), requestSettings.getQueryId());
             LOG.warn(errMsg);
-            throw (lastException == null ? new ClientException(errMsg) : lastException);        };
+            throw (lastException == null ? new ClientException(errMsg) : lastException);
+        };
 
         return runAsyncOperation(supplier, requestSettings.getAllSettings());
-
     }
 
     /**
@@ -1617,7 +1653,7 @@ public class Client implements AutoCloseable {
         clientStats.start(ClientMetrics.OP_DURATION);
         final ClientStatisticsHolder finalClientStats = clientStats;
 
-        Supplier<InsertResponse> responseSupplier;
+
 
         final int writeBufferSize = requestSettings.getInputStreamCopyBufferSize() <= 0 ?
                 (int) configuration.get(ClientConfigProperties.CLIENT_NETWORK_BUFFER_SIZE.getKey()) :
@@ -1641,53 +1677,60 @@ public class Client implements AutoCloseable {
         if (requestSettings.getQueryId() == null && queryIdGenerator != null) {
             requestSettings.setQueryId(queryIdGenerator.get());
         }
+
         final int maxRetries = ClientConfigProperties.RETRY_ON_FAILURE.getOrDefault(requestSettings.getAllSettings());
         final int maxAttempts = Math.max(maxRetries, endpoints.size() - 1);
-        responseSupplier = () -> {
+        Supplier<InsertResponse> responseSupplier = () -> {
             long startTime = System.nanoTime();
             // Selecting some node
             Endpoint selectedEndpoint = nodeSelector.getEndpoint();
 
             RuntimeException lastException = null;
-            for (int i = 0; i <= maxAttempts; i++) {
-                // Execute request
-                try (ClassicHttpResponse httpResponse =
-                             httpClientHelper.executeRequest(selectedEndpoint, requestSettings.getAllSettings(),
-                                     out -> {
-                                         writer.onOutput(out);
-                                         out.close();
-                                     })) {
+            final String queryId = requestSettings.getQueryId();
+            try {
+                for (int i = 0; i <= maxAttempts; i++) {
+                    // Execute request
+                    TransportRequest transportRequest = httpClientHelper.createRequest(selectedEndpoint, requestSettings.getAllSettings(),
+                            out -> {
+                                writer.onOutput(out);
+                                out.close();
+                            });
+                    registerTransportReq(queryId, transportRequest);
 
-                    OperationMetrics metrics = new OperationMetrics(finalClientStats);
-                    String summary = HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_SRV_SUMMARY), "{}");
-                    ProcessParser.parseSummary(summary, metrics);
-                    String queryId =  HttpAPIClientHelper.getHeaderVal(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID), requestSettings.getQueryId(), String::valueOf);
-                    metrics.operationComplete();
-                    metrics.setQueryId(queryId);
-                    return new InsertResponse(metrics, HttpAPIClientHelper.collectResponseHeaders(httpResponse));
-                } catch (Exception e) {
-                    String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
-                    lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
-                    if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings())) {
-                        if (i < maxAttempts) {
-                            LOG.warn("Retrying.", e);
-                            selectedEndpoint = nodeSelector.getNextAliveNode(selectedEndpoint);
+                    try (TransportResponse transportResponse = httpClientHelper.executeRequest(transportRequest)) {
+                        OperationMetrics metrics = completeOperation(transportResponse, finalClientStats, requestSettings.getQueryId());
+                        return new InsertResponse(transportResponse, metrics);
+                    } catch (Exception e) {
+                        String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
+                        lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
+                        if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings()) && requestIsNotCancelled(requestSettings.getQueryId())) {
+                            if (i < maxAttempts) {
+                                LOG.warn("Retrying.", e);
+                                selectedEndpoint = nodeSelector.getNextAliveNode(selectedEndpoint);
+                            } else {
+                                nodeSelector.getNextAliveNode(selectedEndpoint);
+                            }
                         } else {
-                            nodeSelector.getNextAliveNode(selectedEndpoint);
+                            throw lastException;
                         }
-                    } else {
-                        throw lastException;
+                    } finally {
+                        // Insert completes once the request returns; the response exposes no stream to read afterwards,
+                        // so the request is no longer cancellable and can be unregistered.
+                        unregisterTransportReq(requestSettings.getQueryId());
                     }
-                }
 
-                if (i < maxAttempts) {
-                    try {
-                        writer.onRetry();
-                    } catch (IOException ioe) {
-                        throw new ClientException("Failed to reset stream before next attempt", ioe);
+                    if (i < maxAttempts) {
+                        try {
+                            writer.onRetry();
+                        } catch (IOException ioe) {
+                            throw new ClientException("Failed to reset stream before next attempt", ioe);
+                        }
                     }
                 }
+            } finally {
+                unregisterTransportReq(queryId);
             }
+
             String errMsg = requestExMsg("Insert", maxAttempts + 1, durationSince(startTime).toMillis(), requestSettings.getQueryId());
             LOG.warn(errMsg);
             throw (lastException == null ? new ClientException(errMsg) : lastException);
@@ -1784,45 +1827,41 @@ public class Client implements AutoCloseable {
                 // Selecting some node
                 Endpoint selectedEndpoint = nodeSelector.getEndpoint();
                 RuntimeException lastException = null;
-                for (int i = 0; i <= maxAttempts; i++) {
-                    ClassicHttpResponse httpResponse = null;
-                    try {
-                        httpResponse = httpClientHelper.executeRequest(selectedEndpoint,
-                                requestSettings.getAllSettings(),
-                                sqlQuery);
-
-                        OperationMetrics metrics = new OperationMetrics(clientStats);
-                        String summary = HttpAPIClientHelper.getHeaderVal(httpResponse
-                                .getFirstHeader(ClickHouseHttpProto.HEADER_SRV_SUMMARY), "{}");
-                        ProcessParser.parseSummary(summary, metrics);
-                        String queryId = HttpAPIClientHelper.getHeaderVal(httpResponse
-                                .getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID), requestSettings.getQueryId());
-                        metrics.setQueryId(queryId);
-                        metrics.operationComplete();
-                        Header formatHeader = httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_FORMAT);
-                        ClickHouseFormat responseFormat = requestSettings.getFormat();
-                        if (formatHeader != null) {
-                            responseFormat = ClickHouseFormat.valueOf(formatHeader.getValue());
-                        }
-
-                        return new QueryResponse(httpResponse, responseFormat, requestSettings, metrics,
-                                HttpAPIClientHelper.collectResponseHeaders(httpResponse));
-
-                    } catch (Exception e) {
-                        HttpAPIClientHelper.closeQuietly(httpResponse);
-                        String msg = requestExMsg("Query", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
-                        lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
-                        if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings())) {
-                            if (i < maxAttempts) {
-                                LOG.warn("Retrying.", e);
-                                selectedEndpoint = nodeSelector.getNextAliveNode(selectedEndpoint);
-                            } else {
-                                nodeSelector.getNextAliveNode(selectedEndpoint);
+                final String queryId = requestSettings.getQueryId();
+                try {
+                    for (int i = 0; i <= maxAttempts; i++) {
+                        TransportRequest request = httpClientHelper.createRequest(selectedEndpoint, requestSettings.getAllSettings(), sqlQuery);
+                        registerTransportReq(queryId, request);
+                        TransportResponse transportResp = null;
+                        try {
+                            transportResp = httpClientHelper.executeRequest(request);
+                            OperationMetrics metrics = completeOperation(transportResp, clientStats, requestSettings.getQueryId());
+                            ClickHouseFormat responseFormat = transportResp.getDataFormat();
+                            if (responseFormat == null) {
+                                responseFormat = requestSettings.getFormat();
                             }
-                        } else {
-                            throw lastException;
+
+                            return new QueryResponse(transportResp, responseFormat, requestSettings, metrics);
+
+                        } catch (Exception e) {
+                            ClientUtils.quietClose(transportResp, LOG);
+                            String msg = requestExMsg("Query", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
+                            lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
+                            if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings()) && requestIsNotCancelled(requestSettings.getQueryId())) {
+                                if (i < maxAttempts) {
+                                    LOG.warn("Retrying.", e);
+                                    selectedEndpoint = nodeSelector.getNextAliveNode(selectedEndpoint);
+                                } else {
+                                    nodeSelector.getNextAliveNode(selectedEndpoint);
+                                }
+                            } else {
+                                throw lastException;
+                            }
                         }
                     }
+                } finally {
+                    // unregister transport request once we are done
+                    unregisterTransportReq(queryId);
                 }
                 String errMsg = requestExMsg("Query", maxAttempts + 1, durationSince(startTime).toMillis(), requestSettings.getQueryId());
                 LOG.warn(errMsg);
@@ -1831,8 +1870,39 @@ public class Client implements AutoCloseable {
 
         return runAsyncOperation(responseSupplier, requestSettings.getAllSettings());
     }
+
+    private void registerTransportReq(String queryId, TransportRequest tr) {
+        if (queryId != null) {
+            ongoingRequests.put(queryId, tr);
+        }
+    }
+
+    private void unregisterTransportReq(String queryId) {
+        if (queryId != null) {
+            ongoingRequests.remove(queryId);
+        }
+    }
+
+    private boolean requestIsNotCancelled(String queryId) {
+        if (queryId != null) {
+            TransportRequest tr = ongoingRequests.get(queryId);
+            return tr == null || !tr.isCancelled();
+        }
+        return true;
+    }
+
     public CompletableFuture<QueryResponse> query(String sqlQuery, Map<String, Object> queryParams) {
         return query(sqlQuery, queryParams, null);
+    }
+
+    private OperationMetrics completeOperation(TransportResponse transportResponse, ClientStatisticsHolder clientStats, String originalQueryId) {
+        OperationMetrics metrics = new OperationMetrics(clientStats);
+        String summary = transportResponse.getSummaryJson();
+        ProcessParser.parseSummary(summary, metrics);
+        String queryId = transportResponse.getQueryId();
+        metrics.setQueryId(queryId == null ? originalQueryId : queryId);
+        metrics.operationComplete();
+        return metrics;
     }
 
     /**
@@ -2331,6 +2401,22 @@ public class Client implements AutoCloseable {
     }
 
 
+    /**
+     * Note: It is recommended to use operation timeout settings instead of this method.
+     * Tries to cancel ongoing request. This method cancels IO operations but doesn't
+     * kill query on server side. Original queryId should be used to cancel the request.
+     * This operation cancels only operations on client side and only that still waiting
+     * for response.
+     *
+     * @param queryId - original query id that was passed in operation settings.
+     */
+    public void cancelTransportRequest(String queryId) {
+        Objects.requireNonNull(queryId, "queryId should be not null");
+        TransportRequest req = ongoingRequests.get(queryId);
+        if (req != null) {
+            req.cancel();
+        }
+    }
 
     public static final String VALUES_LIST_DELIMITER = ",";
 
@@ -2356,7 +2442,7 @@ public class Client implements AutoCloseable {
      * <p>For {@link ClickHouseFormat#JSONEachRow}, callers may opt in to plain JSON numbers by setting
      * {@link ClientConfigProperties#JSON_DISABLE_NUMBER_QUOTING}. Explicit server settings are otherwise
      * left untouched.</p>
-     * <ul> 
+     * <ul>
      *     <li>{@code output_format_json_quote_64bit_integers}</li>
      *     <li>{@code output_format_json_quote_64bit_floats}</li>
      *     <li>{@code output_format_json_quote_decimals}</li>

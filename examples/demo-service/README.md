@@ -42,7 +42,7 @@ ORDER BY timestamp
 ### Run Demo-Service 
 
 ```shell
-./gradlew bootRun
+mvn spring-boot:run
 ```
 
 ### Interact with API 

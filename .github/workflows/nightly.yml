@@ -13,7 +13,7 @@ on:
 env:
   CHC_BRANCH: "main"
   # CHC_VERSION: "0.9.0"
-  CH_VERSION: "25.3"
+  CH_VERSION: "25.8"
 
 jobs:
   nightly:
@@ -21,6 +21,8 @@ jobs:
     name: "Build and Publish Nightly Snapshot"
     runs-on: "ubuntu-latest"
     timeout-minutes: 20
+    outputs:
+      jdbc_version: ${{ steps.publish-version.outputs.jdbc_version }}
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v4
@@ -63,6 +65,12 @@ jobs:
           #   -e 's|^\(    <version>\).*\(</version>\)$|\1${{ env.CHC_VERSION }}-SNAPSHOT\2|' \
           #   -e 's|${parent.groupId}|com.clickhouse|g' -e 's|${project.parent.groupId}|com.clickhouse|g' '{}' \;
           find . -type f -name "simplelogger.*" -exec rm -fv '{}' \;
+      - name: Record published snapshot version
+        id: publish-version
+        run: |
+          VERSION=$(sed -n 's|.*<revision>\(.*\)</revision>.*|\1|p' pom.xml | head -1)
+          echo "Published snapshot version: $VERSION"
+          echo "jdbc_version=$VERSION" >> "$GITHUB_OUTPUT"
       - name: Release Snapshot
         uses: samuelmeuli/action-maven-publish@v1
         with:
@@ -84,3 +92,29 @@ jobs:
           gpg_passphrase: ${{ secrets.GPG_PASSPHRASE }}
           nexus_username: ${{ secrets.SONATYPE_TOKEN_USER }}
           nexus_password: ${{ secrets.SONATYPE_TOKEN }}
+  # Mirror Tableau TDVT after publish (non-blocking).
+  tdvt:
+    name: "Tableau TDVT"
+    needs: nightly
+    if: ${{ needs.nightly.result == 'success' && startsWith(github.repository, 'ClickHouse/') }}
+    runs-on: "ubuntu-latest"
+    timeout-minutes: 150 # the TDVT matrix (latest/head/cloud, single-threaded) runs ~1h; allow for a queue
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v4
+      - name: Mint a token for the TDVT repo (dispatch + read the run)
+        id: tdvt-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.WORKFLOW_AUTH_PUBLIC_APP_ID }}
+          private-key: ${{ secrets.WORKFLOW_AUTH_PUBLIC_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: "clickhouse-tableau-tdvt"
+      - name: Run Tableau TDVT and mirror its result
+        env:
+          GH_TOKEN: ${{ steps.tdvt-token.outputs.token }}
+        run: |
+          python3 .github/scripts/mirror_tdvt.py \
+            --event-type jdbc-snapshot \
+            --version "${{ needs.nightly.outputs.jdbc_version }}" \
+            --correlation-id "${{ github.repository }}#${{ github.run_id }}-${{ github.run_attempt }}"

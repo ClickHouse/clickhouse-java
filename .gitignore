@@ -65,3 +65,7 @@ performance/jmh-simple-results.json
 *.key
 *.srl
 *.csr
+
+# Python
+__pycache__/
+*.pyc
