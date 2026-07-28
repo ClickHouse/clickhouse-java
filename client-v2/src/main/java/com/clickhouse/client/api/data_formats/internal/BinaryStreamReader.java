@@ -629,7 +629,20 @@ public class BinaryStreamReader {
      * @throws IOException when an IO error occurs
      */
     private <T> T readQBit(ClickHouseColumn column, Class<?> typeHint) throws IOException {
-        return convertArray(readArray(column), typeHint == null ? arrayDefaultTypeHint : typeHint);
+        ArrayValue array = readArray(column);
+        // QBit is a fixed-dimension vector. Over RowBinary the element count is a var-int length
+        // prefix that readArray consumes together with exactly that many elements, so the stream
+        // stays aligned regardless of the count. Validate the count against the declared dimension
+        // as a defensive, symmetric counterpart to the write-side check
+        // (SerializerUtils.serializeQBitData): for a well-formed QBit the count always equals the
+        // dimension, so a mismatch signals corrupt input and is surfaced as a clear error instead
+        // of a silently wrong-length vector.
+        int dimension = column.getPrecision();
+        if (array.length() != dimension) {
+            throw new ClientException("QBit column '" + column.getColumnName() + "' expected exactly "
+                    + dimension + " elements but received " + array.length());
+        }
+        return convertArray(array, typeHint == null ? arrayDefaultTypeHint : typeHint);
     }
 
     /**

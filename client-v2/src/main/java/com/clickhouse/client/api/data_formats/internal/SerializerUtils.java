@@ -439,6 +439,17 @@ public class SerializerUtils {
                 stream.write(binTag);
                 BinaryStreamUtils.writeUnsignedInt8(stream, dt.getMaxPrecision());
                 break;
+            case QBit:
+                // A QBit inside a Dynamic/Variant/JSON column would have to be encoded as
+                // 0x36 <element_type_encoding> <var_uint dimension> to round-trip with
+                // BinaryStreamReader.readDynamicData. The client never infers a QBit type from a
+                // Java value (valueToColumnForDynamicType only yields Array/Map/scalar types), so
+                // this path is unreachable through the public write API. Reject explicitly rather
+                // than fall through to the default branch and emit a bare 0x36 tag that the reader
+                // cannot parse and that would desynchronize the RowBinary stream. Reading a
+                // server-sent QBit inside a Dynamic column IS supported (see
+                // BinaryStreamReader.readDynamicData).
+                throw new ClientException("Serializing a QBit value inside a Dynamic column is not supported");
             default:
                 stream.write(binTag);
         }

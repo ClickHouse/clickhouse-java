@@ -1,5 +1,6 @@
 package com.clickhouse.client.api.data_formats.internal;
 
+import com.clickhouse.client.api.ClientException;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.value.ClickHouseGeoPolygonValue;
@@ -252,6 +253,50 @@ public class SerializerUtilsTest {
                 "Message should explain the null QBit is rejected: " + ex.getMessage());
         Assert.assertEquals(out.size(), 0,
                 "Nothing should be written when the nested null QBit element is rejected");
+    }
+
+    @Test
+    public void testDynamicTypeTagRejectsQBit() {
+        // A QBit type tag inside a Dynamic/Variant/JSON column must be encoded as
+        // 0x36 <element_type_encoding> <var_uint dimension> to round-trip with
+        // BinaryStreamReader.readDynamicData. The client never infers a QBit from a Java value
+        // (valueToColumnForDynamicType only yields Array/Map/scalar types), so this write path is
+        // unreachable through the public API; reject it explicitly rather than fall through to the
+        // switch default and emit a bare 0x36 tag that the reader cannot parse (which would
+        // desynchronize the RowBinary stream). Reading a server-sent QBit inside a Dynamic column
+        // IS supported (see BinaryStreamReader.readDynamicData / testQBitInDynamicColumn).
+        ClickHouseColumn qbit = ClickHouseColumn.of("v", "QBit(Float32, 8)");
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+        ClientException ex = Assert.expectThrows(ClientException.class,
+                () -> SerializerUtils.writeDynamicTypeTag(out, qbit));
+        Assert.assertTrue(ex.getMessage().contains("QBit"),
+                "Message should name QBit: " + ex.getMessage());
+        Assert.assertEquals(out.size(), 0,
+                "No tag bytes should be written when a QBit Dynamic tag is rejected");
+    }
+
+    @Test
+    public void testQBitReadRejectsWrongDimension() throws Exception {
+        // Over RowBinary a QBit(Float32, 8) is a var-int element count followed by that many floats.
+        // Craft a stream whose element count (3) does NOT match the declared dimension (8) by
+        // serializing an Array(Float32) of 3 elements, then read it back AS a QBit(Float32, 8). The
+        // read must reject the mismatch — a defensive, symmetric counterpart to the write-side
+        // dimension check (serializeQBitData) — rather than return a wrong-length vector. (The read
+        // itself cannot misalign the stream: readArray consumes exactly the length-prefixed count.)
+        float[] threeElements = {1f, 2f, 3f};
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        SerializerUtils.serializeData(out, threeElements, ClickHouseColumn.of("vec", "Array(Float32)"));
+
+        ClickHouseColumn qbit = ClickHouseColumn.of("vec", "QBit(Float32, 8)");
+        ClientException ex = Assert.expectThrows(ClientException.class,
+                () -> newReader(out.toByteArray()).readValue(qbit));
+        // readValue wraps a read-side failure, so the dimension detail is carried on the cause.
+        Throwable detail = ex.getCause() != null ? ex.getCause() : ex;
+        Assert.assertTrue(detail.getMessage().contains("vec"),
+                "Message should name the column: " + detail.getMessage());
+        Assert.assertTrue(detail.getMessage().contains("8"),
+                "Message should state the expected dimension: " + detail.getMessage());
     }
 
     @Test(dataProvider = "nonNullableEnumTypes")
