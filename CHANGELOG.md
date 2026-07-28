@@ -16,12 +16,17 @@
   and the comma-separated `ssl_cipher_suites` connection property (client-v2 and jdbc-v2) restrict the cipher suites
   enabled on secure connections; when unset, the transport defaults are used. Cipher-suite selection is independent of the
   trust configuration and `ssl_mode`. (https://github.com/ClickHouse/clickhouse-java/issues/2882)
+- **[client-v2, jdbc-v2]** Added support for un-flattened `Nested(...)` columns (tables created with
+  `flatten_nested = 0`). Previously the `RowBinary` writer threw `UnsupportedOperationException: Unsupported
+  data type: Nested` when inserting such a column. `client-v2` now serializes a `Nested(f1 T1, ..., fN TN)`
+  column the same way it is read — identically to `Array(Tuple(T1, ..., TN))` (a var-uint row count followed
+  by one tuple per nested row) — so it can be written through the insert path / `RowBinaryFormatWriter`. In
+  `jdbc-v2` an un-flattened `Nested(...)` column is exposed as a JDBC `ARRAY` whose element type is
+  `Tuple(f1 T1, ..., fN TN)`: it can be inserted through `Connection#createArrayOf`/`setArray` or `setObject`
+  and read back through `getArray`/`getObject`, and `java.sql.Array#getResultSet()` iterates the nested rows
+  as `(INDEX, VALUE)` pairs where each `VALUE` is the tuple. (https://github.com/ClickHouse/clickhouse-java/issues/2477)
 
 ### Bug Fixes 
-
-- **[client-v2]** Fixed `RowBinaryFormatWriter` throwing `UnsupportedOperationException: Unsupported data type: Nested` when inserting into a table with an un-flattened `Nested(...)` column (created with `flatten_nested = 0`). The `RowBinary` writer now serializes a `Nested(f1 T1, ..., fN TN)` column the same way it is read — identically to `Array(Tuple(T1, ..., TN))`. (https://github.com/ClickHouse/clickhouse-java/issues/2477)
-
-- **[jdbc-v2]** Fixed `java.sql.Array#getResultSet()` on an un-flattened `Nested(...)` column throwing `Value of class [Ljava.lang.Object; cannot be converted to class java.lang.Byte`. The array `ResultSet` now exposes each nested row as its `Tuple(f1 T1, ..., fN TN)` element type instead of the first nested field, so `getObject` returns the whole tuple. Insert (via `Connection#createArrayOf` + `setArray` or `setObject`) and read (via `getArray`/`getObject`) of `Nested(...)` columns are covered by tests. (https://github.com/ClickHouse/clickhouse-java/issues/2477)
 
 - **[client-v2]** Fixed scalar `String` query parameters containing a tab (`0x09`), newline
   (`0x0a`) or backslash being mishandled through the server's `param_<name>` interface. A `{name:String}`

@@ -784,6 +784,61 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
     }
 
     @Test (groups = { "integration" })
+    public void writeNestedWithArrayAndComplexFieldsTests() throws Exception {
+        String tableName = "rowBinaryFormatWriterTest_writeNestedComplex_" + UUID.randomUUID().toString().replace('-', '_');
+        // Un-flattened Nested whose fields cover arrays, nested arrays, an inner tuple and a
+        // nullable, with a fixed-width Float64 last so a dropped/extra byte shifts the trailing
+        // field and is detected. Serialized as Array(Tuple(...)) per nested row.
+        String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
+                " (id Int32, " +
+                "  n Nested(a UInt32, tags Array(String), matrix Array(Array(Int32)), " +
+                "           pair Tuple(Int8, String), score Nullable(Float64), tail Float64) " +
+                "  ) Engine = MergeTree ORDER BY id SETTINGS flatten_nested = 0";
+
+        List<Object> nestedMulti = Arrays.asList(
+                Arrays.asList(10L, Arrays.asList("x", "y"), Arrays.asList(Arrays.asList(1, 2), Arrays.asList(3)),
+                        Arrays.asList(1, "p"), 1.5, 9.5),
+                Arrays.asList(20L, Collections.emptyList(), Arrays.asList(Arrays.asList(4, 5)),
+                        Arrays.asList(2, "q"), null, 8.5));
+        List<Object> nestedEmpty = Collections.emptyList();
+        List<Object> nestedSingle = Arrays.asList(
+                Arrays.asList(30L, Arrays.asList("z"), Arrays.asList(Arrays.asList(7, 8, 9)),
+                        Arrays.asList(3, "r"), 2.5, 7.5));
+
+        Field[][] rows = new Field[][] {
+                {new Field("id", 1), new Field("n", nestedMulti)},
+                {new Field("id", 2), new Field("n", nestedEmpty)},
+                {new Field("id", 3), new Field("n", nestedSingle)},
+        };
+
+        writeTest(tableName, tableCreate, rows);
+    }
+
+    @Test (groups = { "integration" })
+    public void writeNestedWithVariedScalarTypesTests() throws Exception {
+        String tableName = "rowBinaryFormatWriterTest_writeNestedScalars_" + UUID.randomUUID().toString().replace('-', '_');
+        // Un-flattened Nested spanning several scalar type families (unsigned, temporal, UUID,
+        // low-cardinality, boolean) with a fixed-width Float64 last.
+        String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
+                " (id Int32, " +
+                "  n Nested(u UInt64, when Date, guid UUID, lc LowCardinality(String), flag Bool, tail Float64) " +
+                "  ) Engine = MergeTree ORDER BY id SETTINGS flatten_nested = 0";
+
+        UUID g1 = UUID.fromString("00112233-4455-6677-8899-aabbccddeeff");
+        UUID g2 = UUID.fromString("ffeeddcc-bbaa-9988-7766-554433221100");
+        List<Object> nested = Arrays.asList(
+                Arrays.asList(123456789L, LocalDate.of(2023, 1, 2), g1, "cat", true, 1.25),
+                Arrays.asList(0L, LocalDate.of(1970, 1, 1), g2, "dog", false, 2.5));
+
+        Field[][] rows = new Field[][] {{
+                new Field("id", 1), //Row ID
+                new Field("n", nested) //Nested
+        }};
+
+        writeTest(tableName, tableCreate, rows);
+    }
+
+    @Test (groups = { "integration" })
     public void writeNullableTests() throws Exception {
         String tableName = "rowBinaryFormatWriterTest_writeNullableTests_" + UUID.randomUUID().toString().replace('-', '_');
         String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
