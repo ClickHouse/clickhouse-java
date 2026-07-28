@@ -19,7 +19,7 @@
 
 ### Bug Fixes 
 
-- **[client-v2, jdbc-v2]** Fixed scalar `String` query parameters containing a tab (`0x09`), newline
+- **[client-v2]** Fixed scalar `String` query parameters containing a tab (`0x09`), newline
   (`0x0a`) or backslash being mishandled through the server's `param_<name>` interface. A `{name:String}`
   parameter value is parsed by the server with `deserializeTextEscaped`, which treated a raw tab or
   newline as a field delimiter (failing the query with `BAD_QUERY_PARAMETER: ... isn't parsed completely`)
