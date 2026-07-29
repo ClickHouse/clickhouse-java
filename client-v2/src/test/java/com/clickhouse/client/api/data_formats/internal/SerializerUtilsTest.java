@@ -298,6 +298,52 @@ public class SerializerUtilsTest {
                 "Message should name the column: " + detail.getMessage());
         Assert.assertTrue(detail.getMessage().contains("8"),
                 "Message should state the expected dimension: " + detail.getMessage());
+    @DataProvider(name = "dynamicDecimalTypeInference")
+    public Object[][] dynamicDecimalTypeInference() {
+        return new Object[][]{
+                // value, inferred width, inferred scale. The width must hold integerDigits + scale,
+                // and the scale is kept as wide as the width allows (maxScale - integerDigits).
+                {new BigDecimal("0.5"), ClickHouseDataType.Decimal32, 9},                 // sub-1, unchanged
+                {new BigDecimal("19.99"), ClickHouseDataType.Decimal32, 7},               // integer part 2
+                {new BigDecimal("-19.99"), ClickHouseDataType.Decimal32, 7},              // sign is irrelevant
+                {new BigDecimal("1000"), ClickHouseDataType.Decimal32, 5},                // integer, scale 0
+                {new BigDecimal("1E3"), ClickHouseDataType.Decimal32, 5},                 // negative scale (-3)
+                {new BigDecimal("0"), ClickHouseDataType.Decimal32, 8},
+                {new BigDecimal("1.23456789"), ClickHouseDataType.Decimal32, 8},          // required precision == 9 boundary
+                {new BigDecimal("0.0123456789"), ClickHouseDataType.Decimal64, 18},       // scale 10 > Decimal32 max
+                {new BigDecimal("123456789.123456789"), ClickHouseDataType.Decimal64, 9},
+                {new BigDecimal("0.00012345678901234567"), ClickHouseDataType.Decimal128, 38}, // scale 20 > Decimal64 max
+                {new BigDecimal("12345678901234567890.12345678901234567890"), ClickHouseDataType.Decimal256, 56}, // 20 int + 20 frac
+                {new BigDecimal("0.12345678901234567890123456789012345678901"), ClickHouseDataType.Decimal256, 76}, // scale 41
+                // Numerically-zero values whose implied width exceeds Decimal256 still fit: zero rounds
+                // to zero at any scale with no loss, so they map to the widest band, not a rejection.
+                {new BigDecimal("0E-77"), ClickHouseDataType.Decimal256, 76},             // zero, scale 77 > max scale
+                {new BigDecimal("0E+100"), ClickHouseDataType.Decimal256, 0},             // zero, 101 integer digits > max
+                {new BigDecimal(BigInteger.ZERO, Integer.MAX_VALUE), ClickHouseDataType.Decimal256, 76}, // zero, maximal scale
+        };
+    }
+
+    @Test(dataProvider = "dynamicDecimalTypeInference")
+    public void testValueToColumnForDynamicTypeSizesDecimal(BigDecimal value, ClickHouseDataType expectedType, int expectedScale) {
+        ClickHouseColumn column = SerializerUtils.valueToColumnForDynamicType(value);
+        Assert.assertEquals(column.getDataType(), expectedType);
+        Assert.assertEquals(column.getScale(), expectedScale);
+    }
+
+    @DataProvider(name = "oversizedDecimalValues")
+    public Object[][] oversizedDecimalValues() {
+        return new Object[][]{
+                // Non-zero values that genuinely exceed Decimal256: fail loudly, never truncate. The
+                // zero-fits-any-width relaxation must NOT let these through — they carry real digits.
+                {new BigDecimal(BigInteger.TEN.pow(76))},  // 10^76: 77 integer digits, one past the width
+                {new BigDecimal(BigInteger.ONE, 77)},      // 1E-77: scale 77, one past the max scale
+        };
+    }
+
+    @Test(dataProvider = "oversizedDecimalValues")
+    public void testValueToColumnForDynamicTypeRejectsOversizedDecimal(BigDecimal value) {
+        Assert.assertThrows(ClientException.class,
+                () -> SerializerUtils.valueToColumnForDynamicType(value));
     }
 
     @Test(dataProvider = "nonNullableEnumTypes")

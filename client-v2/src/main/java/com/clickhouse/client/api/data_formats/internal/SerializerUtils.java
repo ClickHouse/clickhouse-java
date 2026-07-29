@@ -212,23 +212,43 @@ public class SerializerUtils {
             column = ClickHouseColumn.of("v", "DateTime64(9, " + ZoneId.systemDefault().getId() + ")");
         } else if (value instanceof BigDecimal) {
             BigDecimal d = (BigDecimal) value;
-            String decType;
-            int scale;
-            if (d.precision() > ClickHouseDataType.Decimal128.getMaxScale()) {
-                decType = "Decimal256";
-                scale = ClickHouseDataType.Decimal256.getMaxScale();
-            } else if (d.precision() > ClickHouseDataType.Decimal64.getMaxScale()) {
-                decType = "Decimal128";
-                scale = ClickHouseDataType.Decimal128.getMaxScale();
-            } else if (d.precision() > ClickHouseDataType.Decimal32.getMaxScale()) {
-                decType = "Decimal64";
-                scale = ClickHouseDataType.Decimal64.getMaxScale();
-            } else {
-                decType = "Decimal32";
-                scale = ClickHouseDataType.Decimal32.getMaxScale();
+            // A DecimalN(S) column is Decimal(P, S) with P fixed to the width's precision
+            // (Decimal32=9, Decimal64=18, Decimal128=38, Decimal256=76) and 0 <= S <= P, so it can
+            // hold at most P - S integer digits. Size the width to fit both the integer digits and
+            // the value's own scale, then keep S as wide as the width allows without stealing room
+            // from the integer part. Keying the width off precision() alone and forcing S to the
+            // width maximum truncated values whose scale exceeded that maximum, and overflowed
+            // values that carried an integer part.
+            int valueScale = Math.max(d.scale(), 0);
+            int integerDigits = Math.max(d.precision() - d.scale(), 0);
+            int requiredPrecision = integerDigits + valueScale;
+            if (requiredPrecision > ClickHouseDataType.Decimal256.getMaxPrecision()) {
+                if (d.signum() != 0) {
+                    throw new ClientException("Unable to serialize BigDecimal into a Dynamic column: it needs "
+                            + requiredPrecision + " digits of precision, exceeding the maximum supported Decimal256 precision of "
+                            + ClickHouseDataType.Decimal256.getMaxPrecision());
+                }
+                // A numerically-zero value rounds to zero at any scale with no data loss, so it fits
+                // any Decimal width regardless of the scale/exponent implied by precision()/scale()
+                // (e.g. 0E-77 implies scale 77, 0E+77 implies 78 integer digits). Store it in the
+                // widest band rather than rejecting a value ClickHouse can represent exactly; cap the
+                // integer digits so the emitted scale (maxScale - integerDigits) stays non-negative.
+                integerDigits = Math.min(integerDigits, ClickHouseDataType.Decimal256.getMaxScale());
+                requiredPrecision = ClickHouseDataType.Decimal256.getMaxPrecision();
             }
+            ClickHouseDataType decType;
+            if (requiredPrecision > ClickHouseDataType.Decimal128.getMaxPrecision()) {
+                decType = ClickHouseDataType.Decimal256;
+            } else if (requiredPrecision > ClickHouseDataType.Decimal64.getMaxPrecision()) {
+                decType = ClickHouseDataType.Decimal128;
+            } else if (requiredPrecision > ClickHouseDataType.Decimal32.getMaxPrecision()) {
+                decType = ClickHouseDataType.Decimal64;
+            } else {
+                decType = ClickHouseDataType.Decimal32;
+            }
+            int scale = decType.getMaxScale() - integerDigits;
 
-            column = ClickHouseColumn.of("v", decType + "(" + scale + ")");
+            column = ClickHouseColumn.of("v", decType.name() + "(" + scale + ")");
         } else if (value instanceof Map<?,?>) {
             Map<?, ?> map = (Map<?, ?>) value;
             // TODO: handle empty map?
@@ -385,7 +405,7 @@ public class SerializerUtils {
             case Decimal256:
                 stream.write(binTag);
                 BinaryStreamUtils.writeUnsignedInt8(stream, dt.getMaxPrecision());
-                BinaryStreamUtils.writeUnsignedInt8(stream, dt.getMaxScale());
+                BinaryStreamUtils.writeUnsignedInt8(stream, typeColumn.getScale());
                 break;
             case IntervalNanosecond:
             case IntervalMillisecond:
