@@ -298,6 +298,8 @@ public class SerializerUtilsTest {
                 "Message should name the column: " + detail.getMessage());
         Assert.assertTrue(detail.getMessage().contains("8"),
                 "Message should state the expected dimension: " + detail.getMessage());
+    }
+
     @DataProvider(name = "dynamicDecimalTypeInference")
     public Object[][] dynamicDecimalTypeInference() {
         return new Object[][]{
