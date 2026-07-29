@@ -16,6 +16,7 @@ import org.apache.hc.core5.http.message.BasicHeader;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedConstruction;
 import org.testng.Assert;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import javax.net.ssl.SNIHostName;
@@ -295,14 +296,29 @@ public class HttpAPIClientHelperTest {
     }
 
     /**
-     * A server error response must be logged once at WARN before the exception is thrown, carrying the
-     * status code, query id and the server exception-code header - so a failure that is retried away (and
-     * never surfaced to the caller) is still diagnosable. The response body is intentionally never logged.
+     * Only an unknown/unexpected server status code is logged at WARN, and the log sits in the switch's
+     * default branch (per review). A status code the switch does not handle throws a context-free generic
+     * exception, so it is logged once with the status, query id and the exception-code header (the response
+     * body is never logged). Handled/known error paths emit no server-error WARN: a ClickHouse error carrying
+     * the exception-code header is surfaced by readError, a mapped status code (502) throws a descriptive
+     * exception, and a success (200) is not an error at all.
      */
-    @Test
-    public void testExecuteRequestLogsServerErrorResponse() throws Exception {
+    @DataProvider(name = "serverErrorLogging")
+    public static Object[][] serverErrorLogging() {
+        return new Object[][] {
+                // statusCode, exceptionCodeHeader (null => header absent), expectServerErrorWarn
+                {480, null, true},    // unknown status code -> context-free ClientException -> logged
+                {400, "62", false},   // known ClickHouse error (exception-code header) -> readError surfaces it
+                {502, null, false},   // mapped status code -> descriptive ConnectException
+                {200, null, false},   // success -> not an error
+        };
+    }
+
+    @Test(dataProvider = "serverErrorLogging")
+    public void testServerErrorLoggedOnlyForUnknownStatus(int statusCode, String exceptionCode,
+                                                          boolean expectServerErrorWarn) throws Exception {
         HttpAPIClientHelper helper = new HttpAPIClientHelper(new HashMap<>(), null, false, LZ4Factory.fastestInstance());
-        injectMockHttpClient(helper, mockErrorResponse(404, "241"));
+        injectMockHttpClient(helper, mockResponse(statusCode, exceptionCode));
 
         Map<String, Object> reqConfig = new HashMap<>();
         reqConfig.put(ClientConfigProperties.QUERY_ID.getKey(), "qid-log-test");
@@ -312,68 +328,29 @@ public class HttpAPIClientHelperTest {
             try {
                 helper.executeRequest(helper.createRequest(endpoint, reqConfig, "SELECT 1")).close();
             } catch (Exception expected) {
-                // the server error is rethrown to the caller; we assert on what was logged before that
+                // error status codes are rethrown to the caller; we assert only on what was logged
             }
         });
 
-        assertTrue(logged.contains("Server returned error response"),
-                "a server error must be logged at WARN: " + logged);
-        assertTrue(logged.contains("404"), "the HTTP status code must be logged: " + logged);
-        assertTrue(logged.contains("qid-log-test"), "the query id must be logged: " + logged);
-        assertTrue(logged.contains("241"), "the server exception-code header value must be logged: " + logged);
+        if (expectServerErrorWarn) {
+            assertTrue(logged.contains("Server returned error response"),
+                    "an unknown status code must be logged at WARN: " + logged);
+            assertTrue(logged.contains(String.valueOf(statusCode)), "the HTTP status code must be logged: " + logged);
+            assertTrue(logged.contains("qid-log-test"), "the query id must be logged: " + logged);
+        } else {
+            assertFalse(logged.contains("Server returned error response"),
+                    "status " + statusCode + " must not emit a server-error WARN: " + logged);
+        }
     }
 
-    /**
-     * Contrast case: a successful (200) response must NOT emit the server-error WARN, so normal traffic
-     * stays quiet and only genuine error responses are logged.
-     */
-    @Test
-    public void testExecuteRequestSuccessDoesNotLogServerError() throws Exception {
-        HttpAPIClientHelper helper = new HttpAPIClientHelper(new HashMap<>(), null, false, LZ4Factory.fastestInstance());
-        ClassicHttpResponse ok = mock(ClassicHttpResponse.class);
-        when(ok.getCode()).thenReturn(200);
-        when(ok.getEntity()).thenReturn(mock(HttpEntity.class));
-        injectMockHttpClient(helper, ok);
-
-        Endpoint endpoint = new HttpEndpoint("localhost", 8123, false, "/");
-        String logged = captureStdErr(() -> {
-            try {
-                helper.executeRequest(helper.createRequest(endpoint, new HashMap<>(), "SELECT 1")).close();
-            } catch (Exception e) {
-                // not expected for a 200 response
-            }
-        });
-
-        assertFalse(logged.contains("Server returned error response"),
-                "a successful response must not be logged as a server error: " + logged);
-    }
-
-    /**
-     * A single transport-configuration summary is emitted at INFO on startup and must never contain
-     * secrets (passwords, tokens, proxy credentials).
-     */
-    @Test
-    public void testStartupLogsTransportConfigSummaryWithoutSecrets() {
-        Map<String, Object> config = new HashMap<>();
-        config.put(ClientConfigProperties.PASSWORD.getKey(), "s3cr3t-pw");
-
-        String logged = captureStdErr(() ->
-                new HttpAPIClientHelper(config, null, false, LZ4Factory.fastestInstance()));
-
-        assertTrue(logged.contains("client-v2 transport configured"),
-                "a transport-config summary must be logged at startup: " + logged);
-        assertTrue(logged.contains("authMode=") && logged.contains("sslMode=") && logged.contains("lz4Factory="),
-                "the summary must include the resolved transport fields: " + logged);
-        assertFalse(logged.contains("s3cr3t-pw"),
-                "the transport-config summary must not leak the password: " + logged);
-    }
-
-    private static ClassicHttpResponse mockErrorResponse(int statusCode, String serverExceptionCode) {
+    private static ClassicHttpResponse mockResponse(int statusCode, String serverExceptionCode) {
         ClassicHttpResponse response = mock(ClassicHttpResponse.class);
         when(response.getCode()).thenReturn(statusCode);
-        when(response.containsHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE)).thenReturn(true);
+        boolean hasExceptionHeader = serverExceptionCode != null;
+        when(response.containsHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE)).thenReturn(hasExceptionHeader);
         when(response.getFirstHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE))
-                .thenReturn(new BasicHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE, serverExceptionCode));
+                .thenReturn(hasExceptionHeader
+                        ? new BasicHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE, serverExceptionCode) : null);
         when(response.getEntity()).thenReturn(mock(HttpEntity.class));
         return response;
     }

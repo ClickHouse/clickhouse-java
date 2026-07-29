@@ -157,44 +157,6 @@ public class HttpAPIClientHelper {
         }
 
         this.defaultUserAgent = buildDefaultUserAgent();
-
-        logTransportConfigSummary(configuration, lz4Factory);
-    }
-
-    /**
-     * Emits a single INFO line at client startup summarising the resolved transport configuration.
-     * Only non-sensitive settings are included - no passwords, tokens or proxy credentials.
-     */
-    private void logTransportConfigSummary(Map<String, Object> configuration, LZ4Factory lz4Factory) {
-        if (!LOG.isInfoEnabled()) {
-            return;
-        }
-
-        final String authMode;
-        if (ClientConfigProperties.SSL_AUTH.<Boolean>getOrDefault(configuration).booleanValue()) {
-            authMode = "SSL_CLIENT_CERT";
-        } else if (ClientConfigProperties.HTTP_USE_BASIC_AUTH.<Boolean>getOrDefault(configuration).booleanValue()) {
-            authMode = "HTTP_BASIC";
-        } else {
-            authMode = "DEFAULT_HEADERS";
-        }
-
-        final String proxyType = (String) configuration.get(ClientConfigProperties.PROXY_TYPE.getKey());
-        final String proxySummary = proxyType == null ? "none"
-                : proxyType + " " + configuration.get(ClientConfigProperties.PROXY_HOST.getKey())
-                        + ":" + configuration.get(ClientConfigProperties.PROXY_PORT.getKey());
-
-        LOG.info("client-v2 transport configured: authMode={}, sslMode={}, proxy={}, connectionPool={},"
-                        + " maxConnectionsPerRoute={}, compression=[client={}, server={}, http={}], lz4Factory={}",
-                authMode,
-                ClientConfigProperties.SSL_MODE.getOrDefault(configuration),
-                proxySummary,
-                ClientConfigProperties.CONNECTION_POOL_ENABLED.<Boolean>getOrDefault(configuration),
-                configuration.getOrDefault(ClientConfigProperties.HTTP_MAX_OPEN_CONNECTIONS.getKey(), "default"),
-                ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getOrDefault(configuration),
-                ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getOrDefault(configuration),
-                ClientConfigProperties.USE_HTTP_COMPRESSION.getOrDefault(configuration),
-                lz4Factory);
     }
 
     /**
@@ -742,21 +704,14 @@ public class HttpAPIClientHelper {
                     requestConfig));
 
             if (httpResponse.containsHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE)) {
-                logServerErrorResponse(req, httpResponse);
                 throw readError(req, httpResponse);
             }
 
             int statusCode = httpResponse.getCode();
-            if (statusCode == HttpStatus.SC_OK) {
-                closeResponse = false;
-                return new TransportResponseImpl(httpResponse);
-            }
-
-            // Any non-2xx response is an error that is about to be thrown. Log it once with enough
-            // context (status, query id, authority, server exception code) to diagnose it, since the
-            // thrown exception may be retried away and never surface to the caller.
-            logServerErrorResponse(req, httpResponse);
             switch (statusCode) {
+                case HttpStatus.SC_OK:
+                    closeResponse = false;
+                    return new TransportResponseImpl(httpResponse);
                 case HttpStatus.SC_PROXY_AUTHENTICATION_REQUIRED:
                     throw new ClientMisconfigurationException("Proxy authentication required. Please check your proxy settings.");
                 case HttpStatus.SC_BAD_GATEWAY:
@@ -774,6 +729,11 @@ public class HttpAPIClientHelper {
                     // others we cannot handle properly
                     throw readError(req, httpResponse);
                 default:
+                    // Only an unknown/unexpected status code reaches here. The generic exception below carries
+                    // no server context, so log it once at WARN (status, query id, authority, exception-code
+                    // header) to keep the otherwise-opaque failure diagnosable. Handled codes above are not
+                    // logged: they either throw a descriptive exception or are parsed by readError.
+                    logServerErrorResponse(req, httpResponse);
                     throw new ClientException("Unexpected result status " + statusCode);
             }
         } catch (UnknownHostException e) {
