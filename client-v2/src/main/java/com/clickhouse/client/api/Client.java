@@ -47,6 +47,7 @@ import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.data.ClickHouseUtils;
 import com.google.common.collect.ImmutableList;
 import net.jpountz.lz4.LZ4Factory;
 import org.apache.hc.core5.concurrent.DefaultThreadFactory;
@@ -2125,7 +2126,11 @@ public class Client implements AutoCloseable {
     }
 
     public TableSchema getTableSchemaFromQuery(String sql, Map<String, Object> params) {
-        final String describeQuery = "DESC (" + sql + ") FORMAT " + ClickHouseFormat.TSKV.name();
+        // Strip trailing comments/semicolons so they don't swallow the wrapper's closing
+        // parenthesis or land inside the sub-query (see #2982); the original SQL is kept
+        // for table-name resolution below.
+        final String subQuery = ClickHouseUtils.stripTrailingCommentsAndSemicolons(sql);
+        final String describeQuery = "DESC (" + subQuery + ") FORMAT " + ClickHouseFormat.TSKV.name();
         return getTableSchemaImpl(describeQuery, null, sql, getDefaultDatabase(), params);
     }
 

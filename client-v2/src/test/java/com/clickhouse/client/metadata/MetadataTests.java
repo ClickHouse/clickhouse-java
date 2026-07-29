@@ -68,6 +68,34 @@ public class MetadataTests extends BaseIntegrationTest {
         }
     }
 
+    @DataProvider(name = "trailingNoiseQueries")
+    public Object[][] trailingNoiseQueries() {
+        return new Object[][] {
+                { "SELECT 13 AS a WHERE 0" },
+                { "SELECT 13 AS a WHERE 0 -- trailing comment" },
+                { "SELECT 13 AS a WHERE 0 # trailing comment" },
+                { "SELECT 13 AS a WHERE 0;" },
+                { "SELECT 13 AS a WHERE 0; -- trailing comment" },
+                { "SELECT 13 AS a WHERE 0;\n-- trailing comment" },
+        };
+    }
+
+    @Test(groups = { "integration" }, dataProvider = "trailingNoiseQueries")
+    public void testGetTableSchemaFromQueryWithTrailingCommentOrSemicolon(String sql) {
+        TableSchema schema = client.getTableSchemaFromQuery(sql);
+        Assert.assertEquals(schema.getColumns().size(), 1);
+        Assert.assertEquals(schema.getColumns().get(0).getColumnName(), "a");
+        Assert.assertEquals(schema.getColumns().get(0).getDataType(), ClickHouseDataType.UInt8);
+    }
+
+    @Test(groups = { "integration" })
+    public void testGetTableSchemaFromQueryKeepsQuotedCommentLikeText() {
+        TableSchema schema = client.getTableSchemaFromQuery("SELECT '-- not a comment' AS a");
+        Assert.assertEquals(schema.getColumns().size(), 1);
+        Assert.assertEquals(schema.getColumns().get(0).getColumnName(), "a");
+        Assert.assertEquals(schema.getColumns().get(0).getDataType(), ClickHouseDataType.String);
+    }
+
     private void prepareDataSet(String tableName) {
 
         try {

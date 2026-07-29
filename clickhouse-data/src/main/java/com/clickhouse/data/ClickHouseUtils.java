@@ -1048,6 +1048,52 @@ public final class ClickHouseUtils {
         return builder.toString();
     }
 
+    /**
+     * Strips trailing SQL comments (single line {@code --} and {@code #}, and block
+     * {@code /* *}{@code /}), whitespace, and statement terminators ({@code ;}) from the
+     * end of the given SQL, so it can be safely embedded as a sub-query - for example
+     * {@code DESC (<sql>) FORMAT ...}. Comments and semicolons that appear inside string
+     * literals or quoted identifiers are preserved, and so is everything up to the last
+     * significant (non-comment, non-terminator) token.
+     *
+     * @param sql SQL to process, may be null
+     * @return the SQL without trailing comments, whitespace, and semicolons; the original
+     *         input is returned unchanged when it is {@code null} or cannot be scanned
+     *         (e.g. an unterminated quote or block comment), so that such malformed SQL is
+     *         left for the server to reject
+     */
+    public static String stripTrailingCommentsAndSemicolons(String sql) {
+        if (sql == null) {
+            return null;
+        }
+
+        int len = sql.length();
+        int end = 0; // exclusive index just past the last significant character
+        try {
+            for (int i = 0; i < len; i++) {
+                char ch = sql.charAt(i);
+                if (Character.isWhitespace(ch) || ch == ';') {
+                    continue; // whitespace / statement terminator is not significant
+                } else if (isQuote(ch)) {
+                    i = skipQuotedString(sql, i, len, ch) - 1;
+                    end = i + 1;
+                } else if (ch == '#') {
+                    i = skipSingleLineComment(sql, i, len) - 1;
+                } else if (ch == '-' && i + 1 < len && sql.charAt(i + 1) == '-') {
+                    i = skipSingleLineComment(sql, i, len) - 1;
+                } else if (ch == '/' && i + 1 < len && sql.charAt(i + 1) == '*') {
+                    i = skipMultiLineComment(sql, i + 2, len) - 1;
+                } else {
+                    end = i + 1;
+                }
+            }
+        } catch (RuntimeException e) {
+            return sql; // malformed SQL - leave it for the server to reject
+        }
+
+        return end == len ? sql : sql.substring(0, end);
+    }
+
     public static String getProperty(String key, Properties... props) {
         return getProperty(key, null, props);
     }

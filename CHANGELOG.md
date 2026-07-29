@@ -35,6 +35,7 @@
 
 ### Bug Fixes 
 
+- **[client-v2, jdbc-v2]** Fixed `Client.getTableSchemaFromQuery(...)` (and therefore `PreparedStatement.getMetaData()` in `jdbc-v2`) failing with `ServerException` code 62 (`SYNTAX_ERROR`) when the query text ended with a SQL comment (`--`, `#`, or a block comment) or a statement terminator (`;`). The query was wrapped verbatim in `DESC (<sql>) FORMAT TSKV`, so a trailing single-line comment swallowed the wrapper's closing parenthesis and a trailing `;` landed inside the sub-query. Trailing comments, whitespace, and semicolons are now stripped (while comment-like text inside string literals or quoted identifiers is preserved) before wrapping, so `getMetaData()` returns the real column metadata for such queries instead of silently falling back to an empty column list. (https://github.com/ClickHouse/clickhouse-java/issues/2982)
 - **[client-v2, jdbc-v2]** Reduced noisy and potentially sensitive logging; SQL that fails to parse is no
   longer logged at `WARN` (it could contain credentials/PII). (https://github.com/ClickHouse/clickhouse-java/issues/2970)
 - **[client-v2]** Fixed `BigDecimal` values written into a `Dynamic` column being silently truncated when the

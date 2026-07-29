@@ -17,9 +17,45 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.testng.Assert;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 public class ClickHouseUtilsTest {
+
+    @DataProvider(name = "trailingCommentsAndSemicolons")
+    public Object[][] trailingCommentsAndSemicolons() {
+        return new Object[][] {
+                { null, null },
+                { "", "" },
+                { "   ", "" },
+                { "SELECT 13 AS a WHERE 0", "SELECT 13 AS a WHERE 0" },
+                { "SELECT 13 AS a WHERE 0 -- trailing comment", "SELECT 13 AS a WHERE 0" },
+                { "SELECT 13 AS a WHERE 0 # trailing comment", "SELECT 13 AS a WHERE 0" },
+                { "SELECT 13 AS a WHERE 0;", "SELECT 13 AS a WHERE 0" },
+                { "SELECT 13 AS a WHERE 0; -- trailing comment", "SELECT 13 AS a WHERE 0" },
+                { "SELECT 13 AS a WHERE 0;\n-- trailing comment", "SELECT 13 AS a WHERE 0" },
+                { "SELECT 1 AS a /* trailing block */", "SELECT 1 AS a" },
+                { "SELECT 1 AS a ; ; \n  ", "SELECT 1 AS a" },
+                { "SELECT 1 AS a /* outer /* nested */ still */", "SELECT 1 AS a" },
+                // interior comments/semicolons and string/identifier literals must be preserved
+                { "SELECT 1 -- c\nAS a", "SELECT 1 -- c\nAS a" },
+                { "SELECT 1 --\nAS a", "SELECT 1 --\nAS a" },
+                { "SELECT 1 #\nAS a", "SELECT 1 #\nAS a" },
+                { "SELECT 1 /* c */ AS a", "SELECT 1 /* c */ AS a" },
+                { "SELECT '-- not a comment' AS a", "SELECT '-- not a comment' AS a" },
+                { "SELECT '# not a comment' AS a", "SELECT '# not a comment' AS a" },
+                { "SELECT ';' AS a", "SELECT ';' AS a" },
+                { "SELECT 1 AS `a;b`", "SELECT 1 AS `a;b`" },
+                // malformed input (unterminated quote) is returned unchanged for the server to reject
+                { "SELECT 'unterminated", "SELECT 'unterminated" },
+        };
+    }
+
+    @Test(groups = { "unit" }, dataProvider = "trailingCommentsAndSemicolons")
+    public void testStripTrailingCommentsAndSemicolons(String input, String expected) {
+        Assert.assertEquals(ClickHouseUtils.stripTrailingCommentsAndSemicolons(input), expected);
+    }
+
     @Test(groups = { "unit" })
     public void testCreateTempFile() throws IOException {
         File f = ClickHouseUtils.createTempFile(null, null);
