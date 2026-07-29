@@ -204,6 +204,16 @@ public class RowBinaryFormatWriter implements ClickHouseBinaryFormatWriter {
     }
 
     @Override
+    public void setString(String column, byte[] value) {
+        setValue(column, value);
+    }
+
+    @Override
+    public void setString(int colIndex, byte[] value) {
+        setValue(colIndex, value);
+    }
+
+    @Override
     public void setDate(String column, LocalDate value) {
         setValue(column, value);
     }

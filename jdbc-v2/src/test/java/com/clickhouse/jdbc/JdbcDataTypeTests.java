@@ -13,11 +13,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
+import org.testng.SkipException;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
@@ -79,6 +81,11 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
                 return stmt.executeUpdate(sql);
             }
         }
+    }
+
+    private static void assertFloat32Boundary(float actual, float expectedA, float expectedB, String label) {
+        Assert.assertTrue(actual == expectedA || actual == expectedB,
+                label + " expected one of [" + expectedA + ", " + expectedB + "] but found [" + actual + "]");
     }
 
     @Test(groups = { "integration" })
@@ -494,6 +501,231 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
         }
     }
 
+
+    // BFloat16 was introduced in ClickHouse 24.11.
+    private static final String BFLOAT16_UNSUPPORTED_VERSIONS = "(,24.10]";
+
+    @Test(groups = { "integration" })
+    public void testBFloat16() throws SQLException {
+        if (ClickHouseVersion.of(getServerVersion()).check(BFLOAT16_UNSUPPORTED_VERSIONS)) {
+            throw new SkipException("BFloat16 was introduced in ClickHouse 24.11");
+        }
+
+        // Exhaustively cover reading every one of the 2^16 BFloat16 bit patterns through the JDBC
+        // driver, which must expose BFloat16 as java.lang.Float. The dataset is written with SQL
+        // text literals so the *server* produces the stored bytes, decoupling the read path under
+        // test from any write-side codec error. Row b holds the BFloat16 whose bit pattern is b, so
+        // a read must widen it to Float.intBitsToFloat(b << 16) (NaN inputs collapse to a single
+        // canonical NaN on the server and only read back as NaN).
+        final String table = "test_bfloat16";
+        final int count = 1 << 16;
+        final int batchSize = 4096; // keep each INSERT well under max_query_size
+        runQuery("DROP TABLE IF EXISTS " + table);
+        runQuery("CREATE TABLE " + table
+                + " (rowId Int32, v BFloat16, vNull Nullable(BFloat16)) ENGINE = MergeTree ORDER BY rowId");
+
+        try (Connection conn = getJdbcConnection();
+                Statement stmt = conn.createStatement()) {
+            for (int start = 0; start < count; start += batchSize) {
+                int end = Math.min(start + batchSize, count);
+                StringBuilder insert = new StringBuilder("INSERT INTO ").append(table).append(" VALUES ");
+                for (int b = start; b < end; b++) {
+                    String literal = bFloat16Literal(b);
+                    if (b > start) {
+                        insert.append(',');
+                    }
+                    insert.append('(').append(b).append(',').append(literal).append(',')
+                            .append(b == 0 ? "NULL" : literal).append(')');
+                }
+                stmt.executeUpdate(insert.toString());
+            }
+        }
+
+        // The server's stored bits are the ground truth for the read: reinterpretAsUInt16(v) yields
+        // the exact 16-bit pattern the server wrote, so a correct read must widen it to
+        // Float.intBitsToFloat(bits << 16). Deriving the expectation from the stored bits keeps the
+        // assertion correct regardless of how the server converts the text literal to BFloat16 - in
+        // particular the server flushes BFloat16 subnormals to zero, so those patterns are stored as
+        // +/-0 even though the literal named a tiny subnormal.
+        try (Connection conn = getJdbcConnection();
+                Statement stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery(
+                        "SELECT rowId, v, reinterpretAsUInt16(v) AS bits, vNull FROM " + table + " ORDER BY rowId")) {
+            ResultSetMetaData meta = rs.getMetaData();
+            assertEquals(meta.getColumnType(2), Types.FLOAT, "BFloat16 should map to Types.FLOAT");
+            assertEquals(meta.getColumnClassName(2), Float.class.getName(), "BFloat16 should map to java.lang.Float");
+
+            int rows = 0;
+            while (rs.next()) {
+                int b = rs.getInt("rowId");
+                float expected = Float.intBitsToFloat(rs.getInt("bits") << 16);
+                Object obj = rs.getObject("v");
+                assertTrue(obj instanceof Float,
+                        "BFloat16 getObject should return Float but was "
+                                + (obj == null ? "null" : obj.getClass().getName()));
+                assertBFloat16Equals((Float) obj, expected);
+                assertBFloat16Equals(rs.getFloat("v"), expected);
+                if (b == 0) {
+                    assertNull(rs.getObject("vNull"));
+                } else {
+                    assertBFloat16Equals((Float) rs.getObject("vNull"), expected);
+                }
+                rows++;
+            }
+            assertEquals(rows, count);
+        }
+    }
+
+    // QBit was introduced in ClickHouse 25.10.
+    private static final String QBIT_UNSUPPORTED_VERSIONS = "(,25.9]";
+
+    @Test(groups = { "integration" })
+    public void testQBit() throws SQLException {
+        if (ClickHouseVersion.of(getServerVersion()).check(QBIT_UNSUPPORTED_VERSIONS)) {
+            throw new SkipException("QBit was introduced in ClickHouse 25.10");
+        }
+
+        // QBit(element_type, dimension) is exposed through JDBC as an ARRAY of its element type
+        // (the same way Array/Geometry are), written from and read as a Java array. The
+        // experimental type flag is only required to create the column, so the insert/read
+        // connection does not need it.
+        final String table = "test_qbit_jdbc";
+        Properties properties = new Properties();
+        properties.setProperty(ClientConfigProperties.serverSetting("allow_experimental_qbit_type"), "1");
+        runQuery("DROP TABLE IF EXISTS " + table);
+        runQuery("CREATE TABLE " + table
+                + " (rowId Int32, vec QBit(Float32, 8)) ENGINE = MergeTree ORDER BY rowId", properties);
+
+        final float[] expected = { 1f, 2f, 3f, 4f, 5f, 6f, 7f, 8f };
+
+        // Write path: a Java float[] bound to a QBit parameter is rendered as an array literal.
+        try (Connection conn = getJdbcConnection();
+                PreparedStatement ps = conn.prepareStatement("INSERT INTO " + table + " VALUES (?, ?)")) {
+            ps.setInt(1, 1);
+            ps.setObject(2, expected);
+            ps.executeUpdate();
+        }
+
+        // Read path: metadata reports ARRAY with the element type, and getArray/getObject return
+        // a java.sql.Array of the element values.
+        try (Connection conn = getJdbcConnection();
+                Statement stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery("SELECT rowId, vec FROM " + table + " ORDER BY rowId")) {
+            ResultSetMetaData meta = rs.getMetaData();
+            assertEquals(meta.getColumnType(2), Types.ARRAY, "QBit should map to Types.ARRAY");
+
+            assertTrue(rs.next());
+            java.sql.Array array = rs.getArray("vec");
+            assertTrue(array != null, "getArray must return the QBit vector");
+            assertEquals(array.getBaseType(), Types.FLOAT, "QBit(Float32) element type should be Types.FLOAT");
+            assertEquals(array.getBaseTypeName(), "Float32", "QBit(Float32) element type name should be Float32");
+            Object elements = array.getArray();
+            assertEquals(java.lang.reflect.Array.getLength(elements), expected.length);
+            for (int i = 0; i < expected.length; i++) {
+                assertEquals(((Number) java.lang.reflect.Array.get(elements, i)).floatValue(), expected[i]);
+            }
+
+            assertTrue(rs.getObject("vec") instanceof java.sql.Array,
+                    "getObject on a QBit column should return java.sql.Array");
+            assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testBFloat16WriteAsFloat() throws SQLException {
+        if (ClickHouseVersion.of(getServerVersion()).check(BFLOAT16_UNSUPPORTED_VERSIONS)) {
+            throw new SkipException("BFloat16 was introduced in ClickHouse 24.11");
+        }
+
+        // Writing through the JDBC Float surface: setFloat must store a BFloat16. Exactly
+        // representable values round-trip unchanged; 3.14f is truncated to the high 16 bits
+        // (0x4048F5C3 -> 0x40480000 = 3.125f), matching the server's Float32 -> BFloat16 cast.
+        final String table = "test_bfloat16_write";
+        runQuery("DROP TABLE IF EXISTS " + table);
+        runQuery("CREATE TABLE " + table
+                + " (rowId Int32, v BFloat16, vNull Nullable(BFloat16)) ENGINE = MergeTree ORDER BY rowId");
+
+        float[] inputs = { 0f, 0.5f, 1.5f, -2.5f, 3.14f, 128.0f };
+        try (Connection conn = getJdbcConnection();
+                PreparedStatement ps = conn.prepareStatement("INSERT INTO " + table + " VALUES (?, ?, ?)")) {
+            for (int i = 0; i < inputs.length; i++) {
+                ps.setInt(1, i);
+                ps.setFloat(2, inputs[i]);
+                ps.setFloat(3, inputs[i]);
+                ps.executeUpdate();
+            }
+        }
+
+        try (Connection conn = getJdbcConnection();
+                Statement stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery("SELECT rowId, v, vNull FROM " + table + " ORDER BY rowId")) {
+            for (int i = 0; i < inputs.length; i++) {
+                assertTrue(rs.next());
+                float expected = Float.intBitsToFloat(Float.floatToIntBits(inputs[i]) & 0xFFFF0000);
+                assertEquals(rs.getFloat("v"), expected, 0f);
+                assertEquals(rs.getObject("v"), Float.valueOf(expected));
+                assertEquals(rs.getFloat("vNull"), expected, 0f);
+                assertEquals(rs.getObject("vNull"), Float.valueOf(expected));
+            }
+            assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testBFloat16ResultSetMetaData() throws SQLException {
+        if (ClickHouseVersion.of(getServerVersion()).check(BFLOAT16_UNSUPPORTED_VERSIONS)) {
+            throw new SkipException("BFloat16 was introduced in ClickHouse 24.11");
+        }
+
+        // ResultSetMetaData must report a BFloat16 result column - and a Nullable(BFloat16) one - as
+        // java.sql.Types.FLOAT / java.lang.Float, with the ClickHouse type name preserved verbatim.
+        try (Connection conn = getJdbcConnection();
+                Statement stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery(
+                        "SELECT CAST(1.5 AS BFloat16) AS v, CAST(NULL AS Nullable(BFloat16)) AS vNull")) {
+            ResultSetMetaData meta = rs.getMetaData();
+            assertEquals(meta.getColumnCount(), 2);
+
+            assertEquals(meta.getColumnType(1), Types.FLOAT);
+            assertEquals(meta.getColumnTypeName(1), "BFloat16");
+            assertEquals(meta.getColumnClassName(1), Float.class.getName());
+
+            assertEquals(meta.getColumnType(2), Types.FLOAT);
+            assertEquals(meta.getColumnTypeName(2), "Nullable(BFloat16)");
+            assertEquals(meta.getColumnClassName(2), Float.class.getName());
+        }
+    }
+
+    // Text form of the exact BFloat16 whose bit pattern is {@code pattern}, suitable for use as a
+    // SQL numeric literal. Non-finite patterns use ClickHouse's nan/inf/-inf tokens; every other
+    // pattern uses the shortest round-trippable decimal of Float.intBitsToFloat(pattern << 16),
+    // which is exactly representable in BFloat16 (its low 16 mantissa bits are zero).
+    private static String bFloat16Literal(int pattern) {
+        float value = Float.intBitsToFloat(pattern << 16);
+        if (Float.isNaN(value)) {
+            return "nan";
+        }
+        if (value == Float.POSITIVE_INFINITY) {
+            return "inf";
+        }
+        if (value == Float.NEGATIVE_INFINITY) {
+            return "-inf";
+        }
+        return Float.toString(value);
+    }
+
+    // BFloat16 keeps the high 16 bits of a float32, so every non-NaN value round-trips bit-for-bit;
+    // NaN inputs collapse to a single canonical NaN on the server and only read back as NaN.
+    private static void assertBFloat16Equals(Float actual, Float expected) {
+        if (expected == null) {
+            assertNull(actual);
+        } else if (Float.isNaN(expected)) {
+            assertTrue(actual != null && Float.isNaN(actual), "expected a NaN but got " + actual);
+        } else {
+            assertTrue(actual != null, "expected " + expected + " but got null");
+            assertEquals(Float.floatToRawIntBits(actual), Float.floatToRawIntBits(expected));
+        }
+    }
 
     @Test(groups = { "integration" })
     public void testUUIDTypes() throws Exception {
@@ -1179,6 +1411,68 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
     }
 
     @Test(groups = { "integration" })
+    public void testEnumZeroLikeValues() throws SQLException {
+        runQuery("DROP TABLE IF EXISTS test_enum_zero_like");
+        runQuery("CREATE TABLE test_enum_zero_like (order Int8, "
+                + "e8 Enum8('' = 0, 'a' = 1, 'neg' = -5), e16 Enum16('zero' = 0, 'big' = 30000, 'nb' = -20000)"
+                + ") ENGINE = MergeTree ORDER BY ()");
+
+        try (Connection conn = getJdbcConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_enum_zero_like VALUES ( ?, ?, ? )")) {
+                // Zero-like written by name: an empty-string name and a named zero both map to 0.
+                stmt.setInt(1, 1);
+                stmt.setString(2, "");
+                stmt.setString(3, "zero");
+                stmt.addBatch();
+                // The same zero-like members written by their underlying int 0.
+                stmt.setInt(1, 2);
+                stmt.setInt(2, 0);
+                stmt.setInt(3, 0);
+                stmt.addBatch();
+                // Negative members (Enum8/Enum16 are signed) written by name.
+                stmt.setInt(1, 3);
+                stmt.setString(2, "neg");
+                stmt.setString(3, "nb");
+                stmt.addBatch();
+                // The same negative members written by their underlying int.
+                stmt.setInt(1, 4);
+                stmt.setInt(2, -5);
+                stmt.setInt(3, -20000);
+                stmt.addBatch();
+                stmt.executeBatch();
+            }
+        }
+
+        try (Connection conn = getJdbcConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_enum_zero_like ORDER BY order")) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getString("e8"), "");
+                    assertEquals(rs.getInt("e8"), 0);
+                    assertEquals(rs.getString("e16"), "zero");
+                    assertEquals(rs.getInt("e16"), 0);
+                    assertTrue(rs.next());
+                    assertEquals(rs.getString("e8"), "");
+                    assertEquals(rs.getInt("e8"), 0);
+                    assertEquals(rs.getString("e16"), "zero");
+                    assertEquals(rs.getInt("e16"), 0);
+                    assertTrue(rs.next());
+                    assertEquals(rs.getString("e8"), "neg");
+                    assertEquals(rs.getInt("e8"), -5);
+                    assertEquals(rs.getString("e16"), "nb");
+                    assertEquals(rs.getInt("e16"), -20000);
+                    assertTrue(rs.next());
+                    assertEquals(rs.getString("e8"), "neg");
+                    assertEquals(rs.getInt("e8"), -5);
+                    assertEquals(rs.getString("e16"), "nb");
+                    assertEquals(rs.getInt("e16"), -20000);
+                    assertFalse(rs.next());
+                }
+            }
+        }
+    }
+
+    @Test(groups = { "integration" })
     public void testIpAddressTypes() throws SQLException, UnknownHostException {
         runQuery("CREATE TABLE test_ips (order Int8, "
                 + "ipv4_ip IPv4, ipv4_name IPv4, ipv6 IPv6, ipv4_as_ipv6 IPv6"
@@ -1308,11 +1602,11 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_floats ORDER BY order")) {
                     assertTrue(rs.next());
-                    assertEquals(rs.getFloat("float32"), -3.402823E38f);
+                    assertFloat32Boundary(rs.getFloat("float32"), -3.4028233E38f, -3.402823E38f, "float32 min");
                     assertEquals(rs.getDouble("float64"), Double.valueOf(-1.7976931348623157E308));
 
                     assertTrue(rs.next());
-                    assertEquals(rs.getFloat("float32"), Float.valueOf(3.402823E38f));
+                    assertFloat32Boundary(rs.getFloat("float32"), 3.4028233E38f, 3.402823E38f, "float32 max");
                     assertEquals(rs.getDouble("float64"), Double.valueOf(1.7976931348623157E308));
 
                     assertTrue(rs.next());
@@ -1329,11 +1623,13 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_floats ORDER BY order")) {
                     assertTrue(rs.next());
-                    assertEquals(rs.getObject("float32"), -3.402823E38f);
+                    assertFloat32Boundary(((Number) rs.getObject("float32")).floatValue(), -3.4028233E38f, -3.402823E38f,
+                            "float32 min object");
                     assertEquals(rs.getObject("float64"), Double.valueOf(-1.7976931348623157E308));
 
                     assertTrue(rs.next());
-                    assertEquals(rs.getObject("float32"), 3.402823E38f);
+                    assertFloat32Boundary(((Number) rs.getObject("float32")).floatValue(), 3.4028233E38f, 3.402823E38f,
+                            "float32 max object");
                     assertEquals(rs.getObject("float64"), Double.valueOf(1.7976931348623157E308));
 
                     assertTrue(rs.next());
@@ -1538,8 +1834,142 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
             for (String[] expected : testData) {
                 assertTrue(rs.next());
                 assertEquals(new String(rs.getBytes("str"), "UTF-8"), expected[0]);
+                assertEquals(new String(rs.getObject("str", byte[].class), "UTF-8"), expected[0]);
                 assertEquals(new String(rs.getBytes("fixed"), "UTF-8").replace("\0", ""), expected[1]);
             }
+            assertFalse(rs.next());
+        }
+    }
+
+    private static byte[] readClickHouseLogo() {
+        try (InputStream is = JdbcDataTypeTests.class.getResourceAsStream("/ch_logo.png")) {
+            Assert.assertNotNull(is, "ch_logo.png not found in test resources");
+            return is.readAllBytes();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to read test resource", e);
+        }
+    }
+
+    private static void assertEqualsToClickHouseLogo(byte[] actual) {
+        Assert.assertNotNull(actual, "Read bytes must not be null");
+        assertEquals(actual.length, CH_LOGO_PNG.length, "Read byte count must match ch_logo.png size");
+        assertEquals(actual, CH_LOGO_PNG, "Read bytes must match ch_logo.png content");
+    }
+
+    private static final byte[] CH_LOGO_PNG = readClickHouseLogo();
+
+    @Test(groups = { "integration" })
+    public void testBinaryStringSupportGetBytes() throws Exception {
+        // ch_logo.png is real binary content that is not valid UTF-8, so it must survive a
+        // round-trip through a String column byte-for-byte when binary_string_support is enabled.
+
+        runQuery("CREATE TABLE test_binary_string_get_bytes (id Int8, str String) ENGINE = MergeTree ORDER BY ()");
+
+        try (Connection conn = getJdbcConnection();
+             PreparedStatement insert = conn.prepareStatement("INSERT INTO test_binary_string_get_bytes VALUES (?, ?)")) {
+            insert.setInt(1, 1);
+            insert.setBytes(2, CH_LOGO_PNG);
+            insert.executeUpdate();
+        }
+
+        Properties props = new Properties();
+        props.put(ClientConfigProperties.BINARY_STRING_SUPPORT.getKey(), "true");
+
+        try (Connection conn = getJdbcConnection(props);
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT * FROM test_binary_string_get_bytes ORDER BY id")) {
+            assertTrue(rs.next());
+            assertEqualsToClickHouseLogo(rs.getBytes("str"));
+            assertEqualsToClickHouseLogo(rs.getBytes(2));
+            assertFalse(rs.wasNull());
+            assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testBinaryStringSupportGetBinaryStream() throws Exception {
+        runQuery("CREATE TABLE test_binary_string_stream (id Int8, str String, nullable_str Nullable(String)) ENGINE = MergeTree ORDER BY ()");
+
+        try (Connection conn = getJdbcConnection();
+             PreparedStatement insert = conn.prepareStatement("INSERT INTO test_binary_string_stream VALUES (?, ?, ?)")) {
+            insert.setInt(1, 1);
+            insert.setBytes(2, CH_LOGO_PNG);
+            insert.setNull(3, Types.VARCHAR);
+            insert.executeUpdate();
+        }
+
+        Properties props = new Properties();
+        props.put(ClientConfigProperties.BINARY_STRING_SUPPORT.getKey(), "true");
+
+        try (Connection conn = getJdbcConnection(props);
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT * FROM test_binary_string_stream ORDER BY id")) {
+            assertTrue(rs.next());
+
+            // by column label (delegates to the index-based implementation)
+            try (InputStream stream = rs.getBinaryStream("str")) {
+                Assert.assertNotNull(stream);
+                assertEqualsToClickHouseLogo(stream.readAllBytes());
+            }
+            assertFalse(rs.wasNull());
+
+            // by column index
+            try (InputStream stream = rs.getBinaryStream(2)) {
+                Assert.assertNotNull(stream);
+                assertEqualsToClickHouseLogo(stream.readAllBytes());
+            }
+            assertFalse(rs.wasNull());
+
+            // null value on a nullable column
+            assertNull(rs.getBinaryStream("nullable_str"));
+            assertTrue(rs.wasNull());
+            assertNull(rs.getBytes("nullable_str"));
+            assertTrue(rs.wasNull());
+
+            assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testBinaryStringSupportGetObject() throws Exception {
+        // With binary_string_support enabled the read path returns an internal StringValue holder for
+        // String/FixedString columns. getObject must never leak that holder: it should return a decoded
+        // String for Object.class and the no-type overload, and exact raw bytes for byte[].class.
+        runQuery("CREATE TABLE test_binary_string_get_object (id Int8, str String, txt String) ENGINE = MergeTree ORDER BY ()");
+
+        String text = "Hello, ClickHouse!";
+        try (Connection conn = getJdbcConnection();
+             PreparedStatement insert = conn.prepareStatement("INSERT INTO test_binary_string_get_object VALUES (?, ?, ?)")) {
+            insert.setInt(1, 1);
+            insert.setBytes(2, CH_LOGO_PNG);
+            insert.setString(3, text);
+            insert.executeUpdate();
+        }
+
+        Properties props = new Properties();
+        props.put(ClientConfigProperties.BINARY_STRING_SUPPORT.getKey(), "true");
+
+        try (Connection conn = getJdbcConnection(props);
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT * FROM test_binary_string_get_object ORDER BY id")) {
+            assertTrue(rs.next());
+
+            // byte[].class must return the exact bytes without lossy decoding
+            Object bytesObj = rs.getObject("str", byte[].class);
+            assertTrue(bytesObj instanceof byte[], "getObject(byte[].class) should return byte[], got: " + bytesObj.getClass().getName());
+            assertEqualsToClickHouseLogo((byte[]) bytesObj);
+            assertFalse(rs.wasNull());
+
+            // Object.class must return a decoded String, not the internal StringValue holder
+            Object textObj = rs.getObject("txt", Object.class);
+            assertTrue(textObj instanceof String, "getObject(Object.class) should return String, got: " + textObj.getClass().getName());
+            assertEquals(textObj, text);
+
+            // The no-type overload must also return a String
+            Object defaultObj = rs.getObject("txt");
+            assertTrue(defaultObj instanceof String, "getObject() should return String, got: " + defaultObj.getClass().getName());
+            assertEquals(defaultObj, text);
+
             assertFalse(rs.next());
         }
     }

@@ -2,6 +2,7 @@ package com.clickhouse.jdbc.internal;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.ClientMisconfigurationException;
 import com.clickhouse.client.api.enums.SSLMode;
 
 import com.clickhouse.data.ClickHouseDataType;
@@ -10,6 +11,8 @@ import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
+import javax.net.ssl.SSLContext;
+import java.lang.reflect.Field;
 import java.sql.DriverPropertyInfo;
 import java.sql.SQLException;
 import java.util.Arrays;
@@ -219,6 +222,100 @@ public class JdbcConfigurationTest {
     public void testSSLModeInvalidValue() {
         assertThrows(SQLException.class,
                 () -> new JdbcConfiguration("jdbc:clickhouse://localhost:8123/?ssl_mode=insecure", new Properties()));
+    }
+
+    @Test
+    public void testSSLCipherSuitesForwardedToClientProperties() throws Exception {
+        String cipherSuites = "TLS_AES_256_GCM_SHA384,TLS_AES_128_GCM_SHA256";
+
+        // passed via Properties
+        Properties properties = new Properties();
+        properties.setProperty(ClientConfigProperties.SSL_CIPHER_SUITES.getKey(), cipherSuites);
+        JdbcConfiguration configuration = new JdbcConfiguration("jdbc:clickhouse://localhost:8123/", properties);
+        assertEquals(configuration.getClientProperties().get(ClientConfigProperties.SSL_CIPHER_SUITES.getKey()),
+                cipherSuites);
+
+        // passed as a URL parameter
+        configuration = new JdbcConfiguration(
+                "jdbc:clickhouse://localhost:8123/?ssl_cipher_suites=" + cipherSuites, new Properties());
+        assertEquals(configuration.getClientProperties().get(ClientConfigProperties.SSL_CIPHER_SUITES.getKey()),
+                cipherSuites);
+    }
+
+    @Test
+    public void testCustomSSLContextAcceptedViaProperties() throws Exception {
+        SSLContext customContext = SSLContext.getInstance("TLS");
+        customContext.init(null, null, null);
+
+        Properties properties = new Properties();
+        properties.put(ClientConfigProperties.SSL_CONTEXT.getKey(), customContext);
+        // Before the fix this threw IllegalArgumentException ("Property key and value should be a string").
+        JdbcConfiguration configuration = new JdbcConfiguration("jdbc:clickhouse://localhost:8123/", properties);
+        Assert.assertSame(configuration.getSslContext(), customContext);
+        // The live object must not leak into the string-only client properties.
+        assertFalse(configuration.getClientProperties().containsKey(ClientConfigProperties.SSL_CONTEXT.getKey()));
+    }
+
+    @Test
+    public void testCustomSSLContextForwardedToClient() throws Exception {
+        SSLContext customContext = SSLContext.getInstance("TLS");
+        customContext.init(null, null, null);
+
+        Properties properties = new Properties();
+        properties.put(ClientConfigProperties.SSL_CONTEXT.getKey(), customContext);
+        JdbcConfiguration configuration = new JdbcConfiguration("jdbc:clickhouse://localhost:8123/", properties);
+
+        Client.Builder builder = new Client.Builder();
+        configuration.applyClientProperties(builder);
+
+        // applyClientProperties must forward the captured context to the client builder.
+        Field sslContextField = Client.Builder.class.getDeclaredField("sslContext");
+        sslContextField.setAccessible(true);
+        Assert.assertSame(sslContextField.get(builder), customContext,
+                "The SSLContext supplied via JDBC Properties must be forwarded to the client builder");
+    }
+
+    @Test
+    public void testNonStringPropertyOtherThanSSLContextStillRejected() {
+        Properties properties = new Properties();
+        properties.put("some_option", new Object());
+        // The relaxation is scoped to ssl_context only; any other non-string value is still rejected.
+        assertThrows(IllegalArgumentException.class,
+                () -> new JdbcConfiguration("jdbc:clickhouse://localhost:8123/", properties));
+    }
+
+    @Test
+    public void testStringSSLContextViaUrlRejected() {
+        // ssl_context carries a live object; a textual value in the URL can never be a real context, so it
+        // must fail fast with a SQLException instead of being silently forwarded and ignored.
+        assertThrows(SQLException.class,
+                () -> new JdbcConfiguration("jdbc:clickhouse://localhost:8123/?ssl_context=not-a-context",
+                        new Properties()));
+    }
+
+    @Test
+    public void testStringSSLContextViaPropertyRejected() {
+        Properties properties = new Properties();
+        // A String value (setProperty) cannot represent an SSLContext, so it is rejected rather than ignored.
+        properties.setProperty(ClientConfigProperties.SSL_CONTEXT.getKey(), "not-a-context");
+        assertThrows(SQLException.class,
+                () -> new JdbcConfiguration("jdbc:clickhouse://localhost:8123/", properties));
+    }
+
+    @Test
+    public void testCustomSSLContextRejectsTrustMaterial() throws Exception {
+        SSLContext customContext = SSLContext.getInstance("TLS");
+        customContext.init(null, null, null);
+
+        Properties properties = new Properties();
+        properties.put(ClientConfigProperties.SSL_CONTEXT.getKey(), customContext);
+        properties.setProperty(ClientConfigProperties.CA_CERTIFICATE.getKey(), "/path/to/ca.crt");
+        JdbcConfiguration configuration = new JdbcConfiguration("jdbc:clickhouse://localhost:8123/", properties);
+
+        Client.Builder builder = new Client.Builder();
+        configuration.applyClientProperties(builder);
+        // A live context forwarded from Properties plus trust/key material is invalid configuration.
+        assertThrows(ClientMisconfigurationException.class, builder::build);
     }
 
     @DataProvider(name = "typeMappingsPropertyKey")

@@ -37,6 +37,9 @@ import java.util.Calendar;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 /**
  * Implements data streaming through Client Writer API.
  * See {@link PreparedStatementImpl}
@@ -44,6 +47,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class WriterStatementImpl extends PreparedStatementImpl implements PreparedStatement {
 
+    private static final Logger LOG = LoggerFactory.getLogger(WriterStatementImpl.class);
 
     private ByteArrayOutputStream out;
     private ClickHouseBinaryFormatWriter writer;
@@ -131,7 +135,7 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
             try {
                 resetWriter();
             } catch (Exception e) {
-                // ignore
+                LOG.debug("Failed to reset writer after insert", e);
             }
         }
         return updateCount;
@@ -456,7 +460,7 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
             }
             writer = null;
         } catch (Exception e) {
-            // ignore
+            LOG.debug("Failed to close writer output stream", e);
         }
     }
 

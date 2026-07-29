@@ -54,8 +54,8 @@ public class ServerException extends ClickHouseException {
     }
 
     private boolean discoverIsRetryable(int code, String message, int transportProtocolCode) {
-        //Let's check if we have a ServerException to reference the error code
-        //https://github.com/ClickHouse/ClickHouse/blob/master/src/Common/ErrorCodes.cpp
+        // Let's check if we have a ServerException to reference the error code
+        // https://github.com/ClickHouse/ClickHouse/blob/master/src/Common/ErrorCodes.cpp
         switch (code) { // UNEXPECTED_END_OF_FILE
             case 3: // UNEXPECTED_END_OF_FILE
             case 107: // FILE_DOESNT_EXIST
