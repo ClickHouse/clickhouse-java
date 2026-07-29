@@ -16,19 +16,8 @@
   and the comma-separated `ssl_cipher_suites` connection property (client-v2 and jdbc-v2) restrict the cipher suites
   enabled on secure connections; when unset, the transport defaults are used. Cipher-suite selection is independent of the
   trust configuration and `ssl_mode`. (https://github.com/ClickHouse/clickhouse-java/issues/2882)
-- **[client-v2, jdbc-v2]** Improved logging coverage on the error and diagnostic paths so failures are
-  observable in support cases, without changing any functional behavior or public API. In `client-v2`:
-  an unexpected (unhandled) server status code is now logged once at `WARN` before the generic error is
-  thrown — with the status code, query id, target authority and the `X-ClickHouse-Exception-Code` header
-  (the response body is never logged) — so an otherwise-opaque failure is still diagnosable; the per-attempt
-  retry logs now include the attempt number, the endpoint being tried and the query id, and the
-  retry-exhaustion log now attaches the last exception; and previously-silent diagnostic `catch` blocks
-  (summary-metric parsing, HTTP-client version detection) now log at `DEBUG` with the exception attached. In
-  `jdbc-v2`: the prepared-statement metadata fallback now logs the underlying cause instead of the raw SQL, a
-  connection-abort failure during a network timeout is logged (in addition to being rethrown so a configured
-  uncaught-exception handler still sees it), and several previously-silent `catch` blocks (writer reset/close,
-  written-rows lookup) now log at `DEBUG` with the exception attached.
-  (https://github.com/ClickHouse/clickhouse-java/issues/2969)
+- **[client-v2, jdbc-v2]** Added logging on previously-silent error and diagnostic paths (no functional or
+  public-API change). (https://github.com/ClickHouse/clickhouse-java/issues/2969)
 
 ### Bug Fixes 
 

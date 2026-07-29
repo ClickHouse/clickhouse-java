@@ -87,7 +87,7 @@ public class ProcessParser {
                 long value = Long.parseLong(valueStr);
                 result.put(key, value);
             } catch (NumberFormatException e) {
-                LOG.debug("Skipping summary field '{}' with non-numeric value '{}'", key, valueStr, e);
+                LOG.debug("Skipping summary field '" + key + "' with non-numeric value '" + valueStr + "'", e);
             }
         }
 
