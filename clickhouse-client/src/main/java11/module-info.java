@@ -11,5 +11,6 @@ module com.clickhouse.client {
 
     uses com.clickhouse.client.ClickHouseClient;
     uses com.clickhouse.client.ClickHouseDnsResolver;
+    uses com.clickhouse.client.ClickHouseRequestManager;
     uses com.clickhouse.client.ClickHouseSslContextProvider;
 }

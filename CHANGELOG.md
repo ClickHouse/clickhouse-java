@@ -35,6 +35,11 @@
 
 ### Bug Fixes 
 
+- **[clickhouse-client]** Fixed JPMS/module-path service loading for `ClickHouseRequestManager` by loading client
+  services from the `com.clickhouse.client` module, which declares the required `uses` directives. This avoids
+  `ServiceConfigurationError` failures from `com.clickhouse.data` when applications run on the module path.
+  (https://github.com/ClickHouse/clickhouse-java/issues/2669)
+
 - **[client-v2, jdbc-v2]** Reduced noisy and potentially sensitive logging; SQL that fails to parse is no
   longer logged at `WARN` (it could contain credentials/PII). (https://github.com/ClickHouse/clickhouse-java/issues/2970)
 - **[client-v2]** Fixed `BigDecimal` values written into a `Dynamic` column being silently truncated when the
