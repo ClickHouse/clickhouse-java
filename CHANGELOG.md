@@ -12,10 +12,35 @@
   `getFloat`/`setFloat` and `getObject` accessors, and reported as such by `ResultSetMetaData` and `DatabaseMetaData`.
   Previously reading or writing a `BFloat16` column failed with an
   unsupported-data-type error. (https://github.com/ClickHouse/clickhouse-java/issues/2279)
+- **[client-v2, jdbc-v2]** Added support for the experimental `QBit(element_type, dimension[, stride])` vector data type
+  (ClickHouse `25.10+`; the `allow_experimental_qbit_type` server setting is required to create a column). The type-name
+  parser accepts two or three parameters (the optional third is the stride) and recognizes the documented element types
+  `Int8`, `BFloat16`, `Float32`, and `Float64`; an element type outside that set is parsed with a warning rather than
+  rejected, so a newer server-side element type keeps parsing. A `QBit` value is transmitted over `RowBinary` exactly like
+  `Array(element_type)`, so it is read and written as a Java array of the element type (`float[]` for
+  `BFloat16`/`Float32`, `double[]` for `Float64`) through generic records, binary readers, and POJO binding, via a
+  dedicated `QBit` read/serialize path. A `QBit` held inside a `Dynamic`/`Variant`/`JSON` column is also decoded (its
+  binary type encoding is read back to the concrete `QBit(...)` type). In the
+  JDBC driver (`jdbc-v2`) `QBit` maps to `java.sql.Types.ARRAY` and is returned as a `java.sql.Array` from
+  `getObject`/`getArray`. Previously `QBit` was an unimplemented type constant and reading or writing such a column
+  failed. Reading `QBit` through the `Native` output format is not supported — the server transmits it there using a
+  different internal layout — and fails fast with a clear error; use a `RowBinary` format instead.
+  (https://github.com/ClickHouse/clickhouse-java/issues/2610)
 - **[client-v2, jdbc-v2]** Added TLS cipher suite selection. `Client.Builder.setSSLCipherSuites(String...)` (client-v2)
   and the comma-separated `ssl_cipher_suites` connection property (client-v2 and jdbc-v2) restrict the cipher suites
   enabled on secure connections; when unset, the transport defaults are used. Cipher-suite selection is independent of the
   trust configuration and `ssl_mode`. (https://github.com/ClickHouse/clickhouse-java/issues/2882)
+- **[client-v2, jdbc-v2]** Added support for un-flattened `Nested(...)` columns (tables created with
+  `flatten_nested = 0`). Previously the `RowBinary` writer threw `UnsupportedOperationException: Unsupported
+  data type: Nested` when inserting such a column. `client-v2` now serializes a `Nested(f1 T1, ..., fN TN)`
+  column the same way it is read — identically to `Array(Tuple(T1, ..., TN))` (a var-uint row count followed
+  by one tuple per nested row) — so it can be written through the insert path / `RowBinaryFormatWriter`. In
+  `jdbc-v2` an un-flattened `Nested(...)` column is exposed as a JDBC `ARRAY` whose element type is
+  `Tuple(f1 T1, ..., fN TN)`: it can be inserted through `Connection#createArrayOf`/`setArray` or `setObject`
+  and read back through `getArray`/`getObject`, and `java.sql.Array#getResultSet()` iterates the nested rows
+  as `(INDEX, VALUE)` pairs where each `VALUE` is the tuple. (https://github.com/ClickHouse/clickhouse-java/issues/2477)
+- **[client-v2, jdbc-v2]** Added logging on previously-silent error and diagnostic paths (no functional or
+  public-API change). (https://github.com/ClickHouse/clickhouse-java/issues/2969)
 
 ### Bug Fixes 
 
@@ -25,6 +50,8 @@
   rows and desyncing the columns that follow the array in the same block. Each row's length is now derived from the
   difference between consecutive offsets, and empty array rows (`len == 0`) no longer read a phantom element. Results
   with uniform array lengths were unaffected. (https://github.com/ClickHouse/clickhouse-java/issues/2955)
+- **[client-v2, jdbc-v2]** Reduced noisy and potentially sensitive logging; SQL that fails to parse is no
+  longer logged at `WARN` (it could contain credentials/PII). (https://github.com/ClickHouse/clickhouse-java/issues/2970)
 - **[client-v2]** Fixed `BigDecimal` values written into a `Dynamic` column being silently truncated when the
   value's scale exceeded the inferred width's maximum scale, and throwing an overflow error when the value
   carried an integer part (e.g. `19.99`). The `Dynamic` type inference now sizes the `Decimal` width to hold
@@ -37,7 +64,6 @@
   serialized identically to its underlying type `T`, writing the `Nullable` null-marker byte when the
   underlying type is nullable (e.g. `SimpleAggregateFunction(anyLast, Nullable(String))`), mirroring the
   read path. (https://github.com/ClickHouse/clickhouse-java/issues/2477)
-
 - **[client-v2, jdbc-v2]** Fixed several logging-layer defects. In `client-v2`, `HttpAPIClientHelper.shouldRetry`
   threw a `ClassCastException` when a retryable `ServerException` was wrapped as the *cause* of another exception
   (the branch matched on the cause but the cast used the outer exception); the retry decision is now taken from

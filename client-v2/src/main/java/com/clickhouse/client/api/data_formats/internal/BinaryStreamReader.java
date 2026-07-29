@@ -251,6 +251,8 @@ public class BinaryStreamReader {
                         return (T) readJsonData(input, actualColumn);
                     }
 //                case Object: // deprecated https://clickhouse.com/docs/en/sql-reference/data-types/object-data-type
+                case QBit:
+                    return readQBit(actualColumn, typeHint);
                 case Array:
                     if (typeHint == null) { typeHint = arrayDefaultTypeHint;}
                     return convertArray(readArray(actualColumn), typeHint);
@@ -626,6 +628,38 @@ public class BinaryStreamReader {
         }
 
         return bytes;
+    }
+
+    /**
+     * Reads a {@code QBit(element_type, dimension)} value.
+     * <p>
+     * Over RowBinary a QBit is transmitted exactly like {@code Array(element_type)} — a var-int
+     * element count followed by that many element values — so the array reader is reused for the
+     * wire decoding. This is deliberately a dedicated method (rather than folding QBit into the
+     * {@code Array} case) because QBit is a distinct type whose Array-like RowBinary layout is an
+     * implementation detail, not an equivalence: in the Native format QBit uses a different internal
+     * layout (see {@link com.clickhouse.client.api.data_formats.NativeFormatReader}).
+     *
+     * @param column   QBit column information
+     * @param typeHint requested element/array representation, may be {@code null}
+     * @return materialized QBit value
+     * @throws IOException when an IO error occurs
+     */
+    private <T> T readQBit(ClickHouseColumn column, Class<?> typeHint) throws IOException {
+        ArrayValue array = readArray(column);
+        // QBit is a fixed-dimension vector. Over RowBinary the element count is a var-int length
+        // prefix that readArray consumes together with exactly that many elements, so the stream
+        // stays aligned regardless of the count. Validate the count against the declared dimension
+        // as a defensive, symmetric counterpart to the write-side check
+        // (SerializerUtils.serializeQBitData): for a well-formed QBit the count always equals the
+        // dimension, so a mismatch signals corrupt input and is surfaced as a clear error instead
+        // of a silently wrong-length vector.
+        int dimension = column.getPrecision();
+        if (array.length() != dimension) {
+            throw new ClientException("QBit column '" + column.getColumnName() + "' expected exactly "
+                    + dimension + " elements but received " + array.length());
+        }
+        return convertArray(array, typeHint == null ? arrayDefaultTypeHint : typeHint);
     }
 
     /**
@@ -1524,6 +1558,14 @@ public class BinaryStreamReader {
             case Nullable:  {
                 ClickHouseColumn column = readDynamicData();
                 return ClickHouseColumn.of("v", "Nullable(" + column.getOriginalTypeName() + ")");
+            }
+            case QBit: {
+                // 0x36 <element_type_encoding> <var_uint dimension> -> QBit(T, N).
+                // The element type and dimension MUST be consumed here so a QBit nested in a
+                // Dynamic/Variant/JSON column does not desynchronize the stream.
+                ClickHouseColumn elementColumn = readDynamicData();
+                int dimension = readVarInt(input);
+                return ClickHouseColumn.of("v", "QBit(" + elementColumn.getOriginalTypeName() + ", " + dimension + ")");
             }
             case Time64: {
                 byte precision = readByte();

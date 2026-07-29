@@ -64,6 +64,9 @@ public class SerializerUtils {
     public static void serializeData(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
         //Serialize the value to the stream based on the data type
         switch (column.getDataType()) {
+            case QBit:
+                serializeQBitData(stream, value, column);
+                break;
             case Array:
                 serializeArrayData(stream, value, column);
                 break;
@@ -72,6 +75,9 @@ public class SerializerUtils {
                 break;
             case Map:
                 serializeMapData(stream, value, column);
+                break;
+            case Nested:
+                serializeNestedTypeData(stream, value, column);
                 break;
             case SimpleAggregateFunction:
                 // A SimpleAggregateFunction(func, T) value serializes identically to its underlying
@@ -141,6 +147,25 @@ public class SerializerUtils {
             writeNonNull(stream);
         }
         serializeData(stream, value, column);
+    }
+
+    /**
+     * Serializes a {@code Nested} column. In {@code RowBinary} a {@code Nested(f1 T1, ..., fN TN)}
+     * column has the same layout as {@code Array(Tuple(T1, ..., TN))}: a var-uint element count
+     * followed by that many tuples, each carrying the N field values in declaration order. The
+     * value is therefore a list (or array) of tuples, matching what
+     * {@link BinaryStreamReader#readNested(ClickHouseColumn)} produces on read.
+     */
+    private static void serializeNestedTypeData(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
+        if (value == null) {
+            writeVarInt(stream, 0);
+            return;
+        }
+        List<?> tuples = convertArrayValueToList(value);
+        writeVarInt(stream, tuples.size());
+        for (Object tuple : tuples) {
+            serializeTupleData(stream, tuple, column);
+        }
     }
 
     private static final Map<Class<?>, ClickHouseColumn> PREDEFINED_TYPE_COLUMNS = getPredefinedTypeColumnsMap();
@@ -469,6 +494,17 @@ public class SerializerUtils {
                 stream.write(binTag);
                 BinaryStreamUtils.writeUnsignedInt8(stream, dt.getMaxPrecision());
                 break;
+            case QBit:
+                // A QBit inside a Dynamic/Variant/JSON column would have to be encoded as
+                // 0x36 <element_type_encoding> <var_uint dimension> to round-trip with
+                // BinaryStreamReader.readDynamicData. The client never infers a QBit type from a
+                // Java value (valueToColumnForDynamicType only yields Array/Map/scalar types), so
+                // this path is unreachable through the public write API. Reject explicitly rather
+                // than fall through to the default branch and emit a bare 0x36 tag that the reader
+                // cannot parse and that would desynchronize the RowBinary stream. Reading a
+                // server-sent QBit inside a Dynamic column IS supported (see
+                // BinaryStreamReader.readDynamicData).
+                throw new ClientException("Serializing a QBit value inside a Dynamic column is not supported");
             default:
                 stream.write(binTag);
         }
@@ -501,6 +537,52 @@ public class SerializerUtils {
                 serializeData(stream, val, column.getNestedColumns().get(0));
             }
         }
+    }
+
+    /**
+     * Serializes a {@code QBit(element_type, dimension)} value. On the wire a {@code QBit} is
+     * transmitted exactly like {@code Array(element_type)} — a var-int length followed by that many
+     * element values — but the element count is fixed and must equal the declared dimension. The
+     * count is validated up-front so a wrong-sized (including empty) vector fails fast on the client
+     * with a clear message instead of a late server {@code SERIALIZATION_ERROR}, mirroring the
+     * client-side length enforcement already applied to the other fixed-size type,
+     * {@code FixedString(N)}. A non-null value that is neither a Java array nor a {@code List} cannot
+     * carry a vector and is rejected as well — otherwise it would fall through to
+     * {@link #serializeArrayData} and write no bytes for the column, desynchronizing the
+     * {@code RowBinary} stream and corrupting the columns that follow.
+     * <p>
+     * A {@code null} value is rejected for the same reason: a fixed-dimension {@code QBit} cannot be
+     * represented by {@code null}. A top-level {@code null} non-nullable {@code QBit} is already
+     * rejected by
+     * {@link com.clickhouse.client.api.data_formats.RowBinaryFormatSerializer#writeValuePreamble},
+     * but a {@code QBit} nested inside a container ({@code Tuple}/{@code Map}/{@code Array}) is written
+     * through {@link #serializeNestedData}, which does not route a non-nullable element through that
+     * preamble; without this guard the {@code null} would delegate to {@link #serializeArrayData} and
+     * be written as a zero-length vector (var-int {@code 0}), again desynchronizing the stream. (A
+     * {@code Nullable(QBit)} {@code null} never reaches here: its null-marker is written earlier by the
+     * preamble or by {@link #serializeNestedData}, which then return.)
+     */
+    private static void serializeQBitData(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
+        if (value == null) {
+            throw new IllegalArgumentException("QBit column '" + column.getColumnName()
+                    + "' cannot be null; expected exactly " + column.getPrecision() + " elements");
+        }
+        int length;
+        if (value.getClass().isArray()) {
+            length = Array.getLength(value);
+        } else if (value instanceof List) {
+            length = ((List<?>) value).size();
+        } else {
+            throw new IllegalArgumentException("QBit column '" + column.getColumnName()
+                    + "' expects a Java array or List of its element type but got "
+                    + value.getClass().getName());
+        }
+        int dimension = column.getPrecision();
+        if (length != dimension) {
+            throw new IllegalArgumentException("QBit column '" + column.getColumnName()
+                    + "' expects exactly " + dimension + " elements but got " + length);
+        }
+        serializeArrayData(stream, value, column);
     }
 
     /**

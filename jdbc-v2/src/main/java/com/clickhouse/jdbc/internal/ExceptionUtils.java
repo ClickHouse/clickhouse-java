@@ -4,8 +4,6 @@ import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.ClientMisconfigurationException;
 import com.clickhouse.client.api.ConnectionInitiationException;
 import com.clickhouse.client.api.ServerException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.net.MalformedURLException;
 import java.sql.SQLDataException;
@@ -15,7 +13,6 @@ import java.sql.SQLException;
  * Helper class for building {@link SQLException}.
  */
 public final class ExceptionUtils {
-    private static final Logger log = LoggerFactory.getLogger(ExceptionUtils.class);
     public static final String SQL_STATE_CLIENT_ERROR = "HY000";
     public static final String SQL_STATE_OPERATION_CANCELLED = "HY008";
     public static final String SQL_STATE_CONNECTION_EXCEPTION = "08000";
@@ -50,8 +47,6 @@ public final class ExceptionUtils {
      * @return Converted {@link SQLException}
      */
     public static SQLException toSqlState(String message, String debugMessage, Exception cause) {
-        log.debug("Exception Message: {}, Debug message: {}", message, debugMessage, cause);
-
         if (cause == null) {
             return new SQLException(message == null ? "Unknown client error" : message, SQL_STATE_CLIENT_ERROR);
         }

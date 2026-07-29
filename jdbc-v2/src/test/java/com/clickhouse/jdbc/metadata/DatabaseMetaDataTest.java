@@ -12,6 +12,9 @@ import org.testng.Assert;
 import org.testng.SkipException;
 import org.testng.annotations.Test;
 
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
+import java.lang.reflect.Field;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
@@ -519,6 +522,66 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
             assertFalse(rs.next());
             rs.close();
         }
+    }
+
+    /**
+     * Regression test for issue #2970. {@code DatabaseMetaDataImpl} previously logged through the
+     * deprecated {@code com.clickhouse.logging} facade, which formats with {@link java.util.Formatter}
+     * ({@code %s}); its SLF4J-style {@code "{}"} placeholders therefore rendered literally instead of
+     * substituting the arguments. The class was migrated to SLF4J so the placeholders substitute.
+     *
+     * <p>The migration is pinned deterministically by asserting the logger facade is an
+     * {@link org.slf4j.Logger} (independent of the active logging backend or level): the old
+     * {@code com.clickhouse.logging.Logger} is a different type, so a revert fails this assertion.
+     * When DEBUG is enabled for this logger — the default test binding via {@code simplelogger.properties}
+     * — the test additionally captures {@code System.err} around a {@code getTables} call and confirms the
+     * emitted DEBUG line substitutes its arguments at runtime. Some CI jobs (e.g. the coverage job) run
+     * without {@code simplelogger.properties}, disabling DEBUG; there the capture is skipped and the facade
+     * assertion still guards the regression.
+     */
+    @Test(groups = { "integration" })
+    public void testGetTablesDebugSubstitutesPlaceholders() throws Exception {
+        Field logField = DatabaseMetaDataImpl.class.getDeclaredField("log");
+        logField.setAccessible(true);
+        Object logger = logField.get(null);
+        assertTrue(logger instanceof org.slf4j.Logger,
+                "DatabaseMetaDataImpl must log via org.slf4j.Logger so '{}' placeholders substitute, was: "
+                        + (logger == null ? "null" : logger.getClass().getName()));
+
+        // slf4j-simple derives a logger's level at creation time from simplelogger.properties / system
+        // properties; the coverage CI job strips simplelogger.properties, so DEBUG is off there and there
+        // is nothing to capture. Only attempt the runtime capture when DEBUG is actually emitted.
+        if (!((org.slf4j.Logger) logger).isDebugEnabled()) {
+            return;
+        }
+
+        final String schemaProbe = "log_placeholder_probe_" + System.nanoTime();
+        final ByteArrayOutputStream captured = new ByteArrayOutputStream();
+        final PrintStream originalErr = System.err;
+        final String logged;
+        try (Connection conn = getJdbcConnection()) {
+            DatabaseMetaData dbmd = conn.getMetaData();
+            // slf4j-simple (the jdbc-v2 test binding) writes to System.err, so the getTables entry log
+            // is emitted and captured here.
+            System.setErr(new PrintStream(captured, true, "UTF-8"));
+            try (ResultSet rs = dbmd.getTables(null, schemaProbe, "no_such_table%", null)) {
+                // getTables logs its four arguments at DEBUG on entry; the lookup itself matches nothing.
+            } finally {
+                System.err.flush();
+                System.setErr(originalErr);
+            }
+            logged = captured.toString("UTF-8");
+        }
+        // The logger-facade assertion above is the deterministic guard; the System.err capture is
+        // best-effort (a cached stream or a non-slf4j-simple binding could yield nothing), so the
+        // substitution assertions only run when output was actually captured.
+        if (logged.isEmpty()) {
+            return;
+        }
+        assertFalse(logged.contains("catalog={}"),
+                "getTables logged a literal '{}' placeholder instead of substituting its arguments:\n" + logged);
+        assertTrue(logged.contains(schemaProbe),
+                "getTables did not substitute the schemaPattern argument into its DEBUG log:\n" + logged);
     }
 
 
