@@ -64,14 +64,36 @@ public class ArrayResultSet implements ResultSet {
         this.column = column;
         this.columnCount = 2; // INDEX, VALUE
 
-        List<ClickHouseColumn> nestedColumns = column.getNestedColumns();
-        ClickHouseColumn valueColumn = column.getArrayNestedLevel() == 1 ? column.getArrayBaseColumn() : nestedColumns.get(0);
+        ClickHouseColumn valueColumn = elementColumn(column);
         this.metadata = new ResultSetMetaDataImpl(Arrays.asList(INDEX_COLUMN, ClickHouseColumn.parse(VALUE_COLUMN + " "
         + valueColumn.getOriginalTypeName()).get(0))
                 , "", "", "", JdbcUtils.DATA_TYPE_CLASS_MAP, java.util.Collections.emptyMap());
         this.componentDataType = valueColumn.getDataType();
         this.defaultClass = JdbcUtils.DATA_TYPE_CLASS_MAP.get(componentDataType);
         indexConverterMap = defaultValueConverters.getConvertersForType(Integer.class);
+    }
+
+    /**
+     * Resolves the type of a single element of {@code column} (an array-like column). A
+     * {@code Nested(f1 T1, ..., fN TN)} column is read as an array whose elements are
+     * {@code Tuple(f1 T1, ..., fN TN)}, so its element is that tuple rather than the first nested
+     * field; every other array-like column keeps its existing base/nested-column resolution.
+     */
+    private static ClickHouseColumn elementColumn(ClickHouseColumn column) {
+        List<ClickHouseColumn> nestedColumns = column.getNestedColumns();
+        if (column.isNested()) {
+            StringBuilder tupleType = new StringBuilder(ClickHouseDataType.Tuple.name()).append('(');
+            for (int i = 0; i < nestedColumns.size(); i++) {
+                ClickHouseColumn field = nestedColumns.get(i);
+                if (i > 0) {
+                    tupleType.append(", ");
+                }
+                tupleType.append(field.getColumnName()).append(' ').append(field.getOriginalTypeName());
+            }
+            tupleType.append(')');
+            return ClickHouseColumn.of(VALUE_COLUMN, tupleType.toString());
+        }
+        return column.getArrayNestedLevel() == 1 ? column.getArrayBaseColumn() : nestedColumns.get(0);
     }
 
     @Override
@@ -139,9 +161,7 @@ public class ArrayResultSet implements ResultSet {
             }
 
             if (type == Array.class) {
-                ClickHouseColumn nestedColumn =
-                        column.getArrayNestedLevel() == 1 ? column.getArrayBaseColumn() : column.getNestedColumns().get(0);
-                return new com.clickhouse.jdbc.types.Array(nestedColumn, JdbcUtils.arrayToObjectArray(value));
+                return new com.clickhouse.jdbc.types.Array(elementColumn(column), JdbcUtils.arrayToObjectArray(value));
             } else {
                 Map<Class<?>, Function<Object, Object>> valueConverterMap = initValueConverterMapIfNeeded(value);
                 return convertValue(value, type, valueConverterMap);

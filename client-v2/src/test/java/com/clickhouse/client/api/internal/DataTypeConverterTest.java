@@ -42,6 +42,16 @@ public class DataTypeConverterTest {
     }
 
     @Test
+    public void testQBitToString() {
+        DataTypeConverter converter = new DataTypeConverter();
+
+        assertEquals(converter.convertToString(new float[] {1.0f, 2.0f, 3.0f},
+                ClickHouseColumn.of("v", "QBit(Float32, 3)")), "[1.0, 2.0, 3.0]");
+        assertEquals(converter.convertToString(new double[] {1.0d, 2.0d, 3.0d},
+                ClickHouseColumn.of("v", "QBit(Float64, 3)")), "[1.0, 2.0, 3.0]");
+    }
+
+    @Test
     public void testListToString() {
         DataTypeConverter converter = new DataTypeConverter();
         ClickHouseColumn column = ClickHouseColumn.of("field", "Array(Int32)");
