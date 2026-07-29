@@ -35,6 +35,12 @@
   `com.clickhouse.logging` facade (which formats with `java.util.Formatter`) to SLF4J so their `{}`
   placeholders render correctly — previously the `DatabaseMetaData.getTables` `DEBUG` line printed literal
   `{}` instead of the argument values.
+- **[client-v2]** Fixed the `RowBinary` writer throwing
+  `UnsupportedOperationException: Unsupported data type: SimpleAggregateFunction` when inserting into a
+  `SimpleAggregateFunction(func, T)` column (the reader already supported these columns). The value is now
+  serialized identically to its underlying type `T`, writing the `Nullable` null-marker byte when the
+  underlying type is nullable (e.g. `SimpleAggregateFunction(anyLast, Nullable(String))`), mirroring the
+  read path. (https://github.com/ClickHouse/clickhouse-java/issues/2477)
 - **[client-v2, jdbc-v2]** Fixed several logging-layer defects. In `client-v2`, `HttpAPIClientHelper.shouldRetry`
   threw a `ClassCastException` when a retryable `ServerException` was wrapped as the *cause* of another exception
   (the branch matched on the cause but the cast used the outer exception); the retry decision is now taken from

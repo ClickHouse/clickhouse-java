@@ -73,6 +73,15 @@ public class SerializerUtils {
             case Map:
                 serializeMapData(stream, value, column);
                 break;
+            case SimpleAggregateFunction:
+                // A SimpleAggregateFunction(func, T) value serializes identically to its underlying
+                // type T. This is a deliberate exception to serializeNestedData's "nested elements
+                // only" contract: the SAF wrapper is itself non-nullable, so writeValuePreamble emits
+                // no null-marker for a top-level SAF column, yet a Nullable underlying still needs one.
+                // serializeNestedData writes that marker iff the underlying is nullable, mirroring
+                // BinaryStreamReader's read path.
+                serializeNestedData(stream, value, column.getNestedColumns().get(0));
+                break;
             case AggregateFunction:
                 serializeAggregateFunction(stream, value, column);
                 break;
@@ -118,7 +127,10 @@ public class SerializerUtils {
      * {@code 0x01} when null), as the server expects for {@code Nullable} sub-columns in
      * {@code RowBinary}. For a top-level column this marker is instead written by
      * {@link com.clickhouse.client.api.data_formats.RowBinaryFormatSerializer#writeValuePreamble},
-     * so this helper must only be used for nested elements.
+     * so this helper is normally used only for nested elements. The one deliberate exception is a
+     * top-level {@code SimpleAggregateFunction} column: its wrapper is itself non-nullable (so
+     * {@code writeValuePreamble} writes no marker), but its underlying type may be {@code Nullable}
+     * and still needs the marker, which this helper supplies.
      */
     private static void serializeNestedData(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
         if (column.isNullable()) {
