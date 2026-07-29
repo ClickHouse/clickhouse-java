@@ -30,7 +30,18 @@
   single consolidated retry `WARN` (operation, attempt, endpoint, query id and cause) rather than a
   transport `WARN` followed by a stack-trace `WARN`; the two per-operation compression `DEBUG`s were removed
   (compression settings are already logged once at initialization); and the LZ4 compressor/decompressor
-  `DEBUG`s now report the algorithm and buffer size instead of an unusable object identity.
+  `DEBUG`s now report the algorithm and buffer size instead of an unusable object identity. The `jdbc-v2`
+  `DatabaseMetaDataImpl` and `ClickHouseSqlParser` were also migrated from the deprecated
+  `com.clickhouse.logging` facade (which formats with `java.util.Formatter`) to SLF4J so their `{}`
+  placeholders render correctly — previously the `DatabaseMetaData.getTables` `DEBUG` line printed literal
+  `{}` instead of the argument values.
+- **[client-v2, jdbc-v2]** Fixed several logging-layer defects. In `client-v2`, `HttpAPIClientHelper.shouldRetry`
+  threw a `ClassCastException` when a retryable `ServerException` was wrapped as the *cause* of another exception
+  (the branch matched on the cause but the cast used the outer exception); the retry decision is now taken from
+  whichever exception is the `ServerException`. Also in `client-v2`, a failure to build the HTTP client version
+  string is now logged at `WARN` with the throwable attached instead of a bare `INFO` message that discarded the
+  cause. In `jdbc-v2`, a failure to close the response after a query error now logs the close failure itself
+  instead of the already-propagated outer exception. (https://github.com/ClickHouse/clickhouse-java/issues/2968)
 
 - **[client-v2]** Fixed scalar `String` query parameters containing a tab (`0x09`), newline
   (`0x0a`) or backslash being mishandled through the server's `param_<name>` interface. A `{name:String}`

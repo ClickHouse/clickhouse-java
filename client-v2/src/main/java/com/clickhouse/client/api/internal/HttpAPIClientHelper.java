@@ -1023,7 +1023,7 @@ public class HttpAPIClientHelper {
 
         // there are some db retryable error codes
         if (ex instanceof ServerException || ex.getCause() instanceof ServerException) {
-            ServerException se = (ServerException) ex;
+            ServerException se = (ServerException) (ex instanceof ServerException ? ex : ex.getCause());
             return se.isRetryable() && retryCauses.contains(ClientFaultCause.ServerRetryable);
         }
 
@@ -1118,7 +1118,7 @@ public class HttpAPIClientHelper {
                     .append('/')
                     .append(httpClientVersion);
         } catch (Exception e) {
-            LOG.info("failed to construct http client version string");
+            LOG.warn("failed to construct http client version string", e);
         }
         return userAgent.toString();
     }
