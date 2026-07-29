@@ -95,8 +95,8 @@ public class NativeFormatReader extends AbstractBinaryFormatReader {
             if (isNativeDecodableQBit(column)) {
                 // A plain top-level QBit column is transmitted in the Native format using its internal
                 // bit-plane-transposed layout, decoded here into one vector per row (see
-                // BinaryStreamReader#readQBitColumn).
-                values = binaryStreamReader.readQBitColumn(column, nRows);
+                // BinaryStreamReader#readQBitNative).
+                values = binaryStreamReader.readQBitNative(column, nRows);
             } else if (containsQBit(column)) {
                 // A QBit that is strided, wrapped in Nullable/LowCardinality, or nested inside another
                 // type (e.g. Map(String, QBit(...))) uses a Native layout this reader does not decode.

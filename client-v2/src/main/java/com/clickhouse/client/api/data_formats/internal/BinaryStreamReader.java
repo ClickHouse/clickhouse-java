@@ -663,33 +663,18 @@ public class BinaryStreamReader {
     }
 
     /**
-     * Reads a plain, non-strided {@code QBit(element_type, dimension)} column from the Native
-     * (columnar) format, decoding the server's internal bit-plane-transposed representation into one
-     * vector per row of the current block.
-     * <p>
-     * Unlike RowBinary — where a {@code QBit} is transmitted element-by-element exactly like
-     * {@code Array(element_type)} (see {@link #readQBit}) — the Native format serializes a
-     * {@code QBit} column as its internal {@code Tuple(FixedString(S), ...)} of {@code element_size}
-     * bit planes, column-major: each plane holds {@code S = ceil(dimension / 8)} bytes per row and the
-     * planes are laid out one after another for the whole block
-     * ({@code plane0[row0..rowN-1] plane1[row0..rowN-1] ...}). Bit plane {@code p} carries bit
-     * {@code (element_size - 1 - p)} of every element (most-significant plane first); within a plane's
-     * {@code S} bytes the element at index {@code j} sits at byte {@code (bitIndex >> 3)}, bit
-     * {@code (bitIndex & 7)}, where {@code bitIndex = (S * 8 - 1) - (j ^ 7)} (the {@code ^ 7} flips the
-     * order inside each group of eight). This is the exact inverse of ClickHouse's
-     * {@code SerializationQBit::transposeBits}.
-     * <p>
-     * Values are materialized identically to {@link #readQBit} — a {@code float[]} for
-     * {@code Float32}/{@code BFloat16} and a {@code double[]} for {@code Float64}, wrapped through
-     * {@link #convertArray} with the same default type hint — so a {@code QBit} read over the Native
-     * and RowBinary formats yields equal values.
+     * Reads a plain, non-strided {@code QBit(element_type, dimension)} column from the Native format,
+     * decoding the server's internal bit-plane-transposed layout (the exact inverse of ClickHouse's
+     * {@code SerializationQBit::transposeBits}) into one vector per row of the current block. Values
+     * are materialized identically to the RowBinary path ({@link #readQBit}), so a {@code QBit} read
+     * over either format yields equal values. The per-byte/bit layout is described inline below.
      *
      * @param column QBit column information (element type in the nested column, dimension in precision)
      * @param nRows  number of rows in the current block
      * @return one materialized vector per row, in row order
      * @throws IOException when an IO error occurs
      */
-    public List<Object> readQBitColumn(ClickHouseColumn column, int nRows) throws IOException {
+    public List<Object> readQBitNative(ClickHouseColumn column, int nRows) throws IOException {
         ClickHouseDataType elementType = column.getNestedColumns().get(0).getDataType();
         final boolean isDouble = elementType == ClickHouseDataType.Float64;
         final boolean isBFloat16 = elementType == ClickHouseDataType.BFloat16;
