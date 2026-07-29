@@ -5,6 +5,9 @@ import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.lang.reflect.Field;
 import java.sql.Connection;
 import java.sql.JDBCType;
 import java.sql.PreparedStatement;
@@ -77,5 +80,70 @@ public class WriterStatementImplTest extends JdbcIntegrationTest {
                 }
             }
         }
+    }
+
+    /**
+     * The writer's cleanup paths must be defensive: if the backing buffer fails to close, both the
+     * post-insert reset (in {@code executeUpdate()}'s {@code finally}) and {@link WriterStatementImpl#close()}
+     * must swallow the failure after logging it at DEBUG, never surfacing an I/O error from cleanup. A buffer
+     * that throws on close is injected to exercise both catch blocks deterministically.
+     */
+    @Test(groups = {"integration"})
+    public void testWriterCleanupSwallowsBufferCloseFailure() throws Exception {
+        String table = "bt_writer_cleanup_close_fail";
+        Properties properties = new Properties();
+        properties.setProperty(DriverProperties.BETA_ROW_BINARY_WRITER.getKey(), "true");
+        properties.setProperty(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF);
+        try (Connection connection = getJdbcConnection(properties)) {
+            try (Statement stmt = connection.createStatement()) {
+                stmt.execute("DROP TABLE IF EXISTS " + table);
+                stmt.execute("CREATE TABLE " + table + " (field1 Int32) Engine MergeTree ORDER BY ()");
+            }
+
+            final int[] closeAttempts = {0};
+            PreparedStatement ps = connection.prepareStatement("INSERT INTO " + table + " (field1) VALUES (?)");
+            Assert.assertTrue(ps instanceof WriterStatementImpl);
+
+            // Replace the writer's backing buffer with one that fails on close, so both cleanup paths hit
+            // their defensive catch blocks: executeUpdate()'s finally -> resetWriter(), and close().
+            Field outField = WriterStatementImpl.class.getDeclaredField("out");
+            outField.setAccessible(true);
+            outField.set(ps, new ByteArrayOutputStream() {
+                @Override
+                public void close() throws IOException {
+                    closeAttempts[0]++;
+                    throw new IOException("injected buffer close failure");
+                }
+            });
+
+            // executeUpdate()'s finally resets the writer, closing the buffer; the injected failure must be
+            // swallowed (an empty insert may error server-side, but the close failure must never be the cause).
+            try {
+                ps.executeUpdate();
+            } catch (SQLException e) {
+                Assert.assertFalse(hasInjectedCause(e),
+                        "resetWriter()'s buffer-close failure must be swallowed, not surfaced: " + e);
+            }
+
+            // close() also closes the buffer; it must swallow the failure and not throw.
+            ps.close();
+
+            Assert.assertTrue(closeAttempts[0] >= 2,
+                    "both executeUpdate()'s resetWriter and close() must attempt to close the writer buffer and "
+                            + "swallow the failure; observed close attempts = " + closeAttempts[0]);
+
+            try (Statement stmt = connection.createStatement()) {
+                stmt.execute("DROP TABLE IF EXISTS " + table);
+            }
+        }
+    }
+
+    private static boolean hasInjectedCause(Throwable t) {
+        for (Throwable c = t; c != null; c = c.getCause()) {
+            if (c instanceof IOException && "injected buffer close failure".equals(c.getMessage())) {
+                return true;
+            }
+        }
+        return false;
     }
 }
