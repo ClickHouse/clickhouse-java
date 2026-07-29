@@ -23,7 +23,7 @@ public class RowBinaryWithNamesFormatReader extends AbstractBinaryFormatReader {
                                           TableSchema schema,
                                           BinaryStreamReader.ByteBufferAllocator byteBufferAllocator,
                                           Map<ClickHouseDataType, Class<?>> typeHintMapping) {
-        super(inputStream, querySettings, schema, byteBufferAllocator,  typeHintMapping);
+        super(inputStream, querySettings, schema, byteBufferAllocator, typeHintMapping);
         int nCol = 0;
         try {
             nCol = BinaryStreamReader.readVarInt(input);

@@ -13,6 +13,7 @@ import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.InetAddress;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -26,7 +27,7 @@ import java.util.UUID;
 public class SerializerUtilsTest {
     private BinaryStreamReader newReader(byte[] data) {
         return new BinaryStreamReader(new ByteArrayInputStream(data), TimeZone.getTimeZone("UTC"), null,
-                new BinaryStreamReader.DefaultByteBufferAllocator(), false, null);
+                new BinaryStreamReader.DefaultByteBufferAllocator(), false, null, false);
     }
 
     @Test
@@ -411,6 +412,47 @@ public class SerializerUtilsTest {
         };
     }
 
+    @Test(dataProvider = "simpleAggregateFunctionData")
+    public void testSimpleAggregateFunctionRoundTrip(String typeName, Object value) throws Exception {
+        ClickHouseColumn column = ClickHouseColumn.of("v", typeName);
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        SerializerUtils.serializeData(out, value, column);
+
+        Object actual = newReader(out.toByteArray()).readValue(column);
+        Assert.assertEquals(normalize(actual), normalize(value));
+    }
+
+    @DataProvider(name = "simpleAggregateFunctionData")
+    private Object[][] simpleAggregateFunctionData() {
+        return new Object[][] {
+                // Top-level SAF columns - the exact shape reported in the bug, reached directly
+                // through the serializeData switch's SimpleAggregateFunction case.
+                {"SimpleAggregateFunction(sum, UInt64)", BigInteger.valueOf(42)},
+                {"SimpleAggregateFunction(anyLast, Nullable(String))", "present"},
+
+                // A SimpleAggregateFunction(func, T) value serializes byte-identically to its
+                // underlying type T. Each SAF below sits in the MIDDLE of the schema between a
+                // leading Int32 and a trailing Float64, so a dropped or extra byte (such as a
+                // wrongly written null-marker) shifts the trailing Float64 and is detected
+                // positionally. The assertion compares the whole row.
+
+                // Non-nullable fixed-width underlying: no null-marker byte precedes the value.
+                {"Tuple(Int32, SimpleAggregateFunction(sum, UInt64), Float64)",
+                        Arrays.asList(7, BigInteger.valueOf(42), 9.5d)},
+                // Non-nullable variable-length underlying: still no marker. This is the contrast
+                // case - it would misalign if the SAF branch unconditionally wrote a marker.
+                {"Tuple(Int32, SimpleAggregateFunction(anyLast, String), Float64)",
+                        Arrays.asList(7, "kept", 9.5d)},
+                // Nullable underlying, value present: a single present-marker (0x00) precedes it.
+                {"Tuple(Int32, SimpleAggregateFunction(anyLast, Nullable(String)), Float64)",
+                        Arrays.asList(7, "opt", 9.5d)},
+                // Nullable underlying, value null: a single null-marker (0x01) and no value.
+                {"Tuple(Int32, SimpleAggregateFunction(anyLast, Nullable(String)), Float64)",
+                        Arrays.asList(7, null, 9.5d)},
+        };
+    }
+
     // Normalizes Tuple (Object[]) and Array (ArrayValue / List) results to nested Lists so
     // round-tripped values compare structurally regardless of the container representation the
     // reader returns.
@@ -444,6 +486,129 @@ public class SerializerUtilsTest {
             map.put(kv[i], kv[i + 1]);
         }
         return map;
+    }
+
+    @Test
+    public void testReadNestedReadsArrayOfTuples() throws Exception {
+        ClickHouseColumn nested = ClickHouseColumn.of("n", "Nested(a String, b Int32)");
+        List<ClickHouseColumn> fields = nested.getNestedColumns();
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        SerializerUtils.writeVarInt(out, 2);
+        SerializerUtils.serializeData(out, "x", fields.get(0));
+        SerializerUtils.serializeData(out, 1, fields.get(1));
+        SerializerUtils.serializeData(out, "y", fields.get(0));
+        SerializerUtils.serializeData(out, 2, fields.get(1));
+
+        BinaryStreamReader.ArrayValue array = newReader(out.toByteArray()).readNested(nested);
+        Assert.assertEquals(array.length(), 2);
+        Assert.assertEquals((Object[]) array.get(0), new Object[]{"x", 1});
+        Assert.assertEquals((Object[]) array.get(1), new Object[]{"y", 2});
+    }
+
+    @Test
+    public void testReadNestedEmpty() throws Exception {
+        ClickHouseColumn nested = ClickHouseColumn.of("n", "Nested(a String, b Int32)");
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        SerializerUtils.writeVarInt(out, 0);
+
+        BinaryStreamReader.ArrayValue array = newReader(out.toByteArray()).readNested(nested);
+        Assert.assertEquals(array.length(), 0);
+    }
+
+    @Test
+    public void testReadValueOnNestedColumnReturnsArrayOfTuples() throws Exception {
+        ClickHouseColumn nested = ClickHouseColumn.of("n", "Nested(a String, b Int32)");
+        List<ClickHouseColumn> fields = nested.getNestedColumns();
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        SerializerUtils.writeVarInt(out, 1);
+        SerializerUtils.serializeData(out, "only", fields.get(0));
+        SerializerUtils.serializeData(out, 42, fields.get(1));
+
+        Object value = newReader(out.toByteArray()).readValue(nested);
+        Assert.assertTrue(value instanceof BinaryStreamReader.ArrayValue,
+                "Nested column must read back as an ArrayValue");
+        BinaryStreamReader.ArrayValue array = (BinaryStreamReader.ArrayValue) value;
+        Assert.assertEquals(array.length(), 1);
+        Assert.assertEquals((Object[]) array.get(0), new Object[]{"only", 42});
+    }
+
+    @Test
+    public void testWriteFixedStringBytesPadsShorterValue() throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        SerializerUtils.writeFixedStringBytes(out, new byte[]{1, 2}, 5);
+        Assert.assertEquals(out.toByteArray(), new byte[]{1, 2, 0, 0, 0});
+    }
+
+    @Test
+    public void testWriteFixedStringBytesWritesExactLength() throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        SerializerUtils.writeFixedStringBytes(out, new byte[]{1, 2, 3}, 3);
+        Assert.assertEquals(out.toByteArray(), new byte[]{1, 2, 3});
+    }
+
+    @Test
+    public void testWriteFixedStringBytesEmptyValueIsAllPadding() throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        SerializerUtils.writeFixedStringBytes(out, new byte[0], 3);
+        Assert.assertEquals(out.toByteArray(), new byte[]{0, 0, 0});
+    }
+
+    @Test
+    public void testWriteFixedStringBytesRejectsValueLongerThanLength() {
+        Assert.assertThrows(IllegalArgumentException.class,
+                () -> SerializerUtils.writeFixedStringBytes(new ByteArrayOutputStream(),
+                        new byte[]{1, 2, 3, 4}, 3));
+    }
+
+    // stringValueToString / stringValueToByteArray are invoked from the bytecode generated for POJO setters.
+    // They are exercised end-to-end in StringValueTests, but these unit tests pin every input branch directly
+    // so the behaviour is locked in even if the set of column types that reach them is extended later.
+
+    @Test
+    public void testStringValueToStringPassesThroughNull() {
+        Assert.assertNull(SerializerUtils.stringValueToString(null));
+    }
+
+    @Test
+    public void testStringValueToStringDecodesStringValue() {
+        StringValue value = new StringValue("héllo".getBytes(StandardCharsets.UTF_8));
+        Assert.assertEquals(SerializerUtils.stringValueToString(value), "héllo");
+    }
+
+    @Test
+    public void testStringValueToStringReturnsPlainStringAsIs() {
+        String value = "plain";
+        Assert.assertSame(SerializerUtils.stringValueToString(value), value);
+    }
+
+    @Test
+    public void testStringValueToByteArrayPassesThroughNull() {
+        Assert.assertNull(SerializerUtils.stringValueToByteArray(null));
+    }
+
+    @Test
+    public void testStringValueToByteArrayPreservesStringValueBytes() {
+        // Non-UTF-8 bytes must survive without re-encoding.
+        byte[] binary = {(byte) 0xDE, (byte) 0xAD, (byte) 0x00, (byte) 0xBE, (byte) 0xEF};
+        StringValue value = new StringValue(binary);
+        Assert.assertEquals(SerializerUtils.stringValueToByteArray(value), binary);
+    }
+
+    @Test
+    public void testStringValueToByteArrayEncodesStringAsUtf8() {
+        Assert.assertEquals(SerializerUtils.stringValueToByteArray("héllo"),
+                "héllo".getBytes(StandardCharsets.UTF_8));
+    }
+
+    @Test
+    public void testStringValueToByteArrayPassesThroughByteArray() {
+        // This is the branch that lets future string-backed columns (e.g. Array(UInt8)) reuse the helper:
+        // a value that is already a byte[] must be returned unchanged, not re-wrapped or copied.
+        byte[] bytes = {1, 2, 3};
+        Assert.assertSame(SerializerUtils.stringValueToByteArray(bytes), bytes);
     }
 
     private void assertCustomGeoTypeTag(String typeName) throws Exception {

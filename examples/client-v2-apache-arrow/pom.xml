@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd"
+    xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.clickhouse</groupId>
+    <artifactId>client-v2-apache-arrow-examples</artifactId>
+    <version>1.0.0</version>
+    <packaging>jar</packaging>
+
+    <name>Client V2 Apache Arrow Examples</name>
+    <description>Client V2 Apache Arrow Examples</description>
+    <url>https://github.com/ClickHouse/clickhouse-java</url>
+    <inceptionYear>2026</inceptionYear>
+
+    <organization>
+        <name>ClickHouse, Inc.</name>
+        <url>https://clickhouse.com/</url>
+    </organization>
+
+    <licenses>
+        <license>
+            <name>The Apache Software License, Version 2.0</name>
+            <url>http://www.apache.org/licenses/LICENSE-2.0</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <scm>
+        <url>https://github.com/ClickHouse/clickhouse-java</url>
+        <connection>scm:git@github.com:ClickHouse/clickhouse-java.git</connection>
+        <developerConnection>scm:git@github.com:ClickHouse/clickhouse-java.git</developerConnection>
+        <tag>HEAD</tag>
+    </scm>
+
+    <repositories>
+        <repository>
+            <!-- This repository will be used for snapshots. If you want to use a local build of clickhouse-java, you need to comment out this repository -->
+            <id>ossrh</id>
+            <name>Sonatype OSSRH</name>
+            <url>https://central.sonatype.com/repository/maven-snapshots/</url>
+            <releases>
+                <enabled>false</enabled>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
+
+    <properties>
+        <project.current.year>2026</project.current.year>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+
+        <clickhouse-java.version>0.10.0-rc1-SNAPSHOT</clickhouse-java.version>
+        <arrow.version>19.0.0</arrow.version>
+        <slf4j.version>2.0.17</slf4j.version>
+        <testng.version>7.5.1</testng.version>
+
+        <compiler-plugin.version>3.8.1</compiler-plugin.version>
+        <exec-plugin.version>3.1.0</exec-plugin.version>
+
+        <!-- Apache Arrow 19 requires JDK 11+; this example targets 17. -->
+        <minJdk>17</minJdk>
+        <clickhouse-packages.classifier>all</clickhouse-packages.classifier>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <!-- BOM used to keep versions consistent across all Arrow libraries -->
+            <dependency>
+                <groupId>org.apache.arrow</groupId>
+                <artifactId>arrow-bom</artifactId>
+                <version>${arrow.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.clickhouse</groupId>
+            <artifactId>client-v2</artifactId>
+            <version>${clickhouse-java.version}</version>
+            <classifier>${clickhouse-packages.classifier}</classifier>
+        </dependency>
+
+        <!-- Apache Arrow support (versions managed by arrow-bom above) -->
+        <dependency>
+            <groupId>org.apache.arrow</groupId>
+            <artifactId>arrow-vector</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.arrow</groupId>
+            <artifactId>arrow-memory-netty</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.arrow</groupId>
+            <artifactId>arrow-compression</artifactId>
+        </dependency>
+
+        <!-- Logging -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>${slf4j.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-simple</artifactId>
+            <version>${slf4j.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.testng</groupId>
+            <artifactId>testng</artifactId>
+            <version>${testng.version}</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>${compiler-plugin.version}</version>
+                <configuration>
+                    <source>${minJdk}</source>
+                    <target>${minJdk}</target>
+                    <showWarnings>true</showWarnings>
+                    <compilerArgs>
+                        <arg>-Xlint:all</arg>
+                    </compilerArgs>
+                </configuration>
+            </plugin>
+
+            <!--
+                Run the example with:  mvn compile exec:java
+                Connection settings can be supplied as system properties, e.g.
+                  mvn compile exec:java -DchEndpoint=http://localhost:8123 -DchUser=default
+                Apache Arrow needs access to direct memory and a few internal JDK APIs; the
+                required add-opens flags are applied to the Maven JVM through .mvn/jvm.config,
+                so exec:java (which runs in the Maven JVM) has them available.
+            -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>${exec-plugin.version}</version>
+                <configuration>
+                    <mainClass>com.clickhouse.examples.arrow_format.ReadWriteArrow</mainClass>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

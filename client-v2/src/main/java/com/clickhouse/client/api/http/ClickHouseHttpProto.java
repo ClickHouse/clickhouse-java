@@ -84,6 +84,12 @@ public class ClickHouseHttpProto {
      */
     public static final String QPARAM_QUERY_STMT = "query";
 
+    public static final String QPARAM_ENABLE_HTTP_COMPRESSION = "enable_http_compression";
+
+    public static final String QPARAM_COMPRESS = "compress";
+
+    public static final String QPARAM_DECOMPRESS = "decompress";
+
     public static final int DEFAULT_HTTP_PORT = 8123;
 
     public static final int DEFAULT_HTTPS_PORT = 8443;

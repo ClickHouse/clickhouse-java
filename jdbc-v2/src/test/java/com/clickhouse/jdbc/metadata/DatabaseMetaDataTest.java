@@ -1,6 +1,7 @@
 package com.clickhouse.jdbc.metadata;
 
 import com.clickhouse.client.ClickHouseServerForTest;
+import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseVersion;
 import com.clickhouse.jdbc.ClientInfoProperties;
@@ -143,6 +144,67 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
                 assertEquals(rs.getObject("DATA_TYPE"), Types.ARRAY);
                 assertEquals(rs.getString("TYPE_NAME"), "Array(Int8)");
                 assertFalse(rs.getBoolean("NULLABLE"));
+            }
+        }
+    }
+
+    /**
+     * Database metadata is materialized internally by querying ClickHouse system tables, whose results contain
+     * top-level {@code String} columns (e.g. {@code TABLE_NAME}, {@code COLUMN_NAME}, {@code TYPE_NAME}). When the
+     * connection enables {@code binary_string_support}, those reads must still surface proper {@link String} values
+     * so the JDBC metadata API keeps working unchanged.
+     */
+    @Test(groups = {"integration"})
+    public void testGetColumnsWithBinaryStringSupport() throws Exception {
+        Properties props = new Properties();
+        props.put(ClientConfigProperties.BINARY_STRING_SUPPORT.getKey(), "true");
+
+        try (Connection conn = getJdbcConnection(props)) {
+            final String tableName = "get_columns_binary_string_support_test";
+            try (Statement stmt = conn.createStatement()) {
+                stmt.executeUpdate("CREATE TABLE " + tableName +
+                        " (id Int32, name String NOT NULL, v1 Nullable(Int8), v2 Array(Int8)) " +
+                        "ENGINE MergeTree ORDER BY tuple()");
+            }
+
+            DatabaseMetaData dbmd = conn.getMetaData();
+
+            try (ResultSet rs = dbmd.getColumns(null, getDatabase(), tableName, null)) {
+                assertTrue(rs.next());
+                assertEquals(rs.getString("TABLE_SCHEM"), getDatabase());
+                assertEquals(rs.getString("TABLE_NAME"), tableName);
+                assertEquals(rs.getString("COLUMN_NAME"), "id");
+                assertEquals(rs.getInt("DATA_TYPE"), Types.INTEGER);
+                assertEquals(rs.getString("TYPE_NAME"), "Int32");
+                assertFalse(rs.getBoolean("NULLABLE"));
+
+                assertTrue(rs.next());
+                assertEquals(rs.getString("TABLE_NAME"), tableName);
+                assertEquals(rs.getString("COLUMN_NAME"), "name");
+                assertEquals(rs.getInt("DATA_TYPE"), Types.VARCHAR);
+                assertEquals(rs.getString("TYPE_NAME"), "String");
+                assertFalse(rs.getBoolean("NULLABLE"));
+
+                assertTrue(rs.next());
+                assertEquals(rs.getString("COLUMN_NAME"), "v1");
+                assertEquals(rs.getString("TYPE_NAME"), "Nullable(Int8)");
+                assertTrue(rs.getBoolean("NULLABLE"));
+
+                assertTrue(rs.next());
+                assertEquals(rs.getString("COLUMN_NAME"), "v2");
+                assertEquals(rs.getInt("DATA_TYPE"), Types.ARRAY);
+                assertEquals(rs.getString("TYPE_NAME"), "Array(Int8)");
+            }
+
+            // getTables exercises a different system-table query whose String columns must also stay String.
+            try (ResultSet rs = dbmd.getTables(null, getDatabase(), tableName, null)) {
+                assertTrue(rs.next());
+                assertEquals(rs.getString("TABLE_SCHEM"), getDatabase());
+                assertEquals(rs.getString("TABLE_NAME"), tableName);
+                Object tableNameObj = rs.getObject("TABLE_NAME");
+                assertTrue(tableNameObj instanceof String,
+                        "Metadata String columns must be plain String even with binary_string_support enabled, but got " +
+                                (tableNameObj == null ? "null" : tableNameObj.getClass().getName()));
             }
         }
     }

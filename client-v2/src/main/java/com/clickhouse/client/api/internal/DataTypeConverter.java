@@ -2,6 +2,7 @@ package com.clickhouse.client.api.internal;
 
 import com.clickhouse.client.api.ClickHouseException;
 import com.clickhouse.client.api.DataTypeUtils;
+import com.clickhouse.client.api.data_formats.internal.StringValue;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
@@ -104,7 +105,9 @@ public class DataTypeConverter {
         if (column.isArray()) {
             sb.append(QUOTE);
         }
-        if (bytesOrString instanceof CharSequence) {
+        if (bytesOrString instanceof StringValue) {
+            sb.append(((StringValue) bytesOrString).asString());
+        } else if (bytesOrString instanceof CharSequence) {
             sb.append(((CharSequence) bytesOrString));
         } else if (bytesOrString instanceof byte[]) {
             sb.append(new String((byte[]) bytesOrString));
@@ -260,9 +263,55 @@ public class DataTypeConverter {
         if (isParameterContainer(value)) {
             return convertParameterContainer(value);
         }
-        // Scalars (and null) are passed through unquoted: the server reads a scalar parameter value
-        // verbatim, so quoting it here would break parsing (e.g. Date, numbers, Identifier).
+        if (value instanceof CharSequence) {
+            // A scalar String parameter is read by the server with deserializeTextEscaped: a raw tab
+            // (0x09) or newline (0x0a) is treated as a field delimiter (failing the query with
+            // BAD_QUERY_PARAMETER) and a raw backslash starts an escape sequence (silently corrupting
+            // the value). Escape those three characters so any String value round-trips.
+            return escapeStringParameter((CharSequence) value);
+        }
+        // Other scalars (and null) have no escapable characters and are read verbatim by the server,
+        // so they are passed through unquoted (e.g. Date, numbers, Identifier).
         return String.valueOf(value);
+    }
+
+    /**
+     * Escapes a scalar {@code String} parameter value so it survives the server's
+     * {@code param_<name>} interface, which parses a {@code {name:String}} value with
+     * {@code deserializeTextEscaped}. Only the three characters that reader treats as structural are
+     * escaped: the backslash (it introduces an escape sequence, so a raw one silently corrupts the
+     * value), and the tab and newline (TSV field/row delimiters, so a raw one aborts the parse with
+     * {@code BAD_QUERY_PARAMETER}). Every other byte - carriage return, NUL, the single quote, UTF-8
+     * multi-byte sequences, etc. - is read verbatim by the server, so it is emitted unchanged.
+     * Escaping only this minimal set leaves a value that needs no escaping completely untouched, so
+     * {@code Identifier} values (which the server backtick-escapes itself) and pre-formatted
+     * {@code Array}/{@code Map} literals passed as a {@code String} still round-trip.
+     */
+    private String escapeStringParameter(CharSequence value) {
+        final int len = value.length();
+        StringBuilder sb = null; // created lazily; a value with nothing to escape allocates nothing
+        for (int i = 0; i < len; i++) {
+            char c = value.charAt(i);
+            String escaped;
+            switch (c) {
+                case '\\': escaped = "\\\\"; break;
+                case '\t': escaped = "\\t"; break;
+                case '\n': escaped = "\\n"; break;
+                default:   escaped = null;
+            }
+            if (escaped == null) {
+                if (sb != null) {
+                    sb.append(c);
+                }
+            } else {
+                if (sb == null) {
+                    sb = new StringBuilder(len + 8);
+                    sb.append(value, 0, i);
+                }
+                sb.append(escaped);
+            }
+        }
+        return sb == null ? value.toString() : sb.toString();
     }
 
     private boolean isParameterContainer(Object value) {
