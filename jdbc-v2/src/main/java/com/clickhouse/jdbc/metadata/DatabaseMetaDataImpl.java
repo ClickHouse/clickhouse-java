@@ -11,9 +11,9 @@ import com.clickhouse.jdbc.JdbcV2Wrapper;
 import com.clickhouse.jdbc.internal.DetachedResultSet;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.JdbcUtils;
-import com.clickhouse.logging.Logger;
-import com.clickhouse.logging.LoggerFactory;
 import com.google.common.collect.ImmutableMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
 import java.sql.JDBCType;
@@ -1132,7 +1132,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                 ClickHouseDataType dt = c.getDataType();
                 type = JdbcUtils.convertToSqlType(dt);
             } catch (Exception e) {
-                log.debug("Failed to convert column data type to SQL type: %s", typeName, e);
+                log.debug("Failed to convert column data type to SQL type: {}", typeName, e);
                 type = JDBCType.OTHER; // In case of error, return SQL type 0
             }
         }
@@ -1339,10 +1339,10 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
             try {
                 type = JdbcUtils.convertToSqlType(ClickHouseDataType.valueOf(typeName));
             } catch (IllegalArgumentException e) {
-                log.debug("Unknown type: %s. Please check for a new version of the client.", typeName);
+                log.debug("Unknown type: {}. Please check for a new version of the client.", typeName);
                 type = JDBCType.OTHER;
             } catch (Exception e) {
-                log.debug("Failed to get SQL type for type: %s", typeName, e);
+                log.debug("Failed to get SQL type for type: {}", typeName, e);
                 type = JDBCType.OTHER;
             }
         }

@@ -12,6 +12,8 @@ import org.testng.Assert;
 import org.testng.SkipException;
 import org.testng.annotations.Test;
 
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
@@ -519,6 +521,39 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
             assertFalse(rs.next());
             rs.close();
         }
+    }
+
+    /**
+     * Regression test for issue #2970. {@code DatabaseMetaDataImpl} logged through the deprecated
+     * {@code com.clickhouse.logging} facade, which formats with {@link java.util.Formatter} ({@code %s}).
+     * Its SLF4J-style {@code "{}"} placeholders (such as the {@code getTables} entry log) therefore rendered
+     * literally instead of substituting the arguments. After migrating the class to SLF4J the placeholders
+     * are substituted. Captures {@code System.err} (the slf4j-simple output target) around a {@code getTables}
+     * call and asserts the emitted DEBUG line substitutes its arguments rather than printing a literal "{}".
+     */
+    @Test(groups = { "integration" })
+    public void testGetTablesDebugSubstitutesPlaceholders() throws Exception {
+        final String schemaProbe = "log_placeholder_probe_" + System.nanoTime();
+        final ByteArrayOutputStream captured = new ByteArrayOutputStream();
+        final PrintStream originalErr = System.err;
+        final String logged;
+        try (Connection conn = getJdbcConnection()) {
+            DatabaseMetaData dbmd = conn.getMetaData();
+            // slf4j-simple (the jdbc-v2 test binding) writes to System.err, and simplelogger.properties
+            // enables DEBUG for com.clickhouse.jdbc, so the getTables entry log is emitted and captured here.
+            System.setErr(new PrintStream(captured, true, "UTF-8"));
+            try (ResultSet rs = dbmd.getTables(null, schemaProbe, "no_such_table%", null)) {
+                // getTables logs its four arguments at DEBUG on entry; the lookup itself matches nothing.
+            } finally {
+                System.err.flush();
+                System.setErr(originalErr);
+            }
+            logged = captured.toString("UTF-8");
+        }
+        assertFalse(logged.contains("catalog={}"),
+                "getTables logged a literal '{}' placeholder instead of substituting its arguments:\n" + logged);
+        assertTrue(logged.contains(schemaProbe),
+                "getTables did not substitute the schemaPattern argument into its DEBUG log:\n" + logged);
     }
 
 
