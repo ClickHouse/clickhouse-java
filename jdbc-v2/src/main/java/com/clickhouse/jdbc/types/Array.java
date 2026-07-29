@@ -27,7 +27,9 @@ public class Array implements java.sql.Array {
     public Array(ClickHouseColumn column, Object[] elements) throws SQLException {
         this.column = column;
         this.array = elements;
-        ClickHouseColumn baseColumn = (this.column.isArray() ? this.column.getArrayBaseColumn() : this.column);
+        // QBit is not an Array (isArray() == false) but is still a one-level array of its element
+        // type, so use the array nesting level (set for both Array and QBit) to find the element column.
+        ClickHouseColumn baseColumn = (this.column.getArrayNestedLevel() > 0 ? this.column.getArrayBaseColumn() : this.column);
         this.baseDataType = baseColumn.getDataType();
         this.elementTypeName = baseColumn.getOriginalTypeName();
         this.type = JdbcUtils.CLICKHOUSE_TO_SQL_TYPE_MAP.getOrDefault(baseDataType, JDBCType.OTHER).getVendorTypeNumber();

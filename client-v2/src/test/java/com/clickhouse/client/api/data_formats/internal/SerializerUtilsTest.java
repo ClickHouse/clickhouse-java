@@ -145,6 +145,161 @@ public class SerializerUtilsTest {
                         ClickHouseColumn.of("v", "Geometry")));
     }
 
+    @Test(dataProvider = "qbitWrongDimension")
+    public void testQBitSerializationRejectsWrongDimension(String typeName, Object value, int actualLength) {
+        ClickHouseColumn column = ClickHouseColumn.of("vec", typeName);
+
+        IllegalArgumentException ex = Assert.expectThrows(IllegalArgumentException.class,
+                () -> SerializerUtils.serializeData(new ByteArrayOutputStream(), value, column));
+        String message = ex.getMessage();
+        Assert.assertTrue(message.contains("vec"), "Message should name the column: " + message);
+        Assert.assertTrue(message.contains("8"), "Message should state the expected dimension: " + message);
+        Assert.assertTrue(message.contains("got " + actualLength),
+                "Message should state the actual length: " + message);
+    }
+
+    @DataProvider(name = "qbitWrongDimension")
+    private Object[][] qbitWrongDimension() {
+        // A QBit(E, 8) column requires exactly 8 elements: empty, too-short, and too-long vectors are
+        // all invalid, for both the Java-array and List representations and every element type.
+        return new Object[][] {
+                {"QBit(Float32, 8)", new float[0], 0},
+                {"QBit(Float32, 8)", new float[] {1f, 2f, 3f, 4f, 5f}, 5},
+                {"QBit(Float32, 8)", new float[] {1f, 2f, 3f, 4f, 5f, 6f, 7f, 8f, 9f, 10f}, 10},
+                {"QBit(Float64, 8)", new double[] {1d, 2d, 3d, 4d, 5d}, 5},
+                {"QBit(BFloat16, 8)", new float[] {1f, 2f, 3f}, 3},
+                {"QBit(Float32, 8)", Arrays.asList(1f, 2f, 3f), 3},
+        };
+    }
+
+    @Test(dataProvider = "qbitWrongType")
+    public void testQBitSerializationRejectsNonArrayValue(Object value) {
+        // A non-null QBit value that is neither a Java array nor a List cannot carry a vector. It must
+        // be rejected up-front: otherwise it falls through to the Array serializer, which writes no
+        // bytes for the column, desynchronizing the RowBinary stream and corrupting the following
+        // columns. Writing into a byte sink so any (wrongly) emitted payload would be observable.
+        ClickHouseColumn column = ClickHouseColumn.of("vec", "QBit(Float32, 8)");
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+        IllegalArgumentException ex = Assert.expectThrows(IllegalArgumentException.class,
+                () -> SerializerUtils.serializeData(out, value, column));
+        Assert.assertTrue(ex.getMessage().contains("vec"),
+                "Message should name the column: " + ex.getMessage());
+        Assert.assertEquals(out.size(), 0,
+                "Nothing should be written to the stream when the value is rejected");
+    }
+
+    @DataProvider(name = "qbitWrongType")
+    private Object[][] qbitWrongType() {
+        // Values that are neither a Java array nor a List: a String, boxed scalars of the element
+        // type, and a Map. None of these can represent a QBit(E, N) vector.
+        return new Object[][] {
+                {"not-a-vector"},
+                {3.14f},
+                {42d},
+                {newMap("k", "v")},
+        };
+    }
+
+    @Test
+    public void testQBitSerializationAcceptsExactDimensionAndMatchesArray() throws Exception {
+        float[] vec = {1f, -2f, 3.5f, 4f, 5f, 6f, 7f, 8f};
+
+        ByteArrayOutputStream qbitOut = new ByteArrayOutputStream();
+        SerializerUtils.serializeData(qbitOut, vec, ClickHouseColumn.of("vec", "QBit(Float32, 8)"));
+
+        // A correctly-sized QBit passes validation and is serialized byte-for-byte identically to
+        // Array(element_type), which is the wire contract the reader relies on.
+        ByteArrayOutputStream arrayOut = new ByteArrayOutputStream();
+        SerializerUtils.serializeData(arrayOut, vec, ClickHouseColumn.of("vec", "Array(Float32)"));
+        Assert.assertEquals(qbitOut.toByteArray(), arrayOut.toByteArray());
+    }
+
+    @Test
+    public void testQBitSerializationRejectsNull() {
+        // A QBit has a fixed dimension, so a null value cannot satisfy it. A top-level null
+        // non-nullable QBit is already rejected by RowBinaryFormatSerializer.writeValuePreamble, but a
+        // QBit nested inside a Tuple/Map/Array is serialized through serializeNestedData, which does
+        // NOT route a non-nullable element through that preamble. Without an explicit guard the null
+        // would delegate to the Array serializer and be written as a zero-length vector (var-int 0),
+        // desynchronizing the RowBinary stream and corrupting the following columns. Writing into a
+        // byte sink so any (wrongly) emitted payload would be observable.
+        ClickHouseColumn column = ClickHouseColumn.of("vec", "QBit(Float32, 8)");
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+        IllegalArgumentException ex = Assert.expectThrows(IllegalArgumentException.class,
+                () -> SerializerUtils.serializeData(out, null, column));
+        Assert.assertTrue(ex.getMessage().contains("vec"),
+                "Message should name the column: " + ex.getMessage());
+        Assert.assertTrue(ex.getMessage().contains("null"),
+                "Message should state the value cannot be null: " + ex.getMessage());
+        Assert.assertEquals(out.size(), 0,
+                "Nothing should be written to the stream when a null QBit is rejected");
+    }
+
+    @Test
+    public void testQBitNestedInTupleRejectsNullElement() throws Exception {
+        // Exercises the production-reachable path for the null guard: a non-nullable QBit nested in a
+        // Tuple is written through serializeNestedData, which does NOT apply the top-level
+        // writeValuePreamble null-into-non-nullable check to a non-nullable element. Without the guard
+        // in serializeQBitData the null element would be written as a zero-length vector (var-int 0),
+        // desynchronizing the stream and corrupting the rest of the row.
+        ClickHouseColumn tuple = ClickHouseColumn.of("t", "Tuple(QBit(Float32, 8))");
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        List<Object> tupleValue = Arrays.asList((Object) null);
+
+        IllegalArgumentException ex = Assert.expectThrows(IllegalArgumentException.class,
+                () -> SerializerUtils.serializeData(out, tupleValue, tuple));
+        Assert.assertTrue(ex.getMessage().contains("cannot be null"),
+                "Message should explain the null QBit is rejected: " + ex.getMessage());
+        Assert.assertEquals(out.size(), 0,
+                "Nothing should be written when the nested null QBit element is rejected");
+    }
+
+    @Test
+    public void testDynamicTypeTagRejectsQBit() {
+        // A QBit type tag inside a Dynamic/Variant/JSON column must be encoded as
+        // 0x36 <element_type_encoding> <var_uint dimension> to round-trip with
+        // BinaryStreamReader.readDynamicData. The client never infers a QBit from a Java value
+        // (valueToColumnForDynamicType only yields Array/Map/scalar types), so this write path is
+        // unreachable through the public API; reject it explicitly rather than fall through to the
+        // switch default and emit a bare 0x36 tag that the reader cannot parse (which would
+        // desynchronize the RowBinary stream). Reading a server-sent QBit inside a Dynamic column
+        // IS supported (see BinaryStreamReader.readDynamicData / testQBitInDynamicColumn).
+        ClickHouseColumn qbit = ClickHouseColumn.of("v", "QBit(Float32, 8)");
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+        ClientException ex = Assert.expectThrows(ClientException.class,
+                () -> SerializerUtils.writeDynamicTypeTag(out, qbit));
+        Assert.assertTrue(ex.getMessage().contains("QBit"),
+                "Message should name QBit: " + ex.getMessage());
+        Assert.assertEquals(out.size(), 0,
+                "No tag bytes should be written when a QBit Dynamic tag is rejected");
+    }
+
+    @Test
+    public void testQBitReadRejectsWrongDimension() throws Exception {
+        // Over RowBinary a QBit(Float32, 8) is a var-int element count followed by that many floats.
+        // Craft a stream whose element count (3) does NOT match the declared dimension (8) by
+        // serializing an Array(Float32) of 3 elements, then read it back AS a QBit(Float32, 8). The
+        // read must reject the mismatch — a defensive, symmetric counterpart to the write-side
+        // dimension check (serializeQBitData) — rather than return a wrong-length vector. (The read
+        // itself cannot misalign the stream: readArray consumes exactly the length-prefixed count.)
+        float[] threeElements = {1f, 2f, 3f};
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        SerializerUtils.serializeData(out, threeElements, ClickHouseColumn.of("vec", "Array(Float32)"));
+
+        ClickHouseColumn qbit = ClickHouseColumn.of("vec", "QBit(Float32, 8)");
+        ClientException ex = Assert.expectThrows(ClientException.class,
+                () -> newReader(out.toByteArray()).readValue(qbit));
+        // readValue wraps a read-side failure, so the dimension detail is carried on the cause.
+        Throwable detail = ex.getCause() != null ? ex.getCause() : ex;
+        Assert.assertTrue(detail.getMessage().contains("vec"),
+                "Message should name the column: " + detail.getMessage());
+        Assert.assertTrue(detail.getMessage().contains("8"),
+                "Message should state the expected dimension: " + detail.getMessage());
+    }
+
     @DataProvider(name = "dynamicDecimalTypeInference")
     public Object[][] dynamicDecimalTypeInference() {
         return new Object[][]{
