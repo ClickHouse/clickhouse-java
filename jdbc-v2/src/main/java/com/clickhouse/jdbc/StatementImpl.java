@@ -223,7 +223,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
                 try {
                     response.close();
                 } catch (Exception ex) {
-                    LOG.warn("Failed to close response after exception", e);
+                    LOG.warn("Failed to close response after exception", ex);
                 }
             }
             handleSocketTimeoutException(e);

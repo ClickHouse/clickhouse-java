@@ -73,6 +73,15 @@ public class SerializerUtils {
             case Map:
                 serializeMapData(stream, value, column);
                 break;
+            case SimpleAggregateFunction:
+                // A SimpleAggregateFunction(func, T) value serializes identically to its underlying
+                // type T. This is a deliberate exception to serializeNestedData's "nested elements
+                // only" contract: the SAF wrapper is itself non-nullable, so writeValuePreamble emits
+                // no null-marker for a top-level SAF column, yet a Nullable underlying still needs one.
+                // serializeNestedData writes that marker iff the underlying is nullable, mirroring
+                // BinaryStreamReader's read path.
+                serializeNestedData(stream, value, column.getNestedColumns().get(0));
+                break;
             case AggregateFunction:
                 serializeAggregateFunction(stream, value, column);
                 break;
@@ -118,7 +127,10 @@ public class SerializerUtils {
      * {@code 0x01} when null), as the server expects for {@code Nullable} sub-columns in
      * {@code RowBinary}. For a top-level column this marker is instead written by
      * {@link com.clickhouse.client.api.data_formats.RowBinaryFormatSerializer#writeValuePreamble},
-     * so this helper must only be used for nested elements.
+     * so this helper is normally used only for nested elements. The one deliberate exception is a
+     * top-level {@code SimpleAggregateFunction} column: its wrapper is itself non-nullable (so
+     * {@code writeValuePreamble} writes no marker), but its underlying type may be {@code Nullable}
+     * and still needs the marker, which this helper supplies.
      */
     private static void serializeNestedData(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
         if (column.isNullable()) {
@@ -197,23 +209,43 @@ public class SerializerUtils {
             column = ClickHouseColumn.of("v", "DateTime64(9, " + ZoneId.systemDefault().getId() + ")");
         } else if (value instanceof BigDecimal) {
             BigDecimal d = (BigDecimal) value;
-            String decType;
-            int scale;
-            if (d.precision() > ClickHouseDataType.Decimal128.getMaxScale()) {
-                decType = "Decimal256";
-                scale = ClickHouseDataType.Decimal256.getMaxScale();
-            } else if (d.precision() > ClickHouseDataType.Decimal64.getMaxScale()) {
-                decType = "Decimal128";
-                scale = ClickHouseDataType.Decimal128.getMaxScale();
-            } else if (d.precision() > ClickHouseDataType.Decimal32.getMaxScale()) {
-                decType = "Decimal64";
-                scale = ClickHouseDataType.Decimal64.getMaxScale();
-            } else {
-                decType = "Decimal32";
-                scale = ClickHouseDataType.Decimal32.getMaxScale();
+            // A DecimalN(S) column is Decimal(P, S) with P fixed to the width's precision
+            // (Decimal32=9, Decimal64=18, Decimal128=38, Decimal256=76) and 0 <= S <= P, so it can
+            // hold at most P - S integer digits. Size the width to fit both the integer digits and
+            // the value's own scale, then keep S as wide as the width allows without stealing room
+            // from the integer part. Keying the width off precision() alone and forcing S to the
+            // width maximum truncated values whose scale exceeded that maximum, and overflowed
+            // values that carried an integer part.
+            int valueScale = Math.max(d.scale(), 0);
+            int integerDigits = Math.max(d.precision() - d.scale(), 0);
+            int requiredPrecision = integerDigits + valueScale;
+            if (requiredPrecision > ClickHouseDataType.Decimal256.getMaxPrecision()) {
+                if (d.signum() != 0) {
+                    throw new ClientException("Unable to serialize BigDecimal into a Dynamic column: it needs "
+                            + requiredPrecision + " digits of precision, exceeding the maximum supported Decimal256 precision of "
+                            + ClickHouseDataType.Decimal256.getMaxPrecision());
+                }
+                // A numerically-zero value rounds to zero at any scale with no data loss, so it fits
+                // any Decimal width regardless of the scale/exponent implied by precision()/scale()
+                // (e.g. 0E-77 implies scale 77, 0E+77 implies 78 integer digits). Store it in the
+                // widest band rather than rejecting a value ClickHouse can represent exactly; cap the
+                // integer digits so the emitted scale (maxScale - integerDigits) stays non-negative.
+                integerDigits = Math.min(integerDigits, ClickHouseDataType.Decimal256.getMaxScale());
+                requiredPrecision = ClickHouseDataType.Decimal256.getMaxPrecision();
             }
+            ClickHouseDataType decType;
+            if (requiredPrecision > ClickHouseDataType.Decimal128.getMaxPrecision()) {
+                decType = ClickHouseDataType.Decimal256;
+            } else if (requiredPrecision > ClickHouseDataType.Decimal64.getMaxPrecision()) {
+                decType = ClickHouseDataType.Decimal128;
+            } else if (requiredPrecision > ClickHouseDataType.Decimal32.getMaxPrecision()) {
+                decType = ClickHouseDataType.Decimal64;
+            } else {
+                decType = ClickHouseDataType.Decimal32;
+            }
+            int scale = decType.getMaxScale() - integerDigits;
 
-            column = ClickHouseColumn.of("v", decType + "(" + scale + ")");
+            column = ClickHouseColumn.of("v", decType.name() + "(" + scale + ")");
         } else if (value instanceof Map<?,?>) {
             Map<?, ?> map = (Map<?, ?>) value;
             // TODO: handle empty map?
@@ -370,7 +402,7 @@ public class SerializerUtils {
             case Decimal256:
                 stream.write(binTag);
                 BinaryStreamUtils.writeUnsignedInt8(stream, dt.getMaxPrecision());
-                BinaryStreamUtils.writeUnsignedInt8(stream, dt.getMaxScale());
+                BinaryStreamUtils.writeUnsignedInt8(stream, typeColumn.getScale());
                 break;
             case IntervalNanosecond:
             case IntervalMillisecond:

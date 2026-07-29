@@ -1,6 +1,7 @@
 package com.clickhouse.client.api.internal;
 
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.enums.SSLMode;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.internal.HttpAPIClientHelper.CustomSSLConnectionFactory;
@@ -295,6 +296,35 @@ public class HttpAPIClientHelperTest {
         } catch (Exception e) {
             Assert.fail("Expected ConnectException to be thrown, but got: " + e.getClass().getName(), e);
         }
+    }
+
+    @DataProvider(name = "serverExceptionRetryCases")
+    public static Object[][] serverExceptionRetryCases() {
+        // Server code 159 (TIMEOUT_EXCEEDED) is retryable; code 60 (TABLE_NOT_FOUND) is not.
+        ServerException retryable = new ServerException(159, "TIMEOUT_EXCEEDED", 500, "q1");
+        ServerException nonRetryable = new ServerException(60, "TABLE_NOT_FOUND", 404, "q2");
+        return new Object[][]{
+                // ServerException thrown directly (behaviour that already worked; pinned as contrast).
+                {retryable, true},
+                {nonRetryable, false},
+                // ServerException wrapped as the cause of another exception: the branch matches on the
+                // cause, so the decision must come from the cause and must not throw ClassCastException.
+                {new RuntimeException("transport failure", retryable), true},
+                {new RuntimeException("transport failure", nonRetryable), false},
+        };
+    }
+
+    /**
+     * {@link HttpAPIClientHelper#shouldRetry} enters its ServerException branch when either the thrown
+     * exception or its cause is a {@link ServerException}, so it must derive the retry decision from
+     * whichever one is the {@code ServerException}. Casting the wrapper unconditionally throws
+     * {@link ClassCastException} when only the cause is a {@code ServerException}.
+     */
+    @Test(dataProvider = "serverExceptionRetryCases")
+    public void testShouldRetryUsesServerExceptionFromCause(Throwable ex, boolean expectedRetry) {
+        HttpAPIClientHelper helper = new HttpAPIClientHelper(new HashMap<>(), null, false, LZ4Factory.fastestInstance());
+        // Empty request settings -> default client_retry_on_failures, which includes ServerRetryable.
+        assertEquals(helper.shouldRetry(ex, new HashMap<>()), expectedRetry);
     }
 
     /**

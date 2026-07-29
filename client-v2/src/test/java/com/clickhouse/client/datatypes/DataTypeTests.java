@@ -981,6 +981,77 @@ public class DataTypeTests extends BaseIntegrationTest {
         }
     }
 
+    @DataProvider(name = "dynamicDecimalValues")
+    public Object[][] dynamicDecimalValues() {
+        return new Object[][]{
+                // Low-precision values whose scale exceeds the inferred width's maximum scale:
+                // previously silently truncated on write.
+                {new BigDecimal("0.0123456789")},            // scale 10 > Decimal32 max scale 9
+                {new BigDecimal("0.00012345678901234567")},  // scale 20 > Decimal64 max scale 18
+                {new BigDecimal("0.12345678901234567890123456789012345678901")}, // scale 41 -> Decimal256
+                // Values carrying an integer part: previously overflowed on insert because the
+                // scale was forced to the full width precision, leaving no room for integer digits.
+                {new BigDecimal("19.99")},
+                {new BigDecimal("-19.99")},
+                {new BigDecimal("1000")},
+                {new BigDecimal("1E3")},                     // negative scale (-3)
+                {new BigDecimal("123456789.123456789")},
+                {new BigDecimal("12345678901234567890.12345678901234567890")}, // 20 int + 20 frac -> Decimal256
+                {new BigDecimal("0")},
+                // A numerically-zero value whose scale exceeds any width: it fits (zero rounds to zero
+                // with no loss) and must round-trip rather than being rejected on insert.
+                {new BigDecimal("0E-77")},                   // zero, scale 77 > Decimal256 max scale
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "dynamicDecimalValues")
+    public void testDynamicColumnPreservesBigDecimalValue(BigDecimal value) throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+        final String table = "test_dynamic_decimal_roundtrip";
+        final int tail = 987654321;
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        client.execute(tableDefinition(table, "rowId Int32", "field Dynamic", "tail Int32"),
+                (CommandSettings) new CommandSettings().serverSetting("allow_experimental_dynamic_type", "1")).get();
+        client.register(DTOForDynamicDecimalTests.class, client.getTableSchema(table));
+
+        client.insert(table, Collections.singletonList(new DTOForDynamicDecimalTests(1, value, tail))).get().close();
+
+        List<GenericRecord> rows = client.queryAll("SELECT field, tail FROM " + table);
+        Assert.assertEquals(rows.size(), 1);
+        GenericRecord row = rows.get(0);
+        Assert.assertEquals(row.getBigDecimal("field").compareTo(value), 0,
+                "Dynamic Decimal round-trip must not lose data for " + value.toPlainString());
+        // The trailing fixed-width column stays intact only if the Decimal width written matches the
+        // type tag; a wrong width would shift the following bytes and corrupt it.
+        Assert.assertEquals(row.getInteger("tail"), tail);
+    }
+
+    @Test(groups = {"integration"})
+    public void testDynamicColumnFractionalDecimalRepresentationUnchanged() throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+        final String table = "test_dynamic_decimal_unchanged";
+        final int tail = 123456789;
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        client.execute(tableDefinition(table, "rowId Int32", "field Dynamic", "tail Int32"),
+                (CommandSettings) new CommandSettings().serverSetting("allow_experimental_dynamic_type", "1")).get();
+        client.register(DTOForDynamicDecimalTests.class, client.getTableSchema(table));
+
+        // A sub-integer value (no integer part) whose scale fits the smallest width was already
+        // stored correctly, as Decimal32 with the scale padded to the width maximum. The fix must
+        // leave this representation byte-for-byte unchanged.
+        client.insert(table, Collections.singletonList(new DTOForDynamicDecimalTests(1, new BigDecimal("0.5"), tail))).get().close();
+
+        GenericRecord row = client.queryAll("SELECT field, tail FROM " + table).get(0);
+        BigDecimal readBack = row.getBigDecimal("field");
+        Assert.assertEquals(readBack, new BigDecimal("0.500000000"));
+        Assert.assertEquals(readBack.scale(), 9);
+        Assert.assertEquals(row.getInteger("tail"), tail);
+    }
+
     @Test(groups = {"integration"})
     public void testDynamicWithArrays() throws Exception {
         testDynamicWith("arrays",
@@ -1242,6 +1313,14 @@ public class DataTypeTests extends BaseIntegrationTest {
         private int rowId;
         private Object dyn;
         private String extra;
+    }
+
+    @Data
+    @AllArgsConstructor
+    public static class DTOForDynamicDecimalTests {
+        private int rowId;
+        private Object field;
+        private int tail;
     }
 
     @Test(groups = {"integration"})
