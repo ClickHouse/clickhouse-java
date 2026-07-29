@@ -171,9 +171,9 @@ public class HttpAPIClientHelper {
         }
 
         final String authMode;
-        if (ClientConfigProperties.SSL_AUTH.<Boolean>getOrDefault(configuration)) {
+        if (ClientConfigProperties.SSL_AUTH.<Boolean>getOrDefault(configuration).booleanValue()) {
             authMode = "SSL_CLIENT_CERT";
-        } else if (ClientConfigProperties.HTTP_USE_BASIC_AUTH.<Boolean>getOrDefault(configuration)) {
+        } else if (ClientConfigProperties.HTTP_USE_BASIC_AUTH.<Boolean>getOrDefault(configuration).booleanValue()) {
             authMode = "HTTP_BASIC";
         } else {
             authMode = "DEFAULT_HEADERS";
@@ -823,7 +823,9 @@ public class HttpAPIClientHelper {
      * the status, query id, target authority and the server exception-code header are emitted.
      */
     private void logServerErrorResponse(HttpPost req, ClassicHttpResponse httpResponse) {
-        if (!LOG.isWarnEnabled()) {
+        // The logger itself must never throw on the error path and mask the real failure, so skip
+        // logging (rather than risk an NPE) if the level is off or either argument is unexpectedly null.
+        if (!LOG.isWarnEnabled() || req == null || httpResponse == null) {
             return;
         }
         final Header exceptionCodeHeader = httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE);
