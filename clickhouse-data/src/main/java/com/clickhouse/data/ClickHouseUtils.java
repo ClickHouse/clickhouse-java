@@ -1077,7 +1077,9 @@ public final class ClickHouseUtils {
                 } else if (isQuote(ch)) {
                     i = skipQuotedString(sql, i, len, ch) - 1;
                     end = i + 1;
-                } else if (ch == '#') {
+                } else if (ch == '#' && i + 1 < len && (sql.charAt(i + 1) == ' ' || sql.charAt(i + 1) == '!')) {
+                    // ClickHouse: '#' starts a comment only when followed by a space or '!' (shebang);
+                    // otherwise it is an ordinary token, so it falls through and is kept.
                     i = skipSingleLineComment(sql, i, len) - 1;
                 } else if (ch == '-' && i + 1 < len && sql.charAt(i + 1) == '-') {
                     i = skipSingleLineComment(sql, i, len) - 1;

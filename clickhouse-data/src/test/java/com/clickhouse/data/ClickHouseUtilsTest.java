@@ -31,6 +31,11 @@ public class ClickHouseUtilsTest {
                 { "SELECT 13 AS a WHERE 0", "SELECT 13 AS a WHERE 0" },
                 { "SELECT 13 AS a WHERE 0 -- trailing comment", "SELECT 13 AS a WHERE 0" },
                 { "SELECT 13 AS a WHERE 0 # trailing comment", "SELECT 13 AS a WHERE 0" },
+                // '#' begins a comment only when followed by a space or '!' (ClickHouse lexer rule);
+                // otherwise it is an ordinary token and must be preserved, not stripped
+                { "SELECT 13 AS a WHERE 0 #!shebang", "SELECT 13 AS a WHERE 0" },
+                { "SELECT 1 AS a#b", "SELECT 1 AS a#b" },
+                { "SELECT 1 AS a#", "SELECT 1 AS a#" },
                 { "SELECT 13 AS a WHERE 0;", "SELECT 13 AS a WHERE 0" },
                 { "SELECT 13 AS a WHERE 0; -- trailing comment", "SELECT 13 AS a WHERE 0" },
                 { "SELECT 13 AS a WHERE 0;\n-- trailing comment", "SELECT 13 AS a WHERE 0" },
@@ -41,6 +46,7 @@ public class ClickHouseUtilsTest {
                 { "SELECT 1 -- c\nAS a", "SELECT 1 -- c\nAS a" },
                 { "SELECT 1 --\nAS a", "SELECT 1 --\nAS a" },
                 { "SELECT 1 #\nAS a", "SELECT 1 #\nAS a" },
+                { "SELECT 1 # c\nAS a", "SELECT 1 # c\nAS a" },
                 { "SELECT 1 /* c */ AS a", "SELECT 1 /* c */ AS a" },
                 { "SELECT '-- not a comment' AS a", "SELECT '-- not a comment' AS a" },
                 { "SELECT '# not a comment' AS a", "SELECT '# not a comment' AS a" },
