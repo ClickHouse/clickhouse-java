@@ -1875,8 +1875,9 @@ public class Client implements AutoCloseable {
      */
     private Endpoint logRetryAndSelectNextNode(String operation, int attempt, int totalAttempts,
                                                String queryId, Endpoint endpoint, Exception cause) {
-        LOG.warn("{} failed (attempt {} of {}, queryId: {}), endpoint: {}, cause: {}. Retrying.",
-                operation, attempt, totalAttempts, queryId, endpoint, cause.getMessage());
+        LOG.warn("{} failed (attempt {} of {}, queryId: {}), endpoint: {}, cause: {}: {}. Retrying.",
+                operation, attempt, totalAttempts, queryId, endpoint,
+                cause.getClass().getName(), cause.getMessage());
         return nodeSelector.getNextAliveNode(endpoint);
     }
 
