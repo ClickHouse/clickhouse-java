@@ -23,8 +23,12 @@
   binary type encoding is read back to the concrete `QBit(...)` type). In the
   JDBC driver (`jdbc-v2`) `QBit` maps to `java.sql.Types.ARRAY` and is returned as a `java.sql.Array` from
   `getObject`/`getArray`. Previously `QBit` was an unimplemented type constant and reading or writing such a column
-  failed. Reading `QBit` through the `Native` output format is not supported — the server transmits it there using a
-  different internal layout — and fails fast with a clear error; use a `RowBinary` format instead.
+  failed. A plain top-level `QBit` column is also read through the `Native` output format: there the server transmits
+  it using its internal bit-plane-transposed `Tuple(FixedString(...))` layout, and the client reverses that
+  transposition to reconstruct the same `float[]`/`double[]` vector as `RowBinary`. A `QBit` that is strided
+  (`QBit(element_type, dimension, stride)`), wrapped in `Nullable`/`LowCardinality`, or nested inside another type
+  (e.g. `Array`/`Tuple`/`Map(String, QBit(...))`) is not yet decoded over `Native` and fails fast with a clear error
+  directing you to a `RowBinary` format such as `RowBinaryWithNamesAndTypes`.
   (https://github.com/ClickHouse/clickhouse-java/issues/2610)
 - **[client-v2, jdbc-v2]** Added TLS cipher suite selection. `Client.Builder.setSSLCipherSuites(String...)` (client-v2)
   and the comma-separated `ssl_cipher_suites` connection property (client-v2 and jdbc-v2) restrict the cipher suites

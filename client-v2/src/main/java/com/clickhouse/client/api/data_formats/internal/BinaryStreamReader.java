@@ -663,6 +663,98 @@ public class BinaryStreamReader {
     }
 
     /**
+     * Reads a plain, non-strided {@code QBit(element_type, dimension)} column from the Native
+     * (columnar) format, decoding the server's internal bit-plane-transposed representation into one
+     * vector per row of the current block.
+     * <p>
+     * Unlike RowBinary — where a {@code QBit} is transmitted element-by-element exactly like
+     * {@code Array(element_type)} (see {@link #readQBit}) — the Native format serializes a
+     * {@code QBit} column as its internal {@code Tuple(FixedString(S), ...)} of {@code element_size}
+     * bit planes, column-major: each plane holds {@code S = ceil(dimension / 8)} bytes per row and the
+     * planes are laid out one after another for the whole block
+     * ({@code plane0[row0..rowN-1] plane1[row0..rowN-1] ...}). Bit plane {@code p} carries bit
+     * {@code (element_size - 1 - p)} of every element (most-significant plane first); within a plane's
+     * {@code S} bytes the element at index {@code j} sits at byte {@code (bitIndex >> 3)}, bit
+     * {@code (bitIndex & 7)}, where {@code bitIndex = (S * 8 - 1) - (j ^ 7)} (the {@code ^ 7} flips the
+     * order inside each group of eight). This is the exact inverse of ClickHouse's
+     * {@code SerializationQBit::transposeBits}.
+     * <p>
+     * Values are materialized identically to {@link #readQBit} — a {@code float[]} for
+     * {@code Float32}/{@code BFloat16} and a {@code double[]} for {@code Float64}, wrapped through
+     * {@link #convertArray} with the same default type hint — so a {@code QBit} read over the Native
+     * and RowBinary formats yields equal values.
+     *
+     * @param column QBit column information (element type in the nested column, dimension in precision)
+     * @param nRows  number of rows in the current block
+     * @return one materialized vector per row, in row order
+     * @throws IOException when an IO error occurs
+     */
+    public List<Object> readQBitColumn(ClickHouseColumn column, int nRows) throws IOException {
+        ClickHouseDataType elementType = column.getNestedColumns().get(0).getDataType();
+        final boolean isDouble = elementType == ClickHouseDataType.Float64;
+        final boolean isBFloat16 = elementType == ClickHouseDataType.BFloat16;
+        if (!isDouble && !isBFloat16 && elementType != ClickHouseDataType.Float32) {
+            throw new ClientException("QBit Native decoding supports only Float32, Float64 and BFloat16 "
+                    + "element types, got: " + elementType);
+        }
+
+        final int elementBits = elementType.getByteLength() * 8; // 16 (BFloat16), 32 (Float32), 64 (Float64)
+        final int dimension = column.getPrecision();
+        final int bytesPerPlane = (dimension + 7) / 8;
+        final int totalBits = bytesPerPlane * 8;
+
+        // The nested Tuple(FixedString(bytesPerPlane)) is serialized column-major, so each of the
+        // element_size bit planes occupies nRows * bytesPerPlane contiguous bytes; row r's slice for a
+        // plane starts at r * bytesPerPlane.
+        byte[][] planes = new byte[elementBits][];
+        for (int p = 0; p < elementBits; p++) {
+            planes[p] = readNBytes(input, nRows * bytesPerPlane);
+        }
+
+        // Precompute each element's byte offset and bit mask within a plane row (constant across
+        // planes and rows), reversing the server's (j ^ 7) row-flip and MSB-first FixedString layout.
+        int[] elementByte = new int[dimension];
+        int[] elementMask = new int[dimension];
+        for (int j = 0; j < dimension; j++) {
+            int bitIndex = (totalBits - 1) - (j ^ 7);
+            elementByte[j] = bitIndex >> 3;
+            elementMask[j] = 1 << (bitIndex & 7);
+        }
+
+        List<Object> values = new ArrayList<>(nRows);
+        for (int r = 0; r < nRows; r++) {
+            final int rowBase = r * bytesPerPlane;
+            long[] bits = new long[dimension];
+            for (int p = 0; p < elementBits; p++) {
+                final byte[] plane = planes[p];
+                final long planeBit = 1L << (elementBits - 1 - p);
+                for (int j = 0; j < dimension; j++) {
+                    if ((plane[rowBase + elementByte[j]] & elementMask[j]) != 0) {
+                        bits[j] |= planeBit;
+                    }
+                }
+            }
+
+            ArrayValue vector;
+            if (isDouble) {
+                vector = new ArrayValue(double.class, dimension);
+                for (int j = 0; j < dimension; j++) {
+                    vector.set(j, Double.longBitsToDouble(bits[j]));
+                }
+            } else {
+                vector = new ArrayValue(float.class, dimension);
+                for (int j = 0; j < dimension; j++) {
+                    // BFloat16 carries the high 16 bits of a Float32; widen it the same way readBFloat16LE does.
+                    int intBits = isBFloat16 ? ((int) bits[j] << 16) : (int) bits[j];
+                    vector.set(j, Float.intBitsToFloat(intBits));
+                }
+            }
+            values.add(convertArray(vector, arrayDefaultTypeHint));
+        }
+        return values;
+    }
+
+    /**
      * Reads a array into an ArrayValue object.
      * @param column - column information
      * @return array value

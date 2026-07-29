@@ -91,23 +91,26 @@ public class NativeFormatReader extends AbstractBinaryFormatReader {
             names.add(column.getColumnName());
             types.add(column.getDataType().name());
 
-            if (containsQBit(column)) {
-                // QBit is transmitted in the Native format using its internal bit-transposed
-                // Tuple(FixedString(...)) layout, which is NOT the Array(element_type)-like
-                // representation used in RowBinary (the only representation this reader decodes for
-                // QBit). Reading it through the columnar/per-row paths below would misread those bytes
-                // and desynchronize the block, corrupting the columns that follow. Fail loudly instead
-                // of silently decoding garbage. This also covers a QBit nested inside another type
-                // (e.g. Map(String, QBit(...))). QBit can be read through a RowBinary format.
+            List<Object> values;
+            if (isNativeDecodableQBit(column)) {
+                // A plain top-level QBit column is transmitted in the Native format using its internal
+                // bit-plane-transposed layout, decoded here into one vector per row (see
+                // BinaryStreamReader#readQBitColumn).
+                values = binaryStreamReader.readQBitColumn(column, nRows);
+            } else if (containsQBit(column)) {
+                // A QBit that is strided, wrapped in Nullable/LowCardinality, or nested inside another
+                // type (e.g. Map(String, QBit(...))) uses a Native layout this reader does not decode.
+                // Reading it through the columnar/per-row paths below would misread those bytes and
+                // desynchronize the block, corrupting the columns that follow, so fail loudly instead of
+                // silently decoding garbage. Such QBit values can still be read through a RowBinary format.
                 throw new ClientException("Reading column '" + column.getColumnName() + "' ("
-                        + column.getOriginalTypeName() + ") from the Native format is not supported "
-                        + "because it contains a QBit type: QBit is serialized in the Native format "
-                        + "using an internal layout this reader does not decode. Use a RowBinary format "
-                        + "(e.g. RowBinaryWithNamesAndTypes) to read QBit values");
-            }
-
-            List<Object> values = new ArrayList<>(nRows);
-            if (column.isArray()) {
+                        + column.getOriginalTypeName() + ") from the Native format is not supported: "
+                        + "this reader decodes a plain top-level QBit column but not a QBit that is "
+                        + "strided, wrapped in Nullable/LowCardinality, or nested inside another type "
+                        + "(e.g. Array/Tuple/Map). Use a RowBinary format (e.g. RowBinaryWithNamesAndTypes) "
+                        + "to read such QBit values");
+            } else if (column.isArray()) {
+                values = new ArrayList<>(nRows);
                 int[] sizes = new int[nRows];
                 for (int j = 0; j < nRows; j++) {
                     sizes[j] = Math.toIntExact(binaryStreamReader.readLongLE());
@@ -116,6 +119,7 @@ public class NativeFormatReader extends AbstractBinaryFormatReader {
                     values.add(binaryStreamReader.readArrayItem(column.getNestedColumns().get(0), sizes[0]));
                 }
             } else {
+                values = new ArrayList<>(nRows);
                 for (int j = 0; j < nRows; j++) {
                     Object value = binaryStreamReader.readValue(column);
                     values.add(value);
@@ -132,12 +136,46 @@ public class NativeFormatReader extends AbstractBinaryFormatReader {
     }
 
     /**
+     * Returns {@code true} when {@code column} is a plain top-level {@code QBit} column that this
+     * reader can decode from the Native bit-plane layout: a {@code QBit(Float32|Float64|BFloat16,
+     * dimension)} that is not {@code Nullable}/{@code LowCardinality} and carries no stride argument.
+     * <p>
+     * A strided {@code QBit(element, dimension, stride)} (whose Native layout has
+     * {@code element_size * (dimension / stride)} bit planes) and a {@code QBit} wrapped in
+     * {@code Nullable}/{@code LowCardinality} or nested inside another type are intentionally excluded
+     * here; those are caught by {@link #containsQBit} and rejected in {@link #readBlock}.
+     */
+    private static boolean isNativeDecodableQBit(ClickHouseColumn column) {
+        if (column.getDataType() != ClickHouseDataType.QBit
+                || column.isNullable() || column.isLowCardinality()
+                || column.getNestedColumns().isEmpty()) {
+            return false;
+        }
+        // A strided QBit carries a third type argument (element type, dimension, stride); its Native
+        // layout has element_size * (dimension / stride) bit planes, which this decoder does not
+        // reconstruct. A non-strided QBit only ever has [element type, dimension].
+        if (column.getParameters().size() > 2) {
+            return false;
+        }
+        switch (column.getNestedColumns().get(0).getDataType()) {
+            case Float32:
+            case Float64:
+            case BFloat16:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /**
      * Returns {@code true} if {@code column} is a {@code QBit} or contains a {@code QBit} anywhere in
      * its nested type tree (e.g. {@code Array(QBit(...))}, {@code Tuple(..., QBit(...))},
-     * {@code Map(String, QBit(...))}). {@code QBit} uses a different, internal wire layout in the
-     * Native format than in RowBinary, so this reader cannot decode it and rejects such columns
-     * up-front rather than misreading the block. {@code Nullable}/{@code LowCardinality} wrappers are
-     * flags on the column, so a wrapped {@code QBit} still reports {@code dataType == QBit} here.
+     * {@code Map(String, QBit(...))}). A plain top-level {@code QBit} is decoded (see
+     * {@link #isNativeDecodableQBit}); this predicate additionally flags the QBit variants this reader
+     * does not decode in the Native format — strided, {@code Nullable}/{@code LowCardinality}-wrapped,
+     * or container-nested QBit — so {@link #readBlock} can reject them up-front rather than misreading
+     * the block. {@code Nullable}/{@code LowCardinality} wrappers are flags on the column, so a wrapped
+     * {@code QBit} still reports {@code dataType == QBit} here.
      */
     private static boolean containsQBit(ClickHouseColumn column) {
         if (column.getDataType() == ClickHouseDataType.QBit) {
