@@ -3,15 +3,18 @@ package com.clickhouse.client.api.internal;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.enums.SSLMode;
+import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.internal.HttpAPIClientHelper.CustomSSLConnectionFactory;
 import com.clickhouse.client.api.transport.Endpoint;
 import com.clickhouse.client.api.transport.HttpEndpoint;
 import com.clickhouse.client.api.transport.internal.TransportRequest;
 import net.jpountz.lz4.LZ4Factory;
+import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
 import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.message.BasicHeader;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedConstruction;
 import org.testng.Assert;
@@ -23,7 +26,11 @@ import javax.net.ssl.SNIServerName;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLSocket;
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
+import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.net.ConnectException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -39,8 +46,10 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertNull;
+import static org.testng.Assert.assertTrue;
 
 public class HttpAPIClientHelperTest {
 
@@ -316,6 +325,133 @@ public class HttpAPIClientHelperTest {
         HttpAPIClientHelper helper = new HttpAPIClientHelper(new HashMap<>(), null, false, LZ4Factory.fastestInstance());
         // Empty request settings -> default client_retry_on_failures, which includes ServerRetryable.
         assertEquals(helper.shouldRetry(ex, new HashMap<>()), expectedRetry);
+    }
+
+    /**
+     * A server error is logged at WARN only for an unknown status code (the switch's default branch). Known
+     * error paths emit no server-error WARN: readError surfaces an exception-code error, a mapped code (502)
+     * throws a descriptive exception, and 200 is not an error.
+     */
+    @DataProvider(name = "serverErrorLogging")
+    public static Object[][] serverErrorLogging() {
+        return new Object[][] {
+                // statusCode, exceptionCodeHeader (null => header absent), expectServerErrorWarn
+                {480, null, true},    // unknown status code -> context-free ClientException -> logged
+                {400, "62", false},   // known ClickHouse error (exception-code header) -> readError surfaces it
+                {502, null, false},   // mapped status code -> descriptive ConnectException
+                {200, null, false},   // success -> not an error
+        };
+    }
+
+    @Test(dataProvider = "serverErrorLogging")
+    public void testServerErrorLoggedOnlyForUnknownStatus(int statusCode, String exceptionCode,
+                                                          boolean expectServerErrorWarn) throws Exception {
+        HttpAPIClientHelper helper = new HttpAPIClientHelper(new HashMap<>(), null, false, LZ4Factory.fastestInstance());
+        injectMockHttpClient(helper, mockResponse(statusCode, exceptionCode));
+
+        Map<String, Object> reqConfig = new HashMap<>();
+        reqConfig.put(ClientConfigProperties.QUERY_ID.getKey(), "qid-log-test");
+        Endpoint endpoint = new HttpEndpoint("localhost", 8123, false, "/");
+
+        String logged = captureStdErr(() -> {
+            try {
+                helper.executeRequest(helper.createRequest(endpoint, reqConfig, "SELECT 1")).close();
+            } catch (Exception expected) {
+                // error status codes are rethrown to the caller; we assert only on what was logged
+            }
+        });
+
+        if (expectServerErrorWarn) {
+            assertTrue(logged.contains("Server returned error response"),
+                    "an unknown status code must be logged at WARN: " + logged);
+            assertTrue(logged.contains(String.valueOf(statusCode)), "the HTTP status code must be logged: " + logged);
+            assertTrue(logged.contains("qid-log-test"), "the query id must be logged: " + logged);
+        } else {
+            assertFalse(logged.contains("Server returned error response"),
+                    "status " + statusCode + " must not emit a server-error WARN: " + logged);
+        }
+    }
+
+    /**
+     * The server-error logger runs on the failure path, so it must be null-safe - never throw and mask the
+     * real error - and it must surface the ClickHouse exception-code header value when the response carries one.
+     */
+    @Test
+    public void testLogServerErrorResponseIsNullSafeAndLogsExceptionCode() throws Exception {
+        HttpAPIClientHelper helper = new HttpAPIClientHelper(new HashMap<>(), null, false, LZ4Factory.fastestInstance());
+        Method log = HttpAPIClientHelper.class.getDeclaredMethod(
+                "logServerErrorResponse", HttpPost.class, ClassicHttpResponse.class);
+        log.setAccessible(true);
+        HttpPost req = new HttpPost("http://localhost:8123/");
+        ClassicHttpResponse responseWithCode = mockResponse(480, "241");
+
+        // A null request or a null response must be a silent no-op: nothing logged, nothing thrown.
+        assertFalse(captureStdErr(() -> invokeQuietly(log, helper, null, responseWithCode))
+                .contains("Server returned error response"), "a null request must not be logged");
+        assertFalse(captureStdErr(() -> invokeQuietly(log, helper, req, null))
+                .contains("Server returned error response"), "a null response must not be logged");
+
+        // A present exception-code header must be logged by value, not as the "<none>" placeholder.
+        String logged = captureStdErr(() -> invokeQuietly(log, helper, req, responseWithCode));
+        assertTrue(logged.contains("Server returned error response"), "the server error must be logged: " + logged);
+        assertTrue(logged.contains("241"), "the exception-code header value must be logged: " + logged);
+        assertFalse(logged.contains("<none>"), "a present exception-code header must not log the placeholder: " + logged);
+    }
+
+    private static void invokeQuietly(Method method, Object target, Object... args) {
+        try {
+            method.invoke(target, args);
+        } catch (Exception e) {
+            throw new AssertionError("logServerErrorResponse must not throw on the error path", e);
+        }
+    }
+
+    private static ClassicHttpResponse mockResponse(int statusCode, String serverExceptionCode) {
+        ClassicHttpResponse response = mock(ClassicHttpResponse.class);
+        when(response.getCode()).thenReturn(statusCode);
+        boolean hasExceptionHeader = serverExceptionCode != null;
+        when(response.containsHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE)).thenReturn(hasExceptionHeader);
+        when(response.getFirstHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE))
+                .thenReturn(hasExceptionHeader
+                        ? new BasicHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE, serverExceptionCode) : null);
+        when(response.getEntity()).thenReturn(mock(HttpEntity.class));
+        return response;
+    }
+
+    private static void injectMockHttpClient(HttpAPIClientHelper helper, ClassicHttpResponse response) throws Exception {
+        CloseableHttpClient mockHttpClient = mock(CloseableHttpClient.class);
+        when(mockHttpClient.executeOpen(any(), any(), any())).thenReturn(response);
+        Field httpClientField = HttpAPIClientHelper.class.getDeclaredField("httpClient");
+        httpClientField.setAccessible(true);
+        httpClientField.set(helper, mockHttpClient);
+    }
+
+    /**
+     * Captures everything written to {@code System.err} (the slf4j-simple target) while {@code action}
+     * runs. slf4j-simple resolves {@code System.err} dynamically per log call, so the temporary swap
+     * reliably captures WARN/INFO output emitted during the action.
+     */
+    private static String captureStdErr(Runnable action) {
+        PrintStream original = System.err;
+        ByteArrayOutputStream buf = new ByteArrayOutputStream();
+        PrintStream capture;
+        try {
+            capture = new PrintStream(buf, true, "UTF-8");
+        } catch (UnsupportedEncodingException e) {
+            throw new RuntimeException(e);
+        }
+        System.setErr(capture);
+        try {
+            action.run();
+        } finally {
+            capture.flush();
+            System.setErr(original);
+        }
+        try {
+            return buf.toString("UTF-8");
+        } catch (UnsupportedEncodingException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**

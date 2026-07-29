@@ -729,6 +729,8 @@ public class HttpAPIClientHelper {
                     // others we cannot handle properly
                     throw readError(req, httpResponse);
                 default:
+                    // Unknown status code: log it once (the generic exception below carries no server context).
+                    logServerErrorResponse(req, httpResponse);
                     throw new ClientException("Unexpected result status " + statusCode);
             }
         } catch (UnknownHostException e) {
@@ -770,6 +772,24 @@ public class HttpAPIClientHelper {
         final Header clientQueryIdHeader = httpRequest == null ? null : httpRequest.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID);
         final Header queryHeader = Stream.of(serverQueryIdHeader, clientQueryIdHeader).filter(Objects::nonNull).findFirst().orElse(null);
         return queryHeader == null ? "" : queryHeader.getValue();
+    }
+
+    /**
+     * Logs a server error response at WARN (status, query id, authority, exception-code header). The body is
+     * not logged: {@link #readError} consumes it and it may contain SQL/data.
+     */
+    private void logServerErrorResponse(HttpPost req, ClassicHttpResponse httpResponse) {
+        // Null-safe: the error path must never let its own logger throw and mask the real failure.
+        if (req == null || httpResponse == null) {
+            return;
+        }
+        final Header exceptionCodeHeader = httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE);
+        LOG.warn("Server returned error response: status={}, queryId='{}', authority='{}', {}={}",
+                httpResponse.getCode(),
+                getQueryId(httpResponse, req),
+                req.getAuthority(),
+                ClickHouseHttpProto.HEADER_EXCEPTION_CODE,
+                exceptionCodeHeader == null ? "<none>" : exceptionCodeHeader.getValue());
     }
 
     private static final ContentType CONTENT_TYPE = ContentType.create(ContentType.TEXT_PLAIN.getMimeType(), "UTF-8");
@@ -1116,7 +1136,7 @@ public class HttpAPIClientHelper {
                         httpClientVersion = tmp;
                     }
                 } catch (Exception e) {
-                    // ignore
+                    LOG.debug("Failed to read HTTP client version from client-v2-version.properties", e);
                 }
             }
             userAgent.append(" ")

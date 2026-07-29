@@ -417,7 +417,9 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                             connection.getSchema(), connection.getCatalog(),
                             tSchema.getTableName(), JdbcUtils.DATA_TYPE_CLASS_MAP, connection.getTypeMap());
                 } catch (Exception e) {
-                    LOG.warn("Failed to get schema for statement '{}'", originalSql);
+                    // Don't log the raw SQL (may carry sensitive literals); the cause is enough to diagnose.
+                    LOG.warn("Failed to resolve result-set metadata for prepared statement; "
+                            + "falling back to untyped metadata", e);
                 }
             }
 

@@ -30,6 +30,8 @@
   and the comma-separated `ssl_cipher_suites` connection property (client-v2 and jdbc-v2) restrict the cipher suites
   enabled on secure connections; when unset, the transport defaults are used. Cipher-suite selection is independent of the
   trust configuration and `ssl_mode`. (https://github.com/ClickHouse/clickhouse-java/issues/2882)
+- **[client-v2, jdbc-v2]** Added logging on previously-silent error and diagnostic paths (no functional or
+  public-API change). (https://github.com/ClickHouse/clickhouse-java/issues/2969)
 
 ### Bug Fixes 
 
