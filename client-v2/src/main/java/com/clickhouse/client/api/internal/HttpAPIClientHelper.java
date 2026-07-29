@@ -729,10 +729,7 @@ public class HttpAPIClientHelper {
                     // others we cannot handle properly
                     throw readError(req, httpResponse);
                 default:
-                    // Only an unknown/unexpected status code reaches here. The generic exception below carries
-                    // no server context, so log it once at WARN (status, query id, authority, exception-code
-                    // header) to keep the otherwise-opaque failure diagnosable. Handled codes above are not
-                    // logged: they either throw a descriptive exception or are parsed by readError.
+                    // Unknown status code: log it once (the generic exception below carries no server context).
                     logServerErrorResponse(req, httpResponse);
                     throw new ClientException("Unexpected result status " + statusCode);
             }
@@ -778,13 +775,11 @@ public class HttpAPIClientHelper {
     }
 
     /**
-     * Logs an error server response at WARN with enough context to diagnose it. The response body is
-     * intentionally not logged: it is consumed by {@link #readError} and may contain SQL/data, so only
-     * the status, query id, target authority and the server exception-code header are emitted.
+     * Logs a server error response at WARN (status, query id, authority, exception-code header). The body is
+     * not logged: {@link #readError} consumes it and it may contain SQL/data.
      */
     private void logServerErrorResponse(HttpPost req, ClassicHttpResponse httpResponse) {
-        // The logger itself must never throw on the error path and mask the real failure, so skip
-        // logging (rather than risk an NPE) if the level is off or either argument is unexpectedly null.
+        // Never let the error-path logger itself throw and mask the real failure.
         if (!LOG.isWarnEnabled() || req == null || httpResponse == null) {
             return;
         }

@@ -296,12 +296,9 @@ public class HttpAPIClientHelperTest {
     }
 
     /**
-     * Only an unknown/unexpected server status code is logged at WARN, and the log sits in the switch's
-     * default branch (per review). A status code the switch does not handle throws a context-free generic
-     * exception, so it is logged once with the status, query id and the exception-code header (the response
-     * body is never logged). Handled/known error paths emit no server-error WARN: a ClickHouse error carrying
-     * the exception-code header is surfaced by readError, a mapped status code (502) throws a descriptive
-     * exception, and a success (200) is not an error at all.
+     * A server error is logged at WARN only for an unknown status code (the switch's default branch). Known
+     * error paths emit no server-error WARN: readError surfaces an exception-code error, a mapped code (502)
+     * throws a descriptive exception, and 200 is not an error.
      */
     @DataProvider(name = "serverErrorLogging")
     public static Object[][] serverErrorLogging() {
