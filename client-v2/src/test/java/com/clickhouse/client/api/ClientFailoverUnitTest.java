@@ -79,5 +79,10 @@ public class ClientFailoverUnitTest {
         // not just its message.
         Assert.assertTrue(Pattern.compile("cause: [\\w$.]+(Exception|Error):").matcher(warn).find(),
                 "retry WARN should name the exception class in the cause, was:\n" + warn);
+        // The attempt counter is 1-based and the total counts the initial try plus the retries; the
+        // "+1" is applied inside logRetryAndSelectNextNode, so with maxRetries=2 the first retry WARN
+        // reads "attempt 1 of 3".
+        Assert.assertTrue(warn.contains("attempt 1 of 3"),
+                "retry WARN should report the 1-based attempt and total-attempt count, was:\n" + warn);
     }
 }
