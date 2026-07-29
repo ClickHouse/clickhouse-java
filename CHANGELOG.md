@@ -46,6 +46,13 @@
   which inlines parameters as SQL literals and already escaped the backslash and single quote, is
   unchanged and covered by a new regression test. (https://github.com/ClickHouse/clickhouse-java/issues/2781)
 
+- **[client-v2]** Fixed a `null` query-parameter value being sent as the literal string `"null"`, so
+  `Client.query(sql, params, ...)` binding a Java `null` to a scalar placeholder such as
+  `{x:Nullable(Decimal128(8))}` was rejected by the server with `BAD_QUERY_PARAMETER`
+  (`Value null cannot be parsed as Nullable(...)`). A top-level scalar `null` is now sent as the ClickHouse
+  `\N` NULL sentinel so it binds SQL `NULL`; a `null` nested inside an `Array`/`Map` parameter value
+  continues to render as the SQL `NULL` keyword. (https://github.com/ClickHouse/clickhouse-java/issues/2977)
+
 - **[client-v2]** Fixed binary array decoding for nullable element types so `Array(Nullable(Float64))` and similar columns now return boxed arrays such as `Double[]` instead of `Object[]`. This keeps null-supporting arrays aligned with their element type while preserving the existing `Object[]` fallback for Variant/Dynamic/Geometry arrays. (https://github.com/ClickHouse/clickhouse-java/issues/2846)
 
 - **[client-v2]** Fixed `Float32`/`Float64` columns throwing `ClassCastException` when a value of a

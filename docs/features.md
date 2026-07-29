@@ -40,6 +40,7 @@ Compatibility-sensitive traits:
 
 - Named parameter typing is part of the contract: placeholders are written as `{name:Type}` and the supplied value must match the expected ClickHouse textual representation for that type.
 - String query parameters are expected to round-trip correctly for ordinary text, Unicode, slashes, dashes, leading or trailing spaces, and characters the server's escaped-text parameter parser treats as structural — a backslash, tab, or newline — which the client escapes before sending.
+- A `null` query-parameter value is sent as the ClickHouse `\N` NULL sentinel, so a top-level `{name:Nullable(T)}` placeholder binds SQL `NULL`; a `null` nested inside an `Array`/`Map` parameter value renders as the SQL `NULL` keyword.
 - Runtime authentication changes are compatibility-sensitive: after `updateUserAndPassword()`, `updateAccessToken()`, or `updateBearerToken()`, subsequent requests from the same `Client` are expected to use the updated credentials. The authentication method itself is fixed at construction time; calling a runtime updater that does not match the configured method throws `ClientMisconfigurationException`.
 - String escaping behavior in `SQLUtils` is compatibility-sensitive: `enquoteLiteral()` uses SQL-style doubled single quotes, while `escapeSingleQuotes()` escapes both backslashes and single quotes with backslashes.
 - Identifier quoting behavior is stable API for helper callers: identifiers are double-quoted, embedded double quotes are doubled, and optional quoting keeps simple identifiers unchanged.
