@@ -25,6 +25,12 @@
   rows and desyncing the columns that follow the array in the same block. Each row's length is now derived from the
   difference between consecutive offsets, and empty array rows (`len == 0`) no longer read a phantom element. Results
   with uniform array lengths were unaffected. (https://github.com/ClickHouse/clickhouse-java/issues/2955)
+- **[client-v2]** Fixed the `RowBinary` writer throwing
+  `UnsupportedOperationException: Unsupported data type: SimpleAggregateFunction` when inserting into a
+  `SimpleAggregateFunction(func, T)` column (the reader already supported these columns). The value is now
+  serialized identically to its underlying type `T`, writing the `Nullable` null-marker byte when the
+  underlying type is nullable (e.g. `SimpleAggregateFunction(anyLast, Nullable(String))`), mirroring the
+  read path. (https://github.com/ClickHouse/clickhouse-java/issues/2477)
 
 - **[client-v2, jdbc-v2]** Fixed several logging-layer defects. In `client-v2`, `HttpAPIClientHelper.shouldRetry`
   threw a `ClassCastException` when a retryable `ServerException` was wrapped as the *cause* of another exception
