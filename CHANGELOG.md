@@ -25,6 +25,12 @@
   rows and desyncing the columns that follow the array in the same block. Each row's length is now derived from the
   difference between consecutive offsets, and empty array rows (`len == 0`) no longer read a phantom element. Results
   with uniform array lengths were unaffected. (https://github.com/ClickHouse/clickhouse-java/issues/2955)
+- **[client-v2]** Fixed `BigDecimal` values written into a `Dynamic` column being silently truncated when the
+  value's scale exceeded the inferred width's maximum scale, and throwing an overflow error when the value
+  carried an integer part (e.g. `19.99`). The `Dynamic` type inference now sizes the `Decimal` width to hold
+  both the integer digits and the value's scale, keeps the scale as wide as the width allows without stealing
+  room from the integer part, and writes the actual column scale into the `Dynamic` type tag. Values that
+  already round-tripped losslessly are unchanged. (https://github.com/ClickHouse/clickhouse-java/issues/2966)
 - **[client-v2]** Fixed the `RowBinary` writer throwing
   `UnsupportedOperationException: Unsupported data type: SimpleAggregateFunction` when inserting into a
   `SimpleAggregateFunction(func, T)` column (the reader already supported these columns). The value is now
