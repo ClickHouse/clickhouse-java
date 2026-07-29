@@ -998,6 +998,9 @@ public class DataTypeTests extends BaseIntegrationTest {
                 {new BigDecimal("123456789.123456789")},
                 {new BigDecimal("12345678901234567890.12345678901234567890")}, // 20 int + 20 frac -> Decimal256
                 {new BigDecimal("0")},
+                // A numerically-zero value whose scale exceeds any width: it fits (zero rounds to zero
+                // with no loss) and must round-trip rather than being rejected on insert.
+                {new BigDecimal("0E-77")},                   // zero, scale 77 > Decimal256 max scale
         };
     }
 

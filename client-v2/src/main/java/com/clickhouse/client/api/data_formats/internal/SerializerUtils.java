@@ -220,9 +220,18 @@ public class SerializerUtils {
             int integerDigits = Math.max(d.precision() - d.scale(), 0);
             int requiredPrecision = integerDigits + valueScale;
             if (requiredPrecision > ClickHouseDataType.Decimal256.getMaxPrecision()) {
-                throw new ClientException("Unable to serialize BigDecimal into a Dynamic column: it needs "
-                        + requiredPrecision + " digits of precision, exceeding the maximum supported Decimal256 precision of "
-                        + ClickHouseDataType.Decimal256.getMaxPrecision());
+                if (d.signum() != 0) {
+                    throw new ClientException("Unable to serialize BigDecimal into a Dynamic column: it needs "
+                            + requiredPrecision + " digits of precision, exceeding the maximum supported Decimal256 precision of "
+                            + ClickHouseDataType.Decimal256.getMaxPrecision());
+                }
+                // A numerically-zero value rounds to zero at any scale with no data loss, so it fits
+                // any Decimal width regardless of the scale/exponent implied by precision()/scale()
+                // (e.g. 0E-77 implies scale 77, 0E+77 implies 78 integer digits). Store it in the
+                // widest band rather than rejecting a value ClickHouse can represent exactly; cap the
+                // integer digits so the emitted scale (maxScale - integerDigits) stays non-negative.
+                integerDigits = Math.min(integerDigits, ClickHouseDataType.Decimal256.getMaxScale());
+                requiredPrecision = ClickHouseDataType.Decimal256.getMaxPrecision();
             }
             ClickHouseDataType decType;
             if (requiredPrecision > ClickHouseDataType.Decimal128.getMaxPrecision()) {

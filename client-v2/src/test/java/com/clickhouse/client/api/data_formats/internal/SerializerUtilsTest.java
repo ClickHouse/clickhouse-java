@@ -162,6 +162,11 @@ public class SerializerUtilsTest {
                 {new BigDecimal("0.00012345678901234567"), ClickHouseDataType.Decimal128, 38}, // scale 20 > Decimal64 max
                 {new BigDecimal("12345678901234567890.12345678901234567890"), ClickHouseDataType.Decimal256, 56}, // 20 int + 20 frac
                 {new BigDecimal("0.12345678901234567890123456789012345678901"), ClickHouseDataType.Decimal256, 76}, // scale 41
+                // Numerically-zero values whose implied width exceeds Decimal256 still fit: zero rounds
+                // to zero at any scale with no loss, so they map to the widest band, not a rejection.
+                {new BigDecimal("0E-77"), ClickHouseDataType.Decimal256, 76},             // zero, scale 77 > max scale
+                {new BigDecimal("0E+100"), ClickHouseDataType.Decimal256, 0},             // zero, 101 integer digits > max
+                {new BigDecimal(BigInteger.ZERO, Integer.MAX_VALUE), ClickHouseDataType.Decimal256, 76}, // zero, maximal scale
         };
     }
 
@@ -172,11 +177,20 @@ public class SerializerUtilsTest {
         Assert.assertEquals(column.getScale(), expectedScale);
     }
 
-    @Test
-    public void testValueToColumnForDynamicTypeRejectsOversizedDecimal() {
-        // 10^76 has 77 integer digits, one more than Decimal256 can represent: fail loudly, never truncate.
+    @DataProvider(name = "oversizedDecimalValues")
+    public Object[][] oversizedDecimalValues() {
+        return new Object[][]{
+                // Non-zero values that genuinely exceed Decimal256: fail loudly, never truncate. The
+                // zero-fits-any-width relaxation must NOT let these through — they carry real digits.
+                {new BigDecimal(BigInteger.TEN.pow(76))},  // 10^76: 77 integer digits, one past the width
+                {new BigDecimal(BigInteger.ONE, 77)},      // 1E-77: scale 77, one past the max scale
+        };
+    }
+
+    @Test(dataProvider = "oversizedDecimalValues")
+    public void testValueToColumnForDynamicTypeRejectsOversizedDecimal(BigDecimal value) {
         Assert.assertThrows(ClientException.class,
-                () -> SerializerUtils.valueToColumnForDynamicType(new BigDecimal(BigInteger.TEN.pow(76))));
+                () -> SerializerUtils.valueToColumnForDynamicType(value));
     }
 
     @Test(dataProvider = "nonNullableEnumTypes")
