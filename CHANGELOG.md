@@ -30,6 +30,15 @@
   and the comma-separated `ssl_cipher_suites` connection property (client-v2 and jdbc-v2) restrict the cipher suites
   enabled on secure connections; when unset, the transport defaults are used. Cipher-suite selection is independent of the
   trust configuration and `ssl_mode`. (https://github.com/ClickHouse/clickhouse-java/issues/2882)
+- **[client-v2, jdbc-v2]** Added support for un-flattened `Nested(...)` columns (tables created with
+  `flatten_nested = 0`). Previously the `RowBinary` writer threw `UnsupportedOperationException: Unsupported
+  data type: Nested` when inserting such a column. `client-v2` now serializes a `Nested(f1 T1, ..., fN TN)`
+  column the same way it is read — identically to `Array(Tuple(T1, ..., TN))` (a var-uint row count followed
+  by one tuple per nested row) — so it can be written through the insert path / `RowBinaryFormatWriter`. In
+  `jdbc-v2` an un-flattened `Nested(...)` column is exposed as a JDBC `ARRAY` whose element type is
+  `Tuple(f1 T1, ..., fN TN)`: it can be inserted through `Connection#createArrayOf`/`setArray` or `setObject`
+  and read back through `getArray`/`getObject`, and `java.sql.Array#getResultSet()` iterates the nested rows
+  as `(INDEX, VALUE)` pairs where each `VALUE` is the tuple. (https://github.com/ClickHouse/clickhouse-java/issues/2477)
 - **[client-v2, jdbc-v2]** Added logging on previously-silent error and diagnostic paths (no functional or
   public-API change). (https://github.com/ClickHouse/clickhouse-java/issues/2969)
 
