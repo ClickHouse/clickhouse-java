@@ -19,23 +19,14 @@
 
 ### Bug Fixes 
 
-- **[client-v2, jdbc-v2]** Cleaned up noisy and potentially sensitive logging in `jdbc-v2` and `client-v2`
-  (https://github.com/ClickHouse/clickhouse-java/issues/2970). SQL that fails to parse is no longer logged
-  in full at `WARN` (it could contain passwords/PII); the parser now warns without the statement or the
-  parser error detail (which can also echo statement tokens), and logs the raw SQL and the parse exception
-  only at `DEBUG`. In `jdbc-v2`: unknown-type metadata fallbacks (mapping to `JDBCType.OTHER`)
-  log at `DEBUG` instead of `ERROR`; `ExceptionUtils.toSqlState` no longer emits a per-conversion `DEBUG`
-  stack trace that often included SQL; the per-element `TRACE` in prepared-statement parameter encoding and
-  the duplicate per-execution SQL `TRACE`s were removed (the query is still traced once); and the
-  static-init driver banner was dropped. In `client-v2`: a retried request failure is now logged once as a
-  single consolidated retry `WARN` (operation, attempt, endpoint, query id, and the failure cause's exception
-  class and message) rather than a transport `WARN` followed by a stack-trace `WARN`; the two per-operation compression `DEBUG`s were removed
-  (compression settings are already logged once at initialization); and the LZ4 compressor/decompressor
-  `DEBUG`s now report the algorithm and buffer size instead of an unusable object identity. The `jdbc-v2`
-  `DatabaseMetaDataImpl` and `ClickHouseSqlParser` were also migrated from the deprecated
-  `com.clickhouse.logging` facade (which formats with `java.util.Formatter`) to SLF4J so their `{}`
-  placeholders render correctly — previously the `DatabaseMetaData.getTables` `DEBUG` line printed literal
-  `{}` instead of the argument values.
+- **[client-v2, jdbc-v2]** Reduced noisy and potentially sensitive logging; SQL that fails to parse is no
+  longer logged at `WARN` (it could contain credentials/PII). (https://github.com/ClickHouse/clickhouse-java/issues/2970)
+- **[client-v2]** Fixed `BigDecimal` values written into a `Dynamic` column being silently truncated when the
+  value's scale exceeded the inferred width's maximum scale, and throwing an overflow error when the value
+  carried an integer part (e.g. `19.99`). The `Dynamic` type inference now sizes the `Decimal` width to hold
+  both the integer digits and the value's scale, keeps the scale as wide as the width allows without stealing
+  room from the integer part, and writes the actual column scale into the `Dynamic` type tag. Values that
+  already round-tripped losslessly are unchanged. (https://github.com/ClickHouse/clickhouse-java/issues/2966)
 - **[client-v2]** Fixed the `RowBinary` writer throwing
   `UnsupportedOperationException: Unsupported data type: SimpleAggregateFunction` when inserting into a
   `SimpleAggregateFunction(func, T)` column (the reader already supported these columns). The value is now
