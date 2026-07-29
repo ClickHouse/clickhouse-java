@@ -779,8 +779,8 @@ public class HttpAPIClientHelper {
      * not logged: {@link #readError} consumes it and it may contain SQL/data.
      */
     private void logServerErrorResponse(HttpPost req, ClassicHttpResponse httpResponse) {
-        // Never let the error-path logger itself throw and mask the real failure.
-        if (!LOG.isWarnEnabled() || req == null || httpResponse == null) {
+        // Null-safe: the error path must never let its own logger throw and mask the real failure.
+        if (req == null || httpResponse == null) {
             return;
         }
         final Header exceptionCodeHeader = httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE);

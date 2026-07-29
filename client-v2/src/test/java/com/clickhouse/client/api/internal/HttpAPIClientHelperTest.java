@@ -8,6 +8,7 @@ import com.clickhouse.client.api.transport.Endpoint;
 import com.clickhouse.client.api.transport.HttpEndpoint;
 import com.clickhouse.client.api.transport.internal.TransportRequest;
 import net.jpountz.lz4.LZ4Factory;
+import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
 import org.apache.hc.core5.http.ClassicHttpResponse;
@@ -28,6 +29,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.net.ConnectException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -337,6 +339,40 @@ public class HttpAPIClientHelperTest {
         } else {
             assertFalse(logged.contains("Server returned error response"),
                     "status " + statusCode + " must not emit a server-error WARN: " + logged);
+        }
+    }
+
+    /**
+     * The server-error logger runs on the failure path, so it must be null-safe - never throw and mask the
+     * real error - and it must surface the ClickHouse exception-code header value when the response carries one.
+     */
+    @Test
+    public void testLogServerErrorResponseIsNullSafeAndLogsExceptionCode() throws Exception {
+        HttpAPIClientHelper helper = new HttpAPIClientHelper(new HashMap<>(), null, false, LZ4Factory.fastestInstance());
+        Method log = HttpAPIClientHelper.class.getDeclaredMethod(
+                "logServerErrorResponse", HttpPost.class, ClassicHttpResponse.class);
+        log.setAccessible(true);
+        HttpPost req = new HttpPost("http://localhost:8123/");
+        ClassicHttpResponse responseWithCode = mockResponse(480, "241");
+
+        // A null request or a null response must be a silent no-op: nothing logged, nothing thrown.
+        assertFalse(captureStdErr(() -> invokeQuietly(log, helper, null, responseWithCode))
+                .contains("Server returned error response"), "a null request must not be logged");
+        assertFalse(captureStdErr(() -> invokeQuietly(log, helper, req, null))
+                .contains("Server returned error response"), "a null response must not be logged");
+
+        // A present exception-code header must be logged by value, not as the "<none>" placeholder.
+        String logged = captureStdErr(() -> invokeQuietly(log, helper, req, responseWithCode));
+        assertTrue(logged.contains("Server returned error response"), "the server error must be logged: " + logged);
+        assertTrue(logged.contains("241"), "the exception-code header value must be logged: " + logged);
+        assertFalse(logged.contains("<none>"), "a present exception-code header must not log the placeholder: " + logged);
+    }
+
+    private static void invokeQuietly(Method method, Object target, Object... args) {
+        try {
+            method.invoke(target, args);
+        } catch (Exception e) {
+            throw new AssertionError("logServerErrorResponse must not throw on the error path", e);
         }
     }
 
