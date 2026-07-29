@@ -508,4 +508,54 @@ public class ClickHouseColumnTest {
                 {"JSON(max_dynamic_types=3,max_dynamic_paths=3, SKIP REGEXP '^-.*',SKIP ff,   flags Array(Array(Array(Int8))), SKIP alt_count)", 2, Arrays.asList("flags")},
         };
     }
+
+    @DataProvider(name = "qbitTypesProvider")
+    private static Object[][] qbitTypesProvider() {
+        return new Object[][] {
+                // typeName, elementType, dimension (see https://clickhouse.com/docs/sql-reference/data-types/qbit)
+                { "QBit(Int8, 8)", ClickHouseDataType.Int8, 8 },
+                { "QBit(BFloat16, 4)", ClickHouseDataType.BFloat16, 4 },
+                { "QBit(Float32, 16)", ClickHouseDataType.Float32, 16 },
+                { "QBit(Float64, 1536)", ClickHouseDataType.Float64, 1536 },
+                { "QBit(Float32, 4096)", ClickHouseDataType.Float32, 4096 },
+                // optional stride (3rd parameter); the dimension is still the 2nd parameter
+                { "QBit(BFloat16, 4096, 1024)", ClickHouseDataType.BFloat16, 4096 },
+        };
+    }
+
+    @Test(groups = { "unit" }, dataProvider = "qbitTypesProvider")
+    public void testParseQBit(String typeName, ClickHouseDataType elementType, int dimension) {
+        ClickHouseColumn column = ClickHouseColumn.of("vec", typeName);
+        Assert.assertEquals(column.getDataType(), ClickHouseDataType.QBit);
+        Assert.assertEquals(column.getOriginalTypeName(), typeName);
+        // QBit(element_type, dimension) is a one-level array of its element type on the wire.
+        Assert.assertEquals(column.getArrayNestedLevel(), 1);
+        Assert.assertNotNull(column.getArrayBaseColumn());
+        Assert.assertEquals(column.getArrayBaseColumn().getDataType(), elementType);
+        Assert.assertEquals(column.getNestedColumns().size(), 1);
+        Assert.assertEquals(column.getNestedColumns().get(0).getDataType(), elementType);
+        // The fixed vector dimension is retained as the column precision.
+        Assert.assertEquals(column.getPrecision(), dimension);
+    }
+
+    @Test(groups = { "unit" }, expectedExceptions = IllegalArgumentException.class)
+    public void testParseQBitRequiresDimension() {
+        ClickHouseColumn.of("vec", "QBit(Float32)");
+    }
+
+    @Test(groups = { "unit" }, expectedExceptions = IllegalArgumentException.class)
+    public void testParseQBitRejectsTooManyParameters() {
+        ClickHouseColumn.of("vec", "QBit(Float32, 8, 8, 8)");
+    }
+
+    @Test(groups = { "unit" })
+    public void testParseQBitAllowsUndocumentedElementType() {
+        // An element type outside the documented set is warned about, not rejected, so that a
+        // newer server-side element type keeps parsing without a client code change.
+        ClickHouseColumn column = ClickHouseColumn.of("vec", "QBit(Int16, 4)");
+        Assert.assertEquals(column.getDataType(), ClickHouseDataType.QBit);
+        Assert.assertNotNull(column.getArrayBaseColumn());
+        Assert.assertEquals(column.getArrayBaseColumn().getDataType(), ClickHouseDataType.Int16);
+        Assert.assertEquals(column.getPrecision(), 4);
+    }
 }

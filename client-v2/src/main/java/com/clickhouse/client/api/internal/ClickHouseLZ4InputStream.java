@@ -27,7 +27,7 @@ public class ClickHouseLZ4InputStream extends InputStream {
 
     public ClickHouseLZ4InputStream(InputStream in, LZ4FastDecompressor decompressor, int bufferSize) {
         super();
-        LOG.debug("Using decompressor {}", decompressor);
+        LOG.debug("Using LZ4 decompressor with buffer size {}", bufferSize);
         this.decompressor = decompressor;
         this.in = in;
         this.buffer = ByteBuffer.allocate(bufferSize);
@@ -137,7 +137,6 @@ public class ClickHouseLZ4InputStream extends InputStream {
 
         if (buffer.capacity() < uncompressedSize) {
             buffer = ByteBuffer.allocate(uncompressedSize);
-            LOG.debug("Buffer size is too small, reallocate buffer with size: {}", uncompressedSize);
         }
         decompressor.decompress(ByteBuffer.wrap(block), offset,  buffer, 0, uncompressedSize);
         buffer.position(0);
