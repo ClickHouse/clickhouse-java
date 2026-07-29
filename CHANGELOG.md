@@ -25,6 +25,14 @@
   both the integer digits and the value's scale, keeps the scale as wide as the width allows without stealing
   room from the integer part, and writes the actual column scale into the `Dynamic` type tag. Values that
   already round-tripped losslessly are unchanged. (https://github.com/ClickHouse/clickhouse-java/issues/2966)
+- **[client-v2, jdbc-v2]** Fixed several logging-layer defects. In `client-v2`, `HttpAPIClientHelper.shouldRetry`
+  threw a `ClassCastException` when a retryable `ServerException` was wrapped as the *cause* of another exception
+  (the branch matched on the cause but the cast used the outer exception); the retry decision is now taken from
+  whichever exception is the `ServerException`. Also in `client-v2`, a failure to build the HTTP client version
+  string is now logged at `WARN` with the throwable attached instead of a bare `INFO` message that discarded the
+  cause. In `jdbc-v2`, a failure to close the response after a query error now logs the close failure itself
+  instead of the already-propagated outer exception. (https://github.com/ClickHouse/clickhouse-java/issues/2968)
+
 - **[client-v2]** Fixed scalar `String` query parameters containing a tab (`0x09`), newline
   (`0x0a`) or backslash being mishandled through the server's `param_<name>` interface. A `{name:String}`
   parameter value is parsed by the server with `deserializeTextEscaped`, which treated a raw tab or
