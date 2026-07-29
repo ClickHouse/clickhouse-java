@@ -96,9 +96,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
                 clientName = this.appName + " " + clientName; // Use the application name as client name
             }
 
-            if (this.config.isDisableFrameworkDetection()) {
-                LOG.debug("Framework detection is disabled.");
-            } else {
+            if (!this.config.isDisableFrameworkDetection()) {
                 String detectedFrameworks = Driver.FrameworksDetection.getFrameworksDetected();
                 LOG.debug("Detected frameworks: {}", detectedFrameworks);
                 if (!detectedFrameworks.trim().isEmpty()) {

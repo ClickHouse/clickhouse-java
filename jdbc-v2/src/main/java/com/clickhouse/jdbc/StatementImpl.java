@@ -78,11 +78,9 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     }
 
     private String parseJdbcEscapeSyntax(String sql) {
-        LOG.trace("Original SQL: {}", sql);
         if (escapeProcessingEnabled) {
             sql = escapedSQLToNative(sql);
         }
-        LOG.trace("Escaped SQL: {}", sql);
         return sql;
     }
 

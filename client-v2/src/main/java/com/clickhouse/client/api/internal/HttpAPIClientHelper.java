@@ -734,10 +734,10 @@ public class HttpAPIClientHelper {
                     throw new ClientException("Unexpected result status " + statusCode);
             }
         } catch (UnknownHostException e) {
-            LOG.warn("Host '{}' unknown", req.getAuthority());
+            LOG.debug("Host '{}' unknown", req.getAuthority());
             throw e;
         } catch (ConnectException | NoRouteToHostException e) {
-            LOG.warn("Failed to connect to '{}': {}", req.getAuthority(), e.getMessage());
+            LOG.debug("Failed to connect to '{}': {}", req.getAuthority(), e.getMessage());
             throw e;
         } catch (Exception e) {
             LOG.debug("Failed to execute request to '{}': {}", req.getAuthority(), e.getMessage(), e);
@@ -938,9 +938,6 @@ public class HttpAPIClientHelper {
         boolean useHttpCompression = ClientConfigProperties.USE_HTTP_COMPRESSION.getOrDefault(requestConfig);
         boolean appCompressedData = ClientConfigProperties.APP_COMPRESSED_DATA.getOrDefault(requestConfig);
 
-        LOG.debug("wrapRequestEntity: client compression: {}, http compression: {}, content encoding: {}",
-                clientCompression, useHttpCompression, httpEntity.getContentEncoding());
-
         if (httpEntity.getContentEncoding() != null && !appCompressedData) {
             // http header is set and data is not compressed
             return new CompressedEntity(httpEntity, false, CompressorStreamFactory.getSingleton());
@@ -956,9 +953,6 @@ public class HttpAPIClientHelper {
     private HttpEntity wrapResponseEntity(HttpEntity httpEntity, int httpStatus, Map<String, Object> requestConfig) {
         boolean serverCompression = ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getOrDefault(requestConfig);
         boolean useHttpCompression = ClientConfigProperties.USE_HTTP_COMPRESSION.getOrDefault(requestConfig);
-
-        LOG.debug("wrapResponseEntity: server compression: {}, http compression: {}, content encoding: {}",
-                serverCompression, useHttpCompression, httpEntity.getContentEncoding());
 
         if (httpEntity.getContentEncoding() != null) {
             // http compressed response

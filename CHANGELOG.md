@@ -35,6 +35,8 @@
 
 ### Bug Fixes 
 
+- **[client-v2, jdbc-v2]** Reduced noisy and potentially sensitive logging; SQL that fails to parse is no
+  longer logged at `WARN` (it could contain credentials/PII). (https://github.com/ClickHouse/clickhouse-java/issues/2970)
 - **[client-v2]** Fixed `BigDecimal` values written into a `Dynamic` column being silently truncated when the
   value's scale exceeded the inferred width's maximum scale, and throwing an overflow error when the value
   carried an integer part (e.g. `19.99`). The `Dynamic` type inference now sizes the `Decimal` width to hold
@@ -47,7 +49,6 @@
   serialized identically to its underlying type `T`, writing the `Nullable` null-marker byte when the
   underlying type is nullable (e.g. `SimpleAggregateFunction(anyLast, Nullable(String))`), mirroring the
   read path. (https://github.com/ClickHouse/clickhouse-java/issues/2477)
-
 - **[client-v2, jdbc-v2]** Fixed several logging-layer defects. In `client-v2`, `HttpAPIClientHelper.shouldRetry`
   threw a `ClassCastException` when a retryable `ServerException` was wrapped as the *cause* of another exception
   (the branch matched on the cause but the cast used the outer exception); the retry decision is now taken from

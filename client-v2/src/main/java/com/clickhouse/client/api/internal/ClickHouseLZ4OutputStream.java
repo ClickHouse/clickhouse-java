@@ -29,7 +29,7 @@ public class ClickHouseLZ4OutputStream extends OutputStream {
 
     public ClickHouseLZ4OutputStream(OutputStream out, LZ4Compressor compressor, int bufferSize) {
         super();
-        LOG.debug("Using compressor {}", compressor);
+        LOG.debug("Using LZ4 compressor with buffer size {}", bufferSize);
         this.inBuffer = ByteBuffer.allocate(bufferSize);
         this.out = out;
         this.compressor = compressor;

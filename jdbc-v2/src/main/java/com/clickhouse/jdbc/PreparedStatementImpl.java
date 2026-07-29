@@ -750,8 +750,6 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
     private static final char C_BRACKET = ']';
 
     private String encodeObject(Object x, Long length) throws SQLException {
-        LOG.trace("Encoding object: {}", x);
-
         try {
             if (x == null) {
                 return "NULL";
