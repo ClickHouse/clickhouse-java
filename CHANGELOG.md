@@ -19,6 +19,19 @@
 
 ### Bug Fixes 
 
+- **[client-v2, jdbc-v2]** Cleaned up noisy and potentially sensitive logging in `jdbc-v2` and `client-v2`
+  (https://github.com/ClickHouse/clickhouse-java/issues/2970). SQL that fails to parse is no longer logged
+  in full at `WARN` (it could contain passwords/PII); the parser now warns without the statement and logs
+  the raw SQL only at `DEBUG`. In `jdbc-v2`: unknown-type metadata fallbacks (mapping to `JDBCType.OTHER`)
+  log at `DEBUG` instead of `ERROR`; `ExceptionUtils.toSqlState` no longer emits a per-conversion `DEBUG`
+  stack trace that often included SQL; the per-element `TRACE` in prepared-statement parameter encoding and
+  the duplicate per-execution SQL `TRACE`s were removed (the query is still traced once); and the
+  static-init driver banner was dropped. In `client-v2`: a retried request failure is now logged once as a
+  single consolidated retry `WARN` (operation, attempt, endpoint, query id and cause) rather than a
+  transport `WARN` followed by a stack-trace `WARN`; the two per-operation compression `DEBUG`s were removed
+  (compression settings are already logged once at initialization); and the LZ4 compressor/decompressor
+  `DEBUG`s now report the algorithm and buffer size instead of an unusable object identity.
+
 - **[client-v2]** Fixed scalar `String` query parameters containing a tab (`0x09`), newline
   (`0x0a`) or backslash being mishandled through the server's `param_<name>` interface. A `{name:String}`
   parameter value is parsed by the server with `deserializeTextEscaped`, which treated a raw tab or

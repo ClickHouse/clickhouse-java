@@ -1132,7 +1132,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                 ClickHouseDataType dt = c.getDataType();
                 type = JdbcUtils.convertToSqlType(dt);
             } catch (Exception e) {
-                log.error("Failed to convert column data type to SQL type: {}", typeName, e);
+                log.debug("Failed to convert column data type to SQL type: %s", typeName, e);
                 type = JDBCType.OTHER; // In case of error, return SQL type 0
             }
         }
@@ -1339,10 +1339,10 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
             try {
                 type = JdbcUtils.convertToSqlType(ClickHouseDataType.valueOf(typeName));
             } catch (IllegalArgumentException e) {
-                log.error("Unknown type: " + typeName + ". Please check for a new version of the client.");
+                log.debug("Unknown type: %s. Please check for a new version of the client.", typeName);
                 type = JDBCType.OTHER;
             } catch (Exception e) {
-                log.error("Failed to get SQL type for type: " + typeName, e);
+                log.debug("Failed to get SQL type for type: %s", typeName, e);
                 type = JDBCType.OTHER;
             }
         }

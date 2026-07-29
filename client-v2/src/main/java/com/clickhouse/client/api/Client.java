@@ -1499,7 +1499,7 @@ public class Client implements AutoCloseable {
                     lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
                     if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings()) && requestIsNotCancelled(queryId)) {
                         if (i < maxAttempts) {
-                            LOG.warn("Retrying.", e);
+                            LOG.warn("{}, endpoint: {}, cause: {}. Retrying.", msg, selectedEndpoint, e.getMessage());
                             selectedEndpoint = nodeSelector.getNextAliveNode(selectedEndpoint);
                         } else {
                             nodeSelector.getNextAliveNode(selectedEndpoint);
@@ -1705,7 +1705,7 @@ public class Client implements AutoCloseable {
                         lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
                         if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings()) && requestIsNotCancelled(requestSettings.getQueryId())) {
                             if (i < maxAttempts) {
-                                LOG.warn("Retrying.", e);
+                                LOG.warn("{}, endpoint: {}, cause: {}. Retrying.", msg, selectedEndpoint, e.getMessage());
                                 selectedEndpoint = nodeSelector.getNextAliveNode(selectedEndpoint);
                             } else {
                                 nodeSelector.getNextAliveNode(selectedEndpoint);
@@ -1849,7 +1849,7 @@ public class Client implements AutoCloseable {
                             lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
                             if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings()) && requestIsNotCancelled(requestSettings.getQueryId())) {
                                 if (i < maxAttempts) {
-                                    LOG.warn("Retrying.", e);
+                                    LOG.warn("{}, endpoint: {}, cause: {}. Retrying.", msg, selectedEndpoint, e.getMessage());
                                     selectedEndpoint = nodeSelector.getNextAliveNode(selectedEndpoint);
                                 } else {
                                     nodeSelector.getNextAliveNode(selectedEndpoint);
