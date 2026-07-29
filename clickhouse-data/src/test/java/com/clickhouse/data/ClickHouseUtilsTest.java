@@ -31,8 +31,8 @@ public class ClickHouseUtilsTest {
                 { "SELECT 13 AS a WHERE 0", "SELECT 13 AS a WHERE 0" },
                 { "SELECT 13 AS a WHERE 0 -- trailing comment", "SELECT 13 AS a WHERE 0" },
                 { "SELECT 13 AS a WHERE 0 # trailing comment", "SELECT 13 AS a WHERE 0" },
-                // '#' begins a comment only when followed by a space or '!' (ClickHouse lexer rule);
-                // otherwise it is an ordinary token and must be preserved, not stripped
+                // a hash begins a comment only when followed by a space or an exclamation mark
+                // (the ClickHouse lexer rule) - otherwise it is an ordinary token and is preserved
                 { "SELECT 13 AS a WHERE 0 #!shebang", "SELECT 13 AS a WHERE 0" },
                 { "SELECT 1 AS a#b", "SELECT 1 AS a#b" },
                 { "SELECT 1 AS a#", "SELECT 1 AS a#" },

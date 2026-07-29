@@ -1069,24 +1069,23 @@ public final class ClickHouseUtils {
 
         int len = sql.length();
         int end = 0; // exclusive index just past the last significant character
+        int i = 0;
         try {
-            for (int i = 0; i < len; i++) {
+            while (i < len) {
                 char ch = sql.charAt(i);
-                if (Character.isWhitespace(ch) || ch == ';') {
-                    continue; // whitespace / statement terminator is not significant
-                } else if (isQuote(ch)) {
-                    i = skipQuotedString(sql, i, len, ch) - 1;
+                if (isQuote(ch)) {
+                    i = skipQuotedString(sql, i, len, ch);
+                    end = i;
+                } else if (startsSingleLineComment(sql, i, len)) {
+                    i = skipSingleLineComment(sql, i, len);
+                } else if (startsMultiLineComment(sql, i, len)) {
+                    i = skipMultiLineComment(sql, i + 2, len);
+                } else if (ch != ';' && !Character.isWhitespace(ch)) {
+                    // significant character - whitespace and terminators do not move the end marker
                     end = i + 1;
-                } else if (ch == '#' && i + 1 < len && (sql.charAt(i + 1) == ' ' || sql.charAt(i + 1) == '!')) {
-                    // ClickHouse: '#' starts a comment only when followed by a space or '!' (shebang);
-                    // otherwise it is an ordinary token, so it falls through and is kept.
-                    i = skipSingleLineComment(sql, i, len) - 1;
-                } else if (ch == '-' && i + 1 < len && sql.charAt(i + 1) == '-') {
-                    i = skipSingleLineComment(sql, i, len) - 1;
-                } else if (ch == '/' && i + 1 < len && sql.charAt(i + 1) == '*') {
-                    i = skipMultiLineComment(sql, i + 2, len) - 1;
+                    i++;
                 } else {
-                    end = i + 1;
+                    i++;
                 }
             }
         } catch (RuntimeException e) {
@@ -1094,6 +1093,26 @@ public final class ClickHouseUtils {
         }
 
         return end == len ? sql : sql.substring(0, end);
+    }
+
+    /**
+     * Tells whether a single line comment starts at {@code index}. ClickHouse treats
+     * {@code --} as a comment, and {@code #} only when it is followed by a space or an
+     * exclamation mark (shebang); a {@code #} followed by anything else is an ordinary token.
+     */
+    private static boolean startsSingleLineComment(String sql, int index, int len) {
+        char ch = sql.charAt(index);
+        if (ch == '-') {
+            return index + 1 < len && sql.charAt(index + 1) == '-';
+        }
+        return ch == '#' && index + 1 < len && (sql.charAt(index + 1) == ' ' || sql.charAt(index + 1) == '!');
+    }
+
+    /**
+     * Tells whether a multi line comment ({@code /}{@code *}) starts at {@code index}.
+     */
+    private static boolean startsMultiLineComment(String sql, int index, int len) {
+        return sql.charAt(index) == '/' && index + 1 < len && sql.charAt(index + 1) == '*';
     }
 
     public static String getProperty(String key, Properties... props) {
