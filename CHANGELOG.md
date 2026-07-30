@@ -44,6 +44,9 @@
 
 ### Bug Fixes 
 
+- **[client-v2]** Fixed native LZ4 response streams not closing their underlying HTTP response stream. Closing the
+  stream returned by `QueryResponse.getInputStream()` now releases the wrapped transport stream, including when a
+  response is only partially read. (https://github.com/ClickHouse/clickhouse-java/issues/2985)
 - **[client-v2, jdbc-v2]** Reduced noisy and potentially sensitive logging; SQL that fails to parse is no
   longer logged at `WARN` (it could contain credentials/PII). (https://github.com/ClickHouse/clickhouse-java/issues/2970)
 - **[client-v2]** Fixed `BigDecimal` values written into a `Dynamic` column being silently truncated when the
