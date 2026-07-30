@@ -26,6 +26,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
+import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
@@ -63,6 +64,9 @@ public class SerializerUtils {
     public static void serializeData(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
         //Serialize the value to the stream based on the data type
         switch (column.getDataType()) {
+            case QBit:
+                serializeQBitData(stream, value, column);
+                break;
             case Array:
                 serializeArrayData(stream, value, column);
                 break;
@@ -71,6 +75,18 @@ public class SerializerUtils {
                 break;
             case Map:
                 serializeMapData(stream, value, column);
+                break;
+            case Nested:
+                serializeNestedTypeData(stream, value, column);
+                break;
+            case SimpleAggregateFunction:
+                // A SimpleAggregateFunction(func, T) value serializes identically to its underlying
+                // type T. This is a deliberate exception to serializeNestedData's "nested elements
+                // only" contract: the SAF wrapper is itself non-nullable, so writeValuePreamble emits
+                // no null-marker for a top-level SAF column, yet a Nullable underlying still needs one.
+                // serializeNestedData writes that marker iff the underlying is nullable, mirroring
+                // BinaryStreamReader's read path.
+                serializeNestedData(stream, value, column.getNestedColumns().get(0));
                 break;
             case AggregateFunction:
                 serializeAggregateFunction(stream, value, column);
@@ -117,7 +133,10 @@ public class SerializerUtils {
      * {@code 0x01} when null), as the server expects for {@code Nullable} sub-columns in
      * {@code RowBinary}. For a top-level column this marker is instead written by
      * {@link com.clickhouse.client.api.data_formats.RowBinaryFormatSerializer#writeValuePreamble},
-     * so this helper must only be used for nested elements.
+     * so this helper is normally used only for nested elements. The one deliberate exception is a
+     * top-level {@code SimpleAggregateFunction} column: its wrapper is itself non-nullable (so
+     * {@code writeValuePreamble} writes no marker), but its underlying type may be {@code Nullable}
+     * and still needs the marker, which this helper supplies.
      */
     private static void serializeNestedData(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
         if (column.isNullable()) {
@@ -128,6 +147,25 @@ public class SerializerUtils {
             writeNonNull(stream);
         }
         serializeData(stream, value, column);
+    }
+
+    /**
+     * Serializes a {@code Nested} column. In {@code RowBinary} a {@code Nested(f1 T1, ..., fN TN)}
+     * column has the same layout as {@code Array(Tuple(T1, ..., TN))}: a var-uint element count
+     * followed by that many tuples, each carrying the N field values in declaration order. The
+     * value is therefore a list (or array) of tuples, matching what
+     * {@link BinaryStreamReader#readNested(ClickHouseColumn)} produces on read.
+     */
+    private static void serializeNestedTypeData(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
+        if (value == null) {
+            writeVarInt(stream, 0);
+            return;
+        }
+        List<?> tuples = convertArrayValueToList(value);
+        writeVarInt(stream, tuples.size());
+        for (Object tuple : tuples) {
+            serializeTupleData(stream, tuple, column);
+        }
     }
 
     private static final Map<Class<?>, ClickHouseColumn> PREDEFINED_TYPE_COLUMNS = getPredefinedTypeColumnsMap();
@@ -196,23 +234,43 @@ public class SerializerUtils {
             column = ClickHouseColumn.of("v", "DateTime64(9, " + ZoneId.systemDefault().getId() + ")");
         } else if (value instanceof BigDecimal) {
             BigDecimal d = (BigDecimal) value;
-            String decType;
-            int scale;
-            if (d.precision() > ClickHouseDataType.Decimal128.getMaxScale()) {
-                decType = "Decimal256";
-                scale = ClickHouseDataType.Decimal256.getMaxScale();
-            } else if (d.precision() > ClickHouseDataType.Decimal64.getMaxScale()) {
-                decType = "Decimal128";
-                scale = ClickHouseDataType.Decimal128.getMaxScale();
-            } else if (d.precision() > ClickHouseDataType.Decimal32.getMaxScale()) {
-                decType = "Decimal64";
-                scale = ClickHouseDataType.Decimal64.getMaxScale();
-            } else {
-                decType = "Decimal32";
-                scale = ClickHouseDataType.Decimal32.getMaxScale();
+            // A DecimalN(S) column is Decimal(P, S) with P fixed to the width's precision
+            // (Decimal32=9, Decimal64=18, Decimal128=38, Decimal256=76) and 0 <= S <= P, so it can
+            // hold at most P - S integer digits. Size the width to fit both the integer digits and
+            // the value's own scale, then keep S as wide as the width allows without stealing room
+            // from the integer part. Keying the width off precision() alone and forcing S to the
+            // width maximum truncated values whose scale exceeded that maximum, and overflowed
+            // values that carried an integer part.
+            int valueScale = Math.max(d.scale(), 0);
+            int integerDigits = Math.max(d.precision() - d.scale(), 0);
+            int requiredPrecision = integerDigits + valueScale;
+            if (requiredPrecision > ClickHouseDataType.Decimal256.getMaxPrecision()) {
+                if (d.signum() != 0) {
+                    throw new ClientException("Unable to serialize BigDecimal into a Dynamic column: it needs "
+                            + requiredPrecision + " digits of precision, exceeding the maximum supported Decimal256 precision of "
+                            + ClickHouseDataType.Decimal256.getMaxPrecision());
+                }
+                // A numerically-zero value rounds to zero at any scale with no data loss, so it fits
+                // any Decimal width regardless of the scale/exponent implied by precision()/scale()
+                // (e.g. 0E-77 implies scale 77, 0E+77 implies 78 integer digits). Store it in the
+                // widest band rather than rejecting a value ClickHouse can represent exactly; cap the
+                // integer digits so the emitted scale (maxScale - integerDigits) stays non-negative.
+                integerDigits = Math.min(integerDigits, ClickHouseDataType.Decimal256.getMaxScale());
+                requiredPrecision = ClickHouseDataType.Decimal256.getMaxPrecision();
             }
+            ClickHouseDataType decType;
+            if (requiredPrecision > ClickHouseDataType.Decimal128.getMaxPrecision()) {
+                decType = ClickHouseDataType.Decimal256;
+            } else if (requiredPrecision > ClickHouseDataType.Decimal64.getMaxPrecision()) {
+                decType = ClickHouseDataType.Decimal128;
+            } else if (requiredPrecision > ClickHouseDataType.Decimal32.getMaxPrecision()) {
+                decType = ClickHouseDataType.Decimal64;
+            } else {
+                decType = ClickHouseDataType.Decimal32;
+            }
+            int scale = decType.getMaxScale() - integerDigits;
 
-            column = ClickHouseColumn.of("v", decType + "(" + scale + ")");
+            column = ClickHouseColumn.of("v", decType.name() + "(" + scale + ")");
         } else if (value instanceof Map<?,?>) {
             Map<?, ?> map = (Map<?, ?>) value;
             // TODO: handle empty map?
@@ -369,7 +427,7 @@ public class SerializerUtils {
             case Decimal256:
                 stream.write(binTag);
                 BinaryStreamUtils.writeUnsignedInt8(stream, dt.getMaxPrecision());
-                BinaryStreamUtils.writeUnsignedInt8(stream, dt.getMaxScale());
+                BinaryStreamUtils.writeUnsignedInt8(stream, typeColumn.getScale());
                 break;
             case IntervalNanosecond:
             case IntervalMillisecond:
@@ -436,6 +494,17 @@ public class SerializerUtils {
                 stream.write(binTag);
                 BinaryStreamUtils.writeUnsignedInt8(stream, dt.getMaxPrecision());
                 break;
+            case QBit:
+                // A QBit inside a Dynamic/Variant/JSON column would have to be encoded as
+                // 0x36 <element_type_encoding> <var_uint dimension> to round-trip with
+                // BinaryStreamReader.readDynamicData. The client never infers a QBit type from a
+                // Java value (valueToColumnForDynamicType only yields Array/Map/scalar types), so
+                // this path is unreachable through the public write API. Reject explicitly rather
+                // than fall through to the default branch and emit a bare 0x36 tag that the reader
+                // cannot parse and that would desynchronize the RowBinary stream. Reading a
+                // server-sent QBit inside a Dynamic column IS supported (see
+                // BinaryStreamReader.readDynamicData).
+                throw new ClientException("Serializing a QBit value inside a Dynamic column is not supported");
             default:
                 stream.write(binTag);
         }
@@ -468,6 +537,52 @@ public class SerializerUtils {
                 serializeData(stream, val, column.getNestedColumns().get(0));
             }
         }
+    }
+
+    /**
+     * Serializes a {@code QBit(element_type, dimension)} value. On the wire a {@code QBit} is
+     * transmitted exactly like {@code Array(element_type)} — a var-int length followed by that many
+     * element values — but the element count is fixed and must equal the declared dimension. The
+     * count is validated up-front so a wrong-sized (including empty) vector fails fast on the client
+     * with a clear message instead of a late server {@code SERIALIZATION_ERROR}, mirroring the
+     * client-side length enforcement already applied to the other fixed-size type,
+     * {@code FixedString(N)}. A non-null value that is neither a Java array nor a {@code List} cannot
+     * carry a vector and is rejected as well — otherwise it would fall through to
+     * {@link #serializeArrayData} and write no bytes for the column, desynchronizing the
+     * {@code RowBinary} stream and corrupting the columns that follow.
+     * <p>
+     * A {@code null} value is rejected for the same reason: a fixed-dimension {@code QBit} cannot be
+     * represented by {@code null}. A top-level {@code null} non-nullable {@code QBit} is already
+     * rejected by
+     * {@link com.clickhouse.client.api.data_formats.RowBinaryFormatSerializer#writeValuePreamble},
+     * but a {@code QBit} nested inside a container ({@code Tuple}/{@code Map}/{@code Array}) is written
+     * through {@link #serializeNestedData}, which does not route a non-nullable element through that
+     * preamble; without this guard the {@code null} would delegate to {@link #serializeArrayData} and
+     * be written as a zero-length vector (var-int {@code 0}), again desynchronizing the stream. (A
+     * {@code Nullable(QBit)} {@code null} never reaches here: its null-marker is written earlier by the
+     * preamble or by {@link #serializeNestedData}, which then return.)
+     */
+    private static void serializeQBitData(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
+        if (value == null) {
+            throw new IllegalArgumentException("QBit column '" + column.getColumnName()
+                    + "' cannot be null; expected exactly " + column.getPrecision() + " elements");
+        }
+        int length;
+        if (value.getClass().isArray()) {
+            length = Array.getLength(value);
+        } else if (value instanceof List) {
+            length = ((List<?>) value).size();
+        } else {
+            throw new IllegalArgumentException("QBit column '" + column.getColumnName()
+                    + "' expects a Java array or List of its element type but got "
+                    + value.getClass().getName());
+        }
+        int dimension = column.getPrecision();
+        if (length != dimension) {
+            throw new IllegalArgumentException("QBit column '" + column.getColumnName()
+                    + "' expects exactly " + dimension + " elements but got " + length);
+        }
+        serializeArrayData(stream, value, column);
     }
 
     /**
@@ -574,10 +689,22 @@ public class SerializerUtils {
                 BinaryStreamUtils.writeBoolean(stream, (Boolean) value);
                 break;
             case String:
-                BinaryStreamUtils.writeString(stream, convertToString(value));
+                if (value instanceof byte[]) {
+                    BinaryStreamUtils.writeString(stream, (byte[]) value);
+                } else if (value instanceof StringValue) {
+                    BinaryStreamUtils.writeString(stream, ((StringValue) value).toByteArray());
+                } else {
+                    BinaryStreamUtils.writeString(stream, convertToString(value));
+                }
                 break;
             case FixedString:
-                BinaryStreamUtils.writeFixedString(stream, convertToString(value), column.getPrecision());
+                if (value instanceof byte[]) {
+                    writeFixedStringBytes(stream, (byte[]) value, column.getPrecision());
+                } else if (value instanceof StringValue) {
+                    writeFixedStringBytes(stream, ((StringValue) value).toByteArray(), column.getPrecision());
+                } else {
+                    BinaryStreamUtils.writeFixedString(stream, convertToString(value), column.getPrecision());
+                }
                 break;
             case Date:
                 writeDate(stream, value, ZoneId.of("UTC")); // TODO: check
@@ -938,6 +1065,63 @@ public class SerializerUtils {
         return java.lang.String.valueOf(value);
     }
 
+    /**
+     * Used from the bytecode generated by {@link #compilePOJOSetter(Method, ClickHouseColumn)}.
+     * Does all needed conversions so have to accept Object instead of specific value type.
+     *
+     * @param value value returned by {@code BinaryStreamReader.readValue}
+     * @return the decoded string, or {@code null}
+     */
+    public static String stringValueToString(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof StringValue) {
+            return ((StringValue) value).asString();
+        }
+        return (String) value;
+    }
+
+    /**
+     * Used from the bytecode generated by {@link #compilePOJOSetter(Method, ClickHouseColumn)}.
+     * Does all needed conversions so have to accept Object instead of specific value type.
+     *
+     * @param value value returned by {@code BinaryStreamReader.readValue}
+     * @return the raw bytes, or {@code null}
+     */
+    public static byte[] stringValueToByteArray(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof StringValue) {
+            return ((StringValue) value).toByteArray();
+        }
+        if (value instanceof String) {
+            return ((String) value).getBytes(StandardCharsets.UTF_8);
+        }
+        return (byte[]) value;
+    }
+
+    /**
+     * Writes raw bytes as a ClickHouse {@code FixedString(length)} value. The bytes are written as-is and
+     * right-padded with zero bytes when shorter than {@code length}.
+     *
+     * @param stream output stream
+     * @param value  raw bytes
+     * @param length fixed string length
+     * @throws IOException when failed to write to the stream
+     */
+    public static void writeFixedStringBytes(OutputStream stream, byte[] value, int length) throws IOException {
+        if (value.length > length) {
+            throw new IllegalArgumentException("Value of length " + value.length +
+                    " is longer than FixedString(" + length + ")");
+        }
+        stream.write(value);
+        for (int i = value.length; i < length; i++) {
+            stream.write(0);
+        }
+    }
+
     public static <T extends Enum<T>> Set<T> parseEnumList(String value, Class<T> enumType) {
         Set<T> values = new HashSet<>();
         for (StringTokenizer causes = new StringTokenizer(value, Client.VALUES_LIST_DELIMITER); causes.hasMoreTokens(); ) {
@@ -978,6 +1162,32 @@ public class SerializerUtils {
         }
     }
 
+    /**
+     *
+     * @param setterMethod
+     * @param column
+     * @return
+     * @see ClickHouseDataType#toPrimitiveType(Class)
+     * @see BinaryStreamReader#isReadToPrimitive(ClickHouseDataType)
+     * @see SerializerUtils#stringValueToString(Object)
+     * @see SerializerUtils#stringValueToByteArray(Object)
+     * @see SerializerUtils#binaryReaderMethodForType(MethodVisitor, Class, ClickHouseDataType)
+     * @see SerializerUtils#intToOpcode(Class)
+     * @see SerializerUtils#longToOpcode(Class)
+     * @see SerializerUtils#floatToOpcode(Class)
+     * @see SerializerUtils#doubleToOpcode(Class)
+     * @see BinaryStreamReader#readValue(ClickHouseColumn, Class)
+     * @see BinaryStreamReader#readByte()
+     * @see BinaryStreamReader#readUnsignedByte()
+     * @see BinaryStreamReader#readShortLE()
+     * @see BinaryStreamReader#readUnsignedShortLE()
+     * @see BinaryStreamReader#readIntLE()
+     * @see BinaryStreamReader#readUnsignedIntLE()
+     * @see BinaryStreamReader#readLongLE()
+     * @see BinaryStreamReader#readFloatLE()
+     * @see BinaryStreamReader#readDoubleLE()
+     * @see java.util.Arrays#asList(Object[])
+     */
     public static POJOFieldDeserializer compilePOJOSetter(Method setterMethod, ClickHouseColumn column) {
         Class<?> dtoClass = setterMethod.getDeclaringClass();
 
@@ -1047,7 +1257,21 @@ public class SerializerUtils {
                                 Type.getType(Class.class)),
                         false);
 
-                if (List.class.isAssignableFrom(targetType) && column.getDataType() == ClickHouseDataType.Tuple) {
+                if (targetType == String.class) {
+                    // call converter function
+                    mv.visitMethodInsn(INVOKESTATIC,
+                            Type.getInternalName(SerializerUtils.class),
+                            "stringValueToString",
+                            Type.getMethodDescriptor(Type.getType(String.class), Type.getType(Object.class)),
+                            false);
+                } else if (targetType == byte[].class) {
+                    // call converter function
+                    mv.visitMethodInsn(INVOKESTATIC,
+                            Type.getInternalName(SerializerUtils.class),
+                            "stringValueToByteArray",
+                            Type.getMethodDescriptor(Type.getType(byte[].class), Type.getType(Object.class)),
+                            false);
+                } else if (List.class.isAssignableFrom(targetType) && column.getDataType() == ClickHouseDataType.Tuple) {
                     mv.visitTypeInsn(CHECKCAST, Type.getInternalName(Object[].class));
                     mv.visitMethodInsn(INVOKESTATIC,
                             Type.getInternalName(Arrays.class),

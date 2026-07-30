@@ -34,11 +34,14 @@ import com.clickhouse.data.value.array.ClickHouseFloatArrayValue;
 import com.clickhouse.data.value.array.ClickHouseIntArrayValue;
 import com.clickhouse.data.value.array.ClickHouseLongArrayValue;
 import com.clickhouse.data.value.array.ClickHouseShortArrayValue;
+import com.clickhouse.logging.Logger;
+import com.clickhouse.logging.LoggerFactory;
 
 import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -73,6 +76,17 @@ public final class ClickHouseColumn implements Serializable {
     private static final String KEYWORD_NESTED = ClickHouseDataType.Nested.name();
     private static final String KEYWORD_VARIANT = ClickHouseDataType.Variant.name();
     private static final String KEYWORD_JSON = ClickHouseDataType.JSON.name();
+    private static final String KEYWORD_QBIT = ClickHouseDataType.QBit.name();
+
+    private static final Logger log = LoggerFactory.getLogger(ClickHouseColumn.class);
+
+    // Element types documented for QBit(element_type, dimension[, stride]).
+    // See https://clickhouse.com/docs/sql-reference/data-types/qbit . This is a soft (warning-only)
+    // allow-list: a newer server may add element types, and parsing such a type is not a client
+    // error, so an unlisted element type is warned about rather than rejected.
+    private static final Set<ClickHouseDataType> QBIT_ELEMENT_TYPES = Collections.unmodifiableSet(
+            EnumSet.of(ClickHouseDataType.Int8, ClickHouseDataType.BFloat16,
+                    ClickHouseDataType.Float32, ClickHouseDataType.Float64));
 
     private int columnCount;
     private int columnIndex;
@@ -144,6 +158,17 @@ public final class ClickHouseColumn implements Serializable {
                             break;
                         }
                     }
+                }
+                break;
+            case QBit:
+                // QBit(element_type, dimension) is a one-level array of its element type on the
+                // wire; the dimension parameter is kept as the column precision.
+                if (!column.nested.isEmpty()) {
+                    column.arrayLevel = 1;
+                    column.arrayBaseColumn = column.nested.get(0);
+                }
+                if (size > 1) {
+                    column.precision = Integer.parseInt(column.parameters.get(1).trim());
                 }
                 break;
             case Bool:
@@ -567,6 +592,36 @@ public final class ClickHouseColumn implements Serializable {
                 fixedLength = false;
                 estimatedLength++;
             }
+        } else if (args.startsWith(KEYWORD_QBIT, i)) {
+            int index = args.indexOf('(', i + KEYWORD_QBIT.length());
+            if (index < i) {
+                throw new IllegalArgumentException(ERROR_MISSING_NESTED_TYPE);
+            }
+            List<String> params = new LinkedList<>();
+            i = ClickHouseUtils.readParameters(args, index, len, params);
+            // QBit(element_type, dimension[, stride]) accepts two or three parameters: the element
+            // type, the vector dimension, and an optional stride.
+            // See https://clickhouse.com/docs/sql-reference/data-types/qbit .
+            if (params.size() < 2 || params.size() > 3) {
+                throw new IllegalArgumentException(
+                        "QBit requires an element type and a dimension, with an optional stride, "
+                                + "e.g. QBit(Float32, 8) or QBit(BFloat16, 4096, 1024)");
+            }
+            // QBit(element_type, dimension) is transmitted over RowBinary exactly like
+            // Array(element_type): a var-int length followed by that many element values. The
+            // first parameter is the element type and drives the nested (item) column.
+            List<ClickHouseColumn> nestedColumns = new LinkedList<>();
+            ClickHouseColumn elementColumn = ClickHouseColumn.of("", params.get(0));
+            if (!QBIT_ELEMENT_TYPES.contains(elementColumn.getDataType())) {
+                log.warn("QBit element type '%s' is not one of the documented QBit element types %s;"
+                        + " parsing '%s' anyway", elementColumn.getDataType().name(),
+                        QBIT_ELEMENT_TYPES, args.substring(startIndex, i));
+            }
+            nestedColumns.add(elementColumn);
+            column = new ClickHouseColumn(ClickHouseDataType.QBit, name, args.substring(startIndex, i),
+                    nullable, lowCardinality, params, nestedColumns);
+            fixedLength = false;
+            estimatedLength++;
         }
 
         if (column == null) {

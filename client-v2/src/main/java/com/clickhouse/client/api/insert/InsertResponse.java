@@ -3,21 +3,17 @@ package com.clickhouse.client.api.insert;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.metrics.ServerMetrics;
+import com.clickhouse.client.api.transport.internal.TransportResponse;
 
-import java.util.Collections;
 import java.util.Map;
 
 public class InsertResponse implements AutoCloseable {
     private OperationMetrics operationMetrics;
     private final Map<String, String> responseHeaders;
 
-    public InsertResponse(OperationMetrics metrics) {
-        this(metrics, Collections.emptyMap());
-    }
-
-    public InsertResponse(OperationMetrics metrics, Map<String, String> responseHeaders) {
+    public InsertResponse(TransportResponse transportResponse, OperationMetrics metrics) {
         this.operationMetrics = metrics;
-        this.responseHeaders = responseHeaders;
+        this.responseHeaders = transportResponse.getHeaders();
     }
 
     @Override

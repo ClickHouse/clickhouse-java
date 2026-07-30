@@ -2,6 +2,7 @@ package com.clickhouse.client.api.internal;
 
 import com.clickhouse.client.api.ClickHouseException;
 import com.clickhouse.client.api.DataTypeUtils;
+import com.clickhouse.client.api.data_formats.internal.StringValue;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
@@ -36,6 +37,10 @@ public class DataTypeConverter {
 
     private static final String NULL = "NULL";
 
+    // NULL sentinel for a top-level scalar param_<name> value: the server accepts \N (but not the
+    // literal "null") for a scalar Nullable(T) placeholder; a nested null uses the SQL NULL keyword.
+    private static final String NULL_SCALAR_PARAM = "\\N";
+
     public static final DataTypeConverter INSTANCE = new DataTypeConverter();
 
     private final ListAsStringWriter listAsStringWriter = new ListAsStringWriter();
@@ -67,6 +72,8 @@ public class DataTypeConverter {
             case IPv4:
             case IPv6:
                 return ipvToString(value, column);
+            case QBit:
+                return qbitToString(value, column);
             case Array:
                 return  arrayToString(value, column);
             case Point:
@@ -85,12 +92,26 @@ public class DataTypeConverter {
         }
     }
 
+    /**
+     * Renders a {@code QBit(element_type, dimension)} value as SQL text.
+     * <p>
+     * A QBit value is rendered as an array literal of its element type, mirroring the RowBinary
+     * representation it shares with {@code Array(element_type)}. This is deliberately a dedicated
+     * method (rather than folding QBit into the {@code Array} case) because QBit is a distinct type
+     * whose array-like rendering is an implementation detail, not an equivalence.
+     */
+    public String qbitToString(Object value, ClickHouseColumn column) {
+        return arrayToString(value, column);
+    }
+
     public String stringToString(Object bytesOrString, ClickHouseColumn column) {
         StringBuilder sb = new StringBuilder();
         if (column.isArray()) {
             sb.append(QUOTE);
         }
-        if (bytesOrString instanceof CharSequence) {
+        if (bytesOrString instanceof StringValue) {
+            sb.append(((StringValue) bytesOrString).asString());
+        } else if (bytesOrString instanceof CharSequence) {
             sb.append(((CharSequence) bytesOrString));
         } else if (bytesOrString instanceof byte[]) {
             sb.append(new String((byte[]) bytesOrString));
@@ -234,7 +255,9 @@ public class DataTypeConverter {
      *
      * <p>A top-level scalar is returned in its bare, unquoted text form, which is what the server
      * expects for a scalar {@code {name:Type}} placeholder (e.g. a {@code Date} is sent as
-     * {@code 2026-05-13}, not {@code '2026-05-13'}). A container is rendered as a ClickHouse
+     * {@code 2026-05-13}, not {@code '2026-05-13'}). A top-level {@code null} becomes the
+     * {@code \N} NULL sentinel, which the server accepts for a scalar {@code Nullable(T)}
+     * placeholder (the literal {@code "null"} would be rejected). A container is rendered as a ClickHouse
      * {@code Array} ({@code [..]}) or {@code Map} ({@code {..}}) text literal in which
      * {@code String}/temporal leaves are single-quoted (and escaped) while numeric/boolean leaves
      * are left unquoted, as required by the server's array/map text parser.</p>
@@ -243,12 +266,64 @@ public class DataTypeConverter {
      * @return the formatted {@code param_<name>} value
      */
     public String convertParameterToString(Object value) {
+        if (value == null) {
+            // A top-level scalar null must be sent as \N; the server rejects the literal "null"
+            // (String.valueOf(null)). Nested nulls inside containers use the SQL NULL keyword and
+            // are handled by convertParameterContainer.
+            return NULL_SCALAR_PARAM;
+        }
         if (isParameterContainer(value)) {
             return convertParameterContainer(value);
         }
-        // Scalars (and null) are passed through unquoted: the server reads a scalar parameter value
-        // verbatim, so quoting it here would break parsing (e.g. Date, numbers, Identifier).
+        if (value instanceof CharSequence) {
+            // A scalar String parameter is read by the server with deserializeTextEscaped: a raw tab
+            // (0x09) or newline (0x0a) is treated as a field delimiter (failing the query with
+            // BAD_QUERY_PARAMETER) and a raw backslash starts an escape sequence (silently corrupting
+            // the value). Escape those three characters so any String value round-trips.
+            return escapeStringParameter((CharSequence) value);
+        }
+        // Other scalars have no escapable characters and are read verbatim by the server, so they
+        // are passed through unquoted (e.g. Date, numbers, Identifier).
         return String.valueOf(value);
+    }
+
+    /**
+     * Escapes a scalar {@code String} parameter value so it survives the server's
+     * {@code param_<name>} interface, which parses a {@code {name:String}} value with
+     * {@code deserializeTextEscaped}. Only the three characters that reader treats as structural are
+     * escaped: the backslash (it introduces an escape sequence, so a raw one silently corrupts the
+     * value), and the tab and newline (TSV field/row delimiters, so a raw one aborts the parse with
+     * {@code BAD_QUERY_PARAMETER}). Every other byte - carriage return, NUL, the single quote, UTF-8
+     * multi-byte sequences, etc. - is read verbatim by the server, so it is emitted unchanged.
+     * Escaping only this minimal set leaves a value that needs no escaping completely untouched, so
+     * {@code Identifier} values (which the server backtick-escapes itself) and pre-formatted
+     * {@code Array}/{@code Map} literals passed as a {@code String} still round-trip.
+     */
+    private String escapeStringParameter(CharSequence value) {
+        final int len = value.length();
+        StringBuilder sb = null; // created lazily; a value with nothing to escape allocates nothing
+        for (int i = 0; i < len; i++) {
+            char c = value.charAt(i);
+            String escaped;
+            switch (c) {
+                case '\\': escaped = "\\\\"; break;
+                case '\t': escaped = "\\t"; break;
+                case '\n': escaped = "\\n"; break;
+                default:   escaped = null;
+            }
+            if (escaped == null) {
+                if (sb != null) {
+                    sb.append(c);
+                }
+            } else {
+                if (sb == null) {
+                    sb = new StringBuilder(len + 8);
+                    sb.append(value, 0, i);
+                }
+                sb.append(escaped);
+            }
+        }
+        return sb == null ? value.toString() : sb.toString();
     }
 
     private boolean isParameterContainer(Object value) {

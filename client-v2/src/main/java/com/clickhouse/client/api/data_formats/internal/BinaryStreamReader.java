@@ -57,6 +57,8 @@ public class BinaryStreamReader {
 
     private final Class<?> arrayDefaultTypeHint;
 
+    private final boolean binaryStringSupport;
+
     private static final int SB_INIT_SIZE = 100;
 
     private ClickHouseColumn lastDataColumn = null;
@@ -70,8 +72,10 @@ public class BinaryStreamReader {
      * @param bufferAllocator - byte buffer allocator
      * @param jsonAsString - use string to serialize/deserialize JSON columns
      * @param typeHintMapping - what type use as hint if hint is not set or may not be known.
+     * @param binaryStringSupport - when {@code true}, top-level {@code String}/{@code FixedString} columns are read
+     *                              as {@link StringValue} preserving raw bytes; nested string values stay {@link String}.
      */
-    BinaryStreamReader(InputStream input, TimeZone timeZone, Logger log, ByteBufferAllocator bufferAllocator, boolean jsonAsString, Map<ClickHouseDataType, Class<?>> typeHintMapping) {
+    public BinaryStreamReader(InputStream input, TimeZone timeZone, Logger log, ByteBufferAllocator bufferAllocator, boolean jsonAsString, Map<ClickHouseDataType, Class<?>> typeHintMapping, boolean binaryStringSupport) {
         this.log = log == null ? NOPLogger.NOP_LOGGER : log;
         this.timeZone = timeZone;
         this.input = input;
@@ -80,6 +84,7 @@ public class BinaryStreamReader {
 
         this.arrayDefaultTypeHint = typeHintMapping == null ||
                 typeHintMapping.isEmpty()? NO_TYPE_HINT : typeHintMapping.get(ClickHouseDataType.Array);
+        this.binaryStringSupport = binaryStringSupport;
     }
 
     /**
@@ -103,8 +108,14 @@ public class BinaryStreamReader {
      * @param <T> - target type of the value
      * @throws IOException when IO error occurs
      */
-    @SuppressWarnings("unchecked")
     public <T> T readValue(ClickHouseColumn column, Class<?> typeHint) throws IOException {
+        // Top-level reads honor the binary-string feature flag. Values nested inside containers always read
+        // strings as String (see readArray/readMap/readTuple/readNested/readVariant/readJsonData).
+        return readValue(column, typeHint, binaryStringSupport);
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> T readValue(ClickHouseColumn column, Class<?> typeHint, boolean stringAsBytes) throws IOException {
         if (column.isNullable()) {
             int isNull = readByteOrEOF(input);
             if (isNull == 1) { // is Null?
@@ -122,12 +133,18 @@ public class BinaryStreamReader {
             switch (dataType) {
                 // Primitives
                 case FixedString: {
+                    if (stringAsBytes) {
+                        return (T) new StringValue(readStringBytes(input, precision));
+                    }
                     byte[] bytes = precision > STRING_BUFF.length ?
                             new byte[precision] : STRING_BUFF;
                     readNBytes(input, bytes, 0, precision);
                     return (T) new String(bytes, 0, precision, StandardCharsets.UTF_8);
                 }
                 case String: {
+                    if (stringAsBytes) {
+                        return (T) readStringValue();
+                    }
                     return (T) readString();
                 }
                 case Int8:
@@ -234,6 +251,8 @@ public class BinaryStreamReader {
                         return (T) readJsonData(input, actualColumn);
                     }
 //                case Object: // deprecated https://clickhouse.com/docs/en/sql-reference/data-types/object-data-type
+                case QBit:
+                    return readQBit(actualColumn, typeHint);
                 case Array:
                     if (typeHint == null) { typeHint = arrayDefaultTypeHint;}
                     return convertArray(readArray(actualColumn), typeHint);
@@ -244,14 +263,14 @@ public class BinaryStreamReader {
                 case Nothing:
                     return null;
                 case SimpleAggregateFunction:
-                    return (T) readValue(column.getNestedColumns().get(0));
+                    return (T) readValue(column.getNestedColumns().get(0), typeHint, false);
                 case AggregateFunction:
                     return (T) readBitmap( actualColumn);
                 case Variant:
                 case Geometry:
                     return (T) readVariant(actualColumn);
                 case Dynamic:
-                    return (T) readValue(actualColumn, typeHint);
+                    return (T) readValue(actualColumn, typeHint, stringAsBytes);
                 case Nested:
                     return convertArray(readNested(actualColumn), typeHint);
                 default:
@@ -612,6 +631,38 @@ public class BinaryStreamReader {
     }
 
     /**
+     * Reads a {@code QBit(element_type, dimension)} value.
+     * <p>
+     * Over RowBinary a QBit is transmitted exactly like {@code Array(element_type)} — a var-int
+     * element count followed by that many element values — so the array reader is reused for the
+     * wire decoding. This is deliberately a dedicated method (rather than folding QBit into the
+     * {@code Array} case) because QBit is a distinct type whose Array-like RowBinary layout is an
+     * implementation detail, not an equivalence: in the Native format QBit uses a different internal
+     * layout (see {@link com.clickhouse.client.api.data_formats.NativeFormatReader}).
+     *
+     * @param column   QBit column information
+     * @param typeHint requested element/array representation, may be {@code null}
+     * @return materialized QBit value
+     * @throws IOException when an IO error occurs
+     */
+    private <T> T readQBit(ClickHouseColumn column, Class<?> typeHint) throws IOException {
+        ArrayValue array = readArray(column);
+        // QBit is a fixed-dimension vector. Over RowBinary the element count is a var-int length
+        // prefix that readArray consumes together with exactly that many elements, so the stream
+        // stays aligned regardless of the count. Validate the count against the declared dimension
+        // as a defensive, symmetric counterpart to the write-side check
+        // (SerializerUtils.serializeQBitData): for a well-formed QBit the count always equals the
+        // dimension, so a mismatch signals corrupt input and is surfaced as a clear error instead
+        // of a silently wrong-length vector.
+        int dimension = column.getPrecision();
+        if (array.length() != dimension) {
+            throw new ClientException("QBit column '" + column.getColumnName() + "' expected exactly "
+                    + dimension + " elements but received " + array.length());
+        }
+        return convertArray(array, typeHint == null ? arrayDefaultTypeHint : typeHint);
+    }
+
+    /**
      * Reads a array into an ArrayValue object.
      * @param column - column information
      * @return array value
@@ -650,10 +701,10 @@ public class BinaryStreamReader {
                 || itemTypeColumn.getDataType() == ClickHouseDataType.Geometry) {
             array = new ArrayValue(Object.class, len);
             for (int i = 0; i < len; i++) {
-                array.set(i, readValue(itemTypeColumn));
+                array.set(i, readNestedValue(itemTypeColumn));
             }
         } else {
-            Object firstValue = readValue(itemTypeColumn);
+            Object firstValue = readNestedValue(itemTypeColumn);
             Class<?> itemClass = firstValue.getClass();
             if (firstValue instanceof Byte) {
                 itemClass = byte.class;
@@ -680,7 +731,7 @@ public class BinaryStreamReader {
             array = new ArrayValue(itemClass, len);
             array.set(0, firstValue);
             for (int i = 1; i < len; i++) {
-                array.set(i, readValue(itemTypeColumn));
+                array.set(i, readNestedValue(itemTypeColumn));
             }
         }
         return array;
@@ -691,7 +742,7 @@ public class BinaryStreamReader {
      * so that it can be used as the component type of an array.
      *
      * <p>For unsigned integer types, {@code readValue} widens the value (e.g. UInt8 → Short,
-     * UInt32 → Long), so we use {@link ClickHouseDataType#getWiderObjectClass()} or 
+     * UInt32 → Long), so we use {@link ClickHouseDataType#getWiderObjectClass()} or
      * {@link ClickHouseDataType#getWiderPrimitiveClass()} which mirrors that widening.
      * For Enum types, {@code readValue} returns {@link EnumValue} rather than the
      * declared {@code String.class}. All other types use {@link ClickHouseDataType#getObjectClass()}
@@ -742,6 +793,15 @@ public class BinaryStreamReader {
                     return cls == null ? Object.class : cls;
             }
         }
+    }
+
+    /**
+     * Reads a value nested inside a container (Array, Map, Tuple, Nested, Variant, JSON). Strings are always
+     * decoded into {@link String} here, regardless of the binary-string feature flag, because nested types
+     * are not expected to carry large/binary strings.
+     */
+    private Object readNestedValue(ClickHouseColumn column) throws IOException {
+        return readValue(column, null, false);
     }
 
     public void skipValue(ClickHouseColumn column) throws IOException {
@@ -916,8 +976,8 @@ public class BinaryStreamReader {
         ClickHouseColumn valueType = column.getValueInfo();
         LinkedHashMap<Object, Object> map = new LinkedHashMap<>(len);
         for (int i = 0; i < len; i++) {
-            Object key = readValue(keyType);
-            Object value = readValue(valueType);
+            Object key = readNestedValue(keyType);
+            Object value = readNestedValue(valueType);
             map.put(key, value);
         }
         return map;
@@ -933,7 +993,7 @@ public class BinaryStreamReader {
         int len = column.getNestedColumns().size();
         Object[] tuple = new Object[len];
         for (int i = 0; i < len; i++) {
-            tuple[i] = readValue(column.getNestedColumns().get(i));
+            tuple[i] = readNestedValue(column.getNestedColumns().get(i));
         }
 
         return tuple;
@@ -957,7 +1017,7 @@ public class BinaryStreamReader {
             int tupleLen = column.getNestedColumns().size();
             Object[] tuple = new Object[tupleLen];
             for (int j = 0; j < tupleLen; j++) {
-                tuple[j] = readValue(column.getNestedColumns().get(j));
+                tuple[j] = readNestedValue(column.getNestedColumns().get(j));
             }
 
             array.set(i, tuple);
@@ -971,7 +1031,7 @@ public class BinaryStreamReader {
         if (ordNum == 0xFF) {
             return null;
         }
-        return readValue(column.getNestedColumns().get(ordNum));
+        return readNestedValue(column.getNestedColumns().get(ordNum));
     }
 
     /**
@@ -1238,17 +1298,41 @@ public class BinaryStreamReader {
     }
 
     /**
-     * Reads a decimal value from input stream.
+     * Reads a string from the internal input stream preserving the raw bytes as a {@link StringValue}.
+     * Unlike {@link #readString()} this does not decode bytes into a {@link String} and never reuses the
+     * shared buffer, so the value is safe to keep after the next read.
+     *
+     * @return string value holding the raw bytes
+     * @throws IOException when IO error occurs
+     */
+    public StringValue readStringValue() throws IOException {
+        return new StringValue(readStringBytes(input, readVarInt(input)));
+    }
+
+    /**
+     * Reads the raw bytes of a string from the input stream given its length.
+     *
+     * @param input - source of bytes
+     * @param len - number of bytes to read
+     * @return byte[] containing the raw string bytes
+     * @throws IOException when IO error occurs
+     */
+    public static byte[] readStringBytes(InputStream input, int len) throws IOException {
+        if (len == 0) {
+            return new byte[0];
+        }
+        return readNBytes(input, len);
+    }
+
+    /**
+     * Reads a string value from input stream.
      * @param input - source of bytes
      * @return String
      * @throws IOException when IO error occurs
      */
     public static String readString(InputStream input) throws IOException {
-        int len = readVarInt(input);
-        if (len == 0) {
-            return "";
-        }
-        return new String(readNBytes(input, len), StandardCharsets.UTF_8);
+        byte[] bytes = readStringBytes(input, readVarInt(input));
+        return bytes.length == 0 ? "" : new String(bytes, StandardCharsets.UTF_8);
     }
 
     public static int readByteOrEOF(InputStream input) throws IOException {
@@ -1470,6 +1554,14 @@ public class BinaryStreamReader {
                 ClickHouseColumn column = readDynamicData();
                 return ClickHouseColumn.of("v", "Nullable(" + column.getOriginalTypeName() + ")");
             }
+            case QBit: {
+                // 0x36 <element_type_encoding> <var_uint dimension> -> QBit(T, N).
+                // The element type and dimension MUST be consumed here so a QBit nested in a
+                // Dynamic/Variant/JSON column does not desynchronize the stream.
+                ClickHouseColumn elementColumn = readDynamicData();
+                int dimension = readVarInt(input);
+                return ClickHouseColumn.of("v", "QBit(" + elementColumn.getOriginalTypeName() + ", " + dimension + ")");
+            }
             case Time64: {
                 byte precision = readByte();
                 return ClickHouseColumn.of("v", "Time64(" + precision + ")");
@@ -1508,7 +1600,7 @@ public class BinaryStreamReader {
             String path = readString(input);
             ClickHouseColumn dataColumn = predefinedColumns == null? JSON_PLACEHOLDER_COL :
                     predefinedColumns.getOrDefault(path, JSON_PLACEHOLDER_COL);
-            Object value = readValue(dataColumn);
+            Object value = readNestedValue(dataColumn);
             if (value == null && (lastDataColumn != null && lastDataColumn.getDataType() == ClickHouseDataType.Nothing) ) {
                 continue;
             }

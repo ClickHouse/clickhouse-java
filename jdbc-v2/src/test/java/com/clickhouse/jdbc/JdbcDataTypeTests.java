@@ -19,6 +19,7 @@ import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
@@ -80,6 +81,11 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
                 return stmt.executeUpdate(sql);
             }
         }
+    }
+
+    private static void assertFloat32Boundary(float actual, float expectedA, float expectedB, String label) {
+        Assert.assertTrue(actual == expectedA || actual == expectedB,
+                label + " expected one of [" + expectedA + ", " + expectedB + "] but found [" + actual + "]");
     }
 
     @Test(groups = { "integration" })
@@ -567,6 +573,61 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
                 rows++;
             }
             assertEquals(rows, count);
+        }
+    }
+
+    // QBit was introduced in ClickHouse 25.10.
+    private static final String QBIT_UNSUPPORTED_VERSIONS = "(,25.9]";
+
+    @Test(groups = { "integration" })
+    public void testQBit() throws SQLException {
+        if (ClickHouseVersion.of(getServerVersion()).check(QBIT_UNSUPPORTED_VERSIONS)) {
+            throw new SkipException("QBit was introduced in ClickHouse 25.10");
+        }
+
+        // QBit(element_type, dimension) is exposed through JDBC as an ARRAY of its element type
+        // (the same way Array/Geometry are), written from and read as a Java array. The
+        // experimental type flag is only required to create the column, so the insert/read
+        // connection does not need it.
+        final String table = "test_qbit_jdbc";
+        Properties properties = new Properties();
+        properties.setProperty(ClientConfigProperties.serverSetting("allow_experimental_qbit_type"), "1");
+        runQuery("DROP TABLE IF EXISTS " + table);
+        runQuery("CREATE TABLE " + table
+                + " (rowId Int32, vec QBit(Float32, 8)) ENGINE = MergeTree ORDER BY rowId", properties);
+
+        final float[] expected = { 1f, 2f, 3f, 4f, 5f, 6f, 7f, 8f };
+
+        // Write path: a Java float[] bound to a QBit parameter is rendered as an array literal.
+        try (Connection conn = getJdbcConnection();
+                PreparedStatement ps = conn.prepareStatement("INSERT INTO " + table + " VALUES (?, ?)")) {
+            ps.setInt(1, 1);
+            ps.setObject(2, expected);
+            ps.executeUpdate();
+        }
+
+        // Read path: metadata reports ARRAY with the element type, and getArray/getObject return
+        // a java.sql.Array of the element values.
+        try (Connection conn = getJdbcConnection();
+                Statement stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery("SELECT rowId, vec FROM " + table + " ORDER BY rowId")) {
+            ResultSetMetaData meta = rs.getMetaData();
+            assertEquals(meta.getColumnType(2), Types.ARRAY, "QBit should map to Types.ARRAY");
+
+            assertTrue(rs.next());
+            java.sql.Array array = rs.getArray("vec");
+            assertTrue(array != null, "getArray must return the QBit vector");
+            assertEquals(array.getBaseType(), Types.FLOAT, "QBit(Float32) element type should be Types.FLOAT");
+            assertEquals(array.getBaseTypeName(), "Float32", "QBit(Float32) element type name should be Float32");
+            Object elements = array.getArray();
+            assertEquals(java.lang.reflect.Array.getLength(elements), expected.length);
+            for (int i = 0; i < expected.length; i++) {
+                assertEquals(((Number) java.lang.reflect.Array.get(elements, i)).floatValue(), expected[i]);
+            }
+
+            assertTrue(rs.getObject("vec") instanceof java.sql.Array,
+                    "getObject on a QBit column should return java.sql.Array");
+            assertFalse(rs.next());
         }
     }
 
@@ -1541,11 +1602,11 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_floats ORDER BY order")) {
                     assertTrue(rs.next());
-                    assertEquals(rs.getFloat("float32"), -3.402823E38f);
+                    assertFloat32Boundary(rs.getFloat("float32"), -3.4028233E38f, -3.402823E38f, "float32 min");
                     assertEquals(rs.getDouble("float64"), Double.valueOf(-1.7976931348623157E308));
 
                     assertTrue(rs.next());
-                    assertEquals(rs.getFloat("float32"), Float.valueOf(3.402823E38f));
+                    assertFloat32Boundary(rs.getFloat("float32"), 3.4028233E38f, 3.402823E38f, "float32 max");
                     assertEquals(rs.getDouble("float64"), Double.valueOf(1.7976931348623157E308));
 
                     assertTrue(rs.next());
@@ -1562,11 +1623,13 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_floats ORDER BY order")) {
                     assertTrue(rs.next());
-                    assertEquals(rs.getObject("float32"), -3.402823E38f);
+                    assertFloat32Boundary(((Number) rs.getObject("float32")).floatValue(), -3.4028233E38f, -3.402823E38f,
+                            "float32 min object");
                     assertEquals(rs.getObject("float64"), Double.valueOf(-1.7976931348623157E308));
 
                     assertTrue(rs.next());
-                    assertEquals(rs.getObject("float32"), 3.402823E38f);
+                    assertFloat32Boundary(((Number) rs.getObject("float32")).floatValue(), 3.4028233E38f, 3.402823E38f,
+                            "float32 max object");
                     assertEquals(rs.getObject("float64"), Double.valueOf(1.7976931348623157E308));
 
                     assertTrue(rs.next());
@@ -1750,6 +1813,92 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
     }
 
     @Test(groups = { "integration" })
+    public void testNestedType() throws SQLException {
+        runQuery("DROP TABLE IF EXISTS test_nested_jdbc");
+        runQuery("CREATE TABLE test_nested_jdbc (order Int8, "
+                + "n Nested(a Int8, b Nullable(String)), "
+                + "tail Int32"
+                + ") ENGINE = MergeTree ORDER BY (order) SETTINGS flatten_nested = 0");
+
+        // A null in the Nullable field exercises null propagation through every read path.
+        Tuple[] nested = new Tuple[] {
+                new Tuple((byte) 1, "x"),
+                new Tuple((byte) 2, null),
+        };
+        Tuple[] empty = new Tuple[0];
+
+        // Row 1: insert the Nested column through java.sql.Array (Connection#createArrayOf + setArray).
+        try (Connection conn = getJdbcConnection();
+             PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_nested_jdbc VALUES (1, ?, 100)")) {
+            stmt.setArray(1, conn.createArrayOf("Tuple(Int8, Nullable(String))", nested));
+            stmt.executeUpdate();
+        }
+
+        // Row 2: insert the same Nested value as a plain Java array of tuples (setObject).
+        try (Connection conn = getJdbcConnection();
+             PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_nested_jdbc VALUES (2, ?, 200)")) {
+            stmt.setObject(1, nested);
+            stmt.executeUpdate();
+        }
+
+        // Row 3: an empty Nested value, so the read paths cover a zero-row array.
+        try (Connection conn = getJdbcConnection();
+             PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_nested_jdbc VALUES (3, ?, 300)")) {
+            stmt.setObject(1, empty);
+            stmt.executeUpdate();
+        }
+
+        try (Connection conn = getJdbcConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT order, n, tail FROM test_nested_jdbc ORDER BY order")) {
+            // Row 1 read through getArray
+            assertTrue(rs.next());
+            assertEquals(rs.getByte("order"), (byte) 1);
+            assertNestedEquals(rs.getArray("n"), nested);
+            assertEquals(rs.getInt("tail"), 100);
+
+            // Row 2 read through getObject
+            assertTrue(rs.next());
+            assertEquals(rs.getByte("order"), (byte) 2);
+            assertNestedEquals((Array) rs.getObject("n"), nested);
+            assertEquals(rs.getInt("tail"), 200);
+
+            // Row 3: empty Nested -> empty array and an empty getResultSet().
+            assertTrue(rs.next());
+            assertEquals(rs.getByte("order"), (byte) 3);
+            assertNestedEquals(rs.getArray("n"), empty);
+            assertEquals(rs.getInt("tail"), 300);
+
+            assertFalse(rs.next());
+        }
+    }
+
+    private static void assertNestedEquals(Array nestedColumn, Tuple[] expected) throws SQLException {
+        // getArray() yields one element per nested row, each an Object[] of the tuple field values.
+        Object[] rows = (Object[]) nestedColumn.getArray();
+        assertEquals(rows.length, expected.length);
+        for (int i = 0; i < expected.length; i++) {
+            assertTupleEquals((Object[]) rows[i], expected[i]);
+        }
+
+        // getResultSet() exposes the same rows as (INDEX, VALUE) pairs.
+        try (ResultSet ars = nestedColumn.getResultSet()) {
+            int seen = 0;
+            while (ars.next()) {
+                assertEquals(ars.getInt(1), seen + 1);
+                assertTupleEquals((Object[]) ars.getObject(2), expected[seen]);
+                seen++;
+            }
+            assertEquals(seen, expected.length);
+        }
+    }
+
+    private static void assertTupleEquals(Object[] actual, Tuple expected) {
+        assertEquals(String.valueOf(actual[0]), String.valueOf(expected.getValue(0)));
+        assertEquals(actual[1], expected.getValue(1)); // Nullable(String): null stays null
+    }
+
+    @Test(groups = { "integration" })
     public void testStringsUsedAsBytes() throws Exception {
         runQuery("CREATE TABLE test_strings_as_bytes (order Int8, str String, fixed FixedString(10)) ENGINE = MergeTree ORDER BY ()");
 
@@ -1771,8 +1920,142 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
             for (String[] expected : testData) {
                 assertTrue(rs.next());
                 assertEquals(new String(rs.getBytes("str"), "UTF-8"), expected[0]);
+                assertEquals(new String(rs.getObject("str", byte[].class), "UTF-8"), expected[0]);
                 assertEquals(new String(rs.getBytes("fixed"), "UTF-8").replace("\0", ""), expected[1]);
             }
+            assertFalse(rs.next());
+        }
+    }
+
+    private static byte[] readClickHouseLogo() {
+        try (InputStream is = JdbcDataTypeTests.class.getResourceAsStream("/ch_logo.png")) {
+            Assert.assertNotNull(is, "ch_logo.png not found in test resources");
+            return is.readAllBytes();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to read test resource", e);
+        }
+    }
+
+    private static void assertEqualsToClickHouseLogo(byte[] actual) {
+        Assert.assertNotNull(actual, "Read bytes must not be null");
+        assertEquals(actual.length, CH_LOGO_PNG.length, "Read byte count must match ch_logo.png size");
+        assertEquals(actual, CH_LOGO_PNG, "Read bytes must match ch_logo.png content");
+    }
+
+    private static final byte[] CH_LOGO_PNG = readClickHouseLogo();
+
+    @Test(groups = { "integration" })
+    public void testBinaryStringSupportGetBytes() throws Exception {
+        // ch_logo.png is real binary content that is not valid UTF-8, so it must survive a
+        // round-trip through a String column byte-for-byte when binary_string_support is enabled.
+
+        runQuery("CREATE TABLE test_binary_string_get_bytes (id Int8, str String) ENGINE = MergeTree ORDER BY ()");
+
+        try (Connection conn = getJdbcConnection();
+             PreparedStatement insert = conn.prepareStatement("INSERT INTO test_binary_string_get_bytes VALUES (?, ?)")) {
+            insert.setInt(1, 1);
+            insert.setBytes(2, CH_LOGO_PNG);
+            insert.executeUpdate();
+        }
+
+        Properties props = new Properties();
+        props.put(ClientConfigProperties.BINARY_STRING_SUPPORT.getKey(), "true");
+
+        try (Connection conn = getJdbcConnection(props);
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT * FROM test_binary_string_get_bytes ORDER BY id")) {
+            assertTrue(rs.next());
+            assertEqualsToClickHouseLogo(rs.getBytes("str"));
+            assertEqualsToClickHouseLogo(rs.getBytes(2));
+            assertFalse(rs.wasNull());
+            assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testBinaryStringSupportGetBinaryStream() throws Exception {
+        runQuery("CREATE TABLE test_binary_string_stream (id Int8, str String, nullable_str Nullable(String)) ENGINE = MergeTree ORDER BY ()");
+
+        try (Connection conn = getJdbcConnection();
+             PreparedStatement insert = conn.prepareStatement("INSERT INTO test_binary_string_stream VALUES (?, ?, ?)")) {
+            insert.setInt(1, 1);
+            insert.setBytes(2, CH_LOGO_PNG);
+            insert.setNull(3, Types.VARCHAR);
+            insert.executeUpdate();
+        }
+
+        Properties props = new Properties();
+        props.put(ClientConfigProperties.BINARY_STRING_SUPPORT.getKey(), "true");
+
+        try (Connection conn = getJdbcConnection(props);
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT * FROM test_binary_string_stream ORDER BY id")) {
+            assertTrue(rs.next());
+
+            // by column label (delegates to the index-based implementation)
+            try (InputStream stream = rs.getBinaryStream("str")) {
+                Assert.assertNotNull(stream);
+                assertEqualsToClickHouseLogo(stream.readAllBytes());
+            }
+            assertFalse(rs.wasNull());
+
+            // by column index
+            try (InputStream stream = rs.getBinaryStream(2)) {
+                Assert.assertNotNull(stream);
+                assertEqualsToClickHouseLogo(stream.readAllBytes());
+            }
+            assertFalse(rs.wasNull());
+
+            // null value on a nullable column
+            assertNull(rs.getBinaryStream("nullable_str"));
+            assertTrue(rs.wasNull());
+            assertNull(rs.getBytes("nullable_str"));
+            assertTrue(rs.wasNull());
+
+            assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testBinaryStringSupportGetObject() throws Exception {
+        // With binary_string_support enabled the read path returns an internal StringValue holder for
+        // String/FixedString columns. getObject must never leak that holder: it should return a decoded
+        // String for Object.class and the no-type overload, and exact raw bytes for byte[].class.
+        runQuery("CREATE TABLE test_binary_string_get_object (id Int8, str String, txt String) ENGINE = MergeTree ORDER BY ()");
+
+        String text = "Hello, ClickHouse!";
+        try (Connection conn = getJdbcConnection();
+             PreparedStatement insert = conn.prepareStatement("INSERT INTO test_binary_string_get_object VALUES (?, ?, ?)")) {
+            insert.setInt(1, 1);
+            insert.setBytes(2, CH_LOGO_PNG);
+            insert.setString(3, text);
+            insert.executeUpdate();
+        }
+
+        Properties props = new Properties();
+        props.put(ClientConfigProperties.BINARY_STRING_SUPPORT.getKey(), "true");
+
+        try (Connection conn = getJdbcConnection(props);
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT * FROM test_binary_string_get_object ORDER BY id")) {
+            assertTrue(rs.next());
+
+            // byte[].class must return the exact bytes without lossy decoding
+            Object bytesObj = rs.getObject("str", byte[].class);
+            assertTrue(bytesObj instanceof byte[], "getObject(byte[].class) should return byte[], got: " + bytesObj.getClass().getName());
+            assertEqualsToClickHouseLogo((byte[]) bytesObj);
+            assertFalse(rs.wasNull());
+
+            // Object.class must return a decoded String, not the internal StringValue holder
+            Object textObj = rs.getObject("txt", Object.class);
+            assertTrue(textObj instanceof String, "getObject(Object.class) should return String, got: " + textObj.getClass().getName());
+            assertEquals(textObj, text);
+
+            // The no-type overload must also return a String
+            Object defaultObj = rs.getObject("txt");
+            assertTrue(defaultObj instanceof String, "getObject() should return String, got: " + defaultObj.getClass().getName());
+            assertEquals(defaultObj, text);
+
             assertFalse(rs.next());
         }
     }
