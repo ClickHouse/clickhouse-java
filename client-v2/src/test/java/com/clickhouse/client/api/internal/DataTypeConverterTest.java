@@ -186,7 +186,9 @@ public class DataTypeConverterTest {
                 {"hello", "hello"},
                 {42, "42"},
                 {new BigDecimal("1.50"), "1.50"},
-                {null, "null"},
+                // A scalar null is sent as the \N sentinel, which the server accepts for a scalar
+                // Nullable(T) placeholder; the literal "null" is rejected with BAD_QUERY_PARAMETER.
+                {null, "\\N"},
 
                 // --- Scalar String special characters: the server parses a {name:String} value with
                 // deserializeTextEscaped, so the client escapes the three characters that reader treats

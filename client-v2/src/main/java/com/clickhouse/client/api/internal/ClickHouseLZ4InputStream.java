@@ -177,6 +177,6 @@ public class ClickHouseLZ4InputStream extends InputStream {
 
     @Override
     public void close() throws IOException {
-        super.close();
+        in.close();
     }
 }

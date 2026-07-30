@@ -50,6 +50,9 @@
   rows and desyncing the columns that follow the array in the same block. Each row's length is now derived from the
   difference between consecutive offsets, and empty array rows (`len == 0`) no longer read a phantom element. Results
   with uniform array lengths were unaffected. (https://github.com/ClickHouse/clickhouse-java/issues/2955)
+- **[client-v2]** Fixed LZ4 input streams not closing their underlying HTTP response stream. Closing an LZ4 stream
+  returned by `QueryResponse.getInputStream()` now releases the wrapped transport stream, including after a partial
+  read. (https://github.com/ClickHouse/clickhouse-java/issues/2985)
 - **[client-v2, jdbc-v2]** Reduced noisy and potentially sensitive logging; SQL that fails to parse is no
   longer logged at `WARN` (it could contain credentials/PII). (https://github.com/ClickHouse/clickhouse-java/issues/2970)
 - **[client-v2]** Fixed `BigDecimal` values written into a `Dynamic` column being silently truncated when the
@@ -83,6 +86,13 @@
   pre-formatted `Array`/`Map` literals passed as a `String` still round-trip. The JDBC driver (`jdbc-v2`),
   which inlines parameters as SQL literals and already escaped the backslash and single quote, is
   unchanged and covered by a new regression test. (https://github.com/ClickHouse/clickhouse-java/issues/2781)
+
+- **[client-v2]** Fixed a `null` query-parameter value being sent as the literal string `"null"`, so
+  `Client.query(sql, params, ...)` binding a Java `null` to a scalar placeholder such as
+  `{x:Nullable(Decimal128(8))}` was rejected by the server with `BAD_QUERY_PARAMETER`
+  (`Value null cannot be parsed as Nullable(...)`). A top-level scalar `null` is now sent as the ClickHouse
+  `\N` NULL sentinel so it binds SQL `NULL`; a `null` nested inside an `Array`/`Map` parameter value
+  continues to render as the SQL `NULL` keyword. (https://github.com/ClickHouse/clickhouse-java/issues/2977)
 
 - **[client-v2]** Fixed binary array decoding for nullable element types so `Array(Nullable(Float64))` and similar columns now return boxed arrays such as `Double[]` instead of `Object[]`. This keeps null-supporting arrays aligned with their element type while preserving the existing `Object[]` fallback for Variant/Dynamic/Geometry arrays. (https://github.com/ClickHouse/clickhouse-java/issues/2846)
 
