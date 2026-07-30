@@ -355,4 +355,28 @@ public class ParameterizedQueryTest extends BaseIntegrationTest {
         };
     }
 
+    @Test(groups = {"integration"}, dataProvider = "nullableParamTypes")
+    void testNullParam(String paramType) throws Exception {
+        Map<String, Object> params = new HashMap<>();
+        params.put("x", null);
+        try (QueryResponse response = client.query(
+                "SELECT isNull({x:" + paramType + "})", params).get();
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response))
+        {
+            reader.next();
+            Assert.assertTrue(reader.getBoolean(1),
+                "null query parameter should bind SQL NULL for " + paramType);
+        }
+    }
+
+    @DataProvider(name = "nullableParamTypes")
+    private static Object[][] nullableParamTypes() {
+        return new Object[][] {
+            { "Nullable(Int32)" },
+            { "Nullable(String)" },
+            { "Nullable(Decimal128(8))" },
+            { "Nullable(Date)" },
+        };
+    }
+
 }

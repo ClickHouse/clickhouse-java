@@ -37,6 +37,10 @@ public class DataTypeConverter {
 
     private static final String NULL = "NULL";
 
+    // NULL sentinel for a top-level scalar param_<name> value: the server accepts \N (but not the
+    // literal "null") for a scalar Nullable(T) placeholder; a nested null uses the SQL NULL keyword.
+    private static final String NULL_SCALAR_PARAM = "\\N";
+
     public static final DataTypeConverter INSTANCE = new DataTypeConverter();
 
     private final ListAsStringWriter listAsStringWriter = new ListAsStringWriter();
@@ -251,7 +255,9 @@ public class DataTypeConverter {
      *
      * <p>A top-level scalar is returned in its bare, unquoted text form, which is what the server
      * expects for a scalar {@code {name:Type}} placeholder (e.g. a {@code Date} is sent as
-     * {@code 2026-05-13}, not {@code '2026-05-13'}). A container is rendered as a ClickHouse
+     * {@code 2026-05-13}, not {@code '2026-05-13'}). A top-level {@code null} becomes the
+     * {@code \N} NULL sentinel, which the server accepts for a scalar {@code Nullable(T)}
+     * placeholder (the literal {@code "null"} would be rejected). A container is rendered as a ClickHouse
      * {@code Array} ({@code [..]}) or {@code Map} ({@code {..}}) text literal in which
      * {@code String}/temporal leaves are single-quoted (and escaped) while numeric/boolean leaves
      * are left unquoted, as required by the server's array/map text parser.</p>
@@ -260,6 +266,12 @@ public class DataTypeConverter {
      * @return the formatted {@code param_<name>} value
      */
     public String convertParameterToString(Object value) {
+        if (value == null) {
+            // A top-level scalar null must be sent as \N; the server rejects the literal "null"
+            // (String.valueOf(null)). Nested nulls inside containers use the SQL NULL keyword and
+            // are handled by convertParameterContainer.
+            return NULL_SCALAR_PARAM;
+        }
         if (isParameterContainer(value)) {
             return convertParameterContainer(value);
         }
@@ -270,8 +282,8 @@ public class DataTypeConverter {
             // the value). Escape those three characters so any String value round-trips.
             return escapeStringParameter((CharSequence) value);
         }
-        // Other scalars (and null) have no escapable characters and are read verbatim by the server,
-        // so they are passed through unquoted (e.g. Date, numbers, Identifier).
+        // Other scalars have no escapable characters and are read verbatim by the server, so they
+        // are passed through unquoted (e.g. Date, numbers, Identifier).
         return String.valueOf(value);
     }
 
