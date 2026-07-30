@@ -343,10 +343,6 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
         };
     }
 
-    // A non-nullable Array column cannot represent a null, so writing a Java null into it must fail
-    // loudly like every other non-nullable type instead of emitting a stray marker byte on top of the
-    // array length. That stray byte was read by the server as a phantom extra row (single column) or
-    // shifted every following column (multi column). 'tail' sits after the array so a stray byte corrupts it.
     @Test (groups = { "integration" }, dataProvider = "rowBinaryWriterFormats")
     public void writeNullIntoNonNullableArrayThrowsTest(ClickHouseFormat format) throws Exception {
         String tableName = "rowBinaryFormatWriterTest_nonNullableArrayNull_" + UUID.randomUUID().toString().replace('-', '_');
@@ -363,7 +359,6 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
             w.setValue(schema.nameToColumnIndex("tail"), 7);
             w.commitRow();
         }, format, settings).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS)) {
-            // The insert must not succeed: a null in a non-nullable Array column is invalid.
         } catch (Exception e) {
             thrown = e;
         }
@@ -379,9 +374,6 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
         Assert.assertTrue(clearMessage, "Expected a clear non-nullable column error using " + format + ", but got: " + thrown);
     }
 
-    // Contrast: an empty (and a populated) non-nullable Array must still round-trip, and the fixed-width
-    // 'tail' column after it keeps its value - proving the array length is still written as a single
-    // leading byte and that rejecting null did not perturb valid array writes.
     @Test (groups = { "integration" }, dataProvider = "rowBinaryWriterFormats")
     public void writeNonNullableArrayRoundTripsTest(ClickHouseFormat format) throws Exception {
         String tableName = "rowBinaryFormatWriterTest_nonNullableArrayRoundTrip_" + UUID.randomUUID().toString().replace('-', '_');
@@ -420,9 +412,6 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
         Assert.assertEquals(row2.getInteger("tail"), 8);
     }
 
-    // Contrast: with RowBinaryWithDefaults, a null into a non-nullable Array column that HAS a DDL
-    // default must still fall back to that default (the null-to-default coercion is decided before the
-    // type dispatch), not throw - proving the fix only rejects null for non-nullable arrays with no default.
     @Test (groups = { "integration" })
     public void writeNullIntoDefaultedArrayUsesDefaultTest() throws Exception {
         String tableName = "rowBinaryFormatWriterTest_defaultedArrayNull_" + UUID.randomUUID().toString().replace('-', '_');
@@ -439,7 +428,6 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
             w.setValue(schema.nameToColumnIndex("tail"), 7);
             w.commitRow();
         }, format, settings).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS)) {
-            // inserted; the null arr must fall back to the DDL default
         }
 
         List<GenericRecord> records = client.queryAll(

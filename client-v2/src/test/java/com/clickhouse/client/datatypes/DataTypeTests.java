@@ -155,11 +155,6 @@ public class DataTypeTests extends BaseIntegrationTest {
         }
     }
 
-    // A non-nullable Array column cannot represent a null. Writing a Java null into one through the POJO
-    // insert path (POJOSerDe -> RowBinaryFormatSerializer.writeValuePreamble) must fail loudly like every
-    // other non-nullable type instead of emitting a stray marker byte, which the server read as a phantom
-    // extra row or a column shift. The fixed-width 'tail' column after the array would be corrupted by any
-    // stray byte, so it doubles as a misframing sentinel.
     @Test(groups = {"integration"}, dataProvider = "nonNullableArrayNullColumns")
     public void testInsertNullIntoNonNullableArrayThrows(String columns) throws Exception {
         final String table = "test_non_nullable_array_null";
@@ -190,17 +185,11 @@ public class DataTypeTests extends BaseIntegrationTest {
     @DataProvider(name = "nonNullableArrayNullColumns")
     public static Object[][] nonNullableArrayNullColumns() {
         return new Object[][] {
-                // No defaults anywhere: the POJO insert uses plain RowBinary (non-defaults preamble branch).
                 {"rowId Int32, arr Array(Int32), tail Int32"},
-                // A sibling column has a default, so the POJO insert uses RowBinaryWithDefaults; the
-                // non-nullable arr itself has no default and so must still reject a null (defaults branch).
                 {"rowId Int32, arr Array(Int32), tail Int32 DEFAULT 99"},
         };
     }
 
-    // Contrast: valid non-nullable arrays (empty and populated) still round-trip through the POJO insert
-    // path, and the trailing 'tail' column keeps its value - proving the array length is still written as a
-    // single leading byte and that rejecting null did not perturb valid array writes.
     @Test(groups = {"integration"}, dataProvider = "nonNullableArrayRoundTrip")
     public void testInsertNonNullableArrayRoundTrips(List<Integer> arr, int expectedLength, String expectedConcat) throws Exception {
         final String table = "test_non_nullable_array_round_trip";
@@ -228,9 +217,6 @@ public class DataTypeTests extends BaseIntegrationTest {
         };
     }
 
-    // Contrast: with a DDL DEFAULT the write uses RowBinaryWithDefaults, where a null into the non-nullable
-    // Array column falls back to the default instead of throwing - proving the fix only rejects null for a
-    // non-nullable array that has no default.
     @Test(groups = {"integration"})
     public void testInsertNullIntoDefaultedNonNullableArrayUsesDefault() throws Exception {
         final String table = "test_non_nullable_array_null_default";
