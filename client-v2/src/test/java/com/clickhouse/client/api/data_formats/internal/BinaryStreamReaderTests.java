@@ -1,5 +1,6 @@
 package com.clickhouse.client.api.data_formats.internal;
 
+import com.clickhouse.client.api.ClientException;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.format.BinaryStreamUtils;
 
@@ -309,5 +310,28 @@ public class BinaryStreamReaderTests {
                 ClickHouseColumn.of("v", columnType));
 
         Assert.assertEquals(array.getArray().getClass().getComponentType(), expectedComponentType, "Failed for " + columnType);
+    }
+
+    @Test
+    public void testReadQBitNativeRejectsIntOverflowPlaneSize() {
+        // Each QBit Native bit plane is nRows * ceil(dimension/8) bytes. With a large dimension and row
+        // count that product overflows a 32-bit int; the reader must reject it with a clear ClientException
+        // rather than wrapping to a negative/short length and desynchronizing the stream. The guard fires
+        // before any bytes are read, so an empty input stream is sufficient.
+        // dimension 200000 -> 25000 bytes/plane; 90000 rows -> 2_250_000_000 bytes > Integer.MAX_VALUE.
+        BinaryStreamReader reader = new BinaryStreamReader(
+                new ByteArrayInputStream(new byte[0]),
+                TimeZone.getTimeZone("UTC"),
+                null,
+                new BinaryStreamReader.CachingByteBufferAllocator(),
+                false,
+                null,
+                false);
+
+        ClickHouseColumn column = ClickHouseColumn.of("vec", "QBit(Float32, 200000)");
+        ClientException ex = Assert.expectThrows(ClientException.class,
+                () -> reader.readQBitNative(column, 90000));
+        Assert.assertTrue(ex.getMessage().contains("too large"),
+                "Expected an overflow rejection message, got: " + ex.getMessage());
     }
 }

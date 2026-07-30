@@ -690,10 +690,19 @@ public class BinaryStreamReader {
 
         // The nested Tuple(FixedString(bytesPerPlane)) is serialized column-major, so each of the
         // element_size bit planes occupies nRows * bytesPerPlane contiguous bytes; row r's slice for a
-        // plane starts at r * bytesPerPlane.
+        // plane starts at r * bytesPerPlane. Compute that per-plane byte count in a long and guard it:
+        // both factors come off the wire, and a plain int multiply could overflow to a negative or
+        // wrapped value, which would then be passed to readNBytes and desynchronize the stream.
+        final long planeBytesLong = (long) nRows * bytesPerPlane;
+        if (planeBytesLong > Integer.MAX_VALUE) {
+            throw new ClientException("QBit Native block too large to decode: " + nRows + " rows x "
+                    + bytesPerPlane + " bytes per bit plane exceeds the maximum array size ("
+                    + Integer.MAX_VALUE + ")");
+        }
+        final int planeBytes = (int) planeBytesLong;
         byte[][] planes = new byte[elementBits][];
         for (int p = 0; p < elementBits; p++) {
-            planes[p] = readNBytes(input, nRows * bytesPerPlane);
+            planes[p] = readNBytes(input, planeBytes);
         }
 
         // Precompute each element's byte offset and bit mask within a plane row (constant across

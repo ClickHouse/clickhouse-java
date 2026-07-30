@@ -98,17 +98,19 @@ public class NativeFormatReader extends AbstractBinaryFormatReader {
                 // BinaryStreamReader#readQBitNative).
                 values = binaryStreamReader.readQBitNative(column, nRows);
             } else if (containsQBit(column)) {
-                // A QBit that is strided, wrapped in Nullable/LowCardinality, or nested inside another
-                // type (e.g. Map(String, QBit(...))) uses a Native layout this reader does not decode.
-                // Reading it through the columnar/per-row paths below would misread those bytes and
-                // desynchronize the block, corrupting the columns that follow, so fail loudly instead of
-                // silently decoding garbage. Such QBit values can still be read through a RowBinary format.
+                // A QBit that has a non-float element type, is strided, is wrapped in
+                // Nullable/LowCardinality, or is nested inside another type (e.g. Map(String, QBit(...)))
+                // uses a Native layout this reader does not decode. Reading it through the columnar/per-row
+                // paths below would misread those bytes and desynchronize the block, corrupting the columns
+                // that follow, so fail loudly instead of silently decoding garbage. Such QBit values can
+                // still be read through a RowBinary format.
                 throw new ClientException("Reading column '" + column.getColumnName() + "' ("
                         + column.getOriginalTypeName() + ") from the Native format is not supported: "
-                        + "this reader decodes a plain top-level QBit column but not a QBit that is "
+                        + "this reader decodes only a plain top-level QBit column with a Float32, Float64 "
+                        + "or BFloat16 element type. A QBit whose element type is none of those, or that is "
                         + "strided, wrapped in Nullable/LowCardinality, or nested inside another type "
-                        + "(e.g. Array/Tuple/Map). Use a RowBinary format (e.g. RowBinaryWithNamesAndTypes) "
-                        + "to read such QBit values");
+                        + "(e.g. Array/Tuple/Map), is not decoded. Use a RowBinary format "
+                        + "(e.g. RowBinaryWithNamesAndTypes) to read such QBit values");
             } else if (column.isArray()) {
                 values = new ArrayList<>(nRows);
                 int[] sizes = new int[nRows];
