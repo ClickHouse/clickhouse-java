@@ -663,11 +663,10 @@ public class BinaryStreamReader {
     }
 
     /**
-     * Reads a plain, non-strided {@code QBit(element_type, dimension)} column from the Native format,
-     * decoding the server's internal bit-plane-transposed layout (the exact inverse of ClickHouse's
-     * {@code SerializationQBit::transposeBits}) into one vector per row of the current block. Values
-     * are materialized identically to the RowBinary path ({@link #readQBit}), so a {@code QBit} read
-     * over either format yields equal values. The per-byte/bit layout is described inline below.
+     * Reads a plain, non-strided {@code QBit(Float32|Float64|BFloat16, dimension)} column from the
+     * Native format, reversing the server's bit-plane transpose into one vector per row. Values match
+     * the RowBinary path ({@link #readQBit}), so a {@code QBit} round-trips equally through either
+     * format. See {@code docs/qbit-encoding.md} for the wire layout and the transpose math.
      *
      * @param column QBit column information (element type in the nested column, dimension in precision)
      * @param nRows  number of rows in the current block
@@ -688,11 +687,8 @@ public class BinaryStreamReader {
         final int bytesPerPlane = (dimension + 7) / 8;
         final int totalBits = bytesPerPlane * 8;
 
-        // The nested Tuple(FixedString(bytesPerPlane)) is serialized column-major, so each of the
-        // element_size bit planes occupies nRows * bytesPerPlane contiguous bytes; row r's slice for a
-        // plane starts at r * bytesPerPlane. Compute that per-plane byte count in a long and guard it:
-        // both factors come off the wire, and a plain int multiply could overflow to a negative or
-        // wrapped value, which would then be passed to readNBytes and desynchronize the stream.
+        // Planes are column-major: each holds nRows * bytesPerPlane bytes (docs/qbit-encoding.md).
+        // Size it in a long and guard against int overflow, since both factors come off the wire.
         final long planeBytesLong = (long) nRows * bytesPerPlane;
         if (planeBytesLong > Integer.MAX_VALUE) {
             throw new ClientException("QBit Native block too large to decode: " + nRows + " rows x "
@@ -705,8 +701,7 @@ public class BinaryStreamReader {
             planes[p] = readNBytes(input, planeBytes);
         }
 
-        // Precompute each element's byte offset and bit mask within a plane row (constant across
-        // planes and rows), reversing the server's (j ^ 7) row-flip and MSB-first FixedString layout.
+        // Per-element byte offset and bit mask within a plane row (docs/qbit-encoding.md).
         int[] elementByte = new int[dimension];
         int[] elementMask = new int[dimension];
         for (int j = 0; j < dimension; j++) {
