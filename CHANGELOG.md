@@ -48,7 +48,10 @@
   attempts of a retried operation (query, POJO insert and stream insert): the operation issued the next attempt anyway
   and could complete successfully. Cancellation is now tracked per operation instead of per transport request, so a
   cancelled operation stays cancelled for every following attempt and the retry loop stops instead of sending another
-  request. (https://github.com/ClickHouse/clickhouse-java/issues/2989)
+  request. A cancellation that lands before the operation sent its first request is no longer dropped either - it was
+  possible to lose one with `useAsyncRequests(true)`, where the operation body runs on the shared executor: an operation
+  is now registered for cancellation when it is started rather than when its first request is created, so it stops
+  before any request reaches the server. (https://github.com/ClickHouse/clickhouse-java/issues/2989)
 - **[client-v2]** Fixed LZ4 input streams not closing their underlying HTTP response stream. Closing an LZ4 stream
   returned by `QueryResponse.getInputStream()` now releases the wrapped transport stream, including after a partial
   read. (https://github.com/ClickHouse/clickhouse-java/issues/2985)

@@ -266,6 +266,10 @@ public class Client implements AutoCloseable {
             LOG.debug("Skip closing operation executor because not owned by client");
         }
 
+        // An operation is registered when it is started, so one that is still queued when the executor is
+        // shut down never runs and never removes its own registration.
+        ongoingRequests.clear();
+
         if (httpClientHelper != null) {
             httpClientHelper.close();
         }
@@ -1459,18 +1463,18 @@ public class Client implements AutoCloseable {
         if (requestSettings.getQueryId() == null && queryIdGenerator != null) {
             requestSettings.setQueryId(queryIdGenerator.get());
         }
+        final String queryId = requestSettings.getQueryId();
+        final OngoingOperation ongoingOperation = registerOperation(queryId);
         Supplier<InsertResponse> supplier = () -> {
             long startTime = System.nanoTime();
             // Selecting some node
             Endpoint selectedEndpoint = nodeSelector.getEndpoint();
-            final String queryId = requestSettings.getQueryId();
             RuntimeException lastException = null;
-            final OngoingOperation ongoingOperation = registerOperation(queryId);
             try {
                 for (int i = 0; i <= maxAttempts; i++) {
-                    // Cancellation belongs to the operation, so one that was cancelled between two
+                    // Cancellation belongs to the operation, so one that was cancelled before or between
                     // attempts must not issue another request.
-                    if (i > 0 && !requestIsNotCancelled(ongoingOperation)) {
+                    if (!requestIsNotCancelled(ongoingOperation)) {
                         throw cancelledException(lastException, queryId);
                     }
                     // Execute request
@@ -1526,7 +1530,7 @@ public class Client implements AutoCloseable {
             throw (lastException == null ? new ClientException(errMsg) : lastException);
         };
 
-        return runAsyncOperation(supplier, requestSettings.getAllSettings());
+        return runAsyncOperation(supplier, requestSettings.getAllSettings(), queryId, ongoingOperation);
     }
 
     /**
@@ -1689,19 +1693,19 @@ public class Client implements AutoCloseable {
 
         final int maxRetries = ClientConfigProperties.RETRY_ON_FAILURE.getOrDefault(requestSettings.getAllSettings());
         final int maxAttempts = Math.max(maxRetries, endpoints.size() - 1);
+        final String queryId = requestSettings.getQueryId();
+        final OngoingOperation ongoingOperation = registerOperation(queryId);
         Supplier<InsertResponse> responseSupplier = () -> {
             long startTime = System.nanoTime();
             // Selecting some node
             Endpoint selectedEndpoint = nodeSelector.getEndpoint();
 
             RuntimeException lastException = null;
-            final String queryId = requestSettings.getQueryId();
-            final OngoingOperation ongoingOperation = registerOperation(queryId);
             try {
                 for (int i = 0; i <= maxAttempts; i++) {
-                    // Cancellation belongs to the operation, so one that was cancelled between two
+                    // Cancellation belongs to the operation, so one that was cancelled before or between
                     // attempts (for instance from DataStreamWriter#onRetry()) must not issue another request.
-                    if (i > 0 && !requestIsNotCancelled(ongoingOperation)) {
+                    if (!requestIsNotCancelled(ongoingOperation)) {
                         throw cancelledException(lastException, queryId);
                     }
                     // Execute request
@@ -1746,7 +1750,7 @@ public class Client implements AutoCloseable {
             throw (lastException == null ? new ClientException(errMsg) : lastException);
         };
 
-        return runAsyncOperation(responseSupplier, requestSettings.getAllSettings());
+        return runAsyncOperation(responseSupplier, requestSettings.getAllSettings(), queryId, ongoingOperation);
     }
 
     /**
@@ -1832,18 +1836,18 @@ public class Client implements AutoCloseable {
 
         final int maxRetries = ClientConfigProperties.RETRY_ON_FAILURE.getOrDefault(requestSettings.getAllSettings());
         final int maxAttempts = Math.max(maxRetries, endpoints.size() - 1);
+        final String queryId = requestSettings.getQueryId();
+        final OngoingOperation ongoingOperation = registerOperation(queryId);
         Supplier<QueryResponse> responseSupplier = () -> {
                 long startTime = System.nanoTime();
                 // Selecting some node
                 Endpoint selectedEndpoint = nodeSelector.getEndpoint();
                 RuntimeException lastException = null;
-                final String queryId = requestSettings.getQueryId();
-                final OngoingOperation ongoingOperation = registerOperation(queryId);
                 try {
                     for (int i = 0; i <= maxAttempts; i++) {
-                        // Cancellation belongs to the operation, so one that was cancelled between two
+                        // Cancellation belongs to the operation, so one that was cancelled before or between
                         // attempts must not issue another request.
-                        if (i > 0 && !requestIsNotCancelled(ongoingOperation)) {
+                        if (!requestIsNotCancelled(ongoingOperation)) {
                             throw cancelledException(lastException, queryId);
                         }
                         TransportRequest request = httpClientHelper.createRequest(selectedEndpoint, requestSettings.getAllSettings(), sqlQuery);
@@ -1883,7 +1887,7 @@ public class Client implements AutoCloseable {
                 throw (lastException == null ? new ClientException(errMsg) : lastException);
             };
 
-        return runAsyncOperation(responseSupplier, requestSettings.getAllSettings());
+        return runAsyncOperation(responseSupplier, requestSettings.getAllSettings(), queryId, ongoingOperation);
     }
 
     /**
@@ -2334,6 +2338,22 @@ public class Client implements AutoCloseable {
         return operationId;
     }
 
+    /**
+     * Runs an operation that registered itself in {@link #ongoingRequests} before being submitted, so
+     * {@link #cancelTransportRequest(String)} can reach it even before its first attempt starts. If the
+     * operation is never submitted its registration would never be removed by the operation itself, so it
+     * is dropped here.
+     */
+    private <T> CompletableFuture<T> runAsyncOperation(Supplier<T> resultSupplier, Map<String, Object> requestSettings,
+                                                       String queryId, OngoingOperation operation) {
+        try {
+            return runAsyncOperation(resultSupplier, requestSettings);
+        } catch (RuntimeException | Error e) {
+            unregisterOperation(queryId, operation);
+            throw e;
+        }
+    }
+
     private <T> CompletableFuture<T> runAsyncOperation(Supplier<T> resultSupplier, Map<String, Object> requestSettings) {
         boolean isAsync = MapUtils.getFlag(requestSettings, configuration, ClientConfigProperties.ASYNC_OPERATIONS.getKey());
         if (isAsync) {
@@ -2479,8 +2499,9 @@ public class Client implements AutoCloseable {
      * Tries to cancel ongoing request. This method cancels IO operations but doesn't
      * kill query on server side. Original queryId should be used to cancel the request.
      * This operation cancels only operations on client side and only that still waiting
-     * for response. Cancellation applies to the whole operation: a retrying operation stops
-     * instead of issuing another attempt.
+     * for response. Cancellation applies to the whole operation: it is effective as soon as the
+     * operation was started (so also for an asynchronous operation that has not sent its first
+     * request yet) and a retrying operation stops instead of issuing another attempt.
      *
      * @param queryId - original query id that was passed in operation settings.
      */
