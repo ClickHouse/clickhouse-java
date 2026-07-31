@@ -1464,7 +1464,7 @@ public class Client implements AutoCloseable {
             requestSettings.setQueryId(queryIdGenerator.get());
         }
         final String queryId = requestSettings.getQueryId();
-        final OngoingOperation ongoingOperation = registerOperation(queryId);
+        final OngoingOperation ongoingOperation = registerOperation(queryId, requestSettings.getAllSettings());
         Supplier<InsertResponse> supplier = () -> {
             long startTime = System.nanoTime();
             // Selecting some node
@@ -1508,15 +1508,7 @@ public class Client implements AutoCloseable {
                     } catch (Exception e) {
                         String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
                         lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
-                        if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings()) && requestIsNotCancelled(ongoingOperation)) {
-                            if (i < maxAttempts) {
-                                selectedEndpoint = logRetryAndSelectNextNode("Insert", i, maxAttempts, requestSettings.getQueryId(), selectedEndpoint, e);
-                            } else {
-                                nodeSelector.getNextAliveNode(selectedEndpoint);
-                            }
-                        } else {
-                            throw lastException;
-                        }
+                        selectedEndpoint = endpointForNextAttempt("Insert", ongoingOperation, e, lastException, i, maxAttempts, selectedEndpoint);
                     }
                 }
             } finally {
@@ -1694,7 +1686,7 @@ public class Client implements AutoCloseable {
         final int maxRetries = ClientConfigProperties.RETRY_ON_FAILURE.getOrDefault(requestSettings.getAllSettings());
         final int maxAttempts = Math.max(maxRetries, endpoints.size() - 1);
         final String queryId = requestSettings.getQueryId();
-        final OngoingOperation ongoingOperation = registerOperation(queryId);
+        final OngoingOperation ongoingOperation = registerOperation(queryId, requestSettings.getAllSettings());
         Supplier<InsertResponse> responseSupplier = () -> {
             long startTime = System.nanoTime();
             // Selecting some node
@@ -1722,15 +1714,7 @@ public class Client implements AutoCloseable {
                     } catch (Exception e) {
                         String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
                         lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
-                        if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings()) && requestIsNotCancelled(ongoingOperation)) {
-                            if (i < maxAttempts) {
-                                selectedEndpoint = logRetryAndSelectNextNode("Insert (stream)", i, maxAttempts, requestSettings.getQueryId(), selectedEndpoint, e);
-                            } else {
-                                nodeSelector.getNextAliveNode(selectedEndpoint);
-                            }
-                        } else {
-                            throw lastException;
-                        }
+                        selectedEndpoint = endpointForNextAttempt("Insert (stream)", ongoingOperation, e, lastException, i, maxAttempts, selectedEndpoint);
                     }
 
                     if (i < maxAttempts) {
@@ -1837,7 +1821,7 @@ public class Client implements AutoCloseable {
         final int maxRetries = ClientConfigProperties.RETRY_ON_FAILURE.getOrDefault(requestSettings.getAllSettings());
         final int maxAttempts = Math.max(maxRetries, endpoints.size() - 1);
         final String queryId = requestSettings.getQueryId();
-        final OngoingOperation ongoingOperation = registerOperation(queryId);
+        final OngoingOperation ongoingOperation = registerOperation(queryId, requestSettings.getAllSettings());
         Supplier<QueryResponse> responseSupplier = () -> {
                 long startTime = System.nanoTime();
                 // Selecting some node
@@ -1867,15 +1851,7 @@ public class Client implements AutoCloseable {
                             ClientUtils.quietClose(transportResp, LOG);
                             String msg = requestExMsg("Query", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
                             lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
-                            if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings()) && requestIsNotCancelled(ongoingOperation)) {
-                                if (i < maxAttempts) {
-                                    selectedEndpoint = logRetryAndSelectNextNode("Query", i, maxAttempts, requestSettings.getQueryId(), selectedEndpoint, e);
-                                } else {
-                                    nodeSelector.getNextAliveNode(selectedEndpoint);
-                                }
-                            } else {
-                                throw lastException;
-                            }
+                            selectedEndpoint = endpointForNextAttempt("Query", ongoingOperation, e, lastException, i, maxAttempts, selectedEndpoint);
                         }
                     }
                 } finally {
@@ -1903,17 +1879,37 @@ public class Client implements AutoCloseable {
         return nodeSelector.getNextAliveNode(endpoint);
     }
 
-    private OngoingOperation registerOperation(String queryId) {
-        if (queryId == null) {
-            return null;
+    /**
+     * Decides how a failed attempt of a retried operation continues, and returns the endpoint of the next
+     * attempt. The failure is rethrown when no further request may be issued: either the failure is not
+     * retryable, or the operation was cancelled on the client side. Shared by the query and both insert
+     * paths, whose handling of a failed attempt is otherwise identical.
+     */
+    private Endpoint endpointForNextAttempt(String operation, OngoingOperation ongoingOperation, Exception cause,
+                                            RuntimeException failure, int attempt, int maxAttempts, Endpoint endpoint) {
+        if (!httpClientHelper.shouldRetry(cause, ongoingOperation.settings()) || !requestIsNotCancelled(ongoingOperation)) {
+            throw failure;
         }
-        OngoingOperation operation = new OngoingOperation();
-        ongoingRequests.put(queryId, operation);
+        if (attempt < maxAttempts) {
+            return logRetryAndSelectNextNode(operation, attempt, maxAttempts, ongoingOperation.queryId(), endpoint, cause);
+        }
+        // No attempt is left: the node is still rotated, as before, but the endpoint is not used again.
+        nodeSelector.getNextAliveNode(endpoint);
+        return endpoint;
+    }
+
+    private OngoingOperation registerOperation(String queryId, Map<String, Object> settings) {
+        OngoingOperation operation = new OngoingOperation(queryId, settings);
+        if (queryId != null) {
+            // Without a query id the operation cannot be addressed by cancelTransportRequest(), so it is
+            // not registered - it still carries the state its own attempts need.
+            ongoingRequests.put(queryId, operation);
+        }
         return operation;
     }
 
     private void unregisterOperation(String queryId, OngoingOperation operation) {
-        if (queryId != null && operation != null) {
+        if (queryId != null) {
             // Removes only the entry of this operation: another one may have registered itself
             // under the same query id in the meantime.
             ongoingRequests.remove(queryId, operation);
@@ -1921,13 +1917,11 @@ public class Client implements AutoCloseable {
     }
 
     private void registerTransportReq(OngoingOperation operation, TransportRequest tr) {
-        if (operation != null) {
-            operation.attach(tr);
-        }
+        operation.attach(tr);
     }
 
     private boolean requestIsNotCancelled(OngoingOperation operation) {
-        return operation == null || !operation.isCancelled();
+        return !operation.isCancelled();
     }
 
     /**
@@ -1940,14 +1934,30 @@ public class Client implements AutoCloseable {
     }
 
     /**
-     * Cancellation state of a single operation. An operation issues one transport request per attempt,
-     * so cancellation is kept here rather than on the request: once an operation is cancelled it stays
-     * cancelled for every following attempt, and a request attached later is cancelled right away.
+     * State of a single operation: what identifies it, the settings its attempts run with, and whether it
+     * was cancelled. An operation issues one transport request per attempt, so cancellation is kept here
+     * rather than on the request: once an operation is cancelled it stays cancelled for every following
+     * attempt, and a request attached later is cancelled right away.
      */
     private static final class OngoingOperation {
 
+        private final String queryId;
+        private final Map<String, Object> settings;
         private volatile boolean cancelled;
         private TransportRequest current;
+
+        OngoingOperation(String queryId, Map<String, Object> settings) {
+            this.queryId = queryId;
+            this.settings = settings;
+        }
+
+        String queryId() {
+            return queryId;
+        }
+
+        Map<String, Object> settings() {
+            return settings;
+        }
 
         synchronized void attach(TransportRequest tr) {
             current = tr;
