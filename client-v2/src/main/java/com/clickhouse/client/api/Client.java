@@ -1541,8 +1541,6 @@ public class Client implements AutoCloseable {
                         } else {
                             throw lastException;
                         }
-                    } finally {
-                        unregisterTransportReq(queryId);
                     }
                 }
 
@@ -1553,6 +1551,9 @@ public class Client implements AutoCloseable {
                 spanSupport.recordFailure(operationSpan, e);
                 throw e;
             } finally {
+                // unregister transport request once we are done: the registration has to survive the
+                // whole retry loop so that cancelTransportRequest() keeps working between attempts.
+                unregisterTransportReq(queryId);
                 operationSpan.end();
             }
         };
@@ -1755,10 +1756,6 @@ public class Client implements AutoCloseable {
                         } else {
                             throw lastException;
                         }
-                    } finally {
-                        // Insert completes once the request returns; the response exposes no stream to read afterwards,
-                        // so the request is no longer cancellable and can be unregistered.
-                        unregisterTransportReq(requestSettings.getQueryId());
                     }
 
                     if (i < maxAttempts) {

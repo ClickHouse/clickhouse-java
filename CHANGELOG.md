@@ -63,6 +63,10 @@
 
 ### Bug Fixes 
 
+- **[client-v2]** Fixed an insert unregistering its transport request after every attempt instead of once per
+  operation, so between two attempts of a retried insert `Client.cancelTransportRequest(String)` resolved the query
+  id to nothing at all. The registration now lives for the whole retry loop, as it already did for queries.
+  (https://github.com/ClickHouse/clickhouse-java/pull/2988)
 - **[client-v2]** Fixed LZ4 input streams not closing their underlying HTTP response stream. Closing an LZ4 stream
   returned by `QueryResponse.getInputStream()` now releases the wrapped transport stream, including after a partial
   read. (https://github.com/ClickHouse/clickhouse-java/issues/2985)

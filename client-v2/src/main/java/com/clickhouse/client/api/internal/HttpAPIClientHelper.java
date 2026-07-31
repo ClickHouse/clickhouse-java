@@ -148,10 +148,6 @@ public class HttpAPIClientHelper {
      */
     private final SpanSupport spanSupport;
 
-    public HttpAPIClientHelper(Map<String, Object> configuration, Object metricsRegistry, boolean initSslContext, LZ4Factory lz4Factory) {
-        this(configuration, metricsRegistry, initSslContext, lz4Factory, SpanSupport.DISABLED);
-    }
-
     public HttpAPIClientHelper(Map<String, Object> configuration, Object metricsRegistry, boolean initSslContext,
                                LZ4Factory lz4Factory, SpanSupport spanSupport) {
         this.spanSupport = spanSupport == null ? SpanSupport.DISABLED : spanSupport;

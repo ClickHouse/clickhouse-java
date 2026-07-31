@@ -7,11 +7,15 @@ import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientFaultCause;
+import com.clickhouse.client.api.DataStreamWriter;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
+import com.clickhouse.client.api.observability.DefaultSpanRecorder;
+import com.clickhouse.client.api.observability.Span;
+import com.clickhouse.client.api.observability.SpanRecorder;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
@@ -28,10 +32,14 @@ import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -519,6 +527,225 @@ public class TransportBaseTests extends BaseIntegrationTest {
                 {"insert-stream", true, false},
                 {"insert-pojo", true, true}
         };
+    }
+
+    /**
+     * The transport request of an operation must stay registered for the whole retry loop: the registration is
+     * what {@link Client#cancelTransportRequest(String)} resolves a query id against, so unregistering after
+     * every attempt left the query id resolving to nothing at all between two attempts. Probed deterministically
+     * through {@link DataStreamWriter#onRetry()}, which the client calls between two attempts of a stream insert -
+     * exactly that window.
+     */
+    @Test(groups = {"integration"})
+    public void testTransportRequestStaysRegisteredBetweenRetries() throws Exception {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
+        WireMockServer mockServer = startMockServer();
+        stubRetryableThenSuccess(mockServer);
+
+        final String queryId = "retry-registry-" + UUID.randomUUID();
+        AtomicInteger retries = new AtomicInteger();
+        AtomicBoolean registeredOnRetry = new AtomicBoolean();
+
+        try (Client client = mockServerClient(mockServer, 1)) {
+            DataStreamWriter writer = new DataStreamWriter() {
+                @Override
+                public void onOutput(OutputStream out) throws IOException {
+                    out.write("1\t2\t3\n".getBytes(StandardCharsets.US_ASCII));
+                }
+
+                @Override
+                public void onRetry() {
+                    retries.incrementAndGet();
+                    registeredOnRetry.set(ongoingRequests(client).containsKey(queryId));
+                }
+            };
+
+            try (InsertResponse response = client.insert("table01", writer, ClickHouseFormat.TSV,
+                    new InsertSettings().setQueryId(queryId)).get(30, TimeUnit.SECONDS)) {
+                Assert.assertNotNull(response, "the insert should have recovered after a retry");
+            }
+
+            Assert.assertEquals(retries.get(), 1, "expected exactly one retry between the two attempts");
+            Assert.assertTrue(registeredOnRetry.get(),
+                    "the transport request must still be registered between two attempts so that "
+                            + "cancelTransportRequest() keeps working while the operation retries");
+        } finally {
+            mockServer.stop();
+        }
+    }
+
+    /**
+     * Counterpart of {@link #testTransportRequestStaysRegisteredBetweenRetries()}: keeping the registration for
+     * the whole retry loop must not leak it. Every operation has to unregister its transport request once it
+     * finished, whether it succeeded on a retry or failed after exhausting the retries. A span recorder is used
+     * to assert that the request really was registered while the operation ran, so that the cleanup assertion
+     * cannot pass just because nothing was ever registered.
+     */
+    @Test(groups = {"integration"}, dataProvider = "registryCleanupProvider")
+    public void testTransportRequestUnregisteredWhenOperationEnds(String operation, boolean succeeds)
+            throws Exception {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
+        WireMockServer mockServer = startMockServer();
+        if (succeeds) {
+            stubRetryableThenSuccess(mockServer);
+        } else {
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .willReturn(WireMock.aResponse()
+                            .withStatus(HttpStatus.SC_SERVICE_UNAVAILABLE)
+                            .withHeader("X-ClickHouse-Exception-Code", String.valueOf(RETRYABLE_CODE))
+                            .withBody(RETRYABLE_BODY)).build());
+        }
+
+        String queryId = "registry-cleanup-" + UUID.randomUUID();
+        AtomicReference<Client> clientRef = new AtomicReference<>();
+        AtomicBoolean registeredWhileRunning = new AtomicBoolean();
+        // A request span is started for every attempt, right after the transport request was registered.
+        SpanRecorder registryProbe = new DefaultSpanRecorder() {
+            @Override
+            public Span startRequestSpan(String spanName, Span operationSpan) {
+                if (ongoingRequests(clientRef.get()).containsKey(queryId)) {
+                    registeredWhileRunning.set(true);
+                }
+                return super.startRequestSpan(spanName, operationSpan);
+            }
+        };
+
+        try (Client client = mockServerClientWithRecorder(mockServer, 1, registryProbe)) {
+            clientRef.set(client);
+            try {
+                runOperationWithQueryId(client, operation, queryId);
+                Assert.assertTrue(succeeds, "[" + operation + "] expected the operation to fail");
+            } catch (Exception e) {
+                Assert.assertFalse(succeeds, "[" + operation + "] operation should have recovered after a retry");
+                Assert.assertEquals(serverErrorCode(e), RETRYABLE_CODE,
+                        "[" + operation + "] the operation must fail with the retryable server error, but failed with "
+                                + e);
+            }
+
+            Assert.assertTrue(registeredWhileRunning.get(),
+                    "[" + operation + "] the transport request must be registered while the operation runs "
+                            + "(otherwise the cleanup assertion below is vacuous)");
+            Assert.assertFalse(ongoingRequests(client).containsKey(queryId),
+                    "[" + operation + "] the transport request must be unregistered once the operation ended");
+        } finally {
+            mockServer.stop();
+        }
+    }
+
+    /**
+     * Resolves the ClickHouse error code of a failed operation, unwrapping the {@code ExecutionException} the
+     * operation future may have wrapped it in.
+     */
+    private static int serverErrorCode(Throwable t) {
+        for (Throwable cause = t; cause != null; cause = cause.getCause()) {
+            if (cause instanceof ServerException) {
+                return ((ServerException) cause).getCode();
+            }
+        }
+        throw new AssertionError("expected a ServerException in the cause chain", t);
+    }
+
+    @DataProvider(name = "registryCleanupProvider")
+    public static Object[][] registryCleanupProvider() {
+        return new Object[][]{
+                {"query", true},
+                {"query", false},
+                {"insert-stream", true},
+                {"insert-stream", false},
+                {"insert-pojo", true},
+                {"insert-pojo", false}
+        };
+    }
+
+    /**
+     * Builds a client against the mocked server that reports its spans to the given recorder - used to observe
+     * the client's own state at a known point of an operation.
+     */
+    private Client mockServerClientWithRecorder(WireMockServer mockServer, int maxRetries, SpanRecorder recorder) {
+        return new Client.Builder()
+                .addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .compressClientRequest(false)
+                .compressServerResponse(false)
+                .setMaxRetries(maxRetries)
+                .setSpanRecorder(recorder)
+                .build();
+    }
+
+    /**
+     * Stubs a retryable server error on the first attempt followed by a successful response, so an operation
+     * with at least one retry configured goes through the retry branch of the operation loop and then succeeds.
+     */
+    private static void stubRetryableThenSuccess(WireMockServer mockServer) {
+        mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                .inScenario("Retry")
+                .whenScenarioStateIs(STARTED)
+                .willSetStateTo("Recovered")
+                .willReturn(WireMock.aResponse()
+                        .withStatus(HttpStatus.SC_SERVICE_UNAVAILABLE)
+                        .withHeader("X-ClickHouse-Exception-Code", String.valueOf(RETRYABLE_CODE))
+                        .withBody(RETRYABLE_BODY)).build());
+
+        mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                .inScenario("Retry")
+                .whenScenarioStateIs("Recovered")
+                .willReturn(WireMock.aResponse()
+                        .withStatus(HttpStatus.SC_OK)
+                        .withHeader("X-ClickHouse-Summary",
+                                "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")).build());
+    }
+
+    /**
+     * Runs the named operation with an explicit {@code queryId} - required for the transport request to be
+     * registered at all - and waits for it to complete.
+     */
+    private static void runOperationWithQueryId(Client client, String operation, String queryId) throws Exception {
+        switch (operation) {
+            case "query":
+                try (QueryResponse response = client.query("SELECT timezone()",
+                        new QuerySettings().setQueryId(queryId)).get(30, TimeUnit.SECONDS)) {
+                    return;
+                }
+            case "insert-stream":
+                try (InsertResponse response = client.insert("table01",
+                        new ByteArrayInputStream("1\t2\t3\n".getBytes(StandardCharsets.US_ASCII)),
+                        ClickHouseFormat.TSV, new InsertSettings().setQueryId(queryId)).get(30, TimeUnit.SECONDS)) {
+                    return;
+                }
+            case "insert-pojo":
+                client.register(InsertablePojo.class, new TableSchema("table01", null, "default",
+                        Collections.singletonList(ClickHouseColumn.of("id", "Int32"))));
+                try (InsertResponse response = client.insert("table01",
+                        Collections.singletonList(new InsertablePojo(1)),
+                        new InsertSettings().setQueryId(queryId)).get(30, TimeUnit.SECONDS)) {
+                    return;
+                }
+            default:
+                throw new IllegalArgumentException("unknown operation: " + operation);
+        }
+    }
+
+    /**
+     * Reads the client's registry of in-flight transport requests - the map {@link
+     * Client#cancelTransportRequest(String)} resolves a query id against. It has no public accessor, so the
+     * registry is read reflectively.
+     */
+    @SuppressWarnings("unchecked")
+    private static Map<String, ?> ongoingRequests(Client client) {
+        try {
+            Field field = Client.class.getDeclaredField("ongoingRequests");
+            field.setAccessible(true);
+            return (Map<String, ?>) field.get(client);
+        } catch (ReflectiveOperationException e) {
+            throw new AssertionError("failed to read the client's registry of ongoing requests", e);
+        }
     }
 
     /**
