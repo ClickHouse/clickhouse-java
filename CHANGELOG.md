@@ -4,6 +4,23 @@
 
 ### New Features
 
+- **[client-v2]** Added an observability SPI that lets an application observe client operations as spans.
+  `Client.Builder.setSpanRecorder(SpanRecorder)` registers a backend-agnostic recorder from the new
+  `com.clickhouse.client.api.observability` package: each operation (query, command, insert, `ping`,
+  `getTableSchema`) starts one operation span, and every transport request made for it - including each retry -
+  starts a child request span. `SpanRecorder` and `Span` are interfaces with no-op defaults (and `NOOP`
+  constants), so an implementation records only what it cares about and a newly recorded attribute cannot break
+  it; the operation's `QuerySettings`/`InsertSettings` is passed to `startSpan(...)` so a recorder can take the
+  properties it needs from it. Span names and attribute keys follow the OpenTelemetry semantic conventions for
+  database and HTTP client spans; the keys are defined by the `SpanAttribute` enum and the values are computed by
+  the client, so all recorders report the same information (statement text, target database and table, query id,
+  statement parameters, batch size, per-attempt server address and port, HTTP status, returned rows, and the
+  error type and ClickHouse error code on failure). An operation span is started on the calling thread, so it joins
+  the caller's ambient trace even when the operation runs on the client's executor, and it is ended exactly once. Previously the client exposed no hook for tracing, so an
+  application could not attribute a query or a retried request to its own trace. When no recorder is registered
+  nothing is recorded and no span-related work is done, so the default path is unchanged. An OpenTelemetry
+  implementation of the SPI follows in a separate module.
+  (https://github.com/ClickHouse/clickhouse-java/issues/2974)
 - **[client-v2, jdbc-v2]** Added support for the `BFloat16` data type (ClickHouse `24.11+`). `BFloat16` columns are read as
   Java `float` values (widening is lossless) and written from `float`/`Float` values, including through generic records, POJO
   binding, `Nullable(BFloat16)`, and `BFloat16` values held in `Dynamic`/`Variant` columns. On write the client keeps the
