@@ -20,6 +20,7 @@ import org.testng.annotations.Test;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -176,7 +177,7 @@ public class SpanRecorderUnitTest {
     }
 
     @Test
-    public void testEndpointIsReportedPerAttemptWhenSeveralAreConfigured() throws Exception {
+    public void testFirstEndpointOnOperationSpanAndPerAttemptOnRequestSpans() throws Exception {
         try (Client client = newClientBuilder()
                 .addEndpoint(DEAD_ENDPOINT)
                 .addEndpoint(mockEndpoint())
@@ -188,8 +189,9 @@ public class SpanRecorderUnitTest {
         }
 
         CapturedSpan operationSpan = recorder.operationSpan();
-        Assert.assertNull(operationSpan.getAttribute(SpanAttribute.SERVER_ADDRESS),
-                "the endpoint is not known before an attempt when several are configured");
+        Assert.assertEquals(operationSpan.getAttribute(SpanAttribute.SERVER_ADDRESS), "127.0.0.1",
+                "the operation reports the first configured endpoint; every attempt reports its own");
+        Assert.assertEquals(operationSpan.getAttribute(SpanAttribute.SERVER_PORT), 1);
         Assert.assertNull(operationSpan.getErrorType());
 
         List<CapturedSpan> requestSpans = recorder.requestSpans(operationSpan);
@@ -271,18 +273,90 @@ public class SpanRecorderUnitTest {
     }
 
     @Test
-    public void testDefaultImplementationsRecordNothing() {
-        SpanRecorder defaultRecorder = new SpanRecorder() {
-        };
-        Assert.assertSame(defaultRecorder.startSpan("query", new QuerySettings()), Span.NOOP);
-        Assert.assertSame(defaultRecorder.startSpan("insert", new InsertSettings()), Span.NOOP);
-        Assert.assertSame(defaultRecorder.startRequestSpan("POST", Span.NOOP), Span.NOOP);
+    public void testDefaultSpanRecorderRecordsNothing() {
+        SpanRecorder defaultRecorder = new DefaultSpanRecorder();
+        Assert.assertSame(defaultRecorder.startSpan("query", new QuerySettings()), DefaultSpanRecorder.NOOP_SPAN);
+        Assert.assertSame(defaultRecorder.startSpan("insert", new InsertSettings()), DefaultSpanRecorder.NOOP_SPAN);
+        Assert.assertSame(defaultRecorder.startRequestSpan("POST", DefaultSpanRecorder.NOOP_SPAN),
+                DefaultSpanRecorder.NOOP_SPAN);
 
-        Span defaultSpan = new Span() {
+        Span noopSpan = DefaultSpanRecorder.NOOP_SPAN;
+        noopSpan.setAttribute(SpanAttribute.DB_NAMESPACE.getKey(), "db");
+        noopSpan.setError("java.lang.IllegalStateException");
+        noopSpan.end();
+    }
+
+    @Test
+    public void testRecorderMayRecordQuerySpansOnly() throws Exception {
+        // a recorder that overrides one kind of span only must keep working - the kinds it does not
+        // override are answered by the base class with a span that records nothing
+        QueryOnlySpanRecorder queryOnlyRecorder = new QueryOnlySpanRecorder();
+        try (Client client = new Client.Builder()
+                .setUsername("default")
+                .setPassword("")
+                .setDefaultDatabase("test_db")
+                .setSpanRecorder(queryOnlyRecorder)
+                .addEndpoint(mockEndpoint())
+                .build()) {
+            try (QueryResponse response = client.query("SELECT 1").get(10, TimeUnit.SECONDS)) {
+                Assert.assertNotNull(response);
+            }
+            client.insert("t1", new ByteArrayInputStream("1\n".getBytes(StandardCharsets.UTF_8)),
+                    ClickHouseFormat.TSV).get(10, TimeUnit.SECONDS).close();
+        }
+
+        Assert.assertEquals(queryOnlyRecorder.querySpans.size(), 1,
+                "the overridden method is the only one that recorded a span");
+        CapturedSpan querySpan = queryOnlyRecorder.querySpans.get(0);
+        Assert.assertEquals(querySpan.getName(), "query test_db");
+        Assert.assertEquals(querySpan.getAttribute(SpanAttribute.DB_QUERY_TEXT), "SELECT 1");
+        Assert.assertEquals(querySpan.getEndCount(), 1);
+    }
+
+    @Test
+    public void testRecorderReturningNullSpansDoesNotBreakOperations() throws Exception {
+        SpanRecorder nullRecorder = new SpanRecorder() {
+            @Override
+            public Span startSpan(String spanName, QuerySettings settings) {
+                return null;
+            }
+
+            @Override
+            public Span startSpan(String spanName, InsertSettings settings) {
+                return null;
+            }
+
+            @Override
+            public Span startRequestSpan(String spanName, Span operationSpan) {
+                return null;
+            }
         };
-        defaultSpan.setAttribute(SpanAttribute.DB_NAMESPACE.getKey(), "db");
-        defaultSpan.setError("java.lang.IllegalStateException");
-        defaultSpan.end();
+
+        try (Client client = new Client.Builder()
+                .setUsername("default")
+                .setPassword("")
+                .setDefaultDatabase("test_db")
+                .setSpanRecorder(nullRecorder)
+                .addEndpoint(mockEndpoint())
+                .build()) {
+            try (QueryResponse response = client.query("SELECT 1").get(10, TimeUnit.SECONDS)) {
+                Assert.assertNotNull(response, "a recorder that returns no span must not fail the operation");
+            }
+        }
+    }
+
+    /**
+     * Recorder that implements the query span only and inherits everything else from the base class.
+     */
+    private static class QueryOnlySpanRecorder extends DefaultSpanRecorder {
+        final List<CapturedSpan> querySpans = Collections.synchronizedList(new ArrayList<>());
+
+        @Override
+        public Span startSpan(String spanName, QuerySettings settings) {
+            CapturedSpan span = new CapturedSpan(spanName, null, settings.getDatabase(), settings.getQueryId());
+            querySpans.add(span);
+            return span;
+        }
     }
 
     private static class ThreadRecordingSpanRecorder extends CapturingSpanRecorder {

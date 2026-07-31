@@ -13,7 +13,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Recorder that keeps every span it starts, so tests can assert what the client reported.
  */
-public class CapturingSpanRecorder implements SpanRecorder {
+public class CapturingSpanRecorder extends DefaultSpanRecorder {
 
     private final List<CapturedSpan> spans = Collections.synchronizedList(new ArrayList<>());
 

@@ -8,21 +8,14 @@ package com.clickhouse.client.api.observability;
  * the operation hands its response to the caller, so it does not cover reading the response body
  * (rows are streamed by the caller afterwards).
  * <p>
- * All methods have a no-op default implementation, so a recorder can implement only what it needs
- * and recording a newly added attribute never breaks an existing implementation. {@link #NOOP} is
- * used whenever no recorder is configured, so the client never has to check for {@code null}.
+ * A recorder that does not record a given kind of span returns {@link DefaultSpanRecorder#NOOP_SPAN}
+ * instead, so the client never has to check for {@code null}.
  * <p>
  * A span is used by a single operation at a time, but the operation span and its request spans may
  * be touched from different threads (an operation may run on the shared operation executor), so an
  * implementation should not assume single-thread access.
  */
 public interface Span {
-
-    /**
-     * Span that records nothing.
-     */
-    Span NOOP = new Span() {
-    };
 
     /**
      * Records an attribute. The keys the client uses are listed in {@link SpanAttribute}; there is a
@@ -33,9 +26,7 @@ public interface Span {
      * @param value - attribute value; a {@code String}, {@code Number} or {@code Boolean}, never
      *              {@code null}
      */
-    default void setAttribute(String key, Object value) {
-        // records nothing by default
-    }
+    void setAttribute(String key, Object value);
 
     /**
      * Marks the span as failed and records {@link SpanAttribute#ERROR_TYPE} with the given value.
@@ -44,15 +35,11 @@ public interface Span {
      *
      * @param errorType - short, low-cardinality error identifier, usually an exception class name
      */
-    default void setError(String errorType) {
-        // records nothing by default
-    }
+    void setError(String errorType);
 
     /**
      * Ends the span. Called exactly once by the client, also when the operation failed.
      * An implementation should be idempotent, so that ending an already-ended span is harmless.
      */
-    default void end() {
-        // records nothing by default
-    }
+    void end();
 }

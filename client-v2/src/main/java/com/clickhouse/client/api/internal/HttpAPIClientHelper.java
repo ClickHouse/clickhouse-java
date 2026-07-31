@@ -15,7 +15,7 @@ import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.enums.SSLMode;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.observability.Span;
-import com.clickhouse.client.api.observability.SpanRecorder;
+import com.clickhouse.client.api.observability.SpanSupport;
 import com.clickhouse.client.api.transport.Endpoint;
 import com.clickhouse.client.api.transport.internal.TransportRequest;
 import com.clickhouse.client.api.transport.internal.TransportResponse;
@@ -143,18 +143,18 @@ public class HttpAPIClientHelper {
     private final SslContextProvider sslContextProvider = new SslContextProvider();
 
     /**
-     * Recorder used to create a span per transport request. Never {@code null} -
-     * {@link SpanRecorder#NOOP} when observability is not configured.
+     * Creates a span per transport request. Never {@code null} - disabled when observability is not
+     * configured.
      */
-    private final SpanRecorder spanRecorder;
+    private final SpanSupport spanSupport;
 
     public HttpAPIClientHelper(Map<String, Object> configuration, Object metricsRegistry, boolean initSslContext, LZ4Factory lz4Factory) {
-        this(configuration, metricsRegistry, initSslContext, lz4Factory, SpanRecorder.NOOP);
+        this(configuration, metricsRegistry, initSslContext, lz4Factory, SpanSupport.DISABLED);
     }
 
     public HttpAPIClientHelper(Map<String, Object> configuration, Object metricsRegistry, boolean initSslContext,
-                               LZ4Factory lz4Factory, SpanRecorder spanRecorder) {
-        this.spanRecorder = spanRecorder == null ? SpanRecorder.NOOP : spanRecorder;
+                               LZ4Factory lz4Factory, SpanSupport spanSupport) {
+        this.spanSupport = spanSupport == null ? SpanSupport.DISABLED : spanSupport;
         this.metricsRegistry = metricsRegistry;
         this.httpClient = createHttpClient(initSslContext, configuration);
         this.lz4Factory = lz4Factory;
@@ -713,7 +713,7 @@ public class HttpAPIClientHelper {
      * @throws Exception when the request could not be completed
      */
     public TransportResponse executeRequest(TransportRequest transportRequest, Span operationSpan) throws Exception {
-        if (spanRecorder == SpanRecorder.NOOP) {
+        if (!spanSupport.isEnabled()) {
             return executeRequest(transportRequest);
         }
 
@@ -722,11 +722,11 @@ public class HttpAPIClientHelper {
             TransportResponse response = executeRequest(transportRequest);
             Object delegate = response.getDelegate();
             if (delegate instanceof HttpResponse) {
-                SpanSupport.recordHttpStatus(requestSpan, ((HttpResponse) delegate).getCode());
+                spanSupport.recordHttpStatus(requestSpan, ((HttpResponse) delegate).getCode());
             }
             return response;
         } catch (Exception e) {
-            SpanSupport.recordRequestFailure(requestSpan, e);
+            spanSupport.recordRequestFailure(requestSpan, e);
             throw e;
         } finally {
             requestSpan.end();
@@ -735,7 +735,7 @@ public class HttpAPIClientHelper {
 
     private Span startRequestSpan(Span operationSpan, HttpPost req) {
         final URIAuthority authority = req.getAuthority();
-        return SpanSupport.startRequestSpan(spanRecorder, operationSpan,
+        return spanSupport.startRequestSpan(operationSpan,
                 authority == null ? null : authority.getHostName(),
                 authority == null ? -1 : authority.getPort());
     }

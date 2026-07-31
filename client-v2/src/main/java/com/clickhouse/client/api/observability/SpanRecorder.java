@@ -24,18 +24,13 @@ import com.clickhouse.client.api.query.QuerySettings;
  * the application's own span. Attribute keys are defined by {@link SpanAttribute} and the values
  * are supplied by the client, so all recorders report the same information.
  * <p>
- * All methods have a default implementation returning {@link Span#NOOP}, so an implementation can
- * record only the kinds of spans it cares about. {@link #NOOP} records nothing.
+ * Implementations should extend {@link DefaultSpanRecorder} and override only the kinds of spans
+ * they care about; the inherited methods return a span that records nothing, so a recorder keeps
+ * working when the client starts a kind of span it does not know about.
  * <p>
  * A recorder is shared by all operations of a client instance and must be thread-safe.
  */
 public interface SpanRecorder {
-
-    /**
-     * Recorder that records nothing.
-     */
-    SpanRecorder NOOP = new SpanRecorder() {
-    };
 
     /**
      * Starts a span for a read operation - a query, a command, a ping or a table-schema lookup.
@@ -44,9 +39,7 @@ public interface SpanRecorder {
      * @param settings - settings of the operation being started
      * @return new span; never {@code null}
      */
-    default Span startSpan(String spanName, QuerySettings settings) {
-        return Span.NOOP;
-    }
+    Span startSpan(String spanName, QuerySettings settings);
 
     /**
      * Starts a span for an insert operation.
@@ -55,9 +48,7 @@ public interface SpanRecorder {
      * @param settings - settings of the operation being started
      * @return new span; never {@code null}
      */
-    default Span startSpan(String spanName, InsertSettings settings) {
-        return Span.NOOP;
-    }
+    Span startSpan(String spanName, InsertSettings settings);
 
     /**
      * Starts a span for a single transport request made for an operation. Called once per attempt,
@@ -68,7 +59,5 @@ public interface SpanRecorder {
      *                      should be its child
      * @return new span; never {@code null}
      */
-    default Span startRequestSpan(String spanName, Span operationSpan) {
-        return Span.NOOP;
-    }
+    Span startRequestSpan(String spanName, Span operationSpan);
 }

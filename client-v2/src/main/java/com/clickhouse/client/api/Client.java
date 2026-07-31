@@ -23,7 +23,6 @@ import com.clickhouse.client.api.internal.CredentialsManager;
 import com.clickhouse.client.api.internal.DataTypeConverter;
 import com.clickhouse.client.api.internal.HttpAPIClientHelper;
 import com.clickhouse.client.api.internal.MapUtils;
-import com.clickhouse.client.api.internal.SpanSupport;
 import com.clickhouse.client.api.internal.TableSchemaParser;
 import com.clickhouse.client.api.internal.ValidationUtils;
 import com.clickhouse.client.api.metadata.ColumnToMethodMatchingStrategy;
@@ -33,6 +32,7 @@ import com.clickhouse.client.api.metrics.ClientMetrics;
 import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.observability.Span;
 import com.clickhouse.client.api.observability.SpanRecorder;
+import com.clickhouse.client.api.observability.SpanSupport;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
@@ -160,16 +160,10 @@ public class Client implements AutoCloseable {
     private final CredentialsManager credentialsManager;
 
     /**
-     * Recorder registered by an application. Never {@code null} - {@link SpanRecorder#NOOP} when
+     * Starts spans on the recorder registered by an application. Never {@code null} - disabled when
      * observability is not configured, so no null check is needed on the operation paths.
      */
-    private final SpanRecorder spanRecorder;
-
-    /**
-     * Endpoint reported on an operation span before the first attempt. Known only when the client
-     * has a single endpoint to choose from; otherwise the endpoint is reported per request span.
-     */
-    private final Endpoint singleEndpoint;
+    private final SpanSupport spanSupport;
 
     private Client(Collection<Endpoint> endpoints, Map<String,String> configuration,
                    ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy,
@@ -180,7 +174,7 @@ public class Client implements AutoCloseable {
             parsedConfiguration.put(ClientConfigProperties.SSL_CONTEXT.getKey(), sslContext);
         }
         this.credentialsManager = cManager;
-        this.spanRecorder = spanRecorder == null ? SpanRecorder.NOOP : spanRecorder;
+        this.spanSupport = new SpanSupport(spanRecorder);
         this.session = Session.extractFrom(parsedConfiguration);
         this.configuration = new ConcurrentHashMap<>(parsedConfiguration);
         this.readOnlyConfig = Collections.unmodifiableMap(configuration);
@@ -218,7 +212,6 @@ public class Client implements AutoCloseable {
         }
 
         this.endpoints = tmpEndpoints.build();
-        this.singleEndpoint = this.endpoints.size() == 1 ? this.endpoints.get(0) : null;
         this.nodeSelector = new ClientNodeSelector(this.endpoints);
 
         boolean useNativeCompression = !MapUtils.getFlag(configuration, ClientConfigProperties.DISABLE_NATIVE_COMPRESSION.getKey(), false);
@@ -229,7 +222,7 @@ public class Client implements AutoCloseable {
         }
 
         this.httpClientHelper = new HttpAPIClientHelper(this.configuration, metricsRegistry, initSslContext, lz4Factory,
-                this.spanRecorder);
+                this.spanSupport);
         this.serverVersion = configuration.getOrDefault(ClientConfigProperties.SERVER_VERSION.getKey(), "unknown");
         this.dbUser = configuration.getOrDefault(ClientConfigProperties.USER.getKey(), ClientConfigProperties.USER.getDefObjVal());
         this.typeHintMapping = (Map<ClickHouseDataType, Class<?>>) this.configuration.get(ClientConfigProperties.TYPE_HINT_MAPPING.getKey());
@@ -1497,8 +1490,8 @@ public class Client implements AutoCloseable {
         if (requestSettings.getQueryId() == null && queryIdGenerator != null) {
             requestSettings.setQueryId(queryIdGenerator.get());
         }
-        final Span operationSpan = SpanSupport.startInsertSpan(spanRecorder, requestSettings, tableName,
-                data.size(), singleEndpoint);
+        final Span operationSpan = spanSupport.startInsertSpan(requestSettings, tableName, data.size(),
+                endpoints.get(0));
         Supplier<InsertResponse> supplier = () -> {
             long startTime = System.nanoTime();
             // Selecting some node
@@ -1534,7 +1527,7 @@ public class Client implements AutoCloseable {
                         ClientStatisticsHolder clientStats = globalClientStats.remove(operationId);
                         OperationMetrics metrics = completeOperation(transportResponse, clientStats, requestSettings.getQueryId());
 
-                        SpanSupport.recordSuccess(operationSpan, metrics);
+                        spanSupport.recordSuccess(operationSpan, metrics);
                         return new InsertResponse(transportResponse, metrics);
                     } catch (Exception e) {
                         String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
@@ -1557,7 +1550,7 @@ public class Client implements AutoCloseable {
                 LOG.warn(errMsg);
                 throw (lastException == null ? new ClientException(errMsg) : lastException);
             } catch (RuntimeException | Error e) {
-                SpanSupport.recordFailure(operationSpan, e);
+                spanSupport.recordFailure(operationSpan, e);
                 throw e;
             } finally {
                 operationSpan.end();
@@ -1727,8 +1720,8 @@ public class Client implements AutoCloseable {
 
         final int maxRetries = ClientConfigProperties.RETRY_ON_FAILURE.getOrDefault(requestSettings.getAllSettings());
         final int maxAttempts = Math.max(maxRetries, endpoints.size() - 1);
-        final Span operationSpan = SpanSupport.startInsertSpan(spanRecorder, requestSettings, tableName,
-                SpanSupport.BATCH_SIZE_UNKNOWN, singleEndpoint);
+        final Span operationSpan = spanSupport.startInsertSpan(requestSettings, tableName,
+                SpanSupport.BATCH_SIZE_UNKNOWN, endpoints.get(0));
         Supplier<InsertResponse> responseSupplier = () -> {
             long startTime = System.nanoTime();
             // Selecting some node
@@ -1748,7 +1741,7 @@ public class Client implements AutoCloseable {
 
                     try (TransportResponse transportResponse = httpClientHelper.executeRequest(transportRequest, operationSpan)) {
                         OperationMetrics metrics = completeOperation(transportResponse, finalClientStats, requestSettings.getQueryId());
-                        SpanSupport.recordSuccess(operationSpan, metrics);
+                        spanSupport.recordSuccess(operationSpan, metrics);
                         return new InsertResponse(transportResponse, metrics);
                     } catch (Exception e) {
                         String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
@@ -1781,7 +1774,7 @@ public class Client implements AutoCloseable {
                 LOG.warn(errMsg);
                 throw (lastException == null ? new ClientException(errMsg) : lastException);
             } catch (RuntimeException | Error e) {
-                SpanSupport.recordFailure(operationSpan, e);
+                spanSupport.recordFailure(operationSpan, e);
                 throw e;
             } finally {
                 unregisterTransportReq(queryId);
@@ -1896,8 +1889,8 @@ public class Client implements AutoCloseable {
         final int maxAttempts = Math.max(maxRetries, endpoints.size() - 1);
         // Started on the calling thread so that the span joins the caller's ambient trace even when
         // the operation itself runs on the shared operation executor.
-        final Span operationSpan = SpanSupport.startQuerySpan(spanRecorder, requestSettings, sqlQuery,
-                operationName, collectionName, singleEndpoint);
+        final Span operationSpan = spanSupport.startQuerySpan(requestSettings, sqlQuery, operationName,
+                collectionName, endpoints.get(0));
         Supplier<QueryResponse> responseSupplier = () -> {
                 long startTime = System.nanoTime();
                 // Selecting some node
@@ -1917,7 +1910,7 @@ public class Client implements AutoCloseable {
                                 responseFormat = requestSettings.getFormat();
                             }
 
-                            SpanSupport.recordSuccess(operationSpan, metrics);
+                            spanSupport.recordSuccess(operationSpan, metrics);
                             return new QueryResponse(transportResp, responseFormat, requestSettings, metrics);
 
                         } catch (Exception e) {
@@ -1940,7 +1933,7 @@ public class Client implements AutoCloseable {
                     LOG.warn(errMsg);
                     throw (lastException == null ? new ClientException(errMsg) : lastException);
                 } catch (RuntimeException | Error e) {
-                    SpanSupport.recordFailure(operationSpan, e);
+                    spanSupport.recordFailure(operationSpan, e);
                     throw e;
                 } finally {
                     // unregister transport request once we are done
@@ -2363,7 +2356,7 @@ public class Client implements AutoCloseable {
      */
     private <T> CompletableFuture<T> runOperation(Supplier<T> resultSupplier, Map<String, Object> requestSettings,
                                                   Span operationSpan) {
-        if (operationSpan == Span.NOOP) {
+        if (!spanSupport.isEnabled()) {
             return runAsyncOperation(resultSupplier, requestSettings);
         }
 
@@ -2376,7 +2369,7 @@ public class Client implements AutoCloseable {
         } catch (RuntimeException | Error e) {
             if (!started.get()) {
                 // the operation was never started, so the supplier did not end the span
-                SpanSupport.recordFailure(operationSpan, e);
+                spanSupport.recordFailure(operationSpan, e);
                 operationSpan.end();
             }
             throw e;
