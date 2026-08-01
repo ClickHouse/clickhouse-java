@@ -1467,11 +1467,7 @@ public class Client implements AutoCloseable {
             RuntimeException lastException = null;
             try {
                 for (int i = 0; i <= maxAttempts; i++) {
-                    // A cancellation may have landed between two attempts: the request of the previous attempt is
-                    // still registered, so it is seen here and no further request is issued.
-                    if (!requestIsNotCancelled(queryId)) {
-                        throw cancelledException(queryId, lastException);
-                    }
+                    failIfCancelled(queryId, lastException);
                     // Execute request
                     TransportRequest transportRequest = httpClientHelper.createRequest(selectedEndpoint, requestSettings.getAllSettings(),
                             out -> {
@@ -1697,12 +1693,7 @@ public class Client implements AutoCloseable {
             final String queryId = requestSettings.getQueryId();
             try {
                 for (int i = 0; i <= maxAttempts; i++) {
-                    // A cancellation may have landed between two attempts (for instance from DataStreamWriter#onRetry()):
-                    // the request of the previous attempt is still registered, so it is seen here and no further
-                    // request is issued.
-                    if (!requestIsNotCancelled(queryId)) {
-                        throw cancelledException(queryId, lastException);
-                    }
+                    failIfCancelled(queryId, lastException);
                     // Execute request
                     TransportRequest transportRequest = httpClientHelper.createRequest(selectedEndpoint, requestSettings.getAllSettings(),
                             out -> {
@@ -1841,11 +1832,7 @@ public class Client implements AutoCloseable {
                 final String queryId = requestSettings.getQueryId();
                 try {
                     for (int i = 0; i <= maxAttempts; i++) {
-                        // A cancellation may have landed between two attempts: the request of the previous attempt is
-                        // still registered, so it is seen here and no further request is issued.
-                        if (!requestIsNotCancelled(queryId)) {
-                            throw cancelledException(queryId, lastException);
-                        }
+                        failIfCancelled(queryId, lastException);
                         TransportRequest request = httpClientHelper.createRequest(selectedEndpoint, requestSettings.getAllSettings(), sqlQuery);
                         registerTransportReq(queryId, request);
                         TransportResponse transportResp = null;
@@ -1920,12 +1907,18 @@ public class Client implements AutoCloseable {
     }
 
     /**
-     * Failure of an operation that was cancelled between two of its attempts. The same exception type and message
-     * are used when a cancellation aborts an in-flight request, so a caller sees one outcome for a cancelled
-     * operation regardless of when the cancellation landed. The failure of the last attempt is kept as cause.
+     * Stops an operation that was cancelled before its next attempt is issued. A cancellation may have landed
+     * between two attempts (on the stream insert path for instance from {@link DataStreamWriter#onRetry()}): the
+     * request of the previous attempt stays registered until the operation is over, so it is seen here and no
+     * further request is issued.
+     * The same exception type and message are used when a cancellation aborts an in-flight request, so a caller
+     * sees one outcome for a cancelled operation regardless of when the cancellation landed. The failure of the
+     * last attempt is kept as cause. Called from the retry loop of every operation.
      */
-    private static RuntimeException cancelledException(String queryId, RuntimeException lastException) {
-        return new TransportException("Request was cancelled on client side", lastException, queryId);
+    private void failIfCancelled(String queryId, RuntimeException lastException) {
+        if (!requestIsNotCancelled(queryId)) {
+            throw new TransportException("Request was cancelled on client side", lastException, queryId);
+        }
     }
 
     public CompletableFuture<QueryResponse> query(String sqlQuery, Map<String, Object> queryParams) {
