@@ -37,6 +37,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -619,6 +620,75 @@ public class TransportBaseTests extends BaseIntegrationTest {
                 {"cancelled", true},
                 {"other-query-id", false}
         };
+    }
+
+    /**
+     * The cancellation of a retried operation is looked up by query id, so it must not be evaluated before the
+     * first attempt: nothing of the starting operation is registered yet and a request found under the same query
+     * id belongs to another operation that is still running. Cancelling that other operation must not make the
+     * new one fail before it ever reaches the server.
+     */
+    @Test(groups = {"integration"})
+    public void testFirstAttemptNotStoppedByAnotherCancelledOperation() throws Exception {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
+        WireMockServer mockServer = startMockServer();
+        mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                .willReturn(WireMock.aResponse()
+                        .withStatus(HttpStatus.SC_OK)
+                        .withHeader("X-ClickHouse-Summary",
+                                "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")).build());
+
+        String queryId = "shared-query-id-" + UUID.randomUUID();
+        CountDownLatch firstOperationStarted = new CountDownLatch(1);
+        CountDownLatch secondOperationDone = new CountDownLatch(1);
+
+        try (Client client = mockServerClient(mockServer, 3)) {
+            // Holds the first operation in flight, and so registered, until the second one is over.
+            DataStreamWriter blockedWriter = out -> {
+                out.write("1\n".getBytes(StandardCharsets.US_ASCII));
+                firstOperationStarted.countDown();
+                try {
+                    secondOperationDone.await(30, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException(e);
+                }
+            };
+            DataStreamWriter plainWriter = out -> out.write("2\n".getBytes(StandardCharsets.US_ASCII));
+
+            Thread blockedOperation = new Thread(() -> {
+                try (InsertResponse ignored = client.insert("table01", blockedWriter, ClickHouseFormat.TSV,
+                        new InsertSettings().setQueryId(queryId)).get(60, TimeUnit.SECONDS)) {
+                    // the outcome of the cancelled operation is not what this test is about
+                } catch (Exception expected) {
+                    // cancelled or failed - either way the second operation is the subject here
+                }
+            });
+            blockedOperation.setDaemon(true);
+            blockedOperation.start();
+            Assert.assertTrue(firstOperationStarted.await(30, TimeUnit.SECONDS),
+                    "the first operation should have reached the transport");
+            client.cancelTransportRequest(queryId);
+
+            Throwable error = null;
+            try (InsertResponse response = client.insert("table01", plainWriter, ClickHouseFormat.TSV,
+                    new InsertSettings().setQueryId(queryId)).get(30, TimeUnit.SECONDS)) {
+                Assert.assertNotNull(response);
+            } catch (Exception e) {
+                error = e.getCause() == null ? e : e.getCause();
+            } finally {
+                secondOperationDone.countDown();
+                blockedOperation.join(30_000);
+            }
+
+            Assert.assertNull(error, "an operation must not be stopped before its first attempt by the "
+                    + "cancellation of another operation using the same query id, but failed with: " + error);
+        } finally {
+            mockServer.stop();
+        }
     }
 
     /**
