@@ -10,6 +10,8 @@ import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.data.ClickHouseFormat;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.client.WireMock;
 import com.github.tomakehurst.wiremock.common.ConsoleNotifier;
@@ -19,8 +21,6 @@ import org.testng.SkipException;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
 import java.math.BigDecimal;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
@@ -51,7 +51,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
-import java.util.stream.Collectors;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
@@ -935,19 +934,19 @@ public class ConnectionTest extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testRawJSONQueryThroughUnderlyingClient() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
         try (Connection conn = getJdbcConnection();
              QueryResponse response = conn.unwrap(ConnectionImpl.class).getClient()
                      .query("SELECT 1 AS x FORMAT JSON")
-                     .get();
-             BufferedReader reader = new BufferedReader(
-                     new InputStreamReader(response.getInputStream(), StandardCharsets.UTF_8))) {
+                     .get()) {
             assertEquals(response.getFormat(), ClickHouseFormat.JSON);
 
-            String output = reader.lines().collect(Collectors.joining("\n"));
-            assertTrue(output.contains("\"meta\""), output);
-            assertTrue(output.contains("\"data\""), output);
-            assertTrue(output.contains("\"rows\""), output);
-            assertTrue(output.matches("(?s).*\"x\"\\s*:\\s*1.*"), output);
+            JsonNode output = mapper.readTree(response.getInputStream());
+            JsonNode meta = output.required("meta");
+            JsonNode data = output.required("data");
+            assertEquals(meta.get(0).required("name").asText(), "x");
+            assertEquals(data.get(0).required("x").asInt(), 1);
+            assertEquals(output.required("rows").asInt(), 1);
         }
     }
 

@@ -709,7 +709,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
      * Returns the {@link Client} instance used by this connection.
      * <p>
      * This can be used for operations that are not representable through the JDBC
-     * API, such as consuming raw or document-oriented response formats directly
+     * API, such as consuming raw or format-specific response formats directly
      * from {@link com.clickhouse.client.api.query.QueryResponse#getInputStream()}.
      * The returned client is owned by this connection and must not be closed by
      * callers; closing the connection closes the client.
