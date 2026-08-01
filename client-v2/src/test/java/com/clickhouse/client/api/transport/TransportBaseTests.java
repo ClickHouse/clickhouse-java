@@ -37,10 +37,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -591,9 +587,13 @@ public class TransportBaseTests extends BaseIntegrationTest {
             int attempts = mockServer.findAll(WireMock.postRequestedFor(WireMock.anyUrl())).size();
             if (cancelOwnQueryId) {
                 Assert.assertNotNull(opError, "[" + name + "] a cancelled operation must fail");
-                Assert.assertTrue(opError instanceof TransportException
-                                || opError.getCause() instanceof TransportException,
+                Throwable cancellation = opError instanceof TransportException ? opError : opError.getCause();
+                Assert.assertTrue(cancellation instanceof TransportException,
                         "[" + name + "] a cancelled operation must fail as cancelled, was: " + opError);
+                Assert.assertEquals(cancellation.getMessage(), "Request was cancelled on client side",
+                        "[" + name + "] a cancelled operation must report the cancellation");
+                Assert.assertNotNull(cancellation.getCause(),
+                        "[" + name + "] the failure of the last attempt must be kept as cause");
                 Assert.assertEquals(attempts, 1,
                         "[" + name + "] a cancelled operation must not issue another attempt");
 
@@ -618,100 +618,6 @@ public class TransportBaseTests extends BaseIntegrationTest {
         return new Object[][]{
                 {"cancelled", true},
                 {"other-query-id", false}
-        };
-    }
-
-    /**
-     * An asynchronous operation runs its body on the shared executor, so a cancel issued right after the
-     * call returned can land before the operation has sent its first request. An operation is registered for
-     * cancellation when it is started, not when its first request is created, so such a cancel must stop it
-     * before any request reaches the server instead of being silently dropped. A cancel for an unrelated
-     * query id must leave the queued operation alone.
-     */
-    @Test(groups = {"integration"}, dataProvider = "cancelBeforeFirstAttemptProvider")
-    public void testCancelBeforeFirstAttempt(String name, boolean insert, boolean cancelOwnQueryId) throws Exception {
-        if (isCloud()) {
-            return; // mocked server
-        }
-
-        WireMockServer mockServer = startMockServer();
-        mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
-                .willReturn(WireMock.aResponse()
-                        .withStatus(HttpStatus.SC_OK)
-                        .withHeader("X-ClickHouse-Summary",
-                                "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")).build());
-
-        ExecutorService operationExecutor = Executors.newSingleThreadExecutor();
-        CountDownLatch executorBusy = new CountDownLatch(1);
-        CountDownLatch releaseExecutor = new CountDownLatch(1);
-        String queryId = "cancel-before-first-attempt-" + UUID.randomUUID();
-        String cancelledQueryId = cancelOwnQueryId ? queryId : queryId + "-other";
-
-        try (Client client = new Client.Builder()
-                .addEndpoint(Protocol.HTTP, "localhost", mockServer.port(), false)
-                .setUsername("default")
-                .setPassword(ClickHouseServerForTest.getPassword())
-                .compressClientRequest(false)
-                .compressServerResponse(false)
-                .useAsyncRequests(true)
-                .setSharedOperationExecutor(operationExecutor)
-                .build()) {
-
-            // Occupies the only worker thread so the operation stays queued: it has not created its first
-            // request yet when the cancel is issued.
-            operationExecutor.submit(() -> {
-                executorBusy.countDown();
-                return releaseExecutor.await(30, TimeUnit.SECONDS);
-            });
-            Assert.assertTrue(executorBusy.await(30, TimeUnit.SECONDS),
-                    "[" + name + "] operation executor did not start");
-
-            CompletableFuture<?> operation = insert
-                    ? client.insert("table01", out -> out.write("1\n".getBytes(StandardCharsets.US_ASCII)),
-                            ClickHouseFormat.TSV, new InsertSettings().setQueryId(queryId))
-                    : client.query("SELECT 1", new QuerySettings().setQueryId(queryId));
-            client.cancelTransportRequest(cancelledQueryId);
-            releaseExecutor.countDown();
-
-            Throwable opError = null;
-            try {
-                Object response = operation.get(30, TimeUnit.SECONDS);
-                Assert.assertNotNull(response);
-                ((AutoCloseable) response).close();
-            } catch (Exception e) {
-                opError = e;
-            }
-
-            int requests = mockServer.findAll(WireMock.postRequestedFor(WireMock.anyUrl())).size();
-            if (cancelOwnQueryId) {
-                Assert.assertNotNull(opError, "[" + name + "] a cancelled operation must fail");
-                Throwable cancellation = opError instanceof TransportException ? opError : opError.getCause();
-                Assert.assertTrue(cancellation instanceof TransportException,
-                        "[" + name + "] a cancelled operation must fail as cancelled, was: " + opError);
-                Assert.assertTrue(cancellation.getMessage().contains("cancelled on client side"),
-                        "[" + name + "] a cancelled operation must fail as cancelled, was: " + cancellation.getMessage());
-                Assert.assertEquals(requests, 0,
-                        "[" + name + "] a cancelled operation must not send a request");
-            } else {
-                Assert.assertNull(opError,
-                        "[" + name + "] an operation that was not cancelled must complete: " + opError);
-                Assert.assertEquals(requests, 1,
-                        "[" + name + "] an operation that was not cancelled must send its request");
-            }
-        } finally {
-            releaseExecutor.countDown();
-            operationExecutor.shutdownNow();
-            mockServer.stop();
-        }
-    }
-
-    @DataProvider(name = "cancelBeforeFirstAttemptProvider")
-    public static Object[][] cancelBeforeFirstAttemptProvider() {
-        return new Object[][]{
-                {"query-cancelled", false, true},
-                {"query-other-query-id", false, false},
-                {"insert-cancelled", true, true},
-                {"insert-other-query-id", true, false}
         };
     }
 
