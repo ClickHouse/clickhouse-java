@@ -44,6 +44,13 @@
 
 ### Bug Fixes 
 
+- **[jdbc-v2]** Fixed `ResultSet.getTimestamp` (and `getObject(..., Timestamp.class)`) ignoring the column timezone
+  for `DateTime` / `DateTime32` / `DateTime64` values. The binary reader already attaches the column (or
+  server/session) timezone to the internal `ZonedDateTime`; converting via the caller's `Calendar` / JVM default
+  re-interpreted wall-clock components and shifted the returned epoch when that timezone differed from the
+  column's (e.g. `DateTime64(3, 'UTC')` under a non-UTC JVM, or two columns with different declared timezones).
+  Reading now preserves the absolute instant, so writing a `Timestamp` and reading it back from columns with
+  different timezones returns the same epoch millis. (https://github.com/ClickHouse/clickhouse-java/issues/2787)
 - **[client-v2]** Fixed LZ4 input streams not closing their underlying HTTP response stream. Closing an LZ4 stream
   returned by `QueryResponse.getInputStream()` now releases the wrapped transport stream, including after a partial
   read. (https://github.com/ClickHouse/clickhouse-java/issues/2985)

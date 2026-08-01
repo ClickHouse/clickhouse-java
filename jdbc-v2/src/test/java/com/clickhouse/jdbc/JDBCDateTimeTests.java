@@ -13,6 +13,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -305,6 +306,54 @@ public class JDBCDateTimeTests extends JdbcIntegrationTest {
                     Assert.assertEquals(rs.getInt(1), 2);
                     Assert.assertFalse(rs.next());
                 }
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    void testGetTimestampPreservesInstantAcrossColumnTimezones() throws Exception {
+        try (Connection conn = getJdbcConnection();
+             Statement stmt = conn.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS test_timestamp_column_tz");
+            stmt.execute("CREATE TABLE test_timestamp_column_tz (" +
+                    "  t_tokyo DateTime64(3, 'Asia/Tokyo'), " +
+                    "  t_ny DateTime64(3, 'America/New_York'), " +
+                    "  t_utc DateTime64(3, 'UTC') " +
+                    ") ENGINE = MergeTree ORDER BY t_tokyo");
+
+            Timestamp original = new Timestamp(1_773_356_288_000L); // 2026-03-12T14:58:08Z
+            try (PreparedStatement pstmt = conn.prepareStatement(
+                    "INSERT INTO test_timestamp_column_tz (t_tokyo, t_ny, t_utc) VALUES (?, ?, ?)")) {
+                pstmt.setTimestamp(1, original);
+                pstmt.setTimestamp(2, original);
+                pstmt.setTimestamp(3, original);
+                pstmt.executeUpdate();
+            }
+
+            try (ResultSet rs = stmt.executeQuery("SELECT t_tokyo, t_ny, t_utc FROM test_timestamp_column_tz")) {
+                Assert.assertTrue(rs.next());
+
+                Timestamp readTokyo = rs.getTimestamp("t_tokyo");
+                Timestamp readNy = rs.getTimestamp("t_ny");
+                Timestamp readUtc = rs.getTimestamp("t_utc");
+
+                Assert.assertEquals(readTokyo.getTime(), original.getTime());
+                Assert.assertEquals(readNy.getTime(), original.getTime());
+                Assert.assertEquals(readUtc.getTime(), original.getTime());
+                Assert.assertEquals(readTokyo.toInstant(), original.toInstant());
+                Assert.assertEquals(readNy.toInstant(), original.toInstant());
+                Assert.assertEquals(readUtc.toInstant(), original.toInstant());
+
+                // Calendar must not re-shift a zoned DateTime column.
+                Calendar tokyoCal = Calendar.getInstance(TimeZone.getTimeZone("Asia/Tokyo"));
+                Calendar nyCal = Calendar.getInstance(TimeZone.getTimeZone("America/New_York"));
+                Assert.assertEquals(rs.getTimestamp("t_tokyo", tokyoCal).getTime(), original.getTime());
+                Assert.assertEquals(rs.getTimestamp("t_tokyo", nyCal).getTime(), original.getTime());
+                Assert.assertEquals(rs.getTimestamp("t_ny", tokyoCal).getTime(), original.getTime());
+                Assert.assertEquals(rs.getTimestamp("t_ny", nyCal).getTime(), original.getTime());
+
+                Assert.assertEquals(rs.getObject("t_tokyo", Timestamp.class).getTime(), original.getTime());
+                Assert.assertEquals(rs.getObject("t_ny", Timestamp.class).getTime(), original.getTime());
             }
         }
     }

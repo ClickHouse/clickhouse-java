@@ -437,6 +437,28 @@ public class DataTypeUtilsTests {
         assertEquals(roundTrip, localDateTime);
     }
 
+    /**
+     * Same absolute instant, different column timezones: converting via each column zone
+     * (as getTimestamp does) must yield the same epoch millis.
+     */
+    @Test(groups = {"unit"})
+    void testToSqlTimestampSameInstantAcrossColumnTimezones() {
+        Instant instant = Instant.parse("2026-03-12T14:58:08.123Z");
+        String[] columnZones = {"UTC", "Asia/Tokyo", "America/New_York"};
+
+        long[] epochs = new long[columnZones.length];
+        for (int i = 0; i < columnZones.length; i++) {
+            TimeZone columnTz = TimeZone.getTimeZone(columnZones[i]);
+            LocalDateTime wallClock = LocalDateTime.ofInstant(instant, columnTz.toZoneId());
+            Timestamp ts = DataTypeUtils.toSqlTimestamp(wallClock, columnTz);
+            epochs[i] = ts.getTime();
+            assertEquals(ts.toInstant().toEpochMilli(), instant.toEpochMilli(),
+                    "column zone " + columnZones[i]);
+        }
+        assertEquals(epochs[0], epochs[1]);
+        assertEquals(epochs[1], epochs[2]);
+    }
+
     @Test(groups = {"unit"})
     void testToSqlTimestampPreservesNanoseconds() {
         LocalDateTime localDateTime = LocalDateTime.of(2024, 6, 15, 10, 30, 45, 123456789);

@@ -13,7 +13,10 @@ import java.math.BigInteger;
 import java.sql.JDBCType;
 import java.sql.SQLException;
 import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -169,5 +172,46 @@ public class JdbcUtilsTest {
         assertEquals(JdbcUtils.convertToJavaClass(ClickHouseDataType.UInt64), BigInteger.class);
         assertEquals(JdbcUtils.convertToJavaClass(ClickHouseDataType.UInt128), BigInteger.class);
         assertEquals(JdbcUtils.convertToJavaClass(ClickHouseDataType.UInt256), BigInteger.class);
+    }
+
+    @Test(groups = {"unit"}, dataProvider = "zonedTimestampZones")
+    public void testConvertZonedDateTimeToTimestampPreservesInstant(String zoneId) throws SQLException {
+        Instant instant = Instant.parse("2026-03-12T14:58:08.123Z");
+        ZonedDateTime zdt = instant.atZone(ZoneId.of(zoneId));
+
+        java.sql.Timestamp ts = (java.sql.Timestamp) JdbcUtils.convert(zdt, java.sql.Timestamp.class);
+
+        assertEquals(ts.toInstant(), instant);
+        assertEquals(ts.getNanos(), zdt.getNano());
+    }
+
+    @Test(groups = {"unit"})
+    public void testConvertOffsetDateTimeToTimestampPreservesInstant() throws SQLException {
+        Instant instant = Instant.parse("2026-03-12T14:58:08.456789123Z");
+        OffsetDateTime odt = instant.atOffset(ZoneOffset.ofHours(9));
+
+        java.sql.Timestamp ts = (java.sql.Timestamp) JdbcUtils.convert(odt, java.sql.Timestamp.class);
+
+        assertEquals(ts.toInstant(), instant);
+        assertEquals(ts.getNanos(), odt.getNano());
+    }
+
+    @Test(groups = {"unit"})
+    public void testConvertInstantToTimestampPreservesInstant() throws SQLException {
+        Instant instant = Instant.parse("2026-03-12T14:58:08.001Z");
+
+        java.sql.Timestamp ts = (java.sql.Timestamp) JdbcUtils.convert(instant, java.sql.Timestamp.class);
+
+        assertEquals(ts.toInstant(), instant);
+    }
+
+    @DataProvider(name = "zonedTimestampZones")
+    public Object[][] zonedTimestampZones() {
+        return new Object[][] {
+                {"UTC"},
+                {"Asia/Tokyo"},
+                {"America/New_York"},
+                {"Europe/Berlin"},
+        };
     }
 }

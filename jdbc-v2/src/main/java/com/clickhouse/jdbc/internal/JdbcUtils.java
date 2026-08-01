@@ -395,6 +395,22 @@ public class JdbcUtils {
                 } else if (type == Date.class) {
                     return Date.valueOf(LocalDate.from(temporalValue));
                 } else if (type == java.sql.Timestamp.class) {
+                    // Preserve the absolute instant for types that carry a zone/offset. Using
+                    // Timestamp.valueOf(LocalDateTime) would re-interpret wall-clock components in
+                    // the JVM default zone and shift the epoch when it differs from the column zone.
+                    if (temporalValue instanceof ZonedDateTime) {
+                        ZonedDateTime zdt = (ZonedDateTime) temporalValue;
+                        java.sql.Timestamp ts = java.sql.Timestamp.from(zdt.toInstant());
+                        ts.setNanos(zdt.getNano());
+                        return ts;
+                    } else if (temporalValue instanceof OffsetDateTime) {
+                        OffsetDateTime odt = (OffsetDateTime) temporalValue;
+                        java.sql.Timestamp ts = java.sql.Timestamp.from(odt.toInstant());
+                        ts.setNanos(odt.getNano());
+                        return ts;
+                    } else if (temporalValue instanceof Instant) {
+                        return java.sql.Timestamp.from((Instant) temporalValue);
+                    }
                     return java.sql.Timestamp.valueOf(LocalDateTime.from(temporalValue));
                 } else if (type == java.sql.Time.class) {
                     return java.sql.Time.valueOf(LocalTime.from(temporalValue));

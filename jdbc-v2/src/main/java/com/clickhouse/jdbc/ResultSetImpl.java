@@ -42,6 +42,7 @@ import java.util.Calendar;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -1119,7 +1120,16 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
             }
             wasNull = false;
 
-            return DataTypeUtils.toSqlTimestamp(zdt.toLocalDateTime(), cal.getTimeZone());
+            // DateTime is stored as an absolute epoch on the wire. BinaryStreamReader already
+            // attaches the column (or server/session) timezone when building the ZonedDateTime.
+            // Convert using that zone so the returned Timestamp keeps the same instant; reinterpreting
+            // wall-clock components with the caller Calendar shifts the epoch when the column
+            // timezone differs from the Calendar timezone (e.g. DateTime64(3, 'UTC') under a non-UTC
+            // JVM default). Calendar remains on the API for JDBC compatibility but is not used to
+            // shift a zoned value — matching the JDBC contract that Calendar applies only when the
+            // underlying type has no timezone information.
+            return DataTypeUtils.toSqlTimestamp(zdt.toLocalDateTime(),
+                    TimeZone.getTimeZone(zdt.getZone()));
         } catch (Exception e) {
             ClickHouseColumn column = getSchema().getColumnByIndex(columnIndex);
             switch (column.getValueDataType()) {

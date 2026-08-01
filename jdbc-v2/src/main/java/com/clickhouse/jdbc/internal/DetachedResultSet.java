@@ -25,7 +25,6 @@ import java.sql.Time;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -838,18 +837,11 @@ public class DetachedResultSet implements ResultSet, JdbcV2Wrapper {
     public Timestamp getTimestamp(String columnLabel, Calendar cal) throws SQLException {
         ensureOpen();
         try {
-            Timestamp timestamp = getObject(columnLabel, Timestamp.class);
-            if (timestamp != null) {
-                Calendar c = (Calendar) (cal != null ? cal : defaultCalendar).clone();
-                c.clear();
-                LocalDateTime ldt = timestamp.toLocalDateTime();
-                c.set(ldt.getYear(), ldt.getMonthValue() - 1, ldt.getDayOfMonth(), ldt.getHour(), ldt.getMinute(),
-                        ldt.getSecond());
-                timestamp = new Timestamp(c.getTimeInMillis());
-                timestamp.setNanos(ldt.getNano());
-                return timestamp;
-            }
-            return timestamp;
+            // Values are materialised as absolute java.sql.Timestamp instants when the parent
+            // result set is detached. Do not re-interpret wall-clock components with Calendar —
+            // that would shift the epoch when the Calendar timezone differs from the JVM default
+            // (and from the original column timezone). Calendar is kept for JDBC API compatibility.
+            return getObject(columnLabel, Timestamp.class);
         } catch (Exception e) {
             throw new SQLException(String.format("Method: getTimestamp(\"%s\") encountered an exception.", columnLabel), e);
         }
