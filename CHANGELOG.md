@@ -44,6 +44,13 @@
 
 ### Bug Fixes 
 
+- **[jdbc-v2]** Fixed `PreparedStatement.getMetaData()` losing the result-set schema for a statement whose SQL
+  contains a comment. The `DESCRIBE` query used to resolve the metadata was built by re-scanning the SQL with a
+  regex that knew only quoted tokens, so a `?` inside a `--` / `#` / `/* */` comment was rewritten to `NULL` and
+  an odd `'` inside a comment mis-paired the quote alternative, leaving a real placeholder unreplaced — the
+  `DESCRIBE` then failed and the driver silently returned untyped metadata. The metadata query is now built from
+  the placeholder positions the statement parser already computed, so it always matches the SQL that a
+  parameterized execution produces. (https://github.com/ClickHouse/clickhouse-java/issues/3011)
 - **[client-v2]** Fixed LZ4 input streams not closing their underlying HTTP response stream. Closing an LZ4 stream
   returned by `QueryResponse.getInputStream()` now releases the wrapped transport stream, including after a partial
   read. (https://github.com/ClickHouse/clickhouse-java/issues/2985)
