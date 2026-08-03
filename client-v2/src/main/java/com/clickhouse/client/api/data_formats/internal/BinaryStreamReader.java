@@ -263,7 +263,7 @@ public class BinaryStreamReader {
                 case Nothing:
                     return null;
                 case SimpleAggregateFunction:
-                    return (T) readValue(column.getNestedColumns().get(0), typeHint, false);
+                    return (T) readValue(actualColumn.getNestedColumns().get(0), typeHint, false);
                 case AggregateFunction:
                     return (T) readBitmap( actualColumn);
                 case Variant:
@@ -1561,6 +1561,29 @@ public class BinaryStreamReader {
                 ClickHouseColumn elementColumn = readDynamicData();
                 int dimension = readVarInt(input);
                 return ClickHouseColumn.of("v", "QBit(" + elementColumn.getOriginalTypeName() + ", " + dimension + ")");
+            }
+            case SimpleAggregateFunction: {
+                // 0x2E <function_name> <var_uint number_of_parameters><parameters>
+                //      <var_uint number_of_arguments><argument_type_encodings>
+                // The whole encoding MUST be consumed so a SimpleAggregateFunction nested in a
+                // Dynamic/Variant/JSON column does not desynchronize the stream.
+                String functionName = readString(input);
+                int numberOfParameters = readVarInt(input);
+                if (numberOfParameters > 0) {
+                    // Every function accepted by SimpleAggregateFunction is parameterless, so the
+                    // binary encoding of a parameter (a Field) never appears here. Fail loudly
+                    // instead of silently leaving the parameters in the stream.
+                    throw new ClientException("Parameterized SimpleAggregateFunction is not supported: "
+                            + functionName);
+                }
+                int numberOfArguments = readVarInt(input);
+                StringBuilder typeName = new StringBuilder(SB_INIT_SIZE);
+                typeName.append("SimpleAggregateFunction(").append(functionName);
+                for (int i = 0; i < numberOfArguments; i++) {
+                    typeName.append(", ").append(readDynamicData().getOriginalTypeName());
+                }
+                typeName.append(')');
+                return ClickHouseColumn.of("v", typeName.toString());
             }
             case Time64: {
                 byte precision = readByte();

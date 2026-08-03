@@ -44,6 +44,12 @@
 
 ### Bug Fixes 
 
+- **[client-v2]** Fixed reading a `SimpleAggregateFunction(func, T)` value held in a `Dynamic` column. The binary type
+  encoding of such a value (`0x2E <function_name> <parameters> <arguments> <argument_type_encodings>`) was not consumed
+  at all, so the read failed with `IndexOutOfBoundsException`, and the unconsumed encoding bytes would otherwise have
+  been interpreted as row data and desynchronized the rest of the `RowBinary` stream. The concrete type is now
+  reconstructed from the encoding and the value is read as its argument type `T`, so it reads exactly like the same
+  value in a plain `SimpleAggregateFunction` column. (https://github.com/ClickHouse/clickhouse-java/issues/3005)
 - **[client-v2]** Fixed LZ4 input streams not closing their underlying HTTP response stream. Closing an LZ4 stream
   returned by `QueryResponse.getInputStream()` now releases the wrapped transport stream, including after a partial
   read. (https://github.com/ClickHouse/clickhouse-java/issues/2985)
