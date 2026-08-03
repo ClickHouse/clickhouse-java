@@ -44,6 +44,14 @@
 
 ### Bug Fixes 
 
+- **[client-v2]** Fixed reading a `Variant`, `Nested`, `Decimal` or `Enum` value held in a `Dynamic` column. The
+  concrete type rebuilt from the binary type encoding did not match what the server encoded: `Variant` was wrapped
+  twice (so the discriminator selected the wrong element), `Nested` read only the element names and left the element
+  type encodings in the stream, and `Decimal`/`Enum` lost their precision and scale / their constants whenever the
+  value sat inside another type, so a decimal read back unscaled (`1.2500` as `12500`) and every enum value read back
+  as `<unknown>`. The constant width of an enum is now taken from the type tag rather than from the number of
+  constants, which also fixes reading an `Enum16` with fewer than 128 constants and negative `Enum8` constants.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3003)
 - **[client-v2]** Fixed LZ4 input streams not closing their underlying HTTP response stream. Closing an LZ4 stream
   returned by `QueryResponse.getInputStream()` now releases the wrapped transport stream, including after a partial
   read. (https://github.com/ClickHouse/clickhouse-java/issues/2985)
