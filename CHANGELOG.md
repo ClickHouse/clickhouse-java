@@ -44,6 +44,15 @@
 
 ### Bug Fixes 
 
+- **[client-v2]** Fixed the compiled POJO setter emitting invalid bytecode (`VerifyError` on the first row read) when a
+  column is bound to a POJO field of a different primitive type. The value read from the stream is now converted to the
+  field's primitive type following Java's narrowing/widening rules, so e.g. an `Int64`/`UInt32`/`Float32`/`Float64`/
+  `BFloat16` column can be read into a `byte`, `short`, `char` or `boolean` field, and an `Int8`/`UInt8`/`Int16`/
+  `Enum8`/`Enum16`/`Bool` column into a `long`, `float` or `double` field. A primitive field bound to a column that the
+  reader decodes into a `Number` (`Int128`, `UInt128`, `Int256`, `UInt256`, `Decimal*`) is now unboxed instead of
+  producing invalid bytecode; for a column whose value is not a number (e.g. `Date`, `IPv4`, `String`, `UUID`) reading
+  into a numeric primitive field now fails with a clear `IllegalArgumentException`.
+  (https://github.com/ClickHouse/clickhouse-java/issues/2999)
 - **[client-v2]** Fixed LZ4 input streams not closing their underlying HTTP response stream. Closing an LZ4 stream
   returned by `QueryResponse.getInputStream()` now releases the wrapped transport stream, including after a partial
   read. (https://github.com/ClickHouse/clickhouse-java/issues/2985)
