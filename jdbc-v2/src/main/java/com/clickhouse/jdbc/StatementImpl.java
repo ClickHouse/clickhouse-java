@@ -19,15 +19,25 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
 import java.sql.Statement;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class StatementImpl implements Statement, JdbcV2Wrapper {
     private static final Logger LOG = LoggerFactory.getLogger(StatementImpl.class);
+
+    // Escape sequences are only recognized outside of quoted text, so their patterns are matched at a given position
+    private static final Pattern DATE_ESCAPE = Pattern.compile("\\{d '([^']*)'\\}");
+    private static final Pattern TIMESTAMP_ESCAPE = Pattern.compile("\\{ts '([^']*)'\\}");
+    private static final String FUNCTION_ESCAPE_PREFIX = "{fn ";
+    private static final int PLAIN_BRACE = -1;
 
     // Attributes
     ConnectionImpl connection;
@@ -88,14 +98,61 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         if (sql == null) {
             throw new IllegalArgumentException("SQL may not be null");
         }
-        // Replace {d 'YYYY-MM-DD'} with corresponding SQL date format
-        sql = sql.replaceAll("\\{d '([^']*)'\\}", "toDate('$1')");
 
-        // Replace {ts 'YYYY-MM-DD HH:mm:ss'} with corresponding SQL timestamp format
-        sql = sql.replaceAll("\\{ts '([^']*)'\\}", "timestamp('$1')");
+        final int len = sql.length();
+        final StringBuilder sb = new StringBuilder(len);
+        // Position in `sb` where a dropped `{fn ` prefix started, or PLAIN_BRACE for any other open brace
+        final Deque<Integer> openBraces = new ArrayDeque<>();
+        final Matcher dateEscape = DATE_ESCAPE.matcher(sql);
+        final Matcher timestampEscape = TIMESTAMP_ESCAPE.matcher(sql);
 
-        // Replace function escape syntax {fn <function>} (e.g., {fn UCASE(name)})
-        sql = sql.replaceAll("\\{fn ([^\\}]*)\\}", "$1");
+        int i = 0;
+        while (i < len) {
+            char ch = sql.charAt(i);
+            if (isQuote(ch)) {
+                // Quoted text (string literal or quoted identifier) is data, not syntax: copy it verbatim
+                i = appendQuotedText(sb, sql, i);
+            } else if (isCommentStart(sql, i)) {
+                // Comments are not syntax either and may contain unbalanced quotes and braces: copy them verbatim
+                i = appendComment(sb, sql, i);
+            } else if (ch == '{') {
+                if (lookingAt(dateEscape, i, len)) {
+                    // Replace {d 'YYYY-MM-DD'} with corresponding SQL date format
+                    sb.append("toDate('").append(dateEscape.group(1)).append("')");
+                    i = dateEscape.end();
+                } else if (lookingAt(timestampEscape, i, len)) {
+                    // Replace {ts 'YYYY-MM-DD HH:mm:ss'} with corresponding SQL timestamp format
+                    sb.append("timestamp('").append(timestampEscape.group(1)).append("')");
+                    i = timestampEscape.end();
+                } else if (sql.startsWith(FUNCTION_ESCAPE_PREFIX, i)) {
+                    // Unwrap function escape syntax {fn <function>} (e.g., {fn UCASE(name)}): the prefix is dropped
+                    // here and the matching closing brace is dropped when it is reached
+                    openBraces.push(sb.length());
+                    i += FUNCTION_ESCAPE_PREFIX.length();
+                } else {
+                    // Not an escape sequence (e.g. a map literal or a {name:Type} query parameter)
+                    openBraces.push(PLAIN_BRACE);
+                    sb.append(ch);
+                    i++;
+                }
+            } else if (ch == '}') {
+                if (openBraces.isEmpty() || openBraces.pop() == PLAIN_BRACE) {
+                    sb.append(ch);
+                }
+                i++;
+            } else {
+                sb.append(ch);
+                i++;
+            }
+        }
+
+        // Restore the prefix of any function escape that was never closed - such text is left as it was written.
+        // Positions are in descending order, so earlier insertions do not shift later ones.
+        for (Integer position : openBraces) {
+            if (position != PLAIN_BRACE) {
+                sb.insert(position, FUNCTION_ESCAPE_PREFIX);
+            }
+        }
 
         // Handle outer escape syntax
         //sql = sql.replaceAll("\\{escape '([^']*)'\\}", "'$1'");
@@ -103,7 +160,81 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         // Note: do not remove new lines because they may be used to delimit comments
         // Add more replacements as needed for other JDBC escape sequences
 
-        return sql;
+        return sb.toString();
+    }
+
+    private static boolean isQuote(char ch) {
+        return ch == '\'' || ch == '"' || ch == '`';
+    }
+
+    private static boolean isCommentStart(String sql, int index) {
+        char ch = sql.charAt(index);
+        return ch == '#' || (ch == '-' && sql.startsWith("--", index)) || (ch == '/' && sql.startsWith("/*", index));
+    }
+
+    private static boolean lookingAt(Matcher matcher, int index, int end) {
+        matcher.region(index, end);
+        return matcher.lookingAt();
+    }
+
+    /**
+     * Appends the comment starting at {@code start} to {@code sb} without any modification.
+     *
+     * @param sb    target buffer
+     * @param sql   statement text
+     * @param start index of the first character of the comment
+     * @return index right after the comment, or the end of the statement when a block comment is not closed
+     */
+    private static int appendComment(StringBuilder sb, String sql, int start) {
+        final int len = sql.length();
+        int end;
+        if (sql.charAt(start) == '/') { // block comment
+            end = sql.indexOf("*/", start + 2);
+            end = end < 0 ? len : end + 2;
+        } else { // line comment - the new line itself is not part of it
+            end = sql.indexOf('\n', start);
+            end = end < 0 ? len : end;
+        }
+
+        sb.append(sql, start, end);
+        return end;
+    }
+
+    /**
+     * Appends the quoted text starting at {@code start} to {@code sb} without any modification.
+     *
+     * @param sb   target buffer
+     * @param sql  statement text
+     * @param start index of the opening quote
+     * @return index right after the closing quote, or the end of the statement when the quote is not closed
+     */
+    private static int appendQuotedText(StringBuilder sb, String sql, int start) {
+        final int len = sql.length();
+        final char quote = sql.charAt(start);
+        sb.append(quote);
+
+        int i = start + 1;
+        while (i < len) {
+            char ch = sql.charAt(i);
+            if (ch == '\\' && i + 1 < len) { // a backslash escapes the next character
+                sb.append(ch).append(sql.charAt(i + 1));
+                i += 2;
+            } else if (ch == quote) {
+                sb.append(ch);
+                i++;
+                if (i < len && sql.charAt(i) == quote) { // a doubled quote is an escaped quote
+                    sb.append(quote);
+                    i++;
+                } else {
+                    break;
+                }
+            } else {
+                sb.append(ch);
+                i++;
+            }
+        }
+
+        return i;
     }
 
     protected String getLastStatementSql() {
