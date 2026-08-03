@@ -44,6 +44,12 @@
 
 ### Bug Fixes 
 
+- **[jdbc-v2]** Fixed a `?` inside a `//` line comment or inside a heredoc (dollar quoted string, e.g. `$$...$$` or
+  `$tag$...$tag$`) being counted as a `PreparedStatement` parameter. Such a statement expected a value the application
+  could not supply, so `executeQuery()` failed with `Parameter at position 'N' is not set` for a query the server
+  executes fine. The placeholder scan now skips both token kinds, like the server lexer does; a `$` that does not open a
+  heredoc is still treated as an ordinary character (it is a valid identifier character).
+  (https://github.com/ClickHouse/clickhouse-java/issues/3009)
 - **[client-v2]** Fixed LZ4 input streams not closing their underlying HTTP response stream. Closing an LZ4 stream
   returned by `QueryResponse.getInputStream()` now releases the wrapped transport stream, including after a partial
   read. (https://github.com/ClickHouse/clickhouse-java/issues/2985)
