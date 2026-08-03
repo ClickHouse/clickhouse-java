@@ -44,6 +44,13 @@
 
 ### Bug Fixes 
 
+- **[client-v2]** Fixed a `Nullable(T)` column bound to a **primitive** POJO field silently corrupting a row on the
+  POJO read path. The compiled setter went straight to a primitive read method without consuming the `Nullable`
+  null-marker byte, which is on the wire for every value of a nullable column regardless of the value, so the stream
+  stayed shifted by one byte per row and the nullable column and every column after it decoded from the wrong offset
+  without any error being raised. The generated setter now consumes the marker; a value that is actually `NULL` cannot
+  be held by a primitive field and is reported with a `NullValueException`. Boxed POJO fields are unaffected.
+  (https://github.com/ClickHouse/clickhouse-java/issues/2993)
 - **[client-v2]** Fixed LZ4 input streams not closing their underlying HTTP response stream. Closing an LZ4 stream
   returned by `QueryResponse.getInputStream()` now releases the wrapped transport stream, including after a partial
   read. (https://github.com/ClickHouse/clickhouse-java/issues/2985)
