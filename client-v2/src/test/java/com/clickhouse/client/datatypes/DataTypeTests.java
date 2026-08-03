@@ -1321,6 +1321,21 @@ public class DataTypeTests extends BaseIntegrationTest {
     }
 
     @Test(groups = {"integration"})
+    public void testDynamicWithNestedTypesWithQuotedNames() throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
+        List<GenericRecord> records = client.queryAll("SELECT (1, 'row1', 0.1)::Tuple(`row id` Int32, `name,alias` String, value Float64)::Dynamic AS row, 10::Int32 AS num");
+
+        Object[] tuple = (Object[]) records.get(0).getObject("row");
+        Assert.assertEquals(tuple[0], 1);
+        Assert.assertEquals(tuple[1], "row1");
+        Assert.assertEquals(tuple[2], 0.1);
+        Assert.assertEquals(records.get(0).getInteger("num"), 10);
+    }
+
+    @Test(groups = {"integration"})
     public void testDynamicWithFixedString() throws Exception {
         if (isVersionMatch("(,24.8]")) {
             return;
@@ -1354,6 +1369,16 @@ public class DataTypeTests extends BaseIntegrationTest {
         map3.put("a.d", "e");
         Map<String, Object> map4 = new HashMap<>();
         map4.put("a.d", "e");
+        Map<String, Object> map5 = new HashMap<>();
+        map5.put("a b", 1L);
+        Map<String, Object> map6 = new HashMap<>();
+        map6.put("a,b", 1L);
+        Map<String, Object> map7 = new HashMap<>();
+        map7.put("a b.c d", 1L);
+        Map<String, Object> map8 = new HashMap<>();
+        map8.put("a", 1L);
+        Map<String, Object> map9 = new HashMap<>();
+        map9.put("a`b", 1L);
 
         return new Object[][] {
                 { "JSON(max_dynamic_paths=100, max_dynamic_types=100)", "{\"name\": \"row1\", \"value\": 0.1}", map1},
@@ -1361,7 +1386,13 @@ public class DataTypeTests extends BaseIntegrationTest {
                 { "JSON", "{ \"a\" :  { \"b\" : \"c\", \"d\" : \"e\" } }", map3},
                 { "JSON(SKIP a.b)", "{ \"a\" :  { \"b\" : \"c\", \"d\" : \"e\" } }", map4},
                 { "JSON(SKIP REGEXP \'a\\.b\')", "{ \"a\" :  { \"b\" : \"c\", \"d\" : \"e\" } }", map4},
-
+                { "JSON(`a b` Int64)", "{\"a b\": 1}", map5},
+                { "JSON(`a,b` Int64)", "{\"a,b\": 1}", map6},
+                { "JSON(`a b`.`c d` Int64)", "{\"a b\": {\"c d\": 1}}", map7},
+                { "JSON(`a\\`b` Int64)", "{\"a`b\": 1}", map9},
+                { "JSON(SKIP `b c`)", "{\"a\": 1, \"b c\": 2}", map8},
+                { "JSON(SKIP REGEXP \'b c\')", "{\"a\": 1, \"b c\": 2}", map8},
+                { "JSON(`a b` Int64, SKIP `c d`)", "{\"a b\": 1, \"c d\": 2}", map5},
         };
     }
 
