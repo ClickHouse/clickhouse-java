@@ -1172,6 +1172,9 @@ public class SerializerUtils {
      * @see SerializerUtils#stringValueToString(Object)
      * @see SerializerUtils#stringValueToByteArray(Object)
      * @see SerializerUtils#binaryReaderMethodForType(MethodVisitor, Class, ClickHouseDataType)
+     * @see SerializerUtils#unsignedLongReaderMethodForType(MethodVisitor, Class)
+     * @see SerializerUtils#convertToBoolean(Object)
+     * @see BinaryStreamReader#readBigIntegerLE(int, boolean)
      * @see SerializerUtils#intToOpcode(Class)
      * @see SerializerUtils#longToOpcode(Class)
      * @see SerializerUtils#floatToOpcode(Class)
@@ -1237,12 +1240,7 @@ public class SerializerUtils {
                 binaryReaderMethodForType(mv,
                         targetPrimitiveType, column.getDataType());
             } else if (targetType.isPrimitive() && column.getDataType() == ClickHouseDataType.UInt64) {
-                mv.visitTypeInsn(CHECKCAST, Type.getInternalName(BigInteger.class));
-                mv.visitMethodInsn(INVOKEVIRTUAL,
-                        Type.getInternalName(BigInteger.class),
-                        targetType.getSimpleName() + "Value",
-                        "()" + Type.getDescriptor(targetType),
-                        false);
+                unsignedLongReaderMethodForType(mv, targetPrimitiveType);
             } else {
                 mv.visitVarInsn(ALOAD, 3); // column
                 // load target class into stack
@@ -1303,6 +1301,42 @@ public class SerializerUtils {
         } catch (Exception e) {
             throw new ClientException("Failed to compile setter for " + setterMethod.getName(), e);
         }
+    }
+
+    /**
+     * Emits reading of a {@code UInt64} value into a primitive variable. {@code UInt64} has no primitive counterpart
+     * in Java, so the value is read as a {@link BigInteger} first and then converted with the matching
+     * {@link Number} accessor ({@link BigInteger#longValue()}, {@link BigInteger#intValue()}, ...), which narrows a
+     * value that does not fit the target type the same way a Java narrowing conversion does. A {@code long} holds
+     * every {@code UInt64} value bit-for-bit and can be read back with {@link Long#toUnsignedString(long)}. A
+     * {@code boolean} target is set to {@code true} for any non-zero value.
+     *
+     * @param mv - visitor of the method being generated
+     * @param targetType - primitive type the value is read into
+     */
+    private static void unsignedLongReaderMethodForType(MethodVisitor mv, Class<?> targetType) {
+        mv.visitLdcInsn(BinaryStreamReader.INT64_SIZE);
+        mv.visitInsn(Opcodes.ICONST_1); // unsigned
+        mv.visitMethodInsn(INVOKEVIRTUAL,
+                Type.getInternalName(BinaryStreamReader.class),
+                "readBigIntegerLE",
+                Type.getMethodDescriptor(Type.getType(BigInteger.class), Type.INT_TYPE, Type.BOOLEAN_TYPE),
+                false);
+
+        if (targetType == boolean.class) {
+            mv.visitMethodInsn(INVOKESTATIC,
+                    Type.getInternalName(SerializerUtils.class),
+                    "convertToBoolean",
+                    Type.getMethodDescriptor(Type.BOOLEAN_TYPE, Type.getType(Object.class)),
+                    false);
+            return;
+        }
+
+        mv.visitMethodInsn(INVOKEVIRTUAL,
+                Type.getInternalName(BigInteger.class),
+                targetType.getSimpleName() + "Value",
+                "()" + Type.getDescriptor(targetType),
+                false);
     }
 
     private static void binaryReaderMethodForType(MethodVisitor mv, Class<?> targetType, ClickHouseDataType dataType) {

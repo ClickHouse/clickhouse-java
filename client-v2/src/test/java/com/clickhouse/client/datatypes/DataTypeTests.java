@@ -33,6 +33,7 @@ import org.testng.annotations.Test;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
@@ -2442,6 +2443,70 @@ public class DataTypeTests extends BaseIntegrationTest {
                         new Object[] { Arrays.asList(9000L), Arrays.asList(42L, 7L) }
                 },
         };
+    }
+
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class DTOForUInt64PrimitiveTests {
+        private int rowId;
+        private byte asByte;
+        private short asShort;
+        private int asInt;
+        private long asLong;
+        private float asFloat;
+        private double asDouble;
+        private boolean asBoolean;
+        private char asChar;
+        private long trailing;
+    }
+
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class DTOForUInt64BoxedTests {
+        private int rowId;
+        private BigInteger u64;
+        private long trailing;
+    }
+
+    private static final String UINT64_PRIMITIVES_SQL =
+            "SELECT toInt32(number) AS rowId" +
+                    ", toUInt64(100) AS asByte" +
+                    ", toUInt64(30000) AS asShort" +
+                    ", toUInt64(2000000000) AS asInt" +
+                    ", toUInt64(18446744073709551615) AS asLong" +
+                    ", toUInt64(5) AS asFloat" +
+                    ", toUInt64(7) AS asDouble" +
+                    ", toUInt64(number) AS asBoolean" +
+                    ", toUInt64(65) AS asChar" +
+                    ", toInt64(777) AS trailing FROM numbers(2)";
+
+    private static final String UINT64_BOXED_SQL =
+            "SELECT toInt32(1) AS rowId, toUInt64(18446744073709551615) AS u64, toInt64(777) AS trailing";
+
+    @Test(groups = {"integration"})
+    public void testReadUInt64IntoPrimitivePojoFields() {
+        TableSchema schema = client.getTableSchemaFromQuery(UINT64_PRIMITIVES_SQL);
+        client.register(DTOForUInt64PrimitiveTests.class, schema);
+
+        List<DTOForUInt64PrimitiveTests> rows =
+                client.queryAll(UINT64_PRIMITIVES_SQL, DTOForUInt64PrimitiveTests.class, schema);
+
+        Assert.assertEquals(rows, Arrays.asList(
+                new DTOForUInt64PrimitiveTests(0, (byte) 100, (short) 30000, 2000000000, -1L, 5f, 7d, false, 'A', 777L),
+                new DTOForUInt64PrimitiveTests(1, (byte) 100, (short) 30000, 2000000000, -1L, 5f, 7d, true, 'A', 777L)));
+        Assert.assertEquals(Long.toUnsignedString(rows.get(0).getAsLong()), "18446744073709551615");
+    }
+
+    @Test(groups = {"integration"})
+    public void testReadUInt64IntoBoxedPojoField() {
+        TableSchema schema = client.getTableSchemaFromQuery(UINT64_BOXED_SQL);
+        client.register(DTOForUInt64BoxedTests.class, schema);
+
+        Assert.assertEquals(client.queryAll(UINT64_BOXED_SQL, DTOForUInt64BoxedTests.class, schema),
+                Collections.singletonList(new DTOForUInt64BoxedTests(1,
+                        new BigInteger("18446744073709551615"), 777L)));
     }
 
     public static String tableDefinition(String table, String... columns) {
