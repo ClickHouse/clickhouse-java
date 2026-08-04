@@ -1,6 +1,7 @@
 package com.clickhouse.jdbc.parser;
 
 import org.testng.Assert;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import static org.testng.Assert.assertEquals;
@@ -458,6 +459,40 @@ public class ClickHouseSqlParserFacadeTest {
                                 null, null),
                         new ClickHouseSqlStatement("select 1 as `a ; a`",
                                 StatementType.SELECT) });
+    }
+
+    @DataProvider(name = "heredocSql")
+    private static Object[][] getHeredocSql() {
+        return new Object[][] {
+                // a heredoc body is opaque: a statement separator or an operator in it must not
+                // truncate the statement or break its classification
+                { "select $$a;b$$", StatementType.SELECT, ClickHouseSqlStatement.DEFAULT_TABLE },
+                { "select $$a;b$$, 1 from tbl", StatementType.SELECT, "tbl" },
+                { "select $$a?b$$, 1 from tbl", StatementType.SELECT, "tbl" },
+                { "select $tag_1$ ? $tag_1$, 1 from tbl", StatementType.SELECT, "tbl" },
+                { "insert into tbl values ($$a;b$$, 1)", StatementType.INSERT, "tbl" },
+                { "select $$a(b,c)$$ from tbl", StatementType.SELECT, "tbl" },
+                { "select $$a b$$ from tbl", StatementType.SELECT, "tbl" },
+                { "select $$$$ from tbl", StatementType.SELECT, "tbl" },
+                // an unterminated tag is not a heredoc and remains an identifier
+                { "select $foo$bar from tbl", StatementType.SELECT, "tbl" },
+                { "select a$b from tbl", StatementType.SELECT, "tbl" },
+                // a quoted string literal keeps its existing handling
+                { "select 'a;b', 1 from tbl", StatementType.SELECT, "tbl" },
+        };
+    }
+
+    @Test(groups = "unit", dataProvider = "heredocSql")
+    public void testHeredocStringLiteral(String sql, StatementType stmtType, String table) {
+        checkSingleStatement(parse(sql), sql, stmtType, ClickHouseSqlStatement.DEFAULT_DATABASE, table);
+    }
+
+    @Test(groups = "unit")
+    public void testHeredocDoesNotSplitStatements() throws ParseException {
+        assertEquals(parse("select $$a;b$$;select 2"),
+                new ClickHouseSqlStatement[] {
+                        new ClickHouseSqlStatement("select $$a;b$$", StatementType.SELECT),
+                        new ClickHouseSqlStatement("select 2", StatementType.SELECT) });
     }
 
     @Test(groups = "unit")

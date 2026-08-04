@@ -951,6 +951,7 @@ Token literal(): { Token t = null; } {
         t = dateLiteral()
         | t = numberLiteral()
         | t = <STRING_LITERAL>
+        | t = <HEREDOC_LITERAL>
         | t = <NULL>
     )
     { return t; }
@@ -1254,6 +1255,15 @@ TOKEN: {
 // string literal
 TOKEN: { 
     <STRING_LITERAL: <SINGLE_QUOTE> (<BACK_SLASH> ~[] | ~["'", "\\"] | "''")* <SINGLE_QUOTE>>
+}
+
+// heredoc string literal: $$body$$ or $tag$body$tag$
+// Matched loosely, like the rest of this grammar: the opening and closing tags are not required to
+// be equal and a body cannot contain '$'. An unterminated tag (e.g. `$foo$bar`) does not match and
+// keeps being lexed as an identifier, which is also how the server reads it.
+TOKEN: {
+    <HEREDOC_LITERAL: <HEREDOC_TAG> (~["$"])* <HEREDOC_TAG>>
+    | <#HEREDOC_TAG: <DOLLAR> (<LETTER> | <DEC_DIGIT> | <UNDERSCORE>)* <DOLLAR>>
 }
 
 TOKEN: {
