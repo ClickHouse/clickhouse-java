@@ -968,4 +968,28 @@ public abstract class BaseSqlParserFacadeTest {
             Assert.fail(failureMessage);
         }
     }
+
+    @Test(dataProvider = "testParametersInUnparsableExpressionsDP")
+    public void testParametersInUnparsableExpressions(String sql, int args) {
+        ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
+        assertEquals(stmt.getArgCount(), args, "Args do not match for: " + sql);
+        int[] positions = stmt.getParamPositions();
+        int expectedPosition = -1;
+        for (int i = 0; i < args; i++) {
+            expectedPosition = sql.indexOf('?', expectedPosition + 1);
+            assertEquals(positions[i], expectedPosition, "Position of parameter " + (i + 1) + " for: " + sql);
+        }
+    }
+
+    @DataProvider
+    public static Object[][] testParametersInUnparsableExpressionsDP() {
+        return new Object[][] {
+                {"INSERT INTO t (v1, v2) VALUES (hex(x'AB'), ?)", 1},
+                {"INSERT INTO t (v1, v2) VALUES (?, hex(x'AB')), (?, hex(x'CD'))", 2},
+                {"INSERT INTO t (v1, v2) VALUES (hex(x'AB'), ?), (hex(x'CD'), ?)", 2},
+                {"SELECT ? FROM t WHERE v1 = hex(x'AB') AND v2 = ?", 2},
+                {"INSERT INTO t (v1, v2) VALUES (hex(x'AB'), 'z')", 0},
+                {"INSERT INTO t (v1, v2) VALUES (?, ?)", 2},
+        };
+    }
 }

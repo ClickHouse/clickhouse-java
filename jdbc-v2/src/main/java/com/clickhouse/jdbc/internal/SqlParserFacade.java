@@ -415,6 +415,7 @@ public abstract class SqlParserFacade {
             parseSQL(sql, new ParseStatementAndParamsListener(stmt, processUseRolesExpr));
             if (stmt.isHasErrors()) {
                 stmt.setHasResultSet(true);
+                reparseParametersOfRecoveredParseTree(sql, stmt);
             }
             // Combine database and table like JavaCC does
             String tableName = stmt.getTable();
@@ -422,8 +423,20 @@ public abstract class SqlParserFacade {
                 tableName = String.format("%s.%s", stmt.getDatabase(), stmt.getTable());
             }
             stmt.setTable(tableName);
-            
+
             return stmt;
+        }
+
+        /**
+         * This backend collects the parameter placeholders from the parse tree. A statement the grammar cannot match is
+         * still given a parse tree, completed by error recovery, but the tokens the parser recovered on are not part of
+         * it: a placeholder inside an expression the grammar could not match never reaches the listener and is lost.
+         * Drop what was collected and re-derive the placeholders from the original SQL, as the other backends do.
+         */
+        static void reparseParametersOfRecoveredParseTree(String sql, ParsedPreparedStatement stmt) {
+            LOG.debug("Reparsing parameters of a statement that could not be parsed without errors");
+            stmt.resetParameters();
+            parseParameters(sql, stmt);
         }
 
         private static class ParseStatementAndParamsListener extends ParsedPreparedStatementListener {
