@@ -14,6 +14,8 @@ import com.clickhouse.client.api.TransportException;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.enums.SSLMode;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
+import com.clickhouse.client.api.observability.Span;
+import com.clickhouse.client.api.observability.SpanSupport;
 import com.clickhouse.client.api.transport.Endpoint;
 import com.clickhouse.client.api.transport.internal.TransportRequest;
 import com.clickhouse.client.api.transport.internal.TransportResponse;
@@ -62,6 +64,7 @@ import org.apache.hc.core5.http.io.entity.EntityTemplate;
 import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.hc.core5.io.CloseMode;
 import org.apache.hc.core5.io.IOCallback;
+import org.apache.hc.core5.net.URIAuthority;
 import org.apache.hc.core5.net.URIBuilder;
 import org.apache.hc.core5.pool.ConnPoolControl;
 import org.apache.hc.core5.pool.PoolConcurrencyPolicy;
@@ -139,7 +142,15 @@ public class HttpAPIClientHelper {
 
     private final SslContextProvider sslContextProvider = new SslContextProvider();
 
-    public HttpAPIClientHelper(Map<String, Object> configuration, Object metricsRegistry, boolean initSslContext, LZ4Factory lz4Factory) {
+    /**
+     * Creates a span per transport request. Never {@code null} - disabled when observability is not
+     * configured.
+     */
+    private final SpanSupport spanSupport;
+
+    public HttpAPIClientHelper(Map<String, Object> configuration, Object metricsRegistry, boolean initSslContext,
+                               LZ4Factory lz4Factory, SpanSupport spanSupport) {
+        this.spanSupport = spanSupport == null ? SpanSupport.DISABLED : spanSupport;
         this.metricsRegistry = metricsRegistry;
         this.httpClient = createHttpClient(initSslContext, configuration);
         this.lz4Factory = lz4Factory;
@@ -684,6 +695,45 @@ public class HttpAPIClientHelper {
                 throw new ClientException("Failed to construct input stream", e);
             }
         }
+    }
+
+    /**
+     * Executes a single transport request and records it as a child span of the given operation
+     * span, so a retried operation reports one request span per attempt. Recording happens around
+     * {@link #executeRequest(TransportRequest)}, which stays the single place where a request is
+     * actually executed.
+     *
+     * @param transportRequest - request to execute
+     * @param operationSpan - span of the operation this request is made for
+     * @return transport response
+     * @throws Exception when the request could not be completed
+     */
+    public TransportResponse executeRequest(TransportRequest transportRequest, Span operationSpan) throws Exception {
+        if (!spanSupport.isEnabled()) {
+            return executeRequest(transportRequest);
+        }
+
+        final Span requestSpan = startRequestSpan(operationSpan, transportRequest.getDelegate());
+        try {
+            TransportResponse response = executeRequest(transportRequest);
+            Object delegate = response.getDelegate();
+            if (delegate instanceof HttpResponse) {
+                spanSupport.recordHttpStatus(requestSpan, ((HttpResponse) delegate).getCode());
+            }
+            return response;
+        } catch (Exception e) {
+            spanSupport.recordRequestFailure(requestSpan, e);
+            throw e;
+        } finally {
+            requestSpan.end();
+        }
+    }
+
+    private Span startRequestSpan(Span operationSpan, HttpPost req) {
+        final URIAuthority authority = req.getAuthority();
+        return spanSupport.startRequestSpan(operationSpan,
+                authority == null ? null : authority.getHostName(),
+                authority == null ? -1 : authority.getPort());
     }
 
     public TransportResponse executeRequest(TransportRequest transportRequest) throws Exception {

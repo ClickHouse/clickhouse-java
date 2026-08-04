@@ -30,6 +30,9 @@ import com.clickhouse.client.api.metadata.DefaultColumnToMethodMatchingStrategy;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.metrics.ClientMetrics;
 import com.clickhouse.client.api.metrics.OperationMetrics;
+import com.clickhouse.client.api.observability.Span;
+import com.clickhouse.client.api.observability.SpanRecorder;
+import com.clickhouse.client.api.observability.SpanSupport;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
@@ -81,6 +84,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -155,15 +159,22 @@ public class Client implements AutoCloseable {
     private final ClientNodeSelector nodeSelector;
     private final CredentialsManager credentialsManager;
 
+    /**
+     * Starts spans on the recorder registered by an application. Never {@code null} - disabled when
+     * observability is not configured, so no null check is needed on the operation paths.
+     */
+    private final SpanSupport spanSupport;
+
     private Client(Collection<Endpoint> endpoints, Map<String,String> configuration,
                    ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy,
                    Object metricsRegistry, Supplier<String> queryIdGenerator, CredentialsManager cManager,
-                   SSLContext sslContext) {
+                   SSLContext sslContext, SpanRecorder spanRecorder) {
         Map<String, Object> parsedConfiguration = new ConcurrentHashMap<>(ClientConfigProperties.parseConfigMap(configuration));
         if (sslContext != null) {
             parsedConfiguration.put(ClientConfigProperties.SSL_CONTEXT.getKey(), sslContext);
         }
         this.credentialsManager = cManager;
+        this.spanSupport = new SpanSupport(spanRecorder);
         this.session = Session.extractFrom(parsedConfiguration);
         this.configuration = new ConcurrentHashMap<>(parsedConfiguration);
         this.readOnlyConfig = Collections.unmodifiableMap(configuration);
@@ -210,7 +221,8 @@ public class Client implements AutoCloseable {
             this.lz4Factory = LZ4Factory.fastestJavaInstance();
         }
 
-        this.httpClientHelper = new HttpAPIClientHelper(this.configuration, metricsRegistry, initSslContext, lz4Factory);
+        this.httpClientHelper = new HttpAPIClientHelper(this.configuration, metricsRegistry, initSslContext, lz4Factory,
+                this.spanSupport);
         this.serverVersion = configuration.getOrDefault(ClientConfigProperties.SERVER_VERSION.getKey(), "unknown");
         this.dbUser = configuration.getOrDefault(ClientConfigProperties.USER.getKey(), ClientConfigProperties.USER.getDefObjVal());
         this.typeHintMapping = (Map<ClickHouseDataType, Class<?>>) this.configuration.get(ClientConfigProperties.TYPE_HINT_MAPPING.getKey());
@@ -283,6 +295,7 @@ public class Client implements AutoCloseable {
         private Object metricRegistry = null;
         private Supplier<String> queryIdGenerator;
         private SSLContext sslContext = null;
+        private SpanRecorder spanRecorder = null;
 
         // Trust/key material options that feed a context the client would otherwise build; none of them
         // may be combined with an application-supplied SSLContext (see build()).
@@ -1230,6 +1243,23 @@ public class Client implements AutoCloseable {
             return this;
         }
 
+        /**
+         * <p>Registers a {@link SpanRecorder} that observes client operations and the transport
+         * requests made for them. Each operation (query, command, insert, ping, table-schema
+         * lookup) produces one operation span, and every request attempt made for it - including
+         * retries - produces a child request span.</p>
+         *
+         * <p>When no recorder is set (the default, or {@code null}) nothing is recorded and no
+         * span-related work is done.</p>
+         *
+         * @param spanRecorder - recorder to notify, or {@code null} to record nothing
+         * @return same instance of the builder
+         */
+        public Builder setSpanRecorder(SpanRecorder spanRecorder) {
+            this.spanRecorder = spanRecorder;
+            return this;
+        }
+
         public Client build() {
             // check if endpoint are empty. so can not initiate client
             if (this.endpoints.isEmpty()) {
@@ -1317,7 +1347,7 @@ public class Client implements AutoCloseable {
 
             return new Client(this.endpoints, this.configuration, this.sharedOperationExecutor,
                 this.columnToMethodMatchingStrategy, this.metricRegistry, this.queryIdGenerator, cManager,
-                this.sslContext);
+                this.sslContext, this.spanRecorder);
         }
     }
 
@@ -1338,7 +1368,8 @@ public class Client implements AutoCloseable {
     public boolean ping(long timeout) {
         long startTime = System.nanoTime();
         try {
-            CompletableFuture<QueryResponse> future = query("SELECT 1 FORMAT TabSeparated");
+            CompletableFuture<QueryResponse> future = queryImpl("SELECT 1 FORMAT TabSeparated", null, null,
+                    SpanSupport.OPERATION_PING, null);
             try (QueryResponse response = timeout > 0 ? future.get(timeout, TimeUnit.MILLISECONDS) : future.get()) {
                 return true;
             }
@@ -1459,64 +1490,75 @@ public class Client implements AutoCloseable {
         if (requestSettings.getQueryId() == null && queryIdGenerator != null) {
             requestSettings.setQueryId(queryIdGenerator.get());
         }
+        final Span operationSpan = spanSupport.startInsertSpan(requestSettings, tableName, data.size(),
+                endpoints.get(0));
         Supplier<InsertResponse> supplier = () -> {
             long startTime = System.nanoTime();
             // Selecting some node
             Endpoint selectedEndpoint = nodeSelector.getEndpoint();
             final String queryId = requestSettings.getQueryId();
             RuntimeException lastException = null;
-            for (int i = 0; i <= maxAttempts; i++) {
-                // Execute request
-                TransportRequest transportRequest = httpClientHelper.createRequest(selectedEndpoint, requestSettings.getAllSettings(),
-                        out -> {
-                            out.write("INSERT INTO ".getBytes());
-                            out.write(tableName.getBytes());
-                            out.write(" \n FORMAT ".getBytes());
-                            out.write(format.name().getBytes());
-                            out.write(" \n".getBytes());
-                            for (Object obj : data) {
+            try {
+                for (int i = 0; i <= maxAttempts; i++) {
+                    // Execute request
+                    TransportRequest transportRequest = httpClientHelper.createRequest(selectedEndpoint, requestSettings.getAllSettings(),
+                            out -> {
+                                out.write("INSERT INTO ".getBytes());
+                                out.write(tableName.getBytes());
+                                out.write(" \n FORMAT ".getBytes());
+                                out.write(format.name().getBytes());
+                                out.write(" \n".getBytes());
+                                for (Object obj : data) {
 
-                                for (POJOFieldSerializer serializer : serializersForTable) {
-                                    try {
-                                        serializer.serialize(obj, out);
-                                    } catch (InvocationTargetException | IllegalAccessException e) {
-                                        throw new DataSerializationException(obj, serializer, e);
+                                    for (POJOFieldSerializer serializer : serializersForTable) {
+                                        try {
+                                            serializer.serialize(obj, out);
+                                        } catch (InvocationTargetException | IllegalAccessException e) {
+                                            throw new DataSerializationException(obj, serializer, e);
+                                        }
                                     }
                                 }
+                                out.close();
+                            });
+
+                    registerTransportReq(queryId, transportRequest);
+
+                    try (TransportResponse transportResponse = httpClientHelper.executeRequest(transportRequest, operationSpan)) {
+                        ClientStatisticsHolder clientStats = globalClientStats.remove(operationId);
+                        OperationMetrics metrics = completeOperation(transportResponse, clientStats, requestSettings.getQueryId());
+
+                        spanSupport.recordSuccess(operationSpan, metrics);
+                        return new InsertResponse(transportResponse, metrics);
+                    } catch (Exception e) {
+                        String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
+                        lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
+                        if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings()) && requestIsNotCancelled(queryId)) {
+                            if (i < maxAttempts) {
+                                selectedEndpoint = logRetryAndSelectNextNode("Insert", i, maxAttempts, requestSettings.getQueryId(), selectedEndpoint, e);
+                            } else {
+                                nodeSelector.getNextAliveNode(selectedEndpoint);
                             }
-                            out.close();
-                        });
-
-                registerTransportReq(queryId, transportRequest);
-
-                try (TransportResponse transportResponse = httpClientHelper.executeRequest(transportRequest)) {
-                    ClientStatisticsHolder clientStats = globalClientStats.remove(operationId);
-                    OperationMetrics metrics = completeOperation(transportResponse, clientStats, requestSettings.getQueryId());
-
-                    return new InsertResponse(transportResponse, metrics);
-                } catch (Exception e) {
-                    String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
-                    lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
-                    if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings()) && requestIsNotCancelled(queryId)) {
-                        if (i < maxAttempts) {
-                            selectedEndpoint = logRetryAndSelectNextNode("Insert", i, maxAttempts, requestSettings.getQueryId(), selectedEndpoint, e);
                         } else {
-                            nodeSelector.getNextAliveNode(selectedEndpoint);
+                            throw lastException;
                         }
-                    } else {
-                        throw lastException;
                     }
-                } finally {
-                    unregisterTransportReq(queryId);
                 }
-            }
 
-            String errMsg = requestExMsg("Insert", maxAttempts + 1, durationSince(startTime).toMillis(), requestSettings.getQueryId());
-            LOG.warn(errMsg);
-            throw (lastException == null ? new ClientException(errMsg) : lastException);
+                String errMsg = requestExMsg("Insert", maxAttempts + 1, durationSince(startTime).toMillis(), requestSettings.getQueryId());
+                LOG.warn(errMsg);
+                throw (lastException == null ? new ClientException(errMsg) : lastException);
+            } catch (RuntimeException | Error e) {
+                spanSupport.recordFailure(operationSpan, e);
+                throw e;
+            } finally {
+                // unregister transport request once we are done: the registration has to survive the
+                // whole retry loop so that cancelTransportRequest() keeps working between attempts.
+                unregisterTransportReq(queryId);
+                operationSpan.end();
+            }
         };
 
-        return runAsyncOperation(supplier, requestSettings.getAllSettings());
+        return runOperation(supplier, requestSettings.getAllSettings(), operationSpan);
     }
 
     /**
@@ -1679,6 +1721,8 @@ public class Client implements AutoCloseable {
 
         final int maxRetries = ClientConfigProperties.RETRY_ON_FAILURE.getOrDefault(requestSettings.getAllSettings());
         final int maxAttempts = Math.max(maxRetries, endpoints.size() - 1);
+        final Span operationSpan = spanSupport.startInsertSpan(requestSettings, tableName,
+                SpanSupport.BATCH_SIZE_UNKNOWN, endpoints.get(0));
         Supplier<InsertResponse> responseSupplier = () -> {
             long startTime = System.nanoTime();
             // Selecting some node
@@ -1696,8 +1740,9 @@ public class Client implements AutoCloseable {
                             });
                     registerTransportReq(queryId, transportRequest);
 
-                    try (TransportResponse transportResponse = httpClientHelper.executeRequest(transportRequest)) {
+                    try (TransportResponse transportResponse = httpClientHelper.executeRequest(transportRequest, operationSpan)) {
                         OperationMetrics metrics = completeOperation(transportResponse, finalClientStats, requestSettings.getQueryId());
+                        spanSupport.recordSuccess(operationSpan, metrics);
                         return new InsertResponse(transportResponse, metrics);
                     } catch (Exception e) {
                         String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
@@ -1711,10 +1756,6 @@ public class Client implements AutoCloseable {
                         } else {
                             throw lastException;
                         }
-                    } finally {
-                        // Insert completes once the request returns; the response exposes no stream to read afterwards,
-                        // so the request is no longer cancellable and can be unregistered.
-                        unregisterTransportReq(requestSettings.getQueryId());
                     }
 
                     if (i < maxAttempts) {
@@ -1725,16 +1766,20 @@ public class Client implements AutoCloseable {
                         }
                     }
                 }
+
+                String errMsg = requestExMsg("Insert", maxAttempts + 1, durationSince(startTime).toMillis(), requestSettings.getQueryId());
+                LOG.warn(errMsg);
+                throw (lastException == null ? new ClientException(errMsg) : lastException);
+            } catch (RuntimeException | Error e) {
+                spanSupport.recordFailure(operationSpan, e);
+                throw e;
             } finally {
                 unregisterTransportReq(queryId);
+                operationSpan.end();
             }
-
-            String errMsg = requestExMsg("Insert", maxAttempts + 1, durationSince(startTime).toMillis(), requestSettings.getQueryId());
-            LOG.warn(errMsg);
-            throw (lastException == null ? new ClientException(errMsg) : lastException);
         };
 
-        return runAsyncOperation(responseSupplier, requestSettings.getAllSettings());
+        return runOperation(responseSupplier, requestSettings.getAllSettings(), operationSpan);
     }
 
     /**
@@ -1790,6 +1835,25 @@ public class Client implements AutoCloseable {
      * @return {@code CompletableFuture<QueryResponse>} - a promise to query response.
      */
     public CompletableFuture<QueryResponse> query(String sqlQuery, Map<String, Object> queryParams, QuerySettings settings) {
+        return queryImpl(sqlQuery, queryParams, settings, null, null);
+    }
+
+    /**
+     * Runs a query request. Operations that are implemented on top of a query - a ping or a
+     * table-schema lookup - pass their own name and target table so that a single operation span
+     * describes the operation the application actually called.
+     *
+     * @param sqlQuery - complete SQL query
+     * @param queryParams - query parameters that are sent to the server (optional)
+     * @param settings - query operation settings (optional)
+     * @param operationName - name of the operation for observability, or {@code null} for a plain
+     *                      query or command
+     * @param collectionName - table the operation targets, or {@code null} when there is none
+     * @return {@code CompletableFuture<QueryResponse>} - a promise to query response
+     */
+    private CompletableFuture<QueryResponse> queryImpl(String sqlQuery, Map<String, Object> queryParams,
+                                                       QuerySettings settings, String operationName,
+                                                       String collectionName) {
         if (settings == null) {
             settings = new QuerySettings();
         }
@@ -1820,6 +1884,10 @@ public class Client implements AutoCloseable {
 
         final int maxRetries = ClientConfigProperties.RETRY_ON_FAILURE.getOrDefault(requestSettings.getAllSettings());
         final int maxAttempts = Math.max(maxRetries, endpoints.size() - 1);
+        // Started on the calling thread so that the span joins the caller's ambient trace even when
+        // the operation itself runs on the shared operation executor.
+        final Span operationSpan = spanSupport.startQuerySpan(requestSettings, sqlQuery, operationName,
+                collectionName, endpoints.get(0));
         Supplier<QueryResponse> responseSupplier = () -> {
                 long startTime = System.nanoTime();
                 // Selecting some node
@@ -1832,13 +1900,14 @@ public class Client implements AutoCloseable {
                         registerTransportReq(queryId, request);
                         TransportResponse transportResp = null;
                         try {
-                            transportResp = httpClientHelper.executeRequest(request);
+                            transportResp = httpClientHelper.executeRequest(request, operationSpan);
                             OperationMetrics metrics = completeOperation(transportResp, clientStats, requestSettings.getQueryId());
                             ClickHouseFormat responseFormat = transportResp.getDataFormat();
                             if (responseFormat == null) {
                                 responseFormat = requestSettings.getFormat();
                             }
 
+                            spanSupport.recordSuccess(operationSpan, metrics);
                             return new QueryResponse(transportResp, responseFormat, requestSettings, metrics);
 
                         } catch (Exception e) {
@@ -1856,16 +1925,21 @@ public class Client implements AutoCloseable {
                             }
                         }
                     }
+
+                    String errMsg = requestExMsg("Query", maxAttempts + 1, durationSince(startTime).toMillis(), requestSettings.getQueryId());
+                    LOG.warn(errMsg);
+                    throw (lastException == null ? new ClientException(errMsg) : lastException);
+                } catch (RuntimeException | Error e) {
+                    spanSupport.recordFailure(operationSpan, e);
+                    throw e;
                 } finally {
                     // unregister transport request once we are done
                     unregisterTransportReq(queryId);
+                    operationSpan.end();
                 }
-                String errMsg = requestExMsg("Query", maxAttempts + 1, durationSince(startTime).toMillis(), requestSettings.getQueryId());
-                LOG.warn(errMsg);
-                throw (lastException == null ? new ClientException(errMsg) : lastException);
             };
 
-        return runAsyncOperation(responseSupplier, requestSettings.getAllSettings());
+        return runOperation(responseSupplier, requestSettings.getAllSettings(), operationSpan);
     }
 
     /**
@@ -2135,8 +2209,9 @@ public class Client implements AutoCloseable {
 
         QuerySettings settings = new QuerySettings().setDatabase(database);
         try (QueryResponse response = operationTimeout == 0
-                ? query(describeQuery, queryParams, settings).get()
-                : query(describeQuery, queryParams, settings).get(operationTimeout, TimeUnit.MILLISECONDS)) {
+                ? queryImpl(describeQuery, queryParams, settings, SpanSupport.OPERATION_GET_TABLE_SCHEMA, name).get()
+                : queryImpl(describeQuery, queryParams, settings, SpanSupport.OPERATION_GET_TABLE_SCHEMA, name)
+                        .get(operationTimeout, TimeUnit.MILLISECONDS)) {
             return TableSchemaParser.readTSKV(response.getInputStream(), name, originalQuery, database);
         } catch (TimeoutException e) {
             throw new ClientException("Operation has likely timed out after " + getOperationTimeout() + " milliseconds.", e);
@@ -2269,6 +2344,33 @@ public class Client implements AutoCloseable {
         String operationId = UUID.randomUUID().toString();
         globalClientStats.put(operationId, new ClientStatisticsHolder());
         return operationId;
+    }
+
+    /**
+     * Runs an operation whose span was already started on the calling thread. When the operation
+     * cannot even be started, the failure is recorded and the span is closed here, because the
+     * supplier that would end it is never called.
+     */
+    private <T> CompletableFuture<T> runOperation(Supplier<T> resultSupplier, Map<String, Object> requestSettings,
+                                                  Span operationSpan) {
+        if (!spanSupport.isEnabled()) {
+            return runAsyncOperation(resultSupplier, requestSettings);
+        }
+
+        final AtomicBoolean started = new AtomicBoolean();
+        try {
+            return runAsyncOperation(() -> {
+                started.set(true);
+                return resultSupplier.get();
+            }, requestSettings);
+        } catch (RuntimeException | Error e) {
+            if (!started.get()) {
+                // the operation was never started, so the supplier did not end the span
+                spanSupport.recordFailure(operationSpan, e);
+                operationSpan.end();
+            }
+            throw e;
+        }
     }
 
     private <T> CompletableFuture<T> runAsyncOperation(Supplier<T> resultSupplier, Map<String, Object> requestSettings) {

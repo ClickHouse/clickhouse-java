@@ -4,6 +4,7 @@ import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.DataTransferException;
 import com.clickhouse.client.api.internal.HttpAPIClientHelper;
 import com.clickhouse.client.api.metadata.TableSchema;
+import com.clickhouse.client.api.observability.SpanSupport;
 import com.clickhouse.client.api.serde.DataSerializationException;
 import com.clickhouse.client.api.transport.Endpoint;
 import com.clickhouse.client.api.transport.internal.TransportRequest;
@@ -100,7 +101,7 @@ public class InsertExceptionClassificationTest {
         private final OutputStream outputStream;
         private IOCallback<OutputStream> writeCallback;
         private CallbackHttpClientHelper(OutputStream outputStream) {
-            super(Collections.emptyMap(), null, false, LZ4Factory.fastestJavaInstance());
+            super(Collections.emptyMap(), null, false, LZ4Factory.fastestJavaInstance(), SpanSupport.DISABLED);
             this.outputStream = outputStream;
         }
 

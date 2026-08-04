@@ -4,6 +4,25 @@
 
 ### New Features
 
+- **[client-v2]** Added an observability SPI that lets an application observe client operations as spans.
+  `Client.Builder.setSpanRecorder(SpanRecorder)` registers a backend-agnostic recorder from the new
+  `com.clickhouse.client.api.observability` package: each operation (query, command, insert, `ping`,
+  `getTableSchema`) starts one operation span, and every transport request made for it - including each retry -
+  starts a child request span. `SpanRecorder` and `Span` are plain interfaces; an implementation extends the
+  `DefaultSpanRecorder` base class and overrides only the kinds of spans it cares about, so it keeps working when
+  the client starts a kind of span it does not know about. The operation's `QuerySettings`/`InsertSettings` is
+  passed to `startSpan(...)` so a recorder can take the properties it needs from it, and the reusable
+  `SpanSupport` class computes the attribute values. Span names and attribute keys follow the OpenTelemetry semantic conventions for
+  database and HTTP client spans; the keys are defined by the `SpanAttribute` enum and the values are computed by
+  the client, so all recorders report the same information (statement text, target database and table, query id,
+  statement parameters, batch size, the first configured endpoint on the operation span and the per-attempt
+  server address and port on the request spans, HTTP status, returned rows, and the error type and ClickHouse
+  error code on failure). An operation span is started on the calling thread, so it joins
+  the caller's ambient trace even when the operation runs on the client's executor, and it is ended exactly once. Previously the client exposed no hook for tracing, so an
+  application could not attribute a query or a retried request to its own trace. When no recorder is registered
+  nothing is recorded and no span-related work is done, so the default path is unchanged. An OpenTelemetry
+  implementation of the SPI follows in a separate module.
+  (https://github.com/ClickHouse/clickhouse-java/issues/2974)
 - **[client-v2, jdbc-v2]** Added support for the `BFloat16` data type (ClickHouse `24.11+`). `BFloat16` columns are read as
   Java `float` values (widening is lossless) and written from `float`/`Float` values, including through generic records, POJO
   binding, `Nullable(BFloat16)`, and `BFloat16` values held in `Dynamic`/`Variant` columns. On write the client keeps the
@@ -44,6 +63,10 @@
 
 ### Bug Fixes 
 
+- **[client-v2]** Fixed an insert unregistering its transport request after every attempt instead of once per
+  operation, so between two attempts of a retried insert `Client.cancelTransportRequest(String)` resolved the query
+  id to nothing at all. The registration now lives for the whole retry loop, as it already did for queries.
+  (https://github.com/ClickHouse/clickhouse-java/pull/2988)
 - **[client-v2]** Fixed LZ4 input streams not closing their underlying HTTP response stream. Closing an LZ4 stream
   returned by `QueryResponse.getInputStream()` now releases the wrapped transport stream, including after a partial
   read. (https://github.com/ClickHouse/clickhouse-java/issues/2985)

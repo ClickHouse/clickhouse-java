@@ -243,7 +243,7 @@ public class HttpAPIClientHelperTest {
     @Test
     public void testExecuteRequestThrowsConnectExceptionOn502() throws Exception {
         Map<String, Object> configuration = new HashMap<>();
-        HttpAPIClientHelper helper = new HttpAPIClientHelper(configuration, null, false, LZ4Factory.fastestInstance());
+        HttpAPIClientHelper helper = HttpAPIClientHelperFactory.newHelper(configuration, LZ4Factory.fastestInstance());
 
         CloseableHttpClient mockHttpClient = mock(CloseableHttpClient.class);
         Field httpClientField = HttpAPIClientHelper.class.getDeclaredField("httpClient");
@@ -272,7 +272,7 @@ public class HttpAPIClientHelperTest {
     @Test
     public void testExecuteRequestThrowsConnectExceptionOn503() throws Exception {
         Map<String, Object> configuration = new HashMap<>();
-        HttpAPIClientHelper helper = new HttpAPIClientHelper(configuration, null, false, LZ4Factory.fastestInstance());
+        HttpAPIClientHelper helper = HttpAPIClientHelperFactory.newHelper(configuration, LZ4Factory.fastestInstance());
 
         CloseableHttpClient mockHttpClient = mock(CloseableHttpClient.class);
         Field httpClientField = HttpAPIClientHelper.class.getDeclaredField("httpClient");
@@ -322,7 +322,7 @@ public class HttpAPIClientHelperTest {
      */
     @Test(dataProvider = "serverExceptionRetryCases")
     public void testShouldRetryUsesServerExceptionFromCause(Throwable ex, boolean expectedRetry) {
-        HttpAPIClientHelper helper = new HttpAPIClientHelper(new HashMap<>(), null, false, LZ4Factory.fastestInstance());
+        HttpAPIClientHelper helper = HttpAPIClientHelperFactory.newHelper(new HashMap<>(), LZ4Factory.fastestInstance());
         // Empty request settings -> default client_retry_on_failures, which includes ServerRetryable.
         assertEquals(helper.shouldRetry(ex, new HashMap<>()), expectedRetry);
     }
@@ -346,7 +346,7 @@ public class HttpAPIClientHelperTest {
     @Test(dataProvider = "serverErrorLogging")
     public void testServerErrorLoggedOnlyForUnknownStatus(int statusCode, String exceptionCode,
                                                           boolean expectServerErrorWarn) throws Exception {
-        HttpAPIClientHelper helper = new HttpAPIClientHelper(new HashMap<>(), null, false, LZ4Factory.fastestInstance());
+        HttpAPIClientHelper helper = HttpAPIClientHelperFactory.newHelper(new HashMap<>(), LZ4Factory.fastestInstance());
         injectMockHttpClient(helper, mockResponse(statusCode, exceptionCode));
 
         Map<String, Object> reqConfig = new HashMap<>();
@@ -378,7 +378,7 @@ public class HttpAPIClientHelperTest {
      */
     @Test
     public void testLogServerErrorResponseIsNullSafeAndLogsExceptionCode() throws Exception {
-        HttpAPIClientHelper helper = new HttpAPIClientHelper(new HashMap<>(), null, false, LZ4Factory.fastestInstance());
+        HttpAPIClientHelper helper = HttpAPIClientHelperFactory.newHelper(new HashMap<>(), LZ4Factory.fastestInstance());
         Method log = HttpAPIClientHelper.class.getDeclaredMethod(
                 "logServerErrorResponse", HttpPost.class, ClassicHttpResponse.class);
         log.setAccessible(true);
@@ -460,8 +460,7 @@ public class HttpAPIClientHelperTest {
      * constructor arguments of each construction (empty when the plain factory branch is taken instead).
      */
     private static List<List<?>> captureCustomFactoryConstruction(Map<String, Object> sslConfig) {
-        HttpAPIClientHelper helper = new HttpAPIClientHelper(new HashMap<>(), null, false,
-                LZ4Factory.fastestJavaInstance());
+        HttpAPIClientHelper helper = HttpAPIClientHelperFactory.newHelper(new HashMap<>(), LZ4Factory.fastestJavaInstance());
         List<List<?>> constructorArgs = new ArrayList<>();
         try (MockedConstruction<CustomSSLConnectionFactory> mocked = mockConstruction(
                 CustomSSLConnectionFactory.class,
