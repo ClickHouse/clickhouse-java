@@ -44,6 +44,14 @@
 
 ### Bug Fixes 
 
+- **[jdbc-v2]** Fixed `INSERT INTO [TABLE] FUNCTION f(...) VALUES (?)` failing with
+  `Code: 60 ... does not exist. (UNKNOWN_TABLE)` when the `beta.row_binary_for_simple_insert` feature was
+  enabled. Neither SQL parser reported a table-function insert target as a function, so the statement was
+  routed to the `RowBinary` writer, which looked the function name (or a placeholder such as `unknown`) up as
+  a table. Both parsers now report such a statement as using a function, so it stays on the regular SQL path;
+  additionally the JavaCC grammar no longer mis-parses `INSERT INTO TABLE FUNCTION f(...)` by consuming
+  `FUNCTION` as the table name. Inserts into a plain table are unaffected and still use the `RowBinary`
+  writer. (https://github.com/ClickHouse/clickhouse-java/issues/3015)
 - **[client-v2]** Fixed LZ4 input streams not closing their underlying HTTP response stream. Closing an LZ4 stream
   returned by `QueryResponse.getInputStream()` now releases the wrapped transport stream, including after a partial
   read. (https://github.com/ClickHouse/clickhouse-java/issues/2985)
