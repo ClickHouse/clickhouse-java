@@ -162,25 +162,38 @@ public abstract class SqlParserFacade {
 
         /**
          * Tells whether the parenthesis opened at {@code startPosition} is closed exactly at {@code stopPosition},
-         * ignoring parentheses inside quoted text.
+         * ignoring parentheses inside quoted text and inside comments. The comment forms recognized here are the ones
+         * the token manager treats as comments as well: {@code --}, {@code //}, {@code #} (thus also {@code #!}) up to
+         * the end of the line, and nestable {@code /* ... *}{@code /} blocks.
          */
         private boolean closesParenthesizedGroup(String sql, int startPosition, int stopPosition) {
+            int len = sql.length();
             int depth = 0;
             try {
                 for (int i = startPosition; i <= stopPosition; i++) {
                     char ch = sql.charAt(i);
                     if (ClickHouseUtils.isQuote(ch)) {
-                        i = ClickHouseUtils.skipQuotedString(sql, i, sql.length(), ch) - 1;
-                        if (i > stopPosition) {
-                            return false;
-                        }
+                        i = ClickHouseUtils.skipQuotedString(sql, i, len, ch) - 1;
+                    } else if (ch == '#' || (i + 1 < len && sql.charAt(i + 1) == ch && (ch == '-' || ch == '/'))) {
+                        // search from the last character of the comment opener: it is never a line separator, and
+                        // skipSingleLineComment() only reports one found strictly after the index it is given
+                        i = ClickHouseUtils.skipSingleLineComment(sql, ch == '#' ? i : i + 1, len) - 1;
+                    } else if (ch == '/' && i + 1 < len && sql.charAt(i + 1) == '*') {
+                        i = ClickHouseUtils.skipMultiLineComment(sql, i + 2, len) - 1;
                     } else if (ch == '(') {
                         depth++;
+                        continue;
                     } else if (ch == ')' && --depth == 0) {
                         return i == stopPosition;
+                    } else {
+                        continue;
+                    }
+
+                    if (i > stopPosition) { // quoted text or comment reaching past the values list
+                        return false;
                     }
                 }
-            } catch (IllegalArgumentException e) { // unterminated quoted text
+            } catch (IllegalArgumentException e) { // unterminated quoted text or comment
                 return false;
             }
             return false;
