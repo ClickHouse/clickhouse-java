@@ -44,6 +44,12 @@
 
 ### Bug Fixes 
 
+- **[client-v2]** Fixed the `Native` format reader (`NativeFormatReader`) misreading `Array` columns in multi-row
+  results whose rows have different lengths. Native encodes an array column as cumulative row offsets followed by the
+  flattened elements, but the reader used the first row's offset as the element count for every row — truncating later
+  rows and desyncing the columns that follow the array in the same block. Each row's length is now derived from the
+  difference between consecutive offsets, and empty array rows (`len == 0`) no longer read a phantom element. Results
+  with uniform array lengths were unaffected. (https://github.com/ClickHouse/clickhouse-java/issues/2955)
 - **[client-v2]** Fixed LZ4 input streams not closing their underlying HTTP response stream. Closing an LZ4 stream
   returned by `QueryResponse.getInputStream()` now releases the wrapped transport stream, including after a partial
   read. (https://github.com/ClickHouse/clickhouse-java/issues/2985)
