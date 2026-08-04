@@ -44,6 +44,13 @@
 
 ### Bug Fixes 
 
+- **[jdbc-v2]** Fixed the ANTLR4 lexer not nesting `/* */` block comments. ClickHouse (and the JavaCC parser backend)
+  raise the nesting level on an inner `/*` and close the comment only at the matching `*/`, while the ANTLR4 lexer ended
+  the comment at the first `*/` and lexed the rest of it as SQL. With the `ANTLR4` / `ANTLR4_PARAMS_PARSER` backends this
+  made statements the server accepts (e.g. `SELECT 1 /* ) /* ) */ ) */, 2`) report syntax errors, and made
+  `ANTLR4_PARAMS_PARSER` count a `?` inside the nested part of a comment as a bind parameter. Comments that do not nest
+  are unaffected; an unterminated block comment is now skipped to the end of the statement instead of being lexed as
+  stray tokens. (https://github.com/ClickHouse/clickhouse-java/issues/3021)
 - **[client-v2]** Fixed LZ4 input streams not closing their underlying HTTP response stream. Closing an LZ4 stream
   returned by `QueryResponse.getInputStream()` now releases the wrapped transport stream, including after a partial
   read. (https://github.com/ClickHouse/clickhouse-java/issues/2985)
