@@ -130,6 +130,10 @@ public class ClickHouseParameterizedQuery implements Serializable {
                     endIndex = ClickHouseUtils.skipMultiLineComment(sql, i + 2, len);
                     builder.append(sql.substring(i, endIndex));
                     i = endIndex - 1;
+                } else if (ch == '$') {
+                    endIndex = skipHeredoc(sql, i, len);
+                    builder.append(sql.substring(i, endIndex));
+                    i = endIndex - 1;
                 } else if (ch == ':') {
                     if (nextCh == ch) { // skip PostgreSQL-like type conversion
                         builder.append(ch).append(ch);
@@ -254,6 +258,8 @@ public class ClickHouseParameterizedQuery implements Serializable {
                     i = ClickHouseUtils.skipSingleLineComment(originalQuery, i + 2, len) - 1;
                 } else if (ch == '/' && nextCh == '*') {
                     i = ClickHouseUtils.skipMultiLineComment(originalQuery, i + 2, len) - 1;
+                } else if (ch == '$') {
+                    i = skipHeredoc(originalQuery, i, len) - 1;
                 } else if (ch == ':') {
                     if (nextCh == ch) { // skip PostgreSQL-like type conversion
                         i = i + 1;
@@ -292,6 +298,49 @@ public class ClickHouseParameterizedQuery implements Serializable {
         }
 
         return partIndex < len ? originalQuery.substring(partIndex, len) : null;
+    }
+
+    /**
+     * Skips a heredoc(dollar quoted string) like {@code $$...$$} or
+     * {@code $tag$...$tag$}, where the tag may only contain word characters. When
+     * there is no heredoc at {@code startIndex} the dollar sign is treated as an
+     * ordinary character, because it is also a valid identifier character: a dollar
+     * sign that follows a word character continues an identifier(e.g. {@code a$b}
+     * or {@code a$x$}) instead of opening a heredoc, and a dollar sign without a
+     * matching closing tag does not open one either.
+     *
+     * @param query      non-null string to scan
+     * @param startIndex index of the dollar sign that may open a heredoc
+     * @param len        end index, usually length of the given string
+     * @return index next to the closing tag, or {@code startIndex + 1} when there
+     *         is no heredoc
+     */
+    private static int skipHeredoc(String query, int startIndex, int len) {
+        if (startIndex > 0 && isWordChar(query.charAt(startIndex - 1))) {
+            return startIndex + 1;
+        }
+
+        int tagEndIndex = query.indexOf('$', startIndex + 1);
+        if (tagEndIndex < 0 || tagEndIndex >= len) {
+            return startIndex + 1;
+        }
+
+        for (int i = startIndex + 1; i < tagEndIndex; i++) {
+            if (!isWordChar(query.charAt(i))) {
+                return startIndex + 1;
+            }
+        }
+
+        String tag = query.substring(startIndex, tagEndIndex + 1);
+        int closingTagIndex = query.indexOf(tag, tagEndIndex + 1);
+        if (closingTagIndex < 0 || closingTagIndex + tag.length() > len) {
+            return startIndex + 1;
+        }
+        return closingTagIndex + tag.length();
+    }
+
+    private static boolean isWordChar(char ch) {
+        return ch == '_' || (ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z');
     }
 
     /**

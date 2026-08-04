@@ -271,4 +271,48 @@ public class ClickHouseParameterizedQueryTest {
         Assert.assertEquals(apply(q, ts, ts),
                 "select '1970-01-01 02:46:40.123456789' ts1, '1970-01-01 02:46:40' ts2, '1970-01-01 02:46:40' ts3");
     }
+
+    @DataProvider(name = "heredocQueryProvider")
+    private Object[][] getQueriesWithHeredoc() {
+        return new Object[][] {
+                // a heredoc is an opaque literal, so its content is never a parameter
+                { "select $$a:b$$, :n", "n", "select $$a:b$$, X" },
+                { "select $tag$ :b $tag$, :n", "n", "select $tag$ :b $tag$, X" },
+                { "select $1$:b$1$, :n", "n", "select $1$:b$1$, X" },
+                { "select $_a1$ :b $_a1$, :n", "n", "select $_a1$ :b $_a1$, X" },
+                { "select $$:b$$", "", "select $$:b$$" },
+                { "select $$$$, :n", "n", "select $$$$, X" },
+                { "select $$a$b$$, :n", "n", "select $$a$b$$, X" },
+                { "select $$::b$$, :n", "n", "select $$::b$$, X" },
+                { "select $$-- :b$$, :n", "n", "select $$-- :b$$, X" },
+                { "select $$/* :b $$, :n", "n", "select $$/* :b $$, X" },
+                { "select $$it's$$, :n", "n", "select $$it's$$, X" },
+                { "select :n, $$a:b$$", "n", "select X, $$a:b$$" },
+                { "select :n(String), $$a:b$$", "n", "select X, $$a:b$$" },
+                { "insert into t values ($$a:b$$, :n)", "n", "insert into t values ($$a:b$$, X)" },
+                { "select $$a:b$$$$c:d$$, :n", "n", "select $$a:b$$$$c:d$$, X" },
+                { "select $$a$$:n", "n", "select $$a$$X" },
+                { "select $$a:b$$::String, :n", "n", "select $$a:b$$::String, X" },
+                // a dollar sign that does not open a heredoc keeps its previous meaning
+                { "select :a$b, :n", "a$b,n", "select NULL, X" },
+                { "select $$ :b , :n", "b,n", "select $$ NULL , X" },
+                { "select $tag$ :b , :n", "b,n", "select $tag$ NULL , X" },
+                { "select $a-b$:c$a-b$, :n", "c$a,n", "select $a-b$NULL-b$, X" },
+                { "select :n, a$", "n", "select X, a$" },
+                { "select ':b' as v, :n", "n", "select ':b' as v, X" },
+                { "select -- $$:b$$\n:n", "n", "select -- $$:b$$\nX" },
+                { "select /* $$:b$$ */ :n", "n", "select /* $$:b$$ */ X" },
+                { "select 2>1?3:2, :n", "n", "select 2>1?3:2, X" },
+                { "select :n::String", "n", "select X::String" },
+        };
+    }
+
+    @Test(dataProvider = "heredocQueryProvider", groups = { "unit" })
+    public void testParseQueryWithHeredoc(String sql, String parameters, String substituted) {
+        Map<String, String> params = Collections.singletonMap("n", "X");
+        ClickHouseParameterizedQuery q = ClickHouseParameterizedQuery.of(config, sql);
+        Assert.assertEquals(String.join(",", q.getParameters()), parameters, sql);
+        Assert.assertEquals(apply(q, params), substituted, sql);
+        Assert.assertEquals(ClickHouseParameterizedQuery.apply(sql, params), substituted, sql);
+    }
 }
