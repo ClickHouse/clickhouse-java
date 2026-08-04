@@ -44,6 +44,16 @@
 
 ### Bug Fixes 
 
+- **[jdbc-v2]** Fixed `Connection#prepareStatement` and `PreparedStatement#addBatch` throwing
+  `StringIndexOutOfBoundsException` for an `INSERT ... VALUES (...)` statement containing a JDBC escape sequence
+  (`{d '...'}`, `{ts '...'}`, ...) or a ClickHouse query parameter whose name starts with `d`/`t` (e.g. `{d:Int32}`).
+  The default `JAVACC` parser records the values list positions as offsets into the SQL it rebuilds from the token
+  stream, where such sequences are rewritten or dropped, while the driver slices the original SQL with them — so the
+  slice was taken at the wrong offsets or past the end of the statement. The positions are now checked against the
+  original SQL and discarded when they do not address its values list, in which case the driver falls back to its
+  generic parameter substitution path. Such a statement is now prepared without error; the escape sequence itself is
+  still sent to the server unchanged. The `ANTLR4` parser backends were not affected.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3017)
 - **[client-v2]** Fixed LZ4 input streams not closing their underlying HTTP response stream. Closing an LZ4 stream
   returned by `QueryResponse.getInputStream()` now releases the wrapped transport stream, including after a partial
   read. (https://github.com/ClickHouse/clickhouse-java/issues/2985)
