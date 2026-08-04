@@ -47,6 +47,12 @@
 - **[client-v2]** Fixed LZ4 input streams not closing their underlying HTTP response stream. Closing an LZ4 stream
   returned by `QueryResponse.getInputStream()` now releases the wrapped transport stream, including after a partial
   read. (https://github.com/ClickHouse/clickhouse-java/issues/2985)
+- **[jdbc-v2]** Fixed the default JavaCC SQL parser aborting on a heredoc string (`$$body$$`, `$tag$body$tag$`)
+  whose body contains a character that is not a valid SQL token on its own, such as `!`, `&`, `|` or `~`. The
+  lexer had no heredoc token, so such a body raised a lexer error that left the statement classified as
+  `UNKNOWN` — an INSERT was reported as a result-set-bearing statement with no table name and no values-list
+  positions, which disables the batch values template and the table-name based paths. A heredoc is now lexed
+  as a single string literal. (https://github.com/ClickHouse/clickhouse-java/issues/3029)
 - **[client-v2, jdbc-v2]** Reduced noisy and potentially sensitive logging; SQL that fails to parse is no
   longer logged at `WARN` (it could contain credentials/PII). (https://github.com/ClickHouse/clickhouse-java/issues/2970)
 - **[client-v2]** Fixed `BigDecimal` values written into a `Dynamic` column being silently truncated when the

@@ -257,6 +257,74 @@ public abstract class BaseSqlParserFacadeTest {
         Assert.assertEquals(stmt.getTable(), expectedTableName, "Table name mismatch for: " + sql);
     }
 
+    @Test(dataProvider = "heredocStatementsDP")
+    public void testHeredocStatements(String sql, boolean insert, String expectedTable, String expectedValuesList) {
+        ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
+        Assert.assertFalse(stmt.isHasErrors(), "Query should parse without errors: " + sql);
+        Assert.assertEquals(stmt.isInsert(), insert, "Insert type mismatch for: " + sql);
+        Assert.assertEquals(stmt.isHasResultSet(), !insert, "Result set flag mismatch for: " + sql);
+        Assert.assertEquals(stmt.getTable(), expectedTable, "Table name mismatch for: " + sql);
+        if (expectedValuesList == null) {
+            Assert.assertEquals(stmt.getAssignValuesListStartPosition(), -1, "Should have no values list: " + sql);
+        } else {
+            Assert.assertEquals(sql.substring(stmt.getAssignValuesListStartPosition(),
+                            stmt.getAssignValuesListStopPosition() + 1), expectedValuesList,
+                    "Values list mismatch for: " + sql);
+        }
+    }
+
+    @DataProvider
+    public static Object[][] heredocStatementsDP() {
+        return new Object[][] {
+                // A heredoc body is opaque: characters that are not valid SQL tokens on their own
+                // must not break the statement classification
+                {"INSERT INTO t VALUES ($$a!b$$, 1)", true, "t", "($$a!b$$, 1)"},
+                {"INSERT INTO t VALUES ($$a&b$$, 1)", true, "t", "($$a&b$$, 1)"},
+                {"INSERT INTO t VALUES ($$a|b$$, 1)", true, "t", "($$a|b$$, 1)"},
+                {"INSERT INTO t VALUES ($$a~b$$, 1)", true, "t", "($$a~b$$, 1)"},
+                {"INSERT INTO t VALUES ($$a@b$$, 1)", true, "t", "($$a@b$$, 1)"},
+                // Tagged form and a body with whitespace
+                {"INSERT INTO t (c1, c2) VALUES ($tag_1$a!b$tag_1$, 1)", true, "t", "($tag_1$a!b$tag_1$, 1)"},
+                {"INSERT INTO t VALUES ($$a b$$, 1)", true, "t", "($$a b$$, 1)"},
+                // Parentheses and commas in a body must not shift the values list positions
+                {"INSERT INTO t VALUES ($$a(b,c)$$, 1)", true, "t", "($$a(b,c)$$, 1)"},
+                // Two heredocs in one values list are two separate literals
+                {"INSERT INTO t VALUES ($$a!b$$, $$c!d$$)", true, "t", "($$a!b$$, $$c!d$$)"},
+                // A heredoc is a value expression anywhere a string literal is accepted
+                {"SELECT $$a!b$$ AS x FROM t", false, "t", null},
+                // Contrast: an unterminated tag is not a heredoc and stays an identifier
+                {"SELECT $foo$bar FROM t", false, "t", null},
+                {"SELECT a$b FROM t", false, "t", null},
+                // Contrast: a quoted string literal keeps its existing handling
+                {"INSERT INTO t VALUES ('a!b', 1)", true, "t", "('a!b', 1)"},
+        };
+    }
+
+    @Test(dataProvider = "javaCcHeredocStatementsDP")
+    public void testHeredocStatementsJavaCcOnly(String sql, String expectedValuesList) {
+        // The ANTLR4 grammars do not accept these two heredoc bodies yet, so the expectations only
+        // hold for the JavaCC backend.
+        if (!javaCcBackend) {
+            return;
+        }
+        ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
+        Assert.assertFalse(stmt.isHasErrors(), "Query should parse without errors: " + sql);
+        Assert.assertTrue(stmt.isInsert(), "Should be an INSERT: " + sql);
+        Assert.assertEquals(sql.substring(stmt.getAssignValuesListStartPosition(),
+                        stmt.getAssignValuesListStopPosition() + 1), expectedValuesList,
+                "Values list mismatch for: " + sql);
+    }
+
+    @DataProvider
+    public static Object[][] javaCcHeredocStatementsDP() {
+        return new Object[][] {
+                // A statement separator inside a heredoc body must not split the statement
+                {"INSERT INTO t VALUES ($$a;b$$, 1)", "($$a;b$$, 1)"},
+                // Empty body
+                {"INSERT INTO t VALUES ($$$$, 1)", "($$$$, 1)"},
+        };
+    }
+
     @Test
     public void testInsertColumnNamesAreUnescaped() {
         /*
