@@ -1998,6 +1998,25 @@ public class QueryTests extends BaseIntegrationTest {
     }
 
     @Test(groups = {"integration"})
+    public void testQueryReadToPOJOWithPrimitiveFields() {
+        final String sql = "SELECT toInt64(300) AS int64AsShort, toFloat64(-2.7) AS float64AsByte, " +
+                "toInt128(-2) AS int128AsLong, toDecimal64(123.45, 2) AS decimal64AsDouble, " +
+                "toInt64(5) AS int64AsBoolean";
+        TableSchema schema = client.getTableSchemaFromQuery(sql);
+        client.register(PrimitiveFieldsPOJO.class, schema);
+
+        List<PrimitiveFieldsPOJO> pojos = client.queryAll(sql, PrimitiveFieldsPOJO.class, schema);
+        Assert.assertEquals(pojos.size(), 1);
+
+        PrimitiveFieldsPOJO pojo = pojos.get(0);
+        Assert.assertEquals(pojo.getInt64AsShort(), (short) 300);
+        Assert.assertEquals(pojo.getFloat64AsByte(), (byte) -2);
+        Assert.assertEquals(pojo.getInt128AsLong(), -2L);
+        Assert.assertEquals(pojo.getDecimal64AsDouble(), 123.45d);
+        Assert.assertTrue(pojo.getInt64AsBoolean());
+    }
+
+    @Test(groups = {"integration"})
     public void testQueryReadToPOJOWithoutGetters() {
         int limit = 10;
         final String sql = "SELECT toInt32(1) as p1, toInt32(1) as p2 ";
