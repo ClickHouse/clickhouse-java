@@ -7,6 +7,7 @@ import com.clickhouse.client.ClickHouseConfig;
 import org.testng.Assert;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 public class JdbcParameterizedQueryTest {
@@ -65,5 +66,59 @@ public class JdbcParameterizedQueryTest {
         builder.setLength(0);
         q.apply(builder, 1, new StringBuilder("Int8"));
         Assert.assertEquals(builder.toString(), "select 1::Int8");
+    }
+
+    @Test(groups = "unit", dataProvider = "heredocQueryProvider")
+    public void testParseQueriesWithHeredoc(String sql, int parameters, String substituted) {
+        JdbcParameterizedQuery q = JdbcParameterizedQuery.of(config, sql);
+        Assert.assertEquals(q.getParameters().size(), parameters, "Parameter count mismatch for: " + sql);
+
+        StringBuilder builder = new StringBuilder();
+        q.apply(builder, "X", "Y");
+        Assert.assertEquals(builder.toString(), substituted);
+    }
+
+    @DataProvider(name = "heredocQueryProvider")
+    private static Object[][] getHeredocQueries() {
+        return new Object[][] {
+                // a heredoc is an opaque literal, so its contents are not parameters
+                { "select $$a?b$$, ?", 1, "select $$a?b$$, X" },
+                { "select $tag$ ? $tag$, ?", 1, "select $tag$ ? $tag$, X" },
+                { "select $1$?$1$, ?", 1, "select $1$?$1$, X" },
+                { "select $$?$$", 0, "select $$?$$" },
+                { "select $$$$, ?", 1, "select $$$$, X" },
+                { "select $$a$b$$, ?", 1, "select $$a$b$$, X" },
+                { "select $$-- ?$$, ?", 1, "select $$-- ?$$, X" },
+                { "select $$/* ? $$, ?", 1, "select $$/* ? $$, X" },
+                { "select $$it's$$, ?", 1, "select $$it's$$, X" },
+                { "select $$a;b$$, ?", 1, "select $$a;b$$, X" },
+                { "select ?, $$a:b$$", 1, "select X, $$a:b$$" },
+                { "select ?, lower($$it's$$)", 1, "select X, lower($$it's$$)" },
+                { "select ?, position($$)$$, $$:$$)", 1, "select X, position($$)$$, $$:$$)" },
+                { "select 1 ? $$a:b$$ : 2, ?", 1, "select 1 ? $$a:b$$ : 2, X" },
+                { "select $_a1$ ? $_a1$, ?", 1, "select $_a1$ ? $_a1$, X" },
+                { "$$?$$ as v, ?", 1, "$$?$$ as v, X" },
+                { "insert into t values ($$a?b$$, ?)", 1, "insert into t values ($$a?b$$, X)" },
+                // a dollar sign that does not open a heredoc stays an ordinary character
+                { "select ? as a$x$, ? as b$x$", 2, "select X as a$x$, Y as b$x$" },
+                { "select ? as a$b, ?", 2, "select X as a$b, Y" },
+                { "select $$ ? , ?", 2, "select $$ X , Y" },
+                { "select '$$?$$' as v, ?", 1, "select '$$?$$' as v, X" },
+                { "select -- $$?$$\n?", 1, "select -- $$?$$\nX" },
+                { "select /* $$?$$ */ ?", 1, "select /* $$?$$ */ X" },
+                { "select 1 ? 'a' : 'b', ?", 1, "select 1 ? 'a' : 'b', X" },
+        };
+    }
+
+    @Test(groups = "unit")
+    public void testParseInvalidQueriesWithHeredoc() {
+        Assert.assertThrows(IllegalArgumentException.class,
+                () -> JdbcParameterizedQuery.of(config, "select $$a$$; select ?"));
+        Assert.assertThrows(IllegalArgumentException.class,
+                () -> JdbcParameterizedQuery.of(config, "select $$a$$ as v; select 2"));
+        Assert.assertThrows(IllegalArgumentException.class,
+                () -> JdbcParameterizedQuery.of(config, "select ?, f($$a$$"));
+        Assert.assertThrows(IllegalArgumentException.class,
+                () -> JdbcParameterizedQuery.of(config, "select ?, 'a"));
     }
 }

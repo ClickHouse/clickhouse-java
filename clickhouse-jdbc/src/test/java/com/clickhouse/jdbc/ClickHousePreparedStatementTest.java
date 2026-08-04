@@ -666,6 +666,21 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
+    public void testQueryWithHeredocLiteral() throws SQLException {
+        try (ClickHouseConnection conn = newConnection(new Properties());
+                PreparedStatement ps = conn.prepareStatement("select $$a?b$$ as s, ? as n")) {
+            Assert.assertEquals(ps.getParameterMetaData().getParameterCount(), 1);
+            ps.setInt(1, 42);
+            try (ResultSet rs = ps.executeQuery()) {
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getString(1), "a?b");
+                Assert.assertEquals(rs.getInt(2), 42);
+                Assert.assertFalse(rs.next());
+            }
+        }
+    }
+
+    @Test(groups = "integration")
     public void testInsertQueryDateTime64() throws SQLException {
         try (ClickHouseConnection conn = newConnection(new Properties());
                 ClickHouseStatement s = conn.createStatement();) {

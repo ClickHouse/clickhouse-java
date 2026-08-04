@@ -44,6 +44,13 @@
 
 ### Bug Fixes 
 
+- **[clickhouse-jdbc]** Fixed a heredoc string literal (`$$...$$` / `$tag$...$tag$`) being scanned as SQL when
+  `PreparedStatement` placeholders are extracted, so a `?` inside a heredoc was counted as a bind parameter, a `;`
+  was rejected as a multi-statement query, a `'` broke the scan with `Missing quote: '`, and a `:` could be read as
+  the delimiter of a ternary operator and drop a real placeholder. A heredoc is now skipped as an opaque literal, so
+  a statement such as `select $$a?b$$ as s, ? as n` has exactly one parameter. A dollar sign that does not open a
+  heredoc (an identifier such as `a$x$`, or an unterminated `$$`) keeps its previous meaning.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3035)
 - **[client-v2]** Fixed LZ4 input streams not closing their underlying HTTP response stream. Closing an LZ4 stream
   returned by `QueryResponse.getInputStream()` now releases the wrapped transport stream, including after a partial
   read. (https://github.com/ClickHouse/clickhouse-java/issues/2985)
