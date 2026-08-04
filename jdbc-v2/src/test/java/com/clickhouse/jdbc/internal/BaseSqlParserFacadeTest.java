@@ -151,6 +151,49 @@ public abstract class BaseSqlParserFacadeTest {
         };
     }
 
+    @Test(dataProvider = "testInsertWithUnsupportedValuesListDP")
+    public void testInsertWithUnsupportedValuesList(String sql) {
+        ParsedPreparedStatement parsed = parser.parsePreparedStatement(sql);
+        assertTrue(parsed.isInsert(), "Should be of insert type");
+
+        int start = parsed.getAssignValuesListStartPosition();
+        int stop = parsed.getAssignValuesListStopPosition();
+        assertEquals(start > -1, stop > -1, "Values list start and stop positions should be both set or both unset");
+        if (start > -1) {
+            assertTrue(stop > start, "Values list should stop after it starts");
+            assertEquals(sql.charAt(start), '(', "Values list should start with an opening parenthesis");
+            assertEquals(sql.charAt(stop), ')', "Values list should end with a closing parenthesis");
+        }
+    }
+
+    @DataProvider
+    public static Object[][] testInsertWithUnsupportedValuesListDP() {
+        return new Object[][] {
+                { "INSERT INTO t VALUES ($$?$$, ?)" },
+                { "INSERT INTO t VALUES ($$a@b$$, ?)" },
+                { "INSERT INTO t VALUES ($$a@b$$, ?);" },
+                { "INSERT INTO t VALUES (?, )" },
+                { "INSERT INTO t VALUES (@@, ?)" },
+                { "INSERT INTO t VALUES (1, ?), (@@, ?)" },
+        };
+    }
+
+    @Test(dataProvider = "testInsertValuesListPositionsDP")
+    public void testInsertValuesListPositions(String sql, int start, int stop) {
+        ParsedPreparedStatement parsed = parser.parsePreparedStatement(sql);
+        assertEquals(parsed.getAssignValuesListStartPosition(), start, "Values list start position does not match");
+        assertEquals(parsed.getAssignValuesListStopPosition(), stop, "Values list stop position does not match");
+    }
+
+    @DataProvider
+    public static Object[][] testInsertValuesListPositionsDP() {
+        return new Object[][] {
+                { "INSERT INTO t VALUES (?, ?)", 21, 26 },
+                { "INSERT INTO t (a, b) VALUES (1, ?)", 28, 33 },
+                { "INSERT INTO t VALUES ($$x$$, ?)", 21, 30 },
+        };
+    }
+
     @Test
     public void testStmtWithCasts() {
         String sql = "SELECT ?::integer, ?, '?:: integer' FROM table WHERE v = ?::integer"; // CAST(?, INTEGER)
