@@ -44,6 +44,15 @@
 
 ### Bug Fixes 
 
+- **[jdbc-v2]** Fixed the ANTLR4 lexer rejecting `//` line comments, which the ClickHouse server and the driver's
+  JavaCC grammar both accept. Because `/` is also the division operator, `// comment` was lexed as two operator
+  tokens, so a statement containing a `//` comment was reported as a syntax error by the ANTLR4-based parser
+  backends (`ANTLR4`, `ANTLR4_PARAMS_PARSER`), and an `INSERT` preceded by such a comment was misclassified as a
+  statement with a result set. `//` is now skipped like `--`, `#` and `#!`; a single `/` and `//` inside a string
+  literal or a quoted identifier are unaffected. Placeholder counting inside `//` comments for the backends that
+  scan the raw SQL separately (`JAVACC`, `ANTLR4`) is fixed by
+  https://github.com/ClickHouse/clickhouse-java/issues/3009.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3023)
 - **[client-v2]** Fixed LZ4 input streams not closing their underlying HTTP response stream. Closing an LZ4 stream
   returned by `QueryResponse.getInputStream()` now releases the wrapped transport stream, including after a partial
   read. (https://github.com/ClickHouse/clickhouse-java/issues/2985)
