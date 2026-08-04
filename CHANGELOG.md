@@ -44,6 +44,17 @@
 
 ### Bug Fixes 
 
+- **[jdbc-v2]** Fixed `PreparedStatement#executeBatch` sending a syntactically broken `INSERT` when an `ANTLR4` parser
+  backend is selected (`jdbc_sql_parser=ANTLR4` / `ANTLR4_PARAMS_PARSER`) and the values list contains a value
+  expression the bundled grammar cannot parse - a JDBC escape sequence (`{d '...'}`), or valid ClickHouse syntax the
+  grammar does not cover such as a hex string literal (`hex(x'AB')`). Such a statement is still given a parse tree,
+  completed by error recovery, and the values list positions and the value group count were read from it: the values
+  list was reported to stop at the closing parenthesis of a nested function call, so the batch template lost its own
+  closing parenthesis, and a two-group values list could be reported as a single group. Both are now discarded when the
+  statement could not be parsed without errors, so the driver uses its generic parameter substitution path instead - and,
+  with the beta `RowBinary` writer enabled, such a statement is no longer routed to it. The default `JAVACC` backend is
+  not affected by this.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3019)
 - **[client-v2]** Fixed LZ4 input streams not closing their underlying HTTP response stream. Closing an LZ4 stream
   returned by `QueryResponse.getInputStream()` now releases the wrapped transport stream, including after a partial
   read. (https://github.com/ClickHouse/clickhouse-java/issues/2985)

@@ -182,6 +182,7 @@ public abstract class SqlParserFacade {
             parseSQL(sql, new ParsedPreparedStatementListener(stmt, processUseRolesExpr));
             if (stmt.isHasErrors()) {
                 stmt.setHasResultSet(true);
+                discardValuesListOfRecoveredParseTree(stmt);
             }
             // Combine database and table like JavaCC does
             String tableName = stmt.getTable();
@@ -192,6 +193,20 @@ public abstract class SqlParserFacade {
             
             parseParameters(sql, stmt);
             return stmt;
+        }
+
+        /**
+         * A statement the grammar cannot match is still given a parse tree, completed by error recovery: a rule context
+         * then ends at the token the parser recovered on rather than at the token the rule requires. The values list
+         * positions and the value group count are read from such contexts, so they may address only a part of the
+         * values list or report a wrong number of groups. Discard them, so that consumers slicing the statement with
+         * them use the generic parameter substitution path instead.
+         */
+        static void discardValuesListOfRecoveredParseTree(ParsedPreparedStatement stmt) {
+            LOG.debug("Discarding values list of a statement that could not be parsed without errors");
+            stmt.setAssignValuesListStartPosition(-1);
+            stmt.setAssignValuesListStopPosition(-1);
+            stmt.setAssignValuesGroups(0);
         }
 
         protected ClickHouseParser parseSQL(String sql, ClickHouseParserBaseListener listener) {
@@ -415,6 +430,7 @@ public abstract class SqlParserFacade {
             parseSQL(sql, new ParseStatementAndParamsListener(stmt, processUseRolesExpr));
             if (stmt.isHasErrors()) {
                 stmt.setHasResultSet(true);
+                discardValuesListOfRecoveredParseTree(stmt);
             }
             // Combine database and table like JavaCC does
             String tableName = stmt.getTable();
