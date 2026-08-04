@@ -123,6 +123,17 @@
   (`Fixed/UTC±HH:MM:SS`, e.g. `Fixed/UTC+05:30:00`) being silently read in UTC instead of the declared offset. The
   `RowBinary` reader now recovers the offset from the column's declared type. (https://github.com/ClickHouse/clickhouse-java/issues/2876)
 
+- **[jdbc-v2]** Fixed the ANTLR4 SQL parser backends (`jdbc_sql_parser=ANTLR4` and `ANTLR4_PARAMS_PARSER`) lexing
+  the body of a heredoc string (`$$body$$`, `$tag$body$tag$`) as ordinary SQL. The lexer had no heredoc token, so
+  every `$` was dropped as an unrecognized character and the body was parsed as identifiers, operators and
+  statement separators: a body that still looked like valid SQL was silently mis-parsed (wrong table name and
+  VALUES-list positions), and a body containing `;` — as well as the empty heredoc `$$$$` — was reported as a
+  parse error, which classifies an INSERT as a result-set-bearing statement with no values-list positions. A
+  heredoc is now lexed as a single string literal and accepted as a literal value (`INSERT ... VALUES` lists,
+  column expressions, settings), and a `$` inside an identifier (`a$b`, or an unterminated tag such as
+  `$foo$bar`) is part of the identifier, as the server reads it.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3031)
+
 - **[jdbc-v2]** Fixed the beta RowBinary writer (`DriverProperties.BETA_ROW_BINARY_WRITER`) throwing
   `NoSuchColumnException` for `INSERT` statements whose column names are backtick-quoted, in particular the
   canonical `Nested` sub-column wire form `` `directory`.`id` ``. The SQL parser now unescapes each
