@@ -311,6 +311,58 @@ public abstract class BaseSqlParserFacadeTest {
         Assert.assertEquals(actualColumns, expectedColumns, "Insert column names mismatch for: " + sql);
     }
 
+    @Test(dataProvider = "insertTargetFunctionDP")
+    public void testInsertTargetTableFunctionIsReportedAsFunction(String sql, boolean expectedUseFunction,
+                                                                 int expectedValuesGroups) {
+        ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
+        Assert.assertFalse(stmt.isHasErrors(), "Query should parse without errors: " + sql);
+        Assert.assertTrue(stmt.isInsert(), "Should be an INSERT: " + sql);
+        Assert.assertEquals(stmt.isUseFunction(), expectedUseFunction, "useFunction mismatch for: " + sql);
+        Assert.assertEquals(stmt.getAssignValuesGroups(), expectedValuesGroups,
+                "Values group count mismatch for: " + sql);
+    }
+
+    @DataProvider
+    public static Object[][] insertTargetFunctionDP() {
+        return new Object[][] {
+                // An INSERT whose target is a table function has no plain table behind it
+                {"INSERT INTO FUNCTION null('id UInt32') VALUES (?)", true, 1},
+                {"INSERT INTO TABLE FUNCTION null('id UInt32') VALUES (?)", true, 1},
+                {"INSERT INTO FUNCTION remoteSecure('h', 'db', 't', 'u', 'p') (id, name) VALUES (?, ?)", true, 1},
+                {"INSERT INTO FUNCTION s3('url', 'key', 'secret', 'CSV') SELECT * FROM t", true, 0},
+                {"insert into function null('id UInt32') values (?)", true, 1},
+                {"INSERT INTO\n TABLE FUNCTION null('id UInt32')\n VALUES (?)", true, 1},
+                {"INSERT INTO /* target */ FUNCTION null('id UInt32') VALUES (?)", true, 1},
+                // Contrast: plain table targets, including a table literally named "function"
+                {"INSERT INTO t VALUES (?)", false, 1},
+                {"INSERT INTO TABLE t VALUES (?)", false, 1},
+                {"INSERT INTO db.t VALUES (?)", false, 1},
+                {"INSERT INTO function VALUES (?)", false, 1},
+                {"INSERT INTO TABLE function VALUES (?)", false, 1},
+                {"INSERT INTO function (id) VALUES (?)", false, 1},
+                // Contrast: a function inside the values list is already reported as a function
+                {"INSERT INTO t VALUES (now(), ?)", true, 1},
+        };
+    }
+
+    @Test(dataProvider = "insertTargetTableNameDP")
+    public void testInsertPlainTableTargetKeepsTableName(String sql, String expectedTable) {
+        ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
+        Assert.assertFalse(stmt.isHasErrors(), "Query should parse without errors: " + sql);
+        Assert.assertEquals(stmt.getTable(), expectedTable, "Table name mismatch for: " + sql);
+    }
+
+    @DataProvider
+    public static Object[][] insertTargetTableNameDP() {
+        return new Object[][] {
+                {"INSERT INTO t VALUES (?)", "t"},
+                {"INSERT INTO TABLE t VALUES (?)", "t"},
+                {"INSERT INTO db.t VALUES (?)", "db.t"},
+                {"INSERT INTO function VALUES (?)", "function"},
+                {"INSERT INTO TABLE function VALUES (?)", "function"},
+        };
+    }
+
     @Test(dataProvider = "testCreateStmtDP")
     public void testCreateStatement(String sql) {
         ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
