@@ -44,6 +44,13 @@
 
 ### Bug Fixes 
 
+- **[clickhouse-client]** Fixed a heredoc string literal (`$$...$$` / `$tag$...$tag$`) being scanned as SQL when named
+  parameters (`:name`, `:name(Type)`) are extracted and substituted, so a `:name` inside a heredoc was extracted as a
+  parameter and the literal's text was rewritten on substitution, a `'` inside it broke the scan with `Missing quote: '`,
+  and a `--` or `/*` inside it swallowed the rest of the statement. A heredoc is now skipped as an opaque literal, so a
+  query such as `select $$a:b$$, :n` has exactly one parameter (`n`). A dollar sign that does not open a heredoc (an
+  identifier such as `a$x$`, or an unterminated `$$`) keeps its previous meaning.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3037)
 - **[client-v2]** Fixed LZ4 input streams not closing their underlying HTTP response stream. Closing an LZ4 stream
   returned by `QueryResponse.getInputStream()` now releases the wrapped transport stream, including after a partial
   read. (https://github.com/ClickHouse/clickhouse-java/issues/2985)

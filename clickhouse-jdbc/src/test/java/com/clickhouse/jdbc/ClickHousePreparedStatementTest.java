@@ -1782,6 +1782,23 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
+    public void testQueryWithNamedParameterAndHeredoc() throws SQLException {
+        Properties props = new Properties();
+        props.setProperty(JdbcConfig.PROP_NAMED_PARAM, "true");
+        try (ClickHouseConnection conn = newConnection(props);
+                PreparedStatement stmt = conn.prepareStatement("select $$a:b it's$$ as s, :n(String) as n")) {
+            Assert.assertEquals(stmt.getParameterMetaData().getParameterCount(), 1);
+            stmt.setString(1, "x");
+            try (ResultSet rs = stmt.executeQuery()) {
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getString(1), "a:b it's");
+                Assert.assertEquals(rs.getString(2), "x");
+                Assert.assertFalse(rs.next());
+            }
+        }
+    }
+
+    @Test(groups = "integration")
     public void testQueryWithNamedParameter() throws SQLException {
         Properties props = new Properties();
         props.setProperty(JdbcConfig.PROP_NAMED_PARAM, "true");
