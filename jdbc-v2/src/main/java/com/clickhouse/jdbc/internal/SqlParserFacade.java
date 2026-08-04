@@ -123,7 +123,67 @@ public abstract class SqlParserFacade {
 
             stmt.setUseFunction(parsedStmt.isFuncUsed());
             parseParameters(sql, stmt);
+            discardValuesListPositionsNotMatchingOriginalSql(sql, stmt);
             return stmt;
+        }
+
+        /**
+         * The token manager records keyword positions as offsets into the SQL it rebuilds from the token stream, which
+         * is not always identical to the SQL it was given: semicolons are dropped and JDBC escape sequences are
+         * rewritten. Consumers of the values list positions slice the original SQL, so when the two have drifted apart
+         * the positions address the wrong characters or point past the end of the string. Discard them in that case to
+         * let the generic parameter substitution path handle the statement.
+         */
+        private void discardValuesListPositionsNotMatchingOriginalSql(String sql, ParsedPreparedStatement stmt) {
+            int startPosition = stmt.getAssignValuesListStartPosition();
+            int stopPosition = stmt.getAssignValuesListStopPosition();
+            if (startPosition < 0 || stopPosition < 0) {
+                return;
+            }
+
+            boolean matches = stopPosition > startPosition && stopPosition < sql.length()
+                    && sql.charAt(startPosition) == '(' && closesParenthesizedGroup(sql, startPosition, stopPosition);
+            if (matches) {
+                int[] paramPositions = stmt.getParamPositions();
+                for (int i = 0; i < stmt.getArgCount(); i++) {
+                    if (paramPositions[i] < startPosition || paramPositions[i] > stopPosition) {
+                        matches = false;
+                        break;
+                    }
+                }
+            }
+
+            if (!matches) {
+                LOG.debug("Values list positions [{}, {}] do not match the original SQL", startPosition, stopPosition);
+                stmt.setAssignValuesListStartPosition(-1);
+                stmt.setAssignValuesListStopPosition(-1);
+            }
+        }
+
+        /**
+         * Tells whether the parenthesis opened at {@code startPosition} is closed exactly at {@code stopPosition},
+         * ignoring parentheses inside quoted text.
+         */
+        private boolean closesParenthesizedGroup(String sql, int startPosition, int stopPosition) {
+            int depth = 0;
+            try {
+                for (int i = startPosition; i <= stopPosition; i++) {
+                    char ch = sql.charAt(i);
+                    if (ClickHouseUtils.isQuote(ch)) {
+                        i = ClickHouseUtils.skipQuotedString(sql, i, sql.length(), ch) - 1;
+                        if (i > stopPosition) {
+                            return false;
+                        }
+                    } else if (ch == '(') {
+                        depth++;
+                    } else if (ch == ')' && --depth == 0) {
+                        return i == stopPosition;
+                    }
+                }
+            } catch (IllegalArgumentException e) { // unterminated quoted text
+                return false;
+            }
+            return false;
         }
 
         private List<String> processRoles(Map<String, String> settings) {

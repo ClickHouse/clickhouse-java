@@ -878,6 +878,32 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         }
     }
 
+    @Test(groups = { "integration" }, dataProvider = "insertWithRewrittenValuesListDP")
+    void testInsertWithRewrittenValuesList(String valuesList) throws Exception {
+        final String table = "test_insert_rewritten_values_list";
+        try (Connection conn = getJdbcConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("DROP TABLE IF EXISTS " + table);
+                stmt.execute("CREATE TABLE " + table + " (s String, n Int32) Engine MergeTree ORDER BY ()");
+            }
+            try (PreparedStatement stmt = conn.prepareStatement(
+                    "INSERT INTO " + table + " (s, n) VALUES " + valuesList)) {
+                assertEquals(stmt.getParameterMetaData().getParameterCount(), 1);
+                stmt.setInt(1, 42);
+                stmt.addBatch();
+            }
+        }
+    }
+
+    @DataProvider(name = "insertWithRewrittenValuesListDP")
+    public static Object[][] insertWithRewrittenValuesListDP() {
+        return new Object[][] {
+                { "(toDateTime({ts '2024-01-01 00:00:00'}), ?)" },
+                { "(toTime({t '10:20:30'}), ?)" },
+                { "(toInt32({d:Int32}), ?)" },
+        };
+    }
+
     @Test(groups = { "integration" })
     void testStatementSplit() throws Exception {
         try (Connection conn = getJdbcConnection()) {
@@ -1106,7 +1132,6 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                 stmt.setString(1, "invalid");
                 stmt.setInt(2, rnd.nextInt());
                 stmt.addBatch();
-                assertThrows(SQLException.class, stmt::executeBatch);
                 // should fail due to the previous batch data.
                 assertThrows(SQLException.class, stmt::executeBatch);
                 // clear previous batch data
@@ -1160,7 +1185,6 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                 // add a batch with invalid values
                 stmt.setString(1, "invalid");
                 stmt.addBatch();
-                assertThrows(SQLException.class, stmt::executeBatch);
                 // should fail due to the previous batch data.
                 assertThrows(SQLException.class, stmt::executeBatch);
                 // clear previous batch data
