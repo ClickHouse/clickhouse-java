@@ -44,6 +44,13 @@
 
 ### Bug Fixes 
 
+- **[jdbc-v2]** Fixed `ResultSetMetaData.getPrecision()` and `getScale()` returning `0` for columns wrapped in
+  `SimpleAggregateFunction(func, T)`. The wrapper is transparent on the read path (values are read as plain `T`), but
+  both accessors described the wrapper itself, which carries no precision or scale — so a
+  `SimpleAggregateFunction(sum, Decimal(18, 4))` column looked like a scale-0 value and
+  `SimpleAggregateFunction(any, DateTime64(3, tz))` looked like second precision. They now describe the nested type.
+  `AggregateFunction` columns are unchanged, since their values are aggregation states rather than values of the
+  nested type. (https://github.com/ClickHouse/clickhouse-java/issues/3042)
 - **[client-v2]** Fixed LZ4 input streams not closing their underlying HTTP response stream. Closing an LZ4 stream
   returned by `QueryResponse.getInputStream()` now releases the wrapped transport stream, including after a partial
   read. (https://github.com/ClickHouse/clickhouse-java/issues/2985)
