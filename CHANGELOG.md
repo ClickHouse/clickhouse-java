@@ -44,6 +44,11 @@
 
 ### Bug Fixes 
 
+- **[client-v2]** Fixed `Client.cancelTransportRequest(queryId)` being silently dropped when it landed between two
+  attempts of a retried operation (query, POJO insert and stream insert): the operation issued the next attempt anyway
+  and could complete successfully. The request of an attempt now stays registered until the whole operation is over,
+  and the cancellation is checked before every attempt, so a cancelled operation stops instead of sending another
+  request. (https://github.com/ClickHouse/clickhouse-java/issues/2989)
 - **[client-v2]** Fixed LZ4 input streams not closing their underlying HTTP response stream. Closing an LZ4 stream
   returned by `QueryResponse.getInputStream()` now releases the wrapped transport stream, including after a partial
   read. (https://github.com/ClickHouse/clickhouse-java/issues/2985)
