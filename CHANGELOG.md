@@ -44,6 +44,14 @@
 
 ### Bug Fixes 
 
+- **[client-v2]** Fixed reading a `UInt64` column into a **primitive** POJO field (e.g. `long`) always failing with
+  `ClassCastException: BinaryStreamReader cannot be cast to java.math.BigInteger`. The compiled setter for that
+  combination never emitted a read call, so it cast the reader itself instead of a value and consumed nothing from the
+  stream, which made every primitive field bound to a `UInt64` column unusable. The value is now read and converted to
+  the target primitive with the matching `Number` accessor, which narrows a value that does not fit the same way a Java
+  narrowing conversion does (a `long` holds every `UInt64` value bit-for-bit and can be read back with
+  `Long.toUnsignedString(long)`; a `boolean` is `true` for any non-zero value). Boxed fields (`BigInteger`, `Long`) are
+  unaffected. (https://github.com/ClickHouse/clickhouse-java/issues/2996)
 - **[client-v2]** Fixed LZ4 input streams not closing their underlying HTTP response stream. Closing an LZ4 stream
   returned by `QueryResponse.getInputStream()` now releases the wrapped transport stream, including after a partial
   read. (https://github.com/ClickHouse/clickhouse-java/issues/2985)
