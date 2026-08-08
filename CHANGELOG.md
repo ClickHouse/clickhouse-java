@@ -44,6 +44,8 @@
 
 ### Bug Fixes 
 
+- **[jdbc-v2]** Made JDBC `Array` values render their nested contents through `toString()`, including arrays of named tuples, so clients such as IDE database viewers no longer display the wrapper class name and identity hash. (https://github.com/ClickHouse/clickhouse-java/issues/3045)
+
 - **[client-v2]** Fixed LZ4 input streams not closing their underlying HTTP response stream. Closing an LZ4 stream
   returned by `QueryResponse.getInputStream()` now releases the wrapped transport stream, including after a partial
   read. (https://github.com/ClickHouse/clickhouse-java/issues/2985)
