@@ -324,6 +324,9 @@ public final class ClickHouseColumn implements Serializable {
             case LineString:
                 column.template = ClickHouseGeoRingValue.ofEmpty();
                 break;
+            case MultiPoint:
+                column.template = ClickHouseGeoRingValue.ofEmpty();
+                break;
             case Polygon:
                 column.template = ClickHouseGeoPolygonValue.ofEmpty();
                 break;
@@ -363,8 +366,27 @@ public final class ClickHouseColumn implements Serializable {
     }
 
     private static ClickHouseColumn createGeometryVariantColumn() {
-        ClickHouseColumn column = ClickHouseColumn.of("v",
+        // The six geometry variants that exist since CH 25.11. Variant nested columns are ordered by
+        // type name, which reproduces the discriminators the server assigns to them.
+        ClickHouseColumn base = ClickHouseColumn.of("v",
                 "Variant(Point, Ring, LineString, MultiLineString, Polygon, MultiPolygon)");
+
+        // CH 26.8 added MultiPoint to Geometry without renumbering the existing variants: the server
+        // appends it after MultiPolygon instead of inserting it in type-name order, so it is appended
+        // here as well rather than relying on the generic Variant ordering.
+        List<ClickHouseColumn> nestedColumns = new ArrayList<>(base.nested);
+        nestedColumns.add(ClickHouseColumn.of("v." + ClickHouseDataType.MultiPoint.name(),
+                ClickHouseDataType.MultiPoint.name()));
+
+        ClickHouseColumn column = new ClickHouseColumn(ClickHouseDataType.Variant, "v",
+                "Variant(Point, Ring, LineString, MultiLineString, Polygon, MultiPolygon, MultiPoint)",
+                false, false, null, nestedColumns);
+
+        // MultiPoint shares its Java representation (double[][]) with Ring and LineString, so it is
+        // deliberately left out of both write-side mappings: a Java value written to a Geometry column
+        // keeps resolving to the same variant it resolved to before. MultiPoint is read-only through
+        // Geometry and has to be written through a concrete MultiPoint column.
+        column.classToVariantOrdNumMap = base.classToVariantOrdNumMap;
         Map<Integer, Integer> map = new HashMap<>();
         map.put(1, getVariantOrdNum(column.nested, ClickHouseDataType.Point));
         map.put(2, getVariantOrdNum(column.nested, ClickHouseDataType.Ring));

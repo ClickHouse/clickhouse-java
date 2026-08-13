@@ -1455,6 +1455,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         mBuilder.put("MultiPolygon", new TypeLiteralInfo("[", "]"));
         mBuilder.put("LineString", new TypeLiteralInfo("[", "]"));
         mBuilder.put("MultiLineString", new TypeLiteralInfo("[", "]"));
+        mBuilder.put("MultiPoint", new TypeLiteralInfo("[", "]"));
 
         TYPE_LITERAL_INFO_MAP = mBuilder.buildOrThrow();
     }

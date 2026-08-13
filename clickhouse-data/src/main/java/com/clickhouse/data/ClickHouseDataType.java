@@ -106,6 +106,7 @@ public enum ClickHouseDataType implements SQLType {
     Ring(Object.class, false, true, true, 0, 0, 0, 0, 0, true), // same as Array(Point)
     LineString( Object.class, false, true, true, 0, 0, 0, 0, 0, true), // same as Array(Point)
     MultiLineString(Object.class, false, true, true, 0, 0, 0, 0, 0, true), // same as Array(Ring)
+    MultiPoint(Object.class, false, true, true, 0, 0, 0, 0, 0, true), // same as Array(Point)
     Geometry(Object.class, false, true, true, 0, 0, 0, 0, 0, true), // same as Variant(Point, ...)
     JSON(Object.class, false, false, false, 0, 0, 0, 0, 0, true, 0x30),
     @Deprecated // (since = "CH 25.11")
@@ -216,6 +217,7 @@ public enum ClickHouseDataType implements SQLType {
         map.put(Point, setOf(double[].class, ClickHouseGeoPointValue.class));
         map.put(Ring, setOf(double[][].class, ClickHouseGeoRingValue.class));
         map.put(LineString, setOf(double[][].class, ClickHouseGeoRingValue.class));
+        map.put(MultiPoint, setOf(double[][].class, ClickHouseGeoRingValue.class));
         map.put(Polygon, setOf(double[][][].class, ClickHouseGeoPolygonValue.class));
         map.put(MultiLineString, setOf(double[][][].class, ClickHouseGeoPolygonValue.class));
         map.put(MultiPolygon, setOf(double[][][][].class, ClickHouseGeoMultiPolygonValue.class));
