@@ -519,11 +519,14 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
 
         Properties props = new Properties();
         boolean adaptiveBusyTimeoutSupported;
+        boolean flushAsyncInsertQueueSupported;
         try (ClickHouseConnection conn = newConnection(props)) {
             if (conn.getServerVersion().check("(,21.12)")) {
                 return;
             }
             adaptiveBusyTimeoutSupported = !conn.getServerVersion().check("(,24.2)");
+            // SYSTEM FLUSH ASYNC INSERT QUEUE only exists since 23.7
+            flushAsyncInsertQueueSupported = !conn.getServerVersion().check("(,23.7)");
         }
 
         props.setProperty(ClickHouseHttpOption.CUSTOM_PARAMS.getKey(), "async_insert=1,wait_for_async_insert=1");
@@ -553,12 +556,14 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             ResultSet rs = stmt.getResultSet();
             Assert.assertFalse(rs.next(), "Row must not be queryable while the async insert buffer is still open");
 
-            stmt.execute("SYSTEM FLUSH ASYNC INSERT QUEUE");
-            rs = stmt.executeQuery("SELECT * FROM test_async_insert");
-            Assert.assertTrue(rs.next(), "Row must be queryable once the async insert queue is flushed");
-            Assert.assertEquals(rs.getInt(1), 1);
-            Assert.assertEquals(rs.getString(2), "a");
-            Assert.assertFalse(rs.next());
+            if (flushAsyncInsertQueueSupported) {
+                stmt.execute("SYSTEM FLUSH ASYNC INSERT QUEUE");
+                rs = stmt.executeQuery("SELECT * FROM test_async_insert");
+                Assert.assertTrue(rs.next(), "Row must be queryable once the async insert queue is flushed");
+                Assert.assertEquals(rs.getInt(1), 1);
+                Assert.assertEquals(rs.getString(2), "a");
+                Assert.assertFalse(rs.next());
+            }
 
             stmt.execute("DROP TABLE test_async_insert");
         }
