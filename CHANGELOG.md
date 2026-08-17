@@ -1,4 +1,4 @@
-## 0.10.0-rc1 
+## 0.10.0
 
 [Release Migration Guide](docs/releases/0_10_0.md)
 
