@@ -6,10 +6,16 @@ import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.Buffer;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -207,6 +213,49 @@ public class BlockingPipedOutputStreamTest {
         } catch (IOException e) {
             Assert.assertTrue(e.getMessage().indexOf("closed") > 0);
         }
+    }
+
+    @Test(groups = { "unit" })
+    public void testConcurrentClose() throws Exception {
+        final int closers = 4;
+        final long timeout = 500L;
+        final AtomicInteger closeCount = new AtomicInteger(0);
+        final Collection<String> errors = new ConcurrentLinkedQueue<>();
+        final BlockingPipedOutputStream stream = new BlockingPipedOutputStream(4, 1, timeout,
+                (Runnable) closeCount::incrementAndGet);
+        // fill the only slot of the queue so that the closing handshake cannot complete
+        stream.queue.put(ByteBuffer.allocate(1));
+
+        final CyclicBarrier barrier = new CyclicBarrier(closers);
+        final ExecutorService executor = Executors.newFixedThreadPool(closers);
+        try {
+            List<Future<?>> futures = new ArrayList<>(closers);
+            for (int i = 0; i < closers; i++) {
+                futures.add(executor.submit(() -> {
+                    barrier.await();
+                    try {
+                        stream.close();
+                    } catch (IOException e) {
+                        errors.add(String.valueOf(e.getMessage()));
+                    }
+                    return null;
+                }));
+            }
+            for (Future<?> f : futures) {
+                f.get(timeout + 30000L, TimeUnit.MILLISECONDS);
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+
+        Assert.assertEquals(closeCount.get(), 1, "Stream should have been closed exactly once");
+        Assert.assertEquals(errors.size(), 1, "Only the thread which closed the stream may fail");
+        Assert.assertTrue(errors.iterator().next().indexOf("Close stream timed out") == 0,
+                "Unexpected error: " + errors);
+        Assert.assertEquals(stream.queue.size(), 1, "No additional buffer should have been queued");
+
+        stream.close();
+        Assert.assertEquals(closeCount.get(), 1, "Closing a closed stream should do nothing");
     }
 
     @Test(groups = { "unit" })
