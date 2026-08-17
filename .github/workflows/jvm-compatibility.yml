@@ -31,24 +31,25 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.number || github.sha }}
   cancel-in-progress: true
 
+env:
+  PREFERRED_LTS_VERSION: "25.8"
+
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
         java: ["8", "11", "17", "21", "25"]
-        # Temurin is the OpenJDK/HotSpot baseline. Semeru exercises OpenJ9,
-        # while GraalVM Community exercises the Graal compiler and runtime.
-        distribution: ["temurin", "semeru", "graalvm-community"]
-        exclude:
-          # GraalVM Community only publishes builds for JDK 17 and later.
-          - java: "8"
-            distribution: "graalvm-community"
-          - java: "11"
-            distribution: "graalvm-community"
-    name: ${{ matrix.distribution }} JDK ${{ matrix.java }}
+        vendor:
+          - name: "openjdk"
+            distribution: "oracle-openjdk"
+          - name: "temurin"
+            distribution: "temurin"
+          - name: "amazon"
+            distribution: "corretto"
+    name: ${{ matrix.vendor.name }} JDK ${{ matrix.java }}
     steps:
       - name: Check out repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -57,24 +58,77 @@ jobs:
           git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
             origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
         if: github.event.inputs.pr != ''
-      - name: Install JDK 8 build toolchain
-        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+      - name: Install build toolchains
+        uses: actions/setup-java@a42a52cfb590b0682db41c911da5dc7798ba620e # main
         with:
           distribution: "temurin"
-          java-version: "8"
-      - name: Install test JVM
-        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
-        with:
-          distribution: ${{ matrix.distribution }}
-          java-version: ${{ matrix.java }}
+          java-version: |
+            8
+            11
+            17
           cache: "maven"
       - name: Build and test all modules
-        run: mvn --batch-mode --no-transfer-progress --show-version --strict-checksums --threads 2 -Dmaven.wagon.rto=30000 -Dj8 verify
+        run: |
+          BUILD_ARGS=()
+          if [[ "${{ matrix.java }}" == "8" || "${{ matrix.java }}" == "11" ]]; then
+            BUILD_ARGS+=("-Dj8")
+          fi
+          mvn --batch-mode --no-transfer-progress --show-version --strict-checksums --threads 2 \
+            -Dmaven.wagon.rto=30000 -DclickhouseVersion=$PREFERRED_LTS_VERSION \
+            "${BUILD_ARGS[@]}" install
+          PROJECT_VERSION=$(mvn --batch-mode --no-transfer-progress help:evaluate \
+            -Dexpression=project.version -q -DforceStdout)
+          echo "PROJECT_VERSION=$PROJECT_VERSION" >> "$GITHUB_ENV"
+      - name: Activate example JVM
+        uses: actions/setup-java@a42a52cfb590b0682db41c911da5dc7798ba620e # main
+        with:
+          distribution: ${{ matrix.vendor.distribution }}
+          java-version: ${{ matrix.java }}
+      - name: Compile examples
+        run: |
+          EXAMPLES=(
+            examples/client/pom.xml
+            examples/client-v2/pom.xml
+            examples/jdbc/pom.xml
+            examples/r2dbc/pom.xml
+          )
+          if [[ "${{ matrix.java }}" != "8" && "${{ matrix.java }}" != "11" ]]; then
+            EXAMPLES+=(
+              examples/client-v2-apache-arrow/pom.xml
+              examples/client-v2-json-processors/pom.xml
+              examples/demo-kotlin-service/pom.xml
+              examples/demo-service/pom.xml
+              examples/jdbc-v2-json-processors/pom.xml
+            )
+          fi
+          for pom in "${EXAMPLES[@]}"; do
+            mvn --batch-mode --no-transfer-progress -f "$pom" \
+              -Dclickhouse-java.version="$PROJECT_VERSION" clean compile
+          done
+      - name: Run client example smoke test
+        run: |
+          docker run --detach --rm --name clickhouse-example --publish 8123:8123 \
+            "clickhouse/clickhouse-server:$PREFERRED_LTS_VERSION"
+          trap 'docker rm --force clickhouse-example >/dev/null 2>&1 || true' EXIT
+          for attempt in {1..30}; do
+            if curl --fail --silent http://localhost:8123/ping >/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+          curl --fail --silent http://localhost:8123/ping >/dev/null
+          OUTPUT=$(mvn --batch-mode --no-transfer-progress -f examples/client/pom.xml \
+            -Dclickhouse-java.version="$PROJECT_VERSION" \
+            org.codehaus.mojo:exec-maven-plugin:3.5.0:java \
+            -Dexec.mainClass=com.clickhouse.examples.jdbc.Main)
+          printf '%s\n' "$OUTPUT"
+          [[ "$OUTPUT" == *"Inserted 10 records"* ]]
+          [[ "$OUTPUT" == *"Query returned 10 records"* ]]
       - name: Upload test results
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: failure()
         with:
-          name: test-results-${{ matrix.distribution }}-jdk-${{ matrix.java }}
+          name: test-results-${{ matrix.vendor.name }}-jdk-${{ matrix.java }}
           path: |
             **/target/failsafe-reports
             **/target/surefire-reports
