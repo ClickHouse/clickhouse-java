@@ -259,6 +259,31 @@ public class BlockingPipedOutputStreamTest {
     }
 
     @Test(groups = { "unit" })
+    public void testCloseWhenFlushingRemainingBufferFails() throws Exception {
+        final long timeout = 500L;
+        final AtomicInteger closeCount = new AtomicInteger(0);
+        final BlockingPipedOutputStream stream = new BlockingPipedOutputStream(4, 1, timeout,
+                (Runnable) closeCount::incrementAndGet);
+        stream.writeByte((byte) 1);
+        // fill the only slot of the queue so that flushing the remaining buffer fails
+        stream.queue.put(ByteBuffer.allocate(1));
+
+        try {
+            stream.close();
+            Assert.fail("Close should fail");
+        } catch (IOException e) {
+            Assert.assertTrue(e.getMessage().indexOf("Write timed out") == 0, "Unexpected error: " + e.getMessage());
+        }
+
+        Assert.assertTrue(stream.isClosed(), "Stream should have been closed");
+        Assert.assertEquals(closeCount.get(), 1, "Post close action should have been executed exactly once");
+        Assert.assertEquals(stream.queue.size(), 1, "No additional buffer should have been queued");
+
+        stream.close();
+        Assert.assertEquals(closeCount.get(), 1, "Closing a closed stream should do nothing");
+    }
+
+    @Test(groups = { "unit" })
     public void testPipedStream() throws InterruptedException, IOException {
         final int timeout = 10000;
         ExecutorService executor = Executors.newFixedThreadPool(2);
