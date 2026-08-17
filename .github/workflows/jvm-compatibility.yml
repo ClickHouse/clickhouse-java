@@ -69,13 +69,9 @@ jobs:
           cache: "maven"
       - name: Build and test all modules
         run: |
-          BUILD_ARGS=()
-          if [[ "${{ matrix.java }}" == "8" || "${{ matrix.java }}" == "11" ]]; then
-            BUILD_ARGS+=("-Dj8")
-          fi
           mvn --batch-mode --no-transfer-progress --show-version --strict-checksums --threads 2 \
             -Dmaven.wagon.rto=30000 -DclickhouseVersion=$PREFERRED_LTS_VERSION \
-            "${BUILD_ARGS[@]}" install
+            -Dj8 -Pcompile-java11,compile-java17 install
           PROJECT_VERSION=$(mvn --batch-mode --no-transfer-progress help:evaluate \
             -Dexpression=project.version -q -DforceStdout)
           echo "PROJECT_VERSION=$PROJECT_VERSION" >> "$GITHUB_ENV"
