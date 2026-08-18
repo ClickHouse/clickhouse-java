@@ -119,11 +119,11 @@ jobs:
           git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
             origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
         if: github.event.inputs.pr != ''
-      - name: Activate example JVM
+      - name: Activate test JVM
         uses: actions/setup-java@a42a52cfb590b0682db41c911da5dc7798ba620e # main
         with:
-          distribution: ${{ matrix.vendor == 'openjdk' && 'oracle-openjdk' || matrix.vendor == 'amazon' && 'corretto' || 'temurin' }}
-          java-version: ${{ matrix.java }}
+          distribution: ${{ (matrix.java == '8' || matrix.java == '11') && 'temurin' || matrix.vendor == 'openjdk' && 'oracle-openjdk' || matrix.vendor == 'amazon' && 'corretto' || 'temurin' }}
+          java-version: ${{ (matrix.java == '8' || matrix.java == '11') && '17' || matrix.java }}
           cache: "maven"
       - name: Download Maven artifacts
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
@@ -145,6 +145,12 @@ jobs:
             org.apache.maven.plugins:maven-surefire-plugin:3.5.3:test \
             org.apache.maven.plugins:maven-failsafe-plugin:3.1.2:integration-test \
             org.apache.maven.plugins:maven-failsafe-plugin:3.1.2:verify
+      - name: Activate legacy example JVM
+        if: matrix.java == '8' || matrix.java == '11'
+        uses: actions/setup-java@a42a52cfb590b0682db41c911da5dc7798ba620e # main
+        with:
+          distribution: ${{ matrix.vendor == 'openjdk' && 'oracle-openjdk' || matrix.vendor == 'amazon' && 'corretto' || 'temurin' }}
+          java-version: ${{ matrix.java }}
       - name: Compile examples
         run: |
           EXAMPLES=(
