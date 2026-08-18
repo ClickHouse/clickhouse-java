@@ -52,6 +52,20 @@
   additionally the JavaCC grammar no longer mis-parses `INSERT INTO TABLE FUNCTION f(...)` by consuming
   `FUNCTION` as the table name. Inserts into a plain table are unaffected and still use the `RowBinary`
   writer. (https://github.com/ClickHouse/clickhouse-java/issues/3015)
+- **[data]** Fixed `BlockingPipedOutputStream.close()` not being idempotent under concurrency: the check of the
+  `closed` flag and the closing handshake were not atomic, so two threads closing the same stream (e.g. a writer
+  thread and a try-with-resources block) could both put the end-of-stream marker into the queue, and the second one
+  failed with `Close stream timed out after <n> ms` once the reader had stopped consuming. Exactly one caller now
+  performs the handshake and runs the post-close action; a concurrent or repeated `close()` returns immediately. A
+  `close()` which fails while flushing the remaining data also marks the stream closed and runs the post-close
+  action, so the stream cannot stay half-closed. (https://github.com/ClickHouse/clickhouse-java/issues/3055)
+- **[jdbc-v2]** Fixed JDBC escape processing rewriting text inside string literals and quoted identifiers. Because
+  `PreparedStatement` inlines bound parameters into the statement text, a bound value containing `{fn ` (or `{d '...'}`
+  / `{ts '...'}`) was re-read as SQL syntax: the `{fn ` was removed together with the next `}` found anywhere in the
+  statement — usually the closing brace of an unrelated `Map`/`Tuple` literal in another value or row — corrupting the
+  inserted data or failing with a server-side `SYNTAX_ERROR`. Escape sequences are now recognized only outside of quoted
+  text, and a `{fn ...}` escape is unwrapped at its matching closing brace, so nested braces (e.g. a `{name:Type}` query
+  parameter or a nested escape) stay balanced. (https://github.com/ClickHouse/clickhouse-java/issues/2995)
 - **[client-v2]** Fixed LZ4 input streams not closing their underlying HTTP response stream. Closing an LZ4 stream
   returned by `QueryResponse.getInputStream()` now releases the wrapped transport stream, including after a partial
   read. (https://github.com/ClickHouse/clickhouse-java/issues/2985)
