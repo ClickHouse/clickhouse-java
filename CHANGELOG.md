@@ -44,6 +44,17 @@
 
 ### Bug Fixes 
 
+- **[jdbc-v2]** Fixed an `INSERT` whose values list holds a function call the bundled `ANTLR4` grammar cannot match -
+  such as `hex(x'AB')`, valid ClickHouse the grammar has no hex string literal for - being reported to hold no function
+  call when an `ANTLR4` parser backend is selected (`jdbc_sql_parser=ANTLR4` / `ANTLR4_PARAMS_PARSER`). Function calls in
+  a values list are reported by a callback on the parse tree, and such a statement is still given a parse tree, completed
+  by error recovery, which skips the tokens the parser recovered on - the function call among them. With the beta
+  `RowBinary` writer enabled (`beta.row_binary_for_simple_insert=true`) the statement was then routed to it, where a
+  literal function-call column cannot be written; it now takes the generic parameter substitution path, as it already did
+  for a function call the grammar matches. Since such a parse tree cannot tell, any insert that could not be parsed
+  without errors is now assumed to hold a function call in its values list, so none of them is written with the
+  `RowBinary` writer. The default `JAVACC` backend is not affected by this.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3027)
 - **[clickhouse-client]** Fixed JPMS/module-path service loading for `ClickHouseRequestManager` by loading client
   services from the `com.clickhouse.client` module, which declares the required `uses` directives. This avoids
   `ServiceConfigurationError` failures from `com.clickhouse.data` when applications run on the module path.
