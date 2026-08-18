@@ -44,6 +44,13 @@
 
 ### Bug Fixes 
 
+- **[data]** Fixed `BlockingPipedOutputStream.close()` not being idempotent under concurrency: the check of the
+  `closed` flag and the closing handshake were not atomic, so two threads closing the same stream (e.g. a writer
+  thread and a try-with-resources block) could both put the end-of-stream marker into the queue, and the second one
+  failed with `Close stream timed out after <n> ms` once the reader had stopped consuming. Exactly one caller now
+  performs the handshake and runs the post-close action; a concurrent or repeated `close()` returns immediately. A
+  `close()` which fails while flushing the remaining data also marks the stream closed and runs the post-close
+  action, so the stream cannot stay half-closed. (https://github.com/ClickHouse/clickhouse-java/issues/3055)
 - **[jdbc-v2]** Fixed JDBC escape processing rewriting text inside string literals and quoted identifiers. Because
   `PreparedStatement` inlines bound parameters into the statement text, a bound value containing `{fn ` (or `{d '...'}`
   / `{ts '...'}`) was re-read as SQL syntax: the `{fn ` was removed together with the next `}` found anywhere in the
