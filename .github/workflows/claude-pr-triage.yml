@@ -35,6 +35,7 @@ jobs:
     uses: ClickHouse/integrations-shared-workflows/.github/workflows/claude-pr-triage.yml@3d91ad26a6d8e9164eb120fb0433ec2defd5c68a
     with:
       pr_number: ${{ github.event.pull_request.number || github.event.issue.number }}
+      model: claude-fable-5
       triage_instructions: |
         ## Category meanings
 
