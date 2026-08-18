@@ -7,7 +7,9 @@ import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientFaultCause;
+import com.clickhouse.client.api.DataStreamWriter;
 import com.clickhouse.client.api.ServerException;
+import com.clickhouse.client.api.TransportException;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
@@ -28,11 +30,14 @@ import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -519,6 +524,171 @@ public class TransportBaseTests extends BaseIntegrationTest {
                 {"insert-stream", true, false},
                 {"insert-pojo", true, true}
         };
+    }
+
+    /**
+     * Cancellation belongs to the operation, not to a single transport request: a cancel that lands
+     * between two attempts of a retried operation must stop it, even though the request of the failed
+     * attempt is already completed. {@link DataStreamWriter#onRetry()} is called by the client exactly
+     * in that window, so it cancels deterministically. Cancellation does not outlive the operation, so the
+     * same query id still works afterwards. A cancel for an unrelated query id must leave the operation
+     * alone and let it recover on the retry.
+     */
+    @Test(groups = {"integration"}, dataProvider = "cancelBetweenAttemptsProvider")
+    public void testCancelBetweenRetryAttempts(String name, boolean cancelOwnQueryId) throws Exception {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
+        WireMockServer mockServer = startMockServer();
+        mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                .inScenario("CancelBetweenAttempts")
+                .whenScenarioStateIs(STARTED)
+                .willSetStateTo("Recovered")
+                .willReturn(WireMock.aResponse()
+                        .withStatus(HttpStatus.SC_SERVICE_UNAVAILABLE)
+                        .withHeader("X-ClickHouse-Exception-Code", String.valueOf(RETRYABLE_CODE))
+                        .withBody(RETRYABLE_BODY)).build());
+        mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                .inScenario("CancelBetweenAttempts")
+                .whenScenarioStateIs("Recovered")
+                .willReturn(WireMock.aResponse()
+                        .withStatus(HttpStatus.SC_OK)
+                        .withHeader("X-ClickHouse-Summary",
+                                "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")).build());
+
+        String queryId = "cancel-between-attempts-" + UUID.randomUUID();
+        String cancelledQueryId = cancelOwnQueryId ? queryId : queryId + "-other";
+        AtomicInteger retryCallbacks = new AtomicInteger();
+
+        try (Client client = mockServerClient(mockServer, 3)) {
+            DataStreamWriter writer = new DataStreamWriter() {
+                @Override
+                public void onOutput(OutputStream out) throws IOException {
+                    out.write("1\n".getBytes(StandardCharsets.US_ASCII));
+                }
+
+                @Override
+                public void onRetry() {
+                    retryCallbacks.incrementAndGet();
+                    client.cancelTransportRequest(cancelledQueryId);
+                }
+            };
+
+            Throwable opError = null;
+            try (InsertResponse response = client.insert("table01", writer, ClickHouseFormat.TSV,
+                    new InsertSettings().setQueryId(queryId)).get(30, TimeUnit.SECONDS)) {
+                Assert.assertNotNull(response);
+            } catch (Exception e) {
+                opError = e;
+            }
+
+            Assert.assertEquals(retryCallbacks.get(), 1,
+                    "[" + name + "] the first attempt must fail with a retryable error");
+            int attempts = mockServer.findAll(WireMock.postRequestedFor(WireMock.anyUrl())).size();
+            if (cancelOwnQueryId) {
+                Assert.assertNotNull(opError, "[" + name + "] a cancelled operation must fail");
+                Throwable cancellation = opError instanceof TransportException ? opError : opError.getCause();
+                Assert.assertTrue(cancellation instanceof TransportException,
+                        "[" + name + "] a cancelled operation must fail as cancelled, was: " + opError);
+                Assert.assertEquals(cancellation.getMessage(), "Request was cancelled on client side",
+                        "[" + name + "] a cancelled operation must report the cancellation");
+                Assert.assertNotNull(cancellation.getCause(),
+                        "[" + name + "] the failure of the last attempt must be kept as cause");
+                Assert.assertEquals(attempts, 1,
+                        "[" + name + "] a cancelled operation must not issue another attempt");
+
+                // Cancellation is bound to the operation and does not outlive it: the same query id can be
+                // used again by the next operation.
+                try (InsertResponse response = client.insert("table01", writer, ClickHouseFormat.TSV,
+                        new InsertSettings().setQueryId(queryId)).get(30, TimeUnit.SECONDS)) {
+                    Assert.assertNotNull(response);
+                }
+            } else {
+                Assert.assertNull(opError, "[" + name + "] an operation that was not cancelled must recover: " + opError);
+                Assert.assertEquals(attempts, 2,
+                        "[" + name + "] an operation that was not cancelled must be retried");
+            }
+        } finally {
+            mockServer.stop();
+        }
+    }
+
+    @DataProvider(name = "cancelBetweenAttemptsProvider")
+    public static Object[][] cancelBetweenAttemptsProvider() {
+        return new Object[][]{
+                {"cancelled", true},
+                {"other-query-id", false}
+        };
+    }
+
+    /**
+     * The cancellation of a retried operation is looked up by query id, so it must not be evaluated before the
+     * first attempt: nothing of the starting operation is registered yet and a request found under the same query
+     * id belongs to another operation that is still running. Cancelling that other operation must not make the
+     * new one fail before it ever reaches the server.
+     */
+    @Test(groups = {"integration"})
+    public void testFirstAttemptNotStoppedByAnotherCancelledOperation() throws Exception {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
+        WireMockServer mockServer = startMockServer();
+        mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                .willReturn(WireMock.aResponse()
+                        .withStatus(HttpStatus.SC_OK)
+                        .withHeader("X-ClickHouse-Summary",
+                                "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")).build());
+
+        String queryId = "shared-query-id-" + UUID.randomUUID();
+        CountDownLatch firstOperationStarted = new CountDownLatch(1);
+        CountDownLatch secondOperationDone = new CountDownLatch(1);
+
+        try (Client client = mockServerClient(mockServer, 3)) {
+            // Holds the first operation in flight, and so registered, until the second one is over.
+            DataStreamWriter blockedWriter = out -> {
+                out.write("1\n".getBytes(StandardCharsets.US_ASCII));
+                firstOperationStarted.countDown();
+                try {
+                    secondOperationDone.await(30, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException(e);
+                }
+            };
+            DataStreamWriter plainWriter = out -> out.write("2\n".getBytes(StandardCharsets.US_ASCII));
+
+            Thread blockedOperation = new Thread(() -> {
+                try (InsertResponse ignored = client.insert("table01", blockedWriter, ClickHouseFormat.TSV,
+                        new InsertSettings().setQueryId(queryId)).get(60, TimeUnit.SECONDS)) {
+                    // the outcome of the cancelled operation is not what this test is about
+                } catch (Exception expected) {
+                    // cancelled or failed - either way the second operation is the subject here
+                }
+            });
+            blockedOperation.setDaemon(true);
+            blockedOperation.start();
+            Assert.assertTrue(firstOperationStarted.await(30, TimeUnit.SECONDS),
+                    "the first operation should have reached the transport");
+            client.cancelTransportRequest(queryId);
+
+            Throwable error = null;
+            try (InsertResponse response = client.insert("table01", plainWriter, ClickHouseFormat.TSV,
+                    new InsertSettings().setQueryId(queryId)).get(30, TimeUnit.SECONDS)) {
+                Assert.assertNotNull(response);
+            } catch (Exception e) {
+                error = e.getCause() == null ? e : e.getCause();
+            } finally {
+                secondOperationDone.countDown();
+                blockedOperation.join(30_000);
+            }
+
+            Assert.assertNull(error, "an operation must not be stopped before its first attempt by the "
+                    + "cancellation of another operation using the same query id, but failed with: " + error);
+        } finally {
+            mockServer.stop();
+        }
     }
 
     /**

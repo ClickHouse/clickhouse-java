@@ -50,6 +50,11 @@
   executes fine. The placeholder scan now skips both token kinds, like the server lexer does; a `$` that does not open a
   heredoc is still treated as an ordinary character (it is a valid identifier character).
   (https://github.com/ClickHouse/clickhouse-java/issues/3009)
+- **[client-v2]** Fixed `Client.cancelTransportRequest(queryId)` being silently dropped when it landed between two
+  attempts of a retried operation (query, POJO insert and stream insert): the operation issued the next attempt anyway
+  and could complete successfully. The request of an attempt now stays registered until the whole operation is over,
+  and the cancellation is checked before every attempt, so a cancelled operation stops instead of sending another
+  request. (https://github.com/ClickHouse/clickhouse-java/issues/2989)
 - **[data]** Fixed `BlockingPipedOutputStream.close()` not being idempotent under concurrency: the check of the
   `closed` flag and the closing handshake were not atomic, so two threads closing the same stream (e.g. a writer
   thread and a try-with-resources block) could both put the end-of-stream marker into the queue, and the second one
