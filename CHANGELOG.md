@@ -51,6 +51,11 @@
   `SimpleAggregateFunction(any, DateTime64(3, tz))` looked like second precision. They now describe the nested type.
   `AggregateFunction` columns are unchanged, since their values are aggregation states rather than values of the
   nested type. (https://github.com/ClickHouse/clickhouse-java/issues/3042)
+- **[clickhouse-client]** Fixed JPMS/module-path service loading for `ClickHouseRequestManager` by loading client
+  services from the `com.clickhouse.client` module, which declares the required `uses` directives. This avoids
+  `ServiceConfigurationError` failures from `com.clickhouse.data` when applications run on the module path.
+  (https://github.com/ClickHouse/clickhouse-java/issues/2669)
+
 - **[client-v2]** Fixed `Client.cancelTransportRequest(queryId)` being silently dropped when it landed between two
   attempts of a retried operation (query, POJO insert and stream insert): the operation issued the next attempt anyway
   and could complete successfully. The request of an attempt now stays registered until the whole operation is over,
