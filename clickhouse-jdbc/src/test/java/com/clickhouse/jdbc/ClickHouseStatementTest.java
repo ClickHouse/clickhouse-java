@@ -63,6 +63,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 @Test(groups = { "integration" })
 public class ClickHouseStatementTest extends JdbcIntegrationTest {
+    private static final int ASYNC_INSERT_BUSY_TIMEOUT_MS = 30000;
+
     @BeforeMethod(groups = "integration")
     public void setV1() {
         System.setProperty("clickhouse.jdbc.v1","true");
@@ -516,10 +518,15 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
         }
 
         Properties props = new Properties();
+        boolean adaptiveBusyTimeoutSupported;
+        boolean flushAsyncInsertQueueSupported;
         try (ClickHouseConnection conn = newConnection(props)) {
             if (conn.getServerVersion().check("(,21.12)")) {
                 return;
             }
+            adaptiveBusyTimeoutSupported = !conn.getServerVersion().check("(,24.2)");
+            // SYSTEM FLUSH ASYNC INSERT QUEUE only exists since 23.7
+            flushAsyncInsertQueueSupported = !conn.getServerVersion().check("(,23.7)");
         }
 
         props.setProperty(ClickHouseHttpOption.CUSTOM_PARAMS.getKey(), "async_insert=1,wait_for_async_insert=1");
@@ -536,17 +543,29 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             Assert.assertFalse(rs.next());
         }
 
-        //TODO: I'm not sure this is a valid test...
         if (isCloud()) return; //TODO: testAsyncInsert - Revisit, see: https://github.com/ClickHouse/clickhouse-java/issues/1747
-        props.setProperty(ClickHouseHttpOption.CUSTOM_PARAMS.getKey(), "async_insert=1,wait_for_async_insert=0");
+        // keep the async insert buffer open for the whole check instead of racing the busy timeout
+        props.setProperty(ClickHouseHttpOption.CUSTOM_PARAMS.getKey(),
+                "async_insert=1,wait_for_async_insert=0,async_insert_busy_timeout_ms=" + ASYNC_INSERT_BUSY_TIMEOUT_MS
+                        + (adaptiveBusyTimeoutSupported ? ",async_insert_use_adaptive_busy_timeout=0" : ""));
         try (ClickHouseConnection conn = newConnection(props);
                 ClickHouseStatement stmt = conn.createStatement();) {
             stmt.execute("TRUNCATE TABLE test_async_insert; "
                     + "INSERT INTO test_async_insert VALUES(1, 'a'); "
                     + "SELECT * FROM test_async_insert");
             ResultSet rs = stmt.getResultSet();
-            Assert.assertFalse(rs.next(),
-                    "Server was probably busy at that time, so the row was inserted before your query");
+            Assert.assertFalse(rs.next(), "Row must not be queryable while the async insert buffer is still open");
+
+            if (flushAsyncInsertQueueSupported) {
+                stmt.execute("SYSTEM FLUSH ASYNC INSERT QUEUE");
+                rs = stmt.executeQuery("SELECT * FROM test_async_insert");
+                Assert.assertTrue(rs.next(), "Row must be queryable once the async insert queue is flushed");
+                Assert.assertEquals(rs.getInt(1), 1);
+                Assert.assertEquals(rs.getString(2), "a");
+                Assert.assertFalse(rs.next());
+            }
+
+            stmt.execute("DROP TABLE test_async_insert");
         }
     }
 
