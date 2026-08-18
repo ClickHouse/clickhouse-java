@@ -42,14 +42,12 @@ jobs:
       fail-fast: false
       matrix:
         java: ["8", "11", "17", "21", "25"]
-        vendor:
-          - name: "openjdk"
-            distribution: "oracle-openjdk"
-          - name: "temurin"
-            distribution: "temurin"
-          - name: "amazon"
-            distribution: "corretto"
-    name: ${{ matrix.vendor.name }} JDK ${{ matrix.java }}
+        vendor: ["openjdk", "temurin", "amazon"]
+        exclude:
+          # Oracle's OpenJDK archive exposed by setup-java starts at JDK 9.
+          - java: "8"
+            vendor: "openjdk"
+    name: ${{ matrix.vendor }} JDK ${{ matrix.java }}
     steps:
       - name: Check out repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -78,7 +76,7 @@ jobs:
       - name: Activate example JVM
         uses: actions/setup-java@a42a52cfb590b0682db41c911da5dc7798ba620e # main
         with:
-          distribution: ${{ matrix.vendor.distribution }}
+          distribution: ${{ matrix.vendor == 'openjdk' && 'oracle-openjdk' || matrix.vendor == 'amazon' && 'corretto' || 'temurin' }}
           java-version: ${{ matrix.java }}
       - name: Compile examples
         run: |
@@ -103,7 +101,11 @@ jobs:
           done
       - name: Run client example smoke test
         run: |
+          CLICKHOUSE_PASSWORD=$(openssl rand -hex 32)
           docker run --detach --rm --name clickhouse-example --publish 8123:8123 \
+            --env CLICKHOUSE_USER=default \
+            --env CLICKHOUSE_PASSWORD="$CLICKHOUSE_PASSWORD" \
+            --env CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1 \
             "clickhouse/clickhouse-server:$PREFERRED_LTS_VERSION"
           trap 'docker rm --force clickhouse-example >/dev/null 2>&1 || true' EXIT
           for attempt in {1..30}; do
@@ -115,6 +117,7 @@ jobs:
           curl --fail --silent http://localhost:8123/ping >/dev/null
           OUTPUT=$(mvn --batch-mode --no-transfer-progress -f examples/client/pom.xml \
             -Dclickhouse-java.version="$PROJECT_VERSION" \
+            -DchPassword="$CLICKHOUSE_PASSWORD" \
             org.codehaus.mojo:exec-maven-plugin:3.5.0:java \
             -Dexec.mainClass=com.clickhouse.examples.jdbc.Main)
           printf '%s\n' "$OUTPUT"
@@ -124,7 +127,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: failure()
         with:
-          name: test-results-${{ matrix.vendor.name }}-jdk-${{ matrix.java }}
+          name: test-results-${{ matrix.vendor }}-jdk-${{ matrix.java }}
           path: |
             **/target/failsafe-reports
             **/target/surefire-reports
