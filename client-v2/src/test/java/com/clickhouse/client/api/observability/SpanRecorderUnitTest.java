@@ -234,6 +234,70 @@ public class SpanRecorderUnitTest {
         }
     }
 
+    @DataProvider(name = "mappedErrorStatuses")
+    public static Object[][] mappedErrorStatuses() {
+        // statuses the transport maps onto an exception that does not carry the HTTP status itself
+        return new Object[][] {
+                {407}, // proxy authentication required -> ClientMisconfigurationException
+                {502}, // bad gateway -> ConnectException
+                {503}, // service unavailable -> ConnectException
+                {418}, // unknown status -> ClientException
+        };
+    }
+
+    @Test(dataProvider = "mappedErrorStatuses")
+    public void testRequestSpanReportsHttpStatusOfMappedErrorResponses(int status) throws Exception {
+        // the request span reports the HTTP status of every response the server sent, also when the
+        // transport maps that response onto an exception that does not carry the status
+        mockServer.resetAll();
+        mockServer.stubFor(WireMock.post(WireMock.anyUrl())
+                .willReturn(WireMock.aResponse().withStatus(status)
+                        .withHeader("Content-Type", "text/plain")
+                        .withBody("")));
+
+        try (Client client = newClientBuilder().addEndpoint(mockEndpoint()).setMaxRetries(0).build()) {
+            try {
+                client.query("SELECT 1").get(10, TimeUnit.SECONDS).close();
+                Assert.fail("a query answered with status " + status + " must fail");
+            } catch (ExecutionException | RuntimeException e) {
+                // expected - the response is mapped onto a failure
+            }
+        }
+
+        CapturedSpan operationSpan = recorder.operationSpan();
+        Assert.assertNotNull(operationSpan.getErrorType(), "the failed operation must report an error type");
+
+        List<CapturedSpan> requestSpans = recorder.requestSpans(operationSpan);
+        Assert.assertEquals(requestSpans.size(), 1, "one request span per attempt");
+        CapturedSpan requestSpan = requestSpans.get(0);
+        Assert.assertEquals(requestSpan.getAttribute(SpanAttribute.HTTP_RESPONSE_STATUS_CODE), status,
+                "the status of the received response must be reported on the request span");
+        Assert.assertNotNull(requestSpan.getErrorType(), "the failed request must report an error type");
+        Assert.assertEquals(requestSpan.getEndCount(), 1);
+    }
+
+    @Test
+    public void testRequestSpanReportsNoHttpStatusWhenNoResponseArrives() throws Exception {
+        // contrast case: without a response there is no status to report
+        try (Client client = newClientBuilder().addEndpoint(DEAD_ENDPOINT).setMaxRetries(0).build()) {
+            try {
+                client.query("SELECT 1").get(30, TimeUnit.SECONDS).close();
+                Assert.fail("a query to a dead endpoint must fail");
+            } catch (ExecutionException | RuntimeException e) {
+                // expected - nothing listens on the endpoint
+            }
+        }
+
+        CapturedSpan operationSpan = recorder.operationSpan();
+        List<CapturedSpan> requestSpans = recorder.requestSpans(operationSpan);
+        Assert.assertEquals(requestSpans.size(), 1);
+        CapturedSpan requestSpan = requestSpans.get(0);
+        Assert.assertNull(requestSpan.getAttribute(SpanAttribute.HTTP_RESPONSE_STATUS_CODE),
+                "no response arrived, so no HTTP status is reported");
+        Assert.assertNotNull(requestSpan.getErrorType());
+        Assert.assertEquals(requestSpan.getEndCount(), 1);
+    }
+
     @Test
     public void testOperationSpanIsStartedOnCallingThreadWithAsyncRequests() throws Exception {
         Thread callingThread = Thread.currentThread();

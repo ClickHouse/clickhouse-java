@@ -14,6 +14,7 @@ import com.clickhouse.client.api.TransportException;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.enums.SSLMode;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
+import com.clickhouse.client.api.observability.DefaultSpanRecorder;
 import com.clickhouse.client.api.observability.Span;
 import com.clickhouse.client.api.observability.SpanSupport;
 import com.clickhouse.client.api.transport.Endpoint;
@@ -699,9 +700,9 @@ public class HttpAPIClientHelper {
 
     /**
      * Executes a single transport request and records it as a child span of the given operation
-     * span, so a retried operation reports one request span per attempt. Recording happens around
-     * {@link #executeRequest(TransportRequest)}, which stays the single place where a request is
-     * actually executed.
+     * span, so a retried operation reports one request span per attempt. The request itself is
+     * executed by {@link #doExecuteRequest(TransportRequest, Span)}, which stays the single place
+     * where a request is actually executed and which records the HTTP status of the response.
      *
      * @param transportRequest - request to execute
      * @param operationSpan - span of the operation this request is made for
@@ -715,12 +716,7 @@ public class HttpAPIClientHelper {
 
         final Span requestSpan = startRequestSpan(operationSpan, transportRequest.getDelegate());
         try {
-            TransportResponse response = executeRequest(transportRequest);
-            Object delegate = response.getDelegate();
-            if (delegate instanceof HttpResponse) {
-                spanSupport.recordHttpStatus(requestSpan, ((HttpResponse) delegate).getCode());
-            }
-            return response;
+            return doExecuteRequest(transportRequest, requestSpan);
         } catch (Exception e) {
             spanSupport.recordRequestFailure(requestSpan, e);
             throw e;
@@ -737,6 +733,22 @@ public class HttpAPIClientHelper {
     }
 
     public TransportResponse executeRequest(TransportRequest transportRequest) throws Exception {
+        return doExecuteRequest(transportRequest, DefaultSpanRecorder.NOOP_SPAN);
+    }
+
+    /**
+     * Executes a single transport request and records the HTTP status on the given request span as
+     * soon as a response is received - so the status is reported for every response, also for the
+     * ones this method maps onto an exception that does not carry it (for example {@code 502} and
+     * {@code 503} onto {@link ConnectException}).
+     *
+     * @param transportRequest - request to execute
+     * @param requestSpan - span of this request; {@link DefaultSpanRecorder#NOOP_SPAN} when the
+     *                    request is not recorded
+     * @return transport response
+     * @throws Exception when the request could not be completed
+     */
+    private TransportResponse doExecuteRequest(TransportRequest transportRequest, Span requestSpan) throws Exception {
 
         final Map<String, Object> requestConfig = transportRequest.getConfig();
         final HttpPost req = transportRequest.getDelegate();
@@ -748,6 +760,7 @@ public class HttpAPIClientHelper {
         HttpContext context = createRequestHttpContext(requestConfig);
         try {
             httpResponse = httpClient.executeOpen(null, req, context);
+            spanSupport.recordHttpStatus(requestSpan, httpResponse.getCode());
 
             httpResponse.setEntity(wrapResponseEntity(httpResponse.getEntity(),
                     httpResponse.getCode(),

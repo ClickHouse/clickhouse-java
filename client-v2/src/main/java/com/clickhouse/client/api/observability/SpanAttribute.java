@@ -78,7 +78,8 @@ public enum SpanAttribute {
     HTTP_REQUEST_METHOD("http.request.method"),
 
     /**
-     * HTTP status code returned for a transport request.
+     * HTTP status code returned for a transport request. Recorded as soon as a response is received,
+     * so it is reported for a successful and for a failed request alike.
      */
     HTTP_RESPONSE_STATUS_CODE("http.response.status_code"),
 
