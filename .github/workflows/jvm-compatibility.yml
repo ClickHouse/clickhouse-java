@@ -31,23 +31,19 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.number || github.sha }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 env:
   PREFERRED_LTS_VERSION: "25.8"
 
 jobs:
-  test:
+  build:
+    name: Build
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    strategy:
-      fail-fast: false
-      matrix:
-        java: ["8", "11", "17", "21", "25"]
-        vendor: ["openjdk", "temurin", "amazon"]
-        exclude:
-          # Oracle's OpenJDK archive exposed by setup-java starts at JDK 9.
-          - java: "8"
-            vendor: "openjdk"
-    name: ${{ matrix.vendor }} JDK ${{ matrix.java }}
+    outputs:
+      project_version: ${{ steps.build.outputs.project_version }}
     steps:
       - name: Check out repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -65,19 +61,81 @@ jobs:
             11
             17
           cache: "maven"
-      - name: Build and test all modules
+      - name: Build all modules
+        id: build
         run: |
           mvn --batch-mode --no-transfer-progress --show-version --strict-checksums --threads 2 \
-            -Dmaven.wagon.rto=30000 -DclickhouseVersion=$PREFERRED_LTS_VERSION \
+            -Dmaven.wagon.rto=30000 -DskipTests \
             -Dj8 -Pcompile-java11,compile-java17 install
           PROJECT_VERSION=$(mvn --batch-mode --no-transfer-progress help:evaluate \
             -Dexpression=project.version -q -DforceStdout)
-          echo "PROJECT_VERSION=$PROJECT_VERSION" >> "$GITHUB_ENV"
+          echo "project_version=$PROJECT_VERSION" >> "$GITHUB_OUTPUT"
+      - name: Package Maven artifacts
+        run: |
+          tar -C "$HOME/.m2/repository" -czf \
+            "$RUNNER_TEMP/clickhouse-maven-repository.tar.gz" com/clickhouse
+          shopt -s globstar nullglob
+          TARGET_DIRS=(**/target)
+          tar -czf "$RUNNER_TEMP/compiled-tests.tar.gz" "${TARGET_DIRS[@]}"
+      - name: Upload Maven artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: clickhouse-maven-repository
+          path: |
+            ${{ runner.temp }}/clickhouse-maven-repository.tar.gz
+            ${{ runner.temp }}/compiled-tests.tar.gz
+          retention-days: 1
+
+  compatibility:
+    name: ${{ matrix.vendor }} JDK ${{ matrix.java }}
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PROJECT_VERSION: ${{ needs.build.outputs.project_version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        java: ["8", "11", "17", "21", "25"]
+        vendor: ["openjdk", "temurin", "amazon"]
+        exclude:
+          # Oracle's OpenJDK archive exposed by setup-java starts at JDK 9.
+          - java: "8"
+            vendor: "openjdk"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Check out PR
+        run: |
+          git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
+            origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
+        if: github.event.inputs.pr != ''
       - name: Activate example JVM
         uses: actions/setup-java@a42a52cfb590b0682db41c911da5dc7798ba620e # main
         with:
           distribution: ${{ matrix.vendor == 'openjdk' && 'oracle-openjdk' || matrix.vendor == 'amazon' && 'corretto' || 'temurin' }}
           java-version: ${{ matrix.java }}
+          cache: "maven"
+      - name: Download Maven artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: clickhouse-maven-repository
+          path: ${{ runner.temp }}/clickhouse-maven-repository
+      - name: Restore Maven artifacts
+        run: |
+          mkdir -p "$HOME/.m2/repository"
+          tar -C "$HOME/.m2/repository" -xzf \
+            "$RUNNER_TEMP/clickhouse-maven-repository/clickhouse-maven-repository.tar.gz"
+          tar -xzf \
+            "$RUNNER_TEMP/clickhouse-maven-repository/compiled-tests.tar.gz"
+      - name: Test all modules
+        run: |
+          mvn --batch-mode --no-transfer-progress --show-version --strict-checksums --threads 2 \
+            -Dmaven.wagon.rto=30000 -DclickhouseVersion=$PREFERRED_LTS_VERSION -Dj8 \
+            -Pcompile-java11,compile-java17 \
+            org.apache.maven.plugins:maven-surefire-plugin:3.5.3:test \
+            org.apache.maven.plugins:maven-failsafe-plugin:3.1.2:integration-test \
+            org.apache.maven.plugins:maven-failsafe-plugin:3.1.2:verify
       - name: Compile examples
         run: |
           EXAMPLES=(
