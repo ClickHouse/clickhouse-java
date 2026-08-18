@@ -1,0 +1,207 @@
+name: JVM Compatibility
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "**.md"
+      - "**/docs/**"
+      - "**/LICENSE"
+      - "**/NOTICE"
+
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+    paths-ignore:
+      - "**.md"
+      - "**/docs/**"
+      - "**/LICENSE"
+      - "**/NOTICE"
+
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: "Pull request#"
+        required: false
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.number || github.sha }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PREFERRED_LTS_VERSION: "25.8"
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    outputs:
+      project_version: ${{ steps.build.outputs.project_version }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Check out PR
+        run: |
+          git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
+            origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
+        if: github.event.inputs.pr != ''
+      - name: Install build toolchains
+        uses: actions/setup-java@a42a52cfb590b0682db41c911da5dc7798ba620e # main
+        with:
+          distribution: "temurin"
+          java-version: |
+            8
+            11
+            17
+          cache: "maven"
+      - name: Build all modules
+        id: build
+        run: |
+          mvn --batch-mode --no-transfer-progress --show-version --strict-checksums --threads 2 \
+            -Dmaven.wagon.rto=30000 -DskipTests \
+            -Dj8 -Pcompile-java11,compile-java17 install
+          PROJECT_VERSION=$(mvn --batch-mode --no-transfer-progress help:evaluate \
+            -Dexpression=project.version -q -DforceStdout)
+          echo "project_version=$PROJECT_VERSION" >> "$GITHUB_OUTPUT"
+      - name: Resolve test providers
+        run: |
+          mvn --batch-mode --no-transfer-progress \
+            org.apache.maven.plugins:maven-dependency-plugin:3.8.1:get \
+            -Dartifact=org.apache.maven.surefire:surefire-testng:3.5.3
+          mvn --batch-mode --no-transfer-progress \
+            org.apache.maven.plugins:maven-dependency-plugin:3.8.1:get \
+            -Dartifact=org.apache.maven.surefire:surefire-testng:3.1.2
+      - name: Package Maven artifacts
+        run: |
+          tar -C "$HOME/.m2/repository" -czf \
+            "$RUNNER_TEMP/clickhouse-maven-repository.tar.gz" \
+            com/clickhouse org/apache/maven/surefire
+          shopt -s globstar nullglob
+          TARGET_DIRS=(**/target)
+          tar -czf "$RUNNER_TEMP/compiled-tests.tar.gz" "${TARGET_DIRS[@]}"
+      - name: Upload Maven artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: clickhouse-maven-repository
+          path: |
+            ${{ runner.temp }}/clickhouse-maven-repository.tar.gz
+            ${{ runner.temp }}/compiled-tests.tar.gz
+          retention-days: 1
+
+  compatibility:
+    name: ${{ matrix.vendor }} JDK ${{ matrix.java }}
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PROJECT_VERSION: ${{ needs.build.outputs.project_version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        java: ["8", "11", "17", "21", "25"]
+        vendor: ["openjdk", "temurin", "amazon"]
+        exclude:
+          # Oracle's OpenJDK archive exposed by setup-java starts at JDK 9.
+          - java: "8"
+            vendor: "openjdk"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Check out PR
+        run: |
+          git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
+            origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
+        if: github.event.inputs.pr != ''
+      - name: Activate test JVM
+        uses: actions/setup-java@a42a52cfb590b0682db41c911da5dc7798ba620e # main
+        with:
+          distribution: ${{ (matrix.java == '8' || matrix.java == '11') && 'temurin' || matrix.vendor == 'openjdk' && 'oracle-openjdk' || matrix.vendor == 'amazon' && 'corretto' || 'temurin' }}
+          java-version: ${{ (matrix.java == '8' || matrix.java == '11') && '17' || matrix.java }}
+          cache: "maven"
+      - name: Download Maven artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: clickhouse-maven-repository
+          path: ${{ runner.temp }}/clickhouse-maven-repository
+      - name: Restore Maven artifacts
+        run: |
+          mkdir -p "$HOME/.m2/repository"
+          tar -C "$HOME/.m2/repository" -xzf \
+            "$RUNNER_TEMP/clickhouse-maven-repository/clickhouse-maven-repository.tar.gz"
+          tar -xzf \
+            "$RUNNER_TEMP/clickhouse-maven-repository/compiled-tests.tar.gz"
+      - name: Test all modules
+        run: |
+          mvn --batch-mode --no-transfer-progress --show-version --strict-checksums --threads 2 \
+            -Dmaven.wagon.rto=30000 -DclickhouseVersion=$PREFERRED_LTS_VERSION -Dj8 \
+            -Pcompile-java11,compile-java17 \
+            org.apache.maven.plugins:maven-surefire-plugin:3.5.3:test \
+            org.apache.maven.plugins:maven-failsafe-plugin:3.1.2:integration-test \
+            org.apache.maven.plugins:maven-failsafe-plugin:3.1.2:verify
+      - name: Activate legacy example JVM
+        if: matrix.java == '8' || matrix.java == '11'
+        uses: actions/setup-java@a42a52cfb590b0682db41c911da5dc7798ba620e # main
+        with:
+          distribution: ${{ matrix.vendor == 'openjdk' && 'oracle-openjdk' || matrix.vendor == 'amazon' && 'corretto' || 'temurin' }}
+          java-version: ${{ matrix.java }}
+      - name: Compile examples
+        run: |
+          EXAMPLES=(
+            examples/client/pom.xml
+            examples/client-v2/pom.xml
+            examples/jdbc/pom.xml
+            examples/r2dbc/pom.xml
+          )
+          if [[ "${{ matrix.java }}" != "8" && "${{ matrix.java }}" != "11" ]]; then
+            EXAMPLES+=(
+              examples/client-v2-apache-arrow/pom.xml
+              examples/client-v2-json-processors/pom.xml
+              examples/demo-kotlin-service/pom.xml
+              examples/demo-service/pom.xml
+              examples/jdbc-v2-json-processors/pom.xml
+            )
+          fi
+          for pom in "${EXAMPLES[@]}"; do
+            mvn --batch-mode --no-transfer-progress -f "$pom" \
+              -Dclickhouse-java.version="$PROJECT_VERSION" clean compile
+          done
+      - name: Run client example smoke test
+        run: |
+          CLICKHOUSE_PASSWORD=$(openssl rand -hex 32)
+          docker run --detach --rm --name clickhouse-example --publish 8123:8123 \
+            --env CLICKHOUSE_USER=default \
+            --env CLICKHOUSE_PASSWORD="$CLICKHOUSE_PASSWORD" \
+            --env CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1 \
+            "clickhouse/clickhouse-server:$PREFERRED_LTS_VERSION"
+          trap 'docker rm --force clickhouse-example >/dev/null 2>&1 || true' EXIT
+          for attempt in {1..30}; do
+            if curl --fail --silent http://localhost:8123/ping >/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+          curl --fail --silent http://localhost:8123/ping >/dev/null
+          OUTPUT=$(mvn --batch-mode --no-transfer-progress -f examples/client/pom.xml \
+            -Dclickhouse-java.version="$PROJECT_VERSION" \
+            -DchPassword="$CLICKHOUSE_PASSWORD" \
+            org.codehaus.mojo:exec-maven-plugin:3.5.0:java \
+            -Dexec.mainClass=com.clickhouse.examples.jdbc.Main)
+          printf '%s\n' "$OUTPUT"
+          [[ "$OUTPUT" == *"Inserted 10 records"* ]]
+          [[ "$OUTPUT" == *"Query returned 10 records"* ]]
+      - name: Upload test results
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: failure()
+        with:
+          name: test-results-${{ matrix.vendor }}-jdk-${{ matrix.java }}
+          path: |
+            **/target/failsafe-reports
+            **/target/surefire-reports
+          retention-days: 5
