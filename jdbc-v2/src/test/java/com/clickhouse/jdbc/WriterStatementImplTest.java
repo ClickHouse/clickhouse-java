@@ -1,6 +1,7 @@
 package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.internal.ServerSettings;
+import com.clickhouse.jdbc.internal.SqlParserFacade;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
@@ -200,6 +201,60 @@ public class WriterStatementImplTest extends JdbcIntegrationTest {
                         "INSERT into a plain table must keep using the RowBinary writer: " + sqlTemplate);
                 ps.setInt(1, 42);
                 Assert.assertEquals(ps.executeUpdate(), 1);
+            } finally {
+                try (Statement stmt = connection.createStatement()) {
+                    stmt.execute("DROP TABLE IF EXISTS " + table);
+                }
+            }
+        }
+    }
+
+    @DataProvider(name = "antlr4ParserBackends")
+    Object[][] antlr4ParserBackends() {
+        return new Object[][]{
+                {SqlParserFacade.SQLParser.ANTLR4.name()},
+                {SqlParserFacade.SQLParser.ANTLR4_PARAMS_PARSER.name()},
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "antlr4ParserBackends")
+    public void testInsertWithUnparseableFunctionNotWrittenWithRowBinary(String parserName) throws SQLException {
+        String table = "bt_writer_unparseable_function";
+        Properties properties = new Properties();
+        properties.setProperty(DriverProperties.BETA_ROW_BINARY_WRITER.getKey(), "true");
+        properties.setProperty(DriverProperties.SQL_PARSER.getKey(), parserName);
+        properties.setProperty(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF);
+        try (Connection connection = getJdbcConnection(properties)) {
+            try (Statement stmt = connection.createStatement()) {
+                stmt.execute("DROP TABLE IF EXISTS " + table);
+                stmt.execute("CREATE TABLE " + table + " (v1 Int32, v2 String) Engine MergeTree ORDER BY ()");
+            }
+
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "INSERT INTO " + table + " (v1, v2) VALUES (?, hex(x'AB'))")) {
+                Assert.assertFalse(ps instanceof WriterStatementImpl,
+                        "An insert with a function in its values list must not be written with the RowBinary writer");
+                ps.setInt(1, 1);
+                Assert.assertEquals(ps.executeUpdate(), 1);
+            }
+
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "INSERT INTO " + table + " (v1, v2) VALUES (?, ?)")) {
+                Assert.assertTrue(ps instanceof WriterStatementImpl);
+                ps.setInt(1, 2);
+                ps.setString(2, "CD");
+                Assert.assertEquals(ps.executeUpdate(), 1);
+            }
+
+            try (Statement stmt = connection.createStatement();
+                 ResultSet rs = stmt.executeQuery("SELECT v1, v2 FROM " + table + " ORDER BY v1")) {
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getInt(1), 1);
+                Assert.assertEquals(rs.getString(2), "AB");
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getInt(1), 2);
+                Assert.assertEquals(rs.getString(2), "CD");
+                Assert.assertFalse(rs.next());
             } finally {
                 try (Statement stmt = connection.createStatement()) {
                     stmt.execute("DROP TABLE IF EXISTS " + table);
