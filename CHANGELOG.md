@@ -51,6 +51,11 @@
   without any error being raised. The generated setter now consumes the marker; a value that is actually `NULL` cannot
   be held by a primitive field and is reported with a `NullValueException`. Boxed POJO fields are unaffected.
   (https://github.com/ClickHouse/clickhouse-java/issues/2993)
+- **[client-v2]** Fixed `Client.cancelTransportRequest(queryId)` being silently dropped when it landed between two
+  attempts of a retried operation (query, POJO insert and stream insert): the operation issued the next attempt anyway
+  and could complete successfully. The request of an attempt now stays registered until the whole operation is over,
+  and the cancellation is checked before every attempt, so a cancelled operation stops instead of sending another
+  request. (https://github.com/ClickHouse/clickhouse-java/issues/2989)
 - **[data]** Fixed `BlockingPipedOutputStream.close()` not being idempotent under concurrency: the check of the
   `closed` flag and the closing handshake were not atomic, so two threads closing the same stream (e.g. a writer
   thread and a try-with-resources block) could both put the end-of-stream marker into the queue, and the second one
