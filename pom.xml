@@ -48,6 +48,7 @@
         <module>clickhouse-http-client</module>
         <!-- client v2 -->
         <module>client-v2</module>
+        <module>client-v2-otel</module>
         <!-- driver -->
         <module>clickhouse-jdbc</module>
         <module>jdbc-v2</module>
@@ -93,6 +94,7 @@
         <gson.version>2.10.1</gson.version>
         <jctools.version>4.0.1</jctools.version>
         <opencensus.version>0.31.1</opencensus.version>
+        <opentelemetry.version>1.51.0</opentelemetry.version>
         <protobuf.version>3.23.4</protobuf.version>
         <lz4.version>1.11.1</lz4.version>
         <msgpack.version>0.9.5</msgpack.version>
