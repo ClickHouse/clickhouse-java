@@ -1655,6 +1655,46 @@ public class StatementTest extends JdbcIntegrationTest {
         };
     }
 
+    @DataProvider
+    public static Object[][] escapedSQLToNativeDP() {
+        return new Object[][] {
+                // JDBC escape sequences outside of quoted text are still translated
+                {"SELECT {fn UCASE(name)} FROM t", "SELECT UCASE(name) FROM t"},
+                {"SELECT {fn CONCAT('Hello', 'World')}", "SELECT CONCAT('Hello', 'World')"},
+                {"SELECT {fn ABS({fn MOD(10, 3)})}", "SELECT ABS(MOD(10, 3))"},
+                {"SELECT {d '2024-01-02'}, {ts '2024-01-02 02:01:01'}", "SELECT toDate('2024-01-02'), timestamp('2024-01-02 02:01:01')"},
+                {"SELECT {d ?}", "SELECT {d ?}"},
+                {"SELECT {p1:String}", "SELECT {p1:String}"},
+                {"SELECT {fn toString({p1:Int32})}", "SELECT toString({p1:Int32})"},
+                {"SELECT {fn CONCAT({d '2024-01-02'}, 'x')}", "SELECT CONCAT(toDate('2024-01-02'), 'x')"},
+                {"SELECT 1} AS a", "SELECT 1} AS a"},
+                {"", ""},
+                // an escape sequence that is never closed is left as it was written
+                {"SELECT {fn UCASE(x", "SELECT {fn UCASE(x"},
+                {"SELECT {fn a(, {fn b(", "SELECT {fn a(, {fn b("},
+                // quoted text is data, never syntax: it must be passed through verbatim
+                {"INSERT INTO t VALUES ({'k':'Z!F3{fn '})", "INSERT INTO t VALUES ({'k':'Z!F3{fn '})"},
+                {"SELECT 'a{fn b' AS x, 'c}d' AS y", "SELECT 'a{fn b' AS x, 'c}d' AS y"},
+                {"SELECT 'a\\'b{fn c' AS x, '}' AS y", "SELECT 'a\\'b{fn c' AS x, '}' AS y"},
+                {"SELECT '{d ''2024-01-02''}' AS x", "SELECT '{d ''2024-01-02''}' AS x"},
+                {"SELECT 1 AS \"a{fn \", 2 AS \"b}\"", "SELECT 1 AS \"a{fn \", 2 AS \"b}\""},
+                {"SELECT 1 AS `a{fn `, 2 AS `b}`", "SELECT 1 AS `a{fn `, 2 AS `b}`"},
+                {"SELECT '{fn UCASE(name)}' AS x", "SELECT '{fn UCASE(name)}' AS x"},
+                {"SELECT 'unterminated {fn ", "SELECT 'unterminated {fn "},
+                {"SELECT 'a\\\\' AS x, {fn UCASE(y)}", "SELECT 'a\\\\' AS x, UCASE(y)"},
+                {"SELECT 1 AS \"a\"\"}b\", {fn UCASE(y)}", "SELECT 1 AS \"a\"\"}b\", UCASE(y)"},
+                // comments are not syntax either
+                {"SELECT 1 -- it's {fn \n, {fn UCASE(y)}", "SELECT 1 -- it's {fn \n, UCASE(y)"},
+                {"SELECT /* it's {fn */ {fn UCASE(y)}", "SELECT /* it's {fn */ UCASE(y)"},
+                {"SELECT 1 # don't {fn ", "SELECT 1 # don't {fn "},
+        };
+    }
+
+    @Test(dataProvider = "escapedSQLToNativeDP")
+    public void testEscapedSQLToNative(String sql, String expected) {
+        assertEquals(StatementImpl.escapedSQLToNative(sql), expected);
+    }
+
     private static String getDBName(Statement stmt) throws SQLException {
         try (ResultSet rs = stmt.executeQuery("SELECT database()")) {
             rs.next();

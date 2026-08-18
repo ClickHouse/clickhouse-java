@@ -352,6 +352,47 @@ Notes:
 
 ## Usage in `jdbc-v2`
 
+### `FORMAT JSON` output
+
+ClickHouse `FORMAT JSON` produces a JSON value with a ClickHouse-specific
+structure. Its `meta` array describes columns, while its `data` array contains
+result rows; row counts and statistics are provided separately. It is not
+mapped to a JDBC `ResultSet` by `Statement.executeQuery(...)`; callers that
+need this output should use the underlying `client-v2` instance exposed by the
+JDBC connection and parse the `QueryResponse` stream with a JSON library.
+
+```java
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+ObjectMapper mapper = new ObjectMapper();
+
+try (Connection conn = DriverManager.getConnection(
+        "jdbc:clickhouse://localhost:8123/default", props);
+     QueryResponse response = conn.unwrap(ConnectionImpl.class)
+             .getClient()
+             .query("SELECT 1 AS x FORMAT JSON")
+             .get()) {
+    JsonNode result = mapper.readTree(response.getInputStream());
+    JsonNode meta = result.required("meta");
+    JsonNode data = result.required("data");
+
+    String columnName = meta.get(0).required("name").asText();
+    int x = data.get(0).required("x").asInt();
+}
+```
+
+The example reads directly from the response `InputStream` without copying the
+JSON response into a `String`. For large responses, use Jackson's streaming
+`JsonParser` to process the `data` array one row at a time after reading the
+`meta` array.
+
+The returned `Client` is owned by the JDBC connection. Close each
+`QueryResponse`, as shown above, but do not close the client returned by
+`ConnectionImpl#getClient()`.
+
+### Row-oriented JSONEachRow output
+
 The output format is selected by appending `FORMAT JSONEachRow` to the SQL
 statement. The driver does not rewrite the SQL and does not apply a default
 format on the caller's behalf.
