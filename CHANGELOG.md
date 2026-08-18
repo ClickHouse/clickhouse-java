@@ -9,12 +9,15 @@
   `com.clickhouse.client.api.observability` package: each operation (a query, a command or an insert - including
   the `ping` and `getTableSchema` calls, which run a query) starts one operation span, and every transport
   request made for it - including each retry - starts a child request span. `SpanRecorder` and `Span` are plain interfaces; an implementation extends the
-  `DefaultSpanRecorder` base class and overrides only the kinds of spans it cares about, so it keeps working when
-  the client starts a kind of span it does not know about. The operation's `QuerySettings`/`InsertSettings` is
-  passed to `startSpan(...)` so a recorder can take the properties it needs from it, and the reusable
-  `SpanSupport` class computes the attribute values. Span names and attribute keys follow the OpenTelemetry semantic conventions for
-  database and HTTP client spans; the keys are defined by the `SpanAttribute` enum and the values are computed by
-  the client, so all recorders report the same information (statement text, target database and table, query id,
+  `DefaultSpanRecorder` base class and overrides only what it cares about, so it keeps working when
+  the client starts a kind of span it does not know about. The registered recorder is called first and receives
+  everything the client knows about the operation (its `QuerySettings`/`InsertSettings`, the statement, the target
+  table, the batch size, the endpoint, the metrics of the completed operation and the failure), so it is free to
+  record whatever it needs and in whatever form; the reusable `SpanSupport` class derives the standard span names
+  and attribute values from those same structures and is called by a recorder implementation that wants them, so
+  its logic is opt-in and overridable. Span names and attribute keys follow the OpenTelemetry semantic conventions for
+  database and HTTP client spans; the keys are defined by the `SpanAttribute` enum and the values are derived by
+  `SpanSupport`, so all recorders that use it report the same information (statement text, target database and table, query id,
   statement parameters, batch size, the first configured endpoint on the operation span and the per-attempt
   server address and port on the request spans, HTTP status, returned rows, and the error type and ClickHouse
   error code on failure). An operation span is started on the calling thread, so it joins

@@ -1,7 +1,9 @@
 package com.clickhouse.client.api.observability;
 
 import com.clickhouse.client.api.insert.InsertSettings;
+import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.query.QuerySettings;
+import com.clickhouse.client.api.transport.Endpoint;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -11,25 +13,58 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Recorder that keeps every span it starts, so tests can assert what the client reported.
+ * Recorder that keeps every span it starts, so tests can assert what the client reported. It takes the
+ * names and the attributes from {@link SpanSupport}, which is how a recorder opts in to the client's
+ * standard values.
  */
 public class CapturingSpanRecorder extends DefaultSpanRecorder {
 
     private final List<CapturedSpan> spans = Collections.synchronizedList(new ArrayList<>());
 
     @Override
-    public Span startSpan(String spanName, QuerySettings settings) {
-        return add(new CapturedSpan(spanName, null, settings.getDatabase(), settings.getQueryId()));
+    public Span startQuerySpan(QuerySettings settings, String sqlQuery, Endpoint endpoint) {
+        SpanSupport support = getSpanSupport();
+        CapturedSpan span = add(new CapturedSpan(support.querySpanName(settings), null,
+                settings.getDatabase(), settings.getQueryId()));
+        support.fillQueryAttributes(span, settings, sqlQuery, endpoint);
+        return span;
     }
 
     @Override
-    public Span startSpan(String spanName, InsertSettings settings) {
-        return add(new CapturedSpan(spanName, null, settings.getDatabase(), settings.getQueryId()));
+    public Span startInsertSpan(InsertSettings settings, String tableName, int batchSize, Endpoint endpoint) {
+        SpanSupport support = getSpanSupport();
+        CapturedSpan span = add(new CapturedSpan(support.insertSpanName(settings, tableName), null,
+                settings.getDatabase(), settings.getQueryId()));
+        support.fillInsertAttributes(span, settings, tableName, batchSize, endpoint);
+        return span;
     }
 
     @Override
-    public Span startRequestSpan(String spanName, Span operationSpan) {
-        return add(new CapturedSpan(spanName, operationSpan, null, null));
+    public Span startRequestSpan(Span operationSpan, String host, int port) {
+        SpanSupport support = getSpanSupport();
+        CapturedSpan span = add(new CapturedSpan(support.requestSpanName(), operationSpan, null, null));
+        support.fillRequestAttributes(span, host, port);
+        return span;
+    }
+
+    @Override
+    public void recordHttpStatus(Span requestSpan, int statusCode) {
+        getSpanSupport().recordHttpStatus(requestSpan, statusCode);
+    }
+
+    @Override
+    public void recordSuccess(Span operationSpan, OperationMetrics metrics) {
+        getSpanSupport().recordSuccess(operationSpan, metrics);
+    }
+
+    @Override
+    public void recordFailure(Span operationSpan, Throwable t) {
+        getSpanSupport().recordFailure(operationSpan, t);
+    }
+
+    @Override
+    public void recordRequestFailure(Span requestSpan, Throwable t) {
+        getSpanSupport().recordRequestFailure(requestSpan, t);
     }
 
     private CapturedSpan add(CapturedSpan span) {

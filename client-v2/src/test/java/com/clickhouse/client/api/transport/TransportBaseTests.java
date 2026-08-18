@@ -775,11 +775,11 @@ public class TransportBaseTests extends BaseIntegrationTest {
         // A request span is started for every attempt, right after the transport request was registered.
         SpanRecorder registryProbe = new DefaultSpanRecorder() {
             @Override
-            public Span startRequestSpan(String spanName, Span operationSpan) {
+            public Span startRequestSpan(Span operationSpan, String host, int port) {
                 if (ongoingRequests(clientRef.get()).containsKey(queryId)) {
                     registeredWhileRunning.set(true);
                 }
-                return super.startRequestSpan(spanName, operationSpan);
+                return super.startRequestSpan(operationSpan, host, port);
             }
         };
 

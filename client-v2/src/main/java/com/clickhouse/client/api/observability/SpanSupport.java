@@ -10,23 +10,26 @@ import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.transport.Endpoint;
 
 import java.util.Map;
-import java.util.Objects;
 
 /**
- * Starts spans on a {@link SpanRecorder} and records the client's standard set of attributes on
- * them.
+ * Derives the client's standard span names and attributes from the structures a
+ * {@link SpanRecorder} is called with.
  * <p>
- * All values reported through the observability SPI are computed here, so every recorder observes
- * the same information for the same operation. An implementation that wraps or replaces parts of
- * the client can reuse this class, or extend it to report additional attributes - every method may
- * be overridden.
+ * This class is a helper <b>for</b> a recorder, not a layer in front of one: the client always calls
+ * the registered recorder first, and an implementation decides whether to use this class. Using it is
+ * how a recorder reports the same names and the same {@link SpanAttribute} values as every other
+ * recorder; a recorder that wants other values either overrides the method that computes them, or
+ * does not use this class at all.
  * <p>
- * A recorder is required; an application that records nothing registers
- * {@link DefaultSpanRecorder#NOOP} (the client's default). With that recorder the instance is
- * disabled: every method returns immediately and no attribute value is computed, so an application
- * that did not register a recorder pays only a boolean check.
+ * Every method may be overridden. {@link #DEFAULT} is a shared instance for implementations that keep
+ * the standard behaviour - the class holds no state.
  */
 public class SpanSupport {
+
+    /**
+     * Shared instance with the standard behaviour.
+     */
+    public static final SpanSupport DEFAULT = new SpanSupport();
 
     /**
      * Value of {@link SpanAttribute#DB_SYSTEM_NAME}.
@@ -43,146 +46,107 @@ public class SpanSupport {
     public static final String REQUEST_SPAN_NAME = "POST";
 
     /**
-     * Value for the batch size when the client does not know how many rows it sends.
-     */
-    public static final int BATCH_SIZE_UNKNOWN = -1;
-
-    /**
      * Key under which the statement parameters are kept in the request settings.
      */
     protected static final String KEY_STATEMENT_PARAMS = HttpAPIClientHelper.KEY_STATEMENT_PARAMS;
 
     /**
-     * Shared instance that records nothing.
-     */
-    public static final SpanSupport DISABLED = new SpanSupport(DefaultSpanRecorder.NOOP);
-
-    private final SpanRecorder recorder;
-
-    private final boolean enabled;
-
-    /**
-     * Creates support for the given recorder.
+     * Returns the name of the span of a read operation, following the OpenTelemetry database span
+     * naming convention.
      *
-     * @param recorder - recorder registered by the application; {@link DefaultSpanRecorder#NOOP} to
-     *                 record nothing. Must not be {@code null} - the client's default recorder
-     *                 already records nothing, so a {@code null} here is a configuration error.
-     * @throws NullPointerException when {@code recorder} is {@code null}
+     * @param settings - settings of the operation
+     * @return span name
      */
-    public SpanSupport(SpanRecorder recorder) {
-        this.recorder = Objects.requireNonNull(recorder, "recorder is required; use DefaultSpanRecorder.NOOP to record nothing");
-        this.enabled = recorder != DefaultSpanRecorder.NOOP;
+    public String querySpanName(QuerySettings settings) {
+        return spanName(OPERATION_QUERY, settings.getDatabase(), null);
     }
 
     /**
-     * Returns whether a recorder is registered. When it is not, an operation should not do any
-     * span-related work at all.
+     * Returns the name of the span of an insert operation, following the OpenTelemetry database span
+     * naming convention.
      *
-     * @return {@code true} when spans are recorded
+     * @param settings - settings of the operation
+     * @param tableName - target table
+     * @return span name
      */
-    public boolean isEnabled() {
-        return enabled;
+    public String insertSpanName(InsertSettings settings, String tableName) {
+        return spanName(OPERATION_INSERT, settings.getDatabase(), tableName);
     }
 
     /**
-     * Returns the registered recorder, or a recorder that records nothing when there is none.
+     * Returns the name of the span of a single transport request.
      *
-     * @return recorder; never {@code null}
+     * @return span name
      */
-    protected SpanRecorder getRecorder() {
-        return recorder;
+    public String requestSpanName() {
+        return REQUEST_SPAN_NAME;
     }
 
     /**
-     * Starts an operation span for a query or a command. Every operation the client implements on
-     * top of a query - a ping or a table-schema lookup - is reported as a query; a recorder that
-     * wants to describe it differently derives that from the settings it is given.
+     * Records the attributes of a read operation - a query, a command, a ping or a table-schema
+     * lookup. Every operation the client implements on top of a query is described as a query; a
+     * recorder that wants to describe one of them differently derives that from the settings and the
+     * statement it is given.
      *
-     * @param settings - resolved request settings
+     * @param span - span of the operation
+     * @param settings - resolved settings of the operation
      * @param sqlQuery - statement sent to the server
-     * @param endpoint - endpoint the operation is expected to use
-     * @return operation span
+     * @param endpoint - endpoint the operation is expected to use; may be {@code null}
      */
-    public Span startQuerySpan(QuerySettings settings, String sqlQuery, Endpoint endpoint) {
-        if (!enabled) {
-            return DefaultSpanRecorder.NOOP_SPAN;
-        }
-
-        final String namespace = settings.getDatabase();
-        Span span = orNoop(recorder.startSpan(spanName(OPERATION_QUERY, namespace, null), settings));
-        recordCommonAttributes(span, namespace, settings.getQueryId(), null, null,
-                BATCH_SIZE_UNKNOWN, endpoint);
+    public void fillQueryAttributes(Span span, QuerySettings settings, String sqlQuery, Endpoint endpoint) {
+        recordCommonAttributes(span, settings.getDatabase(), settings.getQueryId(), null, null,
+                SpanRecorder.BATCH_SIZE_UNKNOWN, endpoint);
         span.setAttribute(SpanAttribute.DB_QUERY_TEXT.getKey(), sqlQuery);
         recordStatementParams(span, settings.getAllSettings());
-        return span;
     }
 
     /**
-     * Starts an operation span for an insert.
+     * Records the attributes of an insert operation.
      *
-     * @param settings - resolved request settings
+     * @param span - span of the operation
+     * @param settings - resolved settings of the operation
      * @param tableName - target table
-     * @param batchSize - number of items in the batch, or {@link #BATCH_SIZE_UNKNOWN} when the
-     *                  client does not know it (stream and writer inserts)
-     * @param endpoint - endpoint the operation is expected to use
-     * @return operation span
+     * @param batchSize - number of items in the batch, or {@link SpanRecorder#BATCH_SIZE_UNKNOWN}
+     *                  when the client does not know it
+     * @param endpoint - endpoint the operation is expected to use; may be {@code null}
      */
-    public Span startInsertSpan(InsertSettings settings, String tableName, int batchSize, Endpoint endpoint) {
-        if (!enabled) {
-            return DefaultSpanRecorder.NOOP_SPAN;
-        }
-
-        final String namespace = settings.getDatabase();
-        Span span = orNoop(recorder.startSpan(spanName(OPERATION_INSERT, namespace, tableName), settings));
-        recordCommonAttributes(span, namespace, settings.getQueryId(), OPERATION_INSERT, tableName,
-                batchSize, endpoint);
-        return span;
+    public void fillInsertAttributes(Span span, InsertSettings settings, String tableName, int batchSize,
+                                     Endpoint endpoint) {
+        recordCommonAttributes(span, settings.getDatabase(), settings.getQueryId(), OPERATION_INSERT,
+                tableName, batchSize, endpoint);
     }
 
     /**
-     * Starts a request span for a single transport attempt of an operation.
+     * Records the attributes of a single transport request.
      *
-     * @param operationSpan - span of the operation this request belongs to
-     * @param host - server the request is sent to
-     * @param port - port the request is sent to
-     * @return request span
+     * @param span - span of the request
+     * @param host - server the request is sent to, or {@code null} when it is not known
+     * @param port - port the request is sent to, or a non-positive value when it is not known
      */
-    public Span startRequestSpan(Span operationSpan, String host, int port) {
-        if (!enabled) {
-            return DefaultSpanRecorder.NOOP_SPAN;
-        }
-
-        Span span = orNoop(recorder.startRequestSpan(REQUEST_SPAN_NAME, operationSpan));
+    public void fillRequestAttributes(Span span, String host, int port) {
         span.setAttribute(SpanAttribute.HTTP_REQUEST_METHOD.getKey(), REQUEST_SPAN_NAME);
         recordEndpoint(span, host, port);
-        return span;
     }
 
     /**
-     * Records the HTTP status code returned for a transport request.
+     * Records the HTTP status returned for a transport request.
      *
      * @param span - span of the request
      * @param statusCode - HTTP status code the server answered with
      */
     public void recordHttpStatus(Span span, int statusCode) {
-        if (!enabled) {
-            return;
-        }
         span.setAttribute(SpanAttribute.HTTP_RESPONSE_STATUS_CODE.getKey(), statusCode);
     }
 
     /**
-     * Records the server a request is sent to. Called per attempt, because a retry may go to another
-     * node.
+     * Records the server a request is sent to. Recorded per attempt, because a retry may go to
+     * another node.
      *
      * @param span - span to record on
      * @param host - server hostname, or {@code null} when it is not known
      * @param port - server port, or a non-positive value when it is not known
      */
     public void recordEndpoint(Span span, String host, int port) {
-        if (!enabled) {
-            return;
-        }
         if (host != null) {
             span.setAttribute(SpanAttribute.SERVER_ADDRESS.getKey(), host);
         }
@@ -198,7 +162,7 @@ public class SpanSupport {
      * @param metrics - metrics of the completed operation, may be {@code null}
      */
     public void recordSuccess(Span span, OperationMetrics metrics) {
-        if (!enabled || metrics == null) {
+        if (metrics == null) {
             return;
         }
 
@@ -215,13 +179,13 @@ public class SpanSupport {
     /**
      * Records the failure of a single transport request. In addition to
      * {@link #recordFailure(Span, Throwable)} the HTTP status is recorded when the server answered
-     * with an error response.
+     * with an error response that carries it.
      *
      * @param span - span of the request
      * @param t - failure
      */
     public void recordRequestFailure(Span span, Throwable t) {
-        if (!enabled || t == null) {
+        if (t == null) {
             return;
         }
 
@@ -233,14 +197,14 @@ public class SpanSupport {
     }
 
     /**
-     * Records the failure of an operation or of a single transport request. The ClickHouse error
-     * code is recorded when the server reported one.
+     * Records the failure of an operation or of a single transport request. The ClickHouse error code
+     * is recorded when the server reported one.
      *
      * @param span - span to record on
      * @param t - failure
      */
     public void recordFailure(Span span, Throwable t) {
-        if (!enabled || t == null) {
+        if (t == null) {
             return;
         }
 
@@ -306,14 +270,6 @@ public class SpanSupport {
             }
         }
         return null;
-    }
-
-    /**
-     * Replaces a span a recorder did not return with one that records nothing, so that an
-     * incomplete implementation cannot break an operation.
-     */
-    protected Span orNoop(Span span) {
-        return span == null ? DefaultSpanRecorder.NOOP_SPAN : span;
     }
 
     /**

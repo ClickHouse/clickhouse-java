@@ -5,8 +5,10 @@ import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.observability.CapturingSpanRecorder.CapturedSpan;
+import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
+import com.clickhouse.client.api.transport.Endpoint;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseFormat;
 import com.github.tomakehurst.wiremock.WireMockServer;
@@ -347,12 +349,19 @@ public class SpanRecorderUnitTest {
     @Test
     public void testDefaultSpanRecorderRecordsNothing() {
         SpanRecorder defaultRecorder = new DefaultSpanRecorder();
-        Assert.assertSame(defaultRecorder.startSpan("query", new QuerySettings()), DefaultSpanRecorder.NOOP_SPAN);
-        Assert.assertSame(defaultRecorder.startSpan("insert", new InsertSettings()), DefaultSpanRecorder.NOOP_SPAN);
-        Assert.assertSame(defaultRecorder.startRequestSpan("POST", DefaultSpanRecorder.NOOP_SPAN),
+        Assert.assertSame(defaultRecorder.startQuerySpan(new QuerySettings(), "SELECT 1", null),
+                DefaultSpanRecorder.NOOP_SPAN);
+        Assert.assertSame(defaultRecorder.startInsertSpan(new InsertSettings(), "t1", 3, null),
+                DefaultSpanRecorder.NOOP_SPAN);
+        Assert.assertSame(defaultRecorder.startRequestSpan(DefaultSpanRecorder.NOOP_SPAN, "localhost", 8123),
                 DefaultSpanRecorder.NOOP_SPAN);
 
         Span noopSpan = DefaultSpanRecorder.NOOP_SPAN;
+        // the base class records nothing for every outcome the client reports
+        defaultRecorder.recordHttpStatus(noopSpan, 200);
+        defaultRecorder.recordSuccess(noopSpan, null);
+        defaultRecorder.recordFailure(noopSpan, new IllegalStateException("boom"));
+        defaultRecorder.recordRequestFailure(noopSpan, new IllegalStateException("boom"));
         noopSpan.setAttribute(SpanAttribute.DB_NAMESPACE.getKey(), "db");
         noopSpan.setError("java.lang.IllegalStateException");
         noopSpan.end();
@@ -386,21 +395,69 @@ public class SpanRecorderUnitTest {
     }
 
     @Test
+    public void testClientCallsTheRecorderAndNotTheSupport() throws Exception {
+        // the client must go through the registered recorder for everything it reports, so a recorder
+        // that reports its own values never has SpanSupport applied to its spans - the support is opt-in
+        OwnValuesSpanRecorder ownValuesRecorder = new OwnValuesSpanRecorder();
+        try (Client client = new Client.Builder()
+                .setUsername("default")
+                .setPassword("")
+                .setDefaultDatabase("test_db")
+                .setSpanRecorder(ownValuesRecorder)
+                .addEndpoint(mockEndpoint())
+                .build()) {
+            try (QueryResponse response = client.query("SELECT 1").get(10, TimeUnit.SECONDS)) {
+                Assert.assertNotNull(response, "a recorder that ignores SpanSupport must not fail the operation");
+            }
+        }
+
+        Assert.assertEquals(ownValuesRecorder.spans.size(), 2, "an operation span and one request span");
+        CapturedSpan operationSpan = ownValuesRecorder.spans.get(0);
+        Assert.assertEquals(operationSpan.getAttributes().size(), 1,
+                "only the attribute the recorder set itself is reported: " + operationSpan.getAttributes());
+        Assert.assertEquals(operationSpan.getAttribute("my.statement"), "SELECT 1");
+        Assert.assertNull(operationSpan.getAttribute(SpanAttribute.DB_SYSTEM_NAME),
+                "the client must not apply the standard attributes behind the recorder's back");
+        Assert.assertEquals(operationSpan.getEndCount(), 1);
+    }
+
+    @Test
     public void testRecorderReturningNullSpansDoesNotBreakOperations() throws Exception {
         SpanRecorder nullRecorder = new SpanRecorder() {
             @Override
-            public Span startSpan(String spanName, QuerySettings settings) {
+            public Span startQuerySpan(QuerySettings settings, String sqlQuery, Endpoint endpoint) {
                 return null;
             }
 
             @Override
-            public Span startSpan(String spanName, InsertSettings settings) {
+            public Span startInsertSpan(InsertSettings settings, String tableName, int batchSize,
+                                        Endpoint endpoint) {
                 return null;
             }
 
             @Override
-            public Span startRequestSpan(String spanName, Span operationSpan) {
+            public Span startRequestSpan(Span operationSpan, String host, int port) {
                 return null;
+            }
+
+            @Override
+            public void recordHttpStatus(Span requestSpan, int statusCode) {
+                // records nothing
+            }
+
+            @Override
+            public void recordSuccess(Span operationSpan, OperationMetrics metrics) {
+                // records nothing
+            }
+
+            @Override
+            public void recordFailure(Span operationSpan, Throwable t) {
+                // records nothing
+            }
+
+            @Override
+            public void recordRequestFailure(Span requestSpan, Throwable t) {
+                // records nothing
             }
         };
 
@@ -418,14 +475,46 @@ public class SpanRecorderUnitTest {
     }
 
     /**
+     * Recorder that records its own values only. It fails when the client makes it go through
+     * {@link com.clickhouse.client.api.observability.SpanSupport}, so the test can assert that using the
+     * support stays the implementation's own choice.
+     */
+    private static class OwnValuesSpanRecorder extends DefaultSpanRecorder {
+        final List<CapturedSpan> spans = Collections.synchronizedList(new ArrayList<>());
+
+        @Override
+        protected SpanSupport getSpanSupport() {
+            throw new AssertionError("the client must not make a recorder use SpanSupport");
+        }
+
+        @Override
+        public Span startQuerySpan(QuerySettings settings, String sqlQuery, Endpoint endpoint) {
+            CapturedSpan span = new CapturedSpan("my " + settings.getDatabase(), null,
+                    settings.getDatabase(), settings.getQueryId());
+            span.setAttribute("my.statement", sqlQuery);
+            spans.add(span);
+            return span;
+        }
+
+        @Override
+        public Span startRequestSpan(Span operationSpan, String host, int port) {
+            CapturedSpan span = new CapturedSpan("my request", operationSpan, null, null);
+            spans.add(span);
+            return span;
+        }
+    }
+
+    /**
      * Recorder that implements the query span only and inherits everything else from the base class.
      */
     private static class QueryOnlySpanRecorder extends DefaultSpanRecorder {
         final List<CapturedSpan> querySpans = Collections.synchronizedList(new ArrayList<>());
 
         @Override
-        public Span startSpan(String spanName, QuerySettings settings) {
-            CapturedSpan span = new CapturedSpan(spanName, null, settings.getDatabase(), settings.getQueryId());
+        public Span startQuerySpan(QuerySettings settings, String sqlQuery, Endpoint endpoint) {
+            CapturedSpan span = new CapturedSpan(getSpanSupport().querySpanName(settings), null,
+                    settings.getDatabase(), settings.getQueryId());
+            getSpanSupport().fillQueryAttributes(span, settings, sqlQuery, endpoint);
             querySpans.add(span);
             return span;
         }
@@ -436,15 +525,15 @@ public class SpanRecorderUnitTest {
         volatile Thread requestStartThread;
 
         @Override
-        public Span startSpan(String spanName, QuerySettings settings) {
+        public Span startQuerySpan(QuerySettings settings, String sqlQuery, Endpoint endpoint) {
             operationStartThread = Thread.currentThread();
-            return super.startSpan(spanName, settings);
+            return super.startQuerySpan(settings, sqlQuery, endpoint);
         }
 
         @Override
-        public Span startRequestSpan(String spanName, Span operationSpan) {
+        public Span startRequestSpan(Span operationSpan, String host, int port) {
             requestStartThread = Thread.currentThread();
-            return super.startRequestSpan(spanName, operationSpan);
+            return super.startRequestSpan(operationSpan, host, port);
         }
     }
 

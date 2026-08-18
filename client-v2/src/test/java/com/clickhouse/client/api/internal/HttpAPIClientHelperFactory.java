@@ -1,6 +1,6 @@
 package com.clickhouse.client.api.internal;
 
-import com.clickhouse.client.api.observability.SpanSupport;
+import com.clickhouse.client.api.observability.DefaultSpanRecorder;
 import net.jpountz.lz4.LZ4Factory;
 
 import java.util.Map;
@@ -24,6 +24,6 @@ public final class HttpAPIClientHelperFactory {
      * @return a new helper instance
      */
     public static HttpAPIClientHelper newHelper(Map<String, Object> configuration, LZ4Factory lz4Factory) {
-        return new HttpAPIClientHelper(configuration, null, false, lz4Factory, SpanSupport.DISABLED);
+        return new HttpAPIClientHelper(configuration, null, false, lz4Factory, DefaultSpanRecorder.NOOP);
     }
 }
