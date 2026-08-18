@@ -63,10 +63,11 @@
 
 ### Bug Fixes 
 
-- **[client-v2]** Fixed an insert unregistering its transport request after every attempt instead of once per
-  operation, so between two attempts of a retried insert `Client.cancelTransportRequest(String)` resolved the query
-  id to nothing at all. The registration now lives for the whole retry loop, as it already did for queries.
-  (https://github.com/ClickHouse/clickhouse-java/pull/2988)
+- **[client-v2]** Fixed `Client.cancelTransportRequest(queryId)` being silently dropped when it landed between two
+  attempts of a retried operation (query, POJO insert and stream insert): the operation issued the next attempt anyway
+  and could complete successfully. The request of an attempt now stays registered until the whole operation is over,
+  and the cancellation is checked before every attempt, so a cancelled operation stops instead of sending another
+  request. (https://github.com/ClickHouse/clickhouse-java/issues/2989)
 - **[data]** Fixed `BlockingPipedOutputStream.close()` not being idempotent under concurrency: the check of the
   `closed` flag and the closing handshake were not atomic, so two threads closing the same stream (e.g. a writer
   thread and a try-with-resources block) could both put the end-of-stream marker into the queue, and the second one
