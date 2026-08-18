@@ -260,6 +260,32 @@ public class HttpTransportTests extends BaseIntegrationTest {
     }
 
     @Test(groups = {"integration"})
+    public void testClosingLZ4InputStreamReleasesConnection() throws Exception {
+        ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
+        boolean isSecure = isCloud();
+
+        try (Client client = new Client.Builder()
+                .addEndpoint(Protocol.HTTP, server.getHost(), server.getPort(), isSecure)
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
+                .compressServerResponse(true)
+                .setMaxConnections(1)
+                .setConnectionRequestTimeout(1, ChronoUnit.SECONDS)
+                .build();
+             QueryResponse firstResponse = client.query(
+                     "SELECT number FROM numbers(1000000) FORMAT RowBinary").get(10, TimeUnit.SECONDS)) {
+            try (InputStream stream = firstResponse.getInputStream()) {
+                Assert.assertNotEquals(stream.read(), -1);
+            }
+
+            try (QueryResponse secondResponse = client.query("SELECT 1").get(10, TimeUnit.SECONDS)) {
+                Assert.assertNotEquals(secondResponse.getInputStream().read(), -1);
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
     public void testConnectionReuseStrategy() {
         if (isCloud()) {
             return; // mocked server

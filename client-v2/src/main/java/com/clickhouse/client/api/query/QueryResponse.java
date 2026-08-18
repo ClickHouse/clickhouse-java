@@ -60,6 +60,15 @@ public class QueryResponse implements AutoCloseable {
         }
     }
 
+    /**
+     * Creates a stream for reading the response body.
+     * <p>
+     * Each call creates a new wrapper around the same transport response body, not an independently readable copy.
+     * Call this method only once for a response and close either the returned stream or this response when finished.
+     * Closing the stream also closes the underlying transport stream.
+     *
+     * @return stream for reading the response body
+     */
     public InputStream getInputStream() {
         return transportResponse.createDataInputStream();
     }

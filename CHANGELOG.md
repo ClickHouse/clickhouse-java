@@ -30,6 +30,15 @@
   and the comma-separated `ssl_cipher_suites` connection property (client-v2 and jdbc-v2) restrict the cipher suites
   enabled on secure connections; when unset, the transport defaults are used. Cipher-suite selection is independent of the
   trust configuration and `ssl_mode`. (https://github.com/ClickHouse/clickhouse-java/issues/2882)
+- **[client-v2, jdbc-v2]** Added support for un-flattened `Nested(...)` columns (tables created with
+  `flatten_nested = 0`). Previously the `RowBinary` writer threw `UnsupportedOperationException: Unsupported
+  data type: Nested` when inserting such a column. `client-v2` now serializes a `Nested(f1 T1, ..., fN TN)`
+  column the same way it is read — identically to `Array(Tuple(T1, ..., TN))` (a var-uint row count followed
+  by one tuple per nested row) — so it can be written through the insert path / `RowBinaryFormatWriter`. In
+  `jdbc-v2` an un-flattened `Nested(...)` column is exposed as a JDBC `ARRAY` whose element type is
+  `Tuple(f1 T1, ..., fN TN)`: it can be inserted through `Connection#createArrayOf`/`setArray` or `setObject`
+  and read back through `getArray`/`getObject`, and `java.sql.Array#getResultSet()` iterates the nested rows
+  as `(INDEX, VALUE)` pairs where each `VALUE` is the tuple. (https://github.com/ClickHouse/clickhouse-java/issues/2477)
 - **[client-v2, jdbc-v2]** Added logging on previously-silent error and diagnostic paths (no functional or
   public-API change). (https://github.com/ClickHouse/clickhouse-java/issues/2969)
 
@@ -40,6 +49,28 @@
   `ServiceConfigurationError` failures from `com.clickhouse.data` when applications run on the module path.
   (https://github.com/ClickHouse/clickhouse-java/issues/2669)
 
+- **[client-v2]** Fixed `Client.cancelTransportRequest(queryId)` being silently dropped when it landed between two
+  attempts of a retried operation (query, POJO insert and stream insert): the operation issued the next attempt anyway
+  and could complete successfully. The request of an attempt now stays registered until the whole operation is over,
+  and the cancellation is checked before every attempt, so a cancelled operation stops instead of sending another
+  request. (https://github.com/ClickHouse/clickhouse-java/issues/2989)
+- **[data]** Fixed `BlockingPipedOutputStream.close()` not being idempotent under concurrency: the check of the
+  `closed` flag and the closing handshake were not atomic, so two threads closing the same stream (e.g. a writer
+  thread and a try-with-resources block) could both put the end-of-stream marker into the queue, and the second one
+  failed with `Close stream timed out after <n> ms` once the reader had stopped consuming. Exactly one caller now
+  performs the handshake and runs the post-close action; a concurrent or repeated `close()` returns immediately. A
+  `close()` which fails while flushing the remaining data also marks the stream closed and runs the post-close
+  action, so the stream cannot stay half-closed. (https://github.com/ClickHouse/clickhouse-java/issues/3055)
+- **[jdbc-v2]** Fixed JDBC escape processing rewriting text inside string literals and quoted identifiers. Because
+  `PreparedStatement` inlines bound parameters into the statement text, a bound value containing `{fn ` (or `{d '...'}`
+  / `{ts '...'}`) was re-read as SQL syntax: the `{fn ` was removed together with the next `}` found anywhere in the
+  statement — usually the closing brace of an unrelated `Map`/`Tuple` literal in another value or row — corrupting the
+  inserted data or failing with a server-side `SYNTAX_ERROR`. Escape sequences are now recognized only outside of quoted
+  text, and a `{fn ...}` escape is unwrapped at its matching closing brace, so nested braces (e.g. a `{name:Type}` query
+  parameter or a nested escape) stay balanced. (https://github.com/ClickHouse/clickhouse-java/issues/2995)
+- **[client-v2]** Fixed LZ4 input streams not closing their underlying HTTP response stream. Closing an LZ4 stream
+  returned by `QueryResponse.getInputStream()` now releases the wrapped transport stream, including after a partial
+  read. (https://github.com/ClickHouse/clickhouse-java/issues/2985)
 - **[client-v2, jdbc-v2]** Reduced noisy and potentially sensitive logging; SQL that fails to parse is no
   longer logged at `WARN` (it could contain credentials/PII). (https://github.com/ClickHouse/clickhouse-java/issues/2970)
 - **[client-v2]** Fixed `BigDecimal` values written into a `Dynamic` column being silently truncated when the
@@ -73,6 +104,13 @@
   pre-formatted `Array`/`Map` literals passed as a `String` still round-trip. The JDBC driver (`jdbc-v2`),
   which inlines parameters as SQL literals and already escaped the backslash and single quote, is
   unchanged and covered by a new regression test. (https://github.com/ClickHouse/clickhouse-java/issues/2781)
+
+- **[client-v2]** Fixed a `null` query-parameter value being sent as the literal string `"null"`, so
+  `Client.query(sql, params, ...)` binding a Java `null` to a scalar placeholder such as
+  `{x:Nullable(Decimal128(8))}` was rejected by the server with `BAD_QUERY_PARAMETER`
+  (`Value null cannot be parsed as Nullable(...)`). A top-level scalar `null` is now sent as the ClickHouse
+  `\N` NULL sentinel so it binds SQL `NULL`; a `null` nested inside an `Array`/`Map` parameter value
+  continues to render as the SQL `NULL` keyword. (https://github.com/ClickHouse/clickhouse-java/issues/2977)
 
 - **[client-v2]** Fixed binary array decoding for nullable element types so `Array(Nullable(Float64))` and similar columns now return boxed arrays such as `Double[]` instead of `Object[]`. This keeps null-supporting arrays aligned with their element type while preserving the existing `Object[]` fallback for Variant/Dynamic/Geometry arrays. (https://github.com/ClickHouse/clickhouse-java/issues/2846)
 

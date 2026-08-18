@@ -8,6 +8,10 @@ import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.internal.ServerSettings;
+import com.clickhouse.client.api.query.QueryResponse;
+import com.clickhouse.data.ClickHouseFormat;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.client.WireMock;
 import com.github.tomakehurst.wiremock.common.ConsoleNotifier;
@@ -921,9 +925,29 @@ public class ConnectionTest extends JdbcIntegrationTest {
         Connection conn = getJdbcConnection();
         Assert.assertTrue(conn.isWrapperFor(Connection.class));
         Assert.assertTrue(conn.isWrapperFor(JdbcV2Wrapper.class));
+        Assert.assertTrue(conn.isWrapperFor(ConnectionImpl.class));
         Assert.assertEquals(conn.unwrap(Connection.class), conn);
         Assert.assertEquals(conn.unwrap(JdbcV2Wrapper.class), conn);
+        Assert.assertEquals(conn.unwrap(ConnectionImpl.class), conn);
         assertThrows(SQLException.class, () -> conn.unwrap(ResultSet.class));
+    }
+
+    @Test(groups = { "integration" })
+    public void testRawJSONQueryThroughUnderlyingClient() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        try (Connection conn = getJdbcConnection();
+             QueryResponse response = conn.unwrap(ConnectionImpl.class).getClient()
+                     .query("SELECT 1 AS x FORMAT JSON")
+                     .get()) {
+            assertEquals(response.getFormat(), ClickHouseFormat.JSON);
+
+            JsonNode output = mapper.readTree(response.getInputStream());
+            JsonNode meta = output.required("meta");
+            JsonNode data = output.required("data");
+            assertEquals(meta.get(0).required("name").asText(), "x");
+            assertEquals(data.get(0).required("x").asInt(), 1);
+            assertEquals(output.required("rows").asInt(), 1);
+        }
     }
 
     @Test(groups = { "integration" })
