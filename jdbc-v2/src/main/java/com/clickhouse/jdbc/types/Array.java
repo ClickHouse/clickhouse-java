@@ -11,7 +11,6 @@ import java.sql.JDBCType;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
-import java.util.Arrays;
 import java.util.Map;
 
 public class Array implements java.sql.Array {
@@ -126,16 +125,6 @@ public class Array implements java.sql.Array {
         if (!valid) {
             throw ExceptionUtils.toSqlState(new SQLFeatureNotSupportedException("Array is not valid. Possible free() was called."));
         }
-    }
-
-    /**
-     * Returns a readable representation of the array contents. JDBC clients such as IDE database viewers
-     * commonly use {@code toString()} when rendering values returned by {@link java.sql.ResultSet#getObject}.
-     * Deep formatting is required for arrays of tuples and nested arrays.
-     */
-    @Override
-    public String toString() {
-        return Arrays.deepToString(array);
     }
 
     @Override
