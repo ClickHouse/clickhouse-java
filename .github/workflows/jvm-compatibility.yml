@@ -70,10 +70,19 @@ jobs:
           PROJECT_VERSION=$(mvn --batch-mode --no-transfer-progress help:evaluate \
             -Dexpression=project.version -q -DforceStdout)
           echo "project_version=$PROJECT_VERSION" >> "$GITHUB_OUTPUT"
+      - name: Resolve test providers
+        run: |
+          mvn --batch-mode --no-transfer-progress \
+            org.apache.maven.plugins:maven-dependency-plugin:3.8.1:get \
+            -Dartifact=org.apache.maven.surefire:surefire-testng:3.5.3
+          mvn --batch-mode --no-transfer-progress \
+            org.apache.maven.plugins:maven-dependency-plugin:3.8.1:get \
+            -Dartifact=org.apache.maven.surefire:surefire-testng:3.1.2
       - name: Package Maven artifacts
         run: |
           tar -C "$HOME/.m2/repository" -czf \
-            "$RUNNER_TEMP/clickhouse-maven-repository.tar.gz" com/clickhouse
+            "$RUNNER_TEMP/clickhouse-maven-repository.tar.gz" \
+            com/clickhouse org/apache/maven/surefire
           shopt -s globstar nullglob
           TARGET_DIRS=(**/target)
           tar -czf "$RUNNER_TEMP/compiled-tests.tar.gz" "${TARGET_DIRS[@]}"
