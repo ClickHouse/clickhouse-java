@@ -4,6 +4,29 @@
 
 ### New Features
 
+- **[client-v2]** Added an observability SPI that lets an application observe client operations as spans.
+  `Client.Builder.setSpanRecorder(SpanRecorder)` registers a backend-agnostic recorder from the new
+  `com.clickhouse.client.api.observability` package: each operation (a query, a command or an insert - including
+  the `ping` and `getTableSchema` calls, which run a query) starts one operation span, and every transport
+  request made for it - including each retry - starts a child request span. `SpanRecorder` and `Span` are plain interfaces; an implementation extends the
+  `DefaultSpanRecorder` base class and overrides only what it cares about, so it keeps working when
+  the client starts a kind of span it does not know about. The registered recorder is called first and receives
+  everything the client knows about the operation (its `QuerySettings`/`InsertSettings`, the statement, the target
+  table, the batch size, the endpoint, the metrics of the completed operation and the failure), so it is free to
+  record whatever it needs and in whatever form; the reusable `SpanSupport` class derives the standard span names
+  and attribute values from those same structures and is called by a recorder implementation that wants them, so
+  its logic is opt-in and overridable. Span names and attribute keys follow the OpenTelemetry semantic conventions for
+  database and HTTP client spans; the keys are defined by the `SpanAttribute` enum and the values are derived by
+  `SpanSupport`, so all recorders that use it report the same information (statement text, target database and table, query id,
+  statement parameters, batch size, the first configured endpoint on the operation span and the per-attempt
+  server address and port on the request spans, HTTP status, returned rows, and the error type and ClickHouse
+  error code on failure). An operation span is started on the calling thread, so it joins
+  the caller's ambient trace even when the operation runs on the client's executor, and it is ended exactly once
+  for every operation that starts. Previously the client exposed no hook for tracing, so an
+  application could not attribute a query or a retried request to its own trace. When no recorder is registered
+  nothing is recorded and no span-related work is done, so the default path is unchanged. An OpenTelemetry
+  implementation of the SPI follows in a separate module.
+  (https://github.com/ClickHouse/clickhouse-java/issues/2974)
 - **[client-v2, jdbc-v2]** Added support for the `BFloat16` data type (ClickHouse `24.11+`). `BFloat16` columns are read as
   Java `float` values (widening is lossless) and written from `float`/`Float` values, including through generic records, POJO
   binding, `Nullable(BFloat16)`, and `BFloat16` values held in `Dynamic`/`Variant` columns. On write the client keeps the
