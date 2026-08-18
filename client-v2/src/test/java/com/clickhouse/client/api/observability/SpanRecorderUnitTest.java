@@ -325,15 +325,23 @@ public class SpanRecorderUnitTest {
     }
 
     @Test
-    public void testNothingIsRecordedWhenRecorderIsNull() throws Exception {
-        try (Client client = newClientBuilder().addEndpoint(mockEndpoint()).setSpanRecorder(null).build()) {
+    public void testNullRecorderIsRejected() {
+        // the default recorder already records nothing, so a null recorder is a configuration error
+        Assert.assertThrows(NullPointerException.class,
+                () -> newClientBuilder().addEndpoint(mockEndpoint()).setSpanRecorder(null));
+    }
+
+    @Test
+    public void testNothingIsRecordedWithTheDefaultRecorder() throws Exception {
+        try (Client client = newClientBuilder().addEndpoint(mockEndpoint())
+                .setSpanRecorder(DefaultSpanRecorder.NOOP).build()) {
             try (QueryResponse response = client.query("SELECT 1").get(10, TimeUnit.SECONDS)) {
                 Assert.assertNotNull(response);
             }
         }
 
         Assert.assertTrue(recorder.getSpans().isEmpty(),
-                "a null recorder replaces a previously set one and records nothing");
+                "a recorder that records nothing replaces a previously set one and records nothing");
     }
 
     @Test

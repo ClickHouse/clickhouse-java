@@ -30,6 +30,7 @@ import com.clickhouse.client.api.metadata.DefaultColumnToMethodMatchingStrategy;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.metrics.ClientMetrics;
 import com.clickhouse.client.api.metrics.OperationMetrics;
+import com.clickhouse.client.api.observability.DefaultSpanRecorder;
 import com.clickhouse.client.api.observability.Span;
 import com.clickhouse.client.api.observability.SpanRecorder;
 import com.clickhouse.client.api.observability.SpanSupport;
@@ -84,7 +85,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -295,7 +295,7 @@ public class Client implements AutoCloseable {
         private Object metricRegistry = null;
         private Supplier<String> queryIdGenerator;
         private SSLContext sslContext = null;
-        private SpanRecorder spanRecorder = null;
+        private SpanRecorder spanRecorder = DefaultSpanRecorder.NOOP;
 
         // Trust/key material options that feed a context the client would otherwise build; none of them
         // may be combined with an application-supplied SSLContext (see build()).
@@ -1249,14 +1249,18 @@ public class Client implements AutoCloseable {
          * lookup) produces one operation span, and every request attempt made for it - including
          * retries - produces a child request span.</p>
          *
-         * <p>When no recorder is set (the default, or {@code null}) nothing is recorded and no
-         * span-related work is done.</p>
+         * <p>When no recorder is set nothing is recorded and no span-related work is done. The
+         * default is {@link DefaultSpanRecorder#NOOP}, so registering that recorder is how an
+         * application asks for nothing to be recorded; {@code null} is rejected because it is a
+         * configuration error rather than a way to disable recording.</p>
          *
-         * @param spanRecorder - recorder to notify, or {@code null} to record nothing
+         * @param spanRecorder - recorder to notify; must not be {@code null}
          * @return same instance of the builder
+         * @throws NullPointerException when {@code spanRecorder} is {@code null}
          */
         public Builder setSpanRecorder(SpanRecorder spanRecorder) {
-            this.spanRecorder = spanRecorder;
+            this.spanRecorder = Objects.requireNonNull(spanRecorder,
+                    "spanRecorder is required; use DefaultSpanRecorder.NOOP to record nothing");
             return this;
         }
 
@@ -1368,8 +1372,7 @@ public class Client implements AutoCloseable {
     public boolean ping(long timeout) {
         long startTime = System.nanoTime();
         try {
-            CompletableFuture<QueryResponse> future = queryImpl("SELECT 1 FORMAT TabSeparated", null, null,
-                    SpanSupport.OPERATION_PING, null);
+            CompletableFuture<QueryResponse> future = query("SELECT 1 FORMAT TabSeparated");
             try (QueryResponse response = timeout > 0 ? future.get(timeout, TimeUnit.MILLISECONDS) : future.get()) {
                 return true;
             }
@@ -1559,7 +1562,7 @@ public class Client implements AutoCloseable {
             }
         };
 
-        return runOperation(supplier, requestSettings.getAllSettings(), operationSpan);
+        return runAsyncOperation(supplier, requestSettings.getAllSettings());
     }
 
     /**
@@ -1783,7 +1786,7 @@ public class Client implements AutoCloseable {
             }
         };
 
-        return runOperation(responseSupplier, requestSettings.getAllSettings(), operationSpan);
+        return runAsyncOperation(responseSupplier, requestSettings.getAllSettings());
     }
 
     /**
@@ -1839,25 +1842,6 @@ public class Client implements AutoCloseable {
      * @return {@code CompletableFuture<QueryResponse>} - a promise to query response.
      */
     public CompletableFuture<QueryResponse> query(String sqlQuery, Map<String, Object> queryParams, QuerySettings settings) {
-        return queryImpl(sqlQuery, queryParams, settings, null, null);
-    }
-
-    /**
-     * Runs a query request. Operations that are implemented on top of a query - a ping or a
-     * table-schema lookup - pass their own name and target table so that a single operation span
-     * describes the operation the application actually called.
-     *
-     * @param sqlQuery - complete SQL query
-     * @param queryParams - query parameters that are sent to the server (optional)
-     * @param settings - query operation settings (optional)
-     * @param operationName - name of the operation for observability, or {@code null} for a plain
-     *                      query or command
-     * @param collectionName - table the operation targets, or {@code null} when there is none
-     * @return {@code CompletableFuture<QueryResponse>} - a promise to query response
-     */
-    private CompletableFuture<QueryResponse> queryImpl(String sqlQuery, Map<String, Object> queryParams,
-                                                       QuerySettings settings, String operationName,
-                                                       String collectionName) {
         if (settings == null) {
             settings = new QuerySettings();
         }
@@ -1890,8 +1874,7 @@ public class Client implements AutoCloseable {
         final int maxAttempts = Math.max(maxRetries, endpoints.size() - 1);
         // Started on the calling thread so that the span joins the caller's ambient trace even when
         // the operation itself runs on the shared operation executor.
-        final Span operationSpan = spanSupport.startQuerySpan(requestSettings, sqlQuery, operationName,
-                collectionName, endpoints.get(0));
+        final Span operationSpan = spanSupport.startQuerySpan(requestSettings, sqlQuery, endpoints.get(0));
         Supplier<QueryResponse> responseSupplier = () -> {
                 long startTime = System.nanoTime();
                 // Selecting some node
@@ -1944,7 +1927,7 @@ public class Client implements AutoCloseable {
                 }
             };
 
-        return runOperation(responseSupplier, requestSettings.getAllSettings(), operationSpan);
+        return runAsyncOperation(responseSupplier, requestSettings.getAllSettings());
     }
 
     /**
@@ -2232,9 +2215,8 @@ public class Client implements AutoCloseable {
 
         QuerySettings settings = new QuerySettings().setDatabase(database);
         try (QueryResponse response = operationTimeout == 0
-                ? queryImpl(describeQuery, queryParams, settings, SpanSupport.OPERATION_GET_TABLE_SCHEMA, name).get()
-                : queryImpl(describeQuery, queryParams, settings, SpanSupport.OPERATION_GET_TABLE_SCHEMA, name)
-                        .get(operationTimeout, TimeUnit.MILLISECONDS)) {
+                ? query(describeQuery, queryParams, settings).get()
+                : query(describeQuery, queryParams, settings).get(operationTimeout, TimeUnit.MILLISECONDS)) {
             return TableSchemaParser.readTSKV(response.getInputStream(), name, originalQuery, database);
         } catch (TimeoutException e) {
             throw new ClientException("Operation has likely timed out after " + getOperationTimeout() + " milliseconds.", e);
@@ -2367,33 +2349,6 @@ public class Client implements AutoCloseable {
         String operationId = UUID.randomUUID().toString();
         globalClientStats.put(operationId, new ClientStatisticsHolder());
         return operationId;
-    }
-
-    /**
-     * Runs an operation whose span was already started on the calling thread. When the operation
-     * cannot even be started, the failure is recorded and the span is closed here, because the
-     * supplier that would end it is never called.
-     */
-    private <T> CompletableFuture<T> runOperation(Supplier<T> resultSupplier, Map<String, Object> requestSettings,
-                                                  Span operationSpan) {
-        if (!spanSupport.isEnabled()) {
-            return runAsyncOperation(resultSupplier, requestSettings);
-        }
-
-        final AtomicBoolean started = new AtomicBoolean();
-        try {
-            return runAsyncOperation(() -> {
-                started.set(true);
-                return resultSupplier.get();
-            }, requestSettings);
-        } catch (RuntimeException | Error e) {
-            if (!started.get()) {
-                // the operation was never started, so the supplier did not end the span
-                spanSupport.recordFailure(operationSpan, e);
-                operationSpan.end();
-            }
-            throw e;
-        }
     }
 
     private <T> CompletableFuture<T> runAsyncOperation(Supplier<T> resultSupplier, Map<String, Object> requestSettings) {

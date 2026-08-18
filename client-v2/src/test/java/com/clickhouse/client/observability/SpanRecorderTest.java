@@ -112,12 +112,13 @@ public class SpanRecorderTest extends BaseIntegrationTest {
     public void testPingSpan() {
         Assert.assertTrue(client.ping());
 
+        // a ping runs a query, so it is reported as one - the client does not name the operations it
+        // implements on top of a query
         CapturedSpan operationSpan = recorder.operationSpan();
-        Assert.assertEquals(operationSpan.getName(), "ping " + database);
-        Assert.assertEquals(operationSpan.getAttribute(SpanAttribute.DB_OPERATION_NAME), "ping");
+        Assert.assertEquals(operationSpan.getName(), "query " + database);
+        Assert.assertEquals(operationSpan.getAttribute(SpanAttribute.DB_QUERY_TEXT), "SELECT 1 FORMAT TabSeparated");
+        Assert.assertNull(operationSpan.getAttribute(SpanAttribute.DB_OPERATION_NAME));
         Assert.assertNull(operationSpan.getAttribute(SpanAttribute.DB_COLLECTION_NAME));
-        Assert.assertNull(operationSpan.getAttribute(SpanAttribute.DB_QUERY_TEXT),
-                "the statement is reported for a query or a command, not for a named operation");
         Assert.assertEquals(operationSpan.getEndCount(), 1);
         Assert.assertEquals(recorder.requestSpans(operationSpan).size(), 1);
     }
@@ -135,27 +136,29 @@ public class SpanRecorderTest extends BaseIntegrationTest {
     }
 
     @Test(groups = {"integration"})
-    public void testTableSchemaSpanReportsCollection() {
+    public void testTableSchemaSpanIsReportedAsQuery() {
         TableSchema schema = client.getTableSchema(TABLE);
         Assert.assertEquals(schema.getColumns().size(), 2);
 
         CapturedSpan operationSpan = recorder.operationSpan();
-        Assert.assertEquals(operationSpan.getName(), "getTableSchema " + database + "." + TABLE);
-        Assert.assertEquals(operationSpan.getAttribute(SpanAttribute.DB_OPERATION_NAME), "getTableSchema");
-        Assert.assertEquals(operationSpan.getAttribute(SpanAttribute.DB_COLLECTION_NAME), TABLE);
+        Assert.assertEquals(operationSpan.getName(), "query " + database);
+        Assert.assertEquals(operationSpan.getAttribute(SpanAttribute.DB_QUERY_TEXT),
+                "DESCRIBE TABLE " + TABLE + " FORMAT TSKV");
+        Assert.assertNull(operationSpan.getAttribute(SpanAttribute.DB_OPERATION_NAME));
+        Assert.assertNull(operationSpan.getAttribute(SpanAttribute.DB_COLLECTION_NAME));
         Assert.assertEquals(operationSpan.getEndCount(), 1);
     }
 
     @Test(groups = {"integration"})
-    public void testTableSchemaFromQuerySpanHasNoCollection() {
+    public void testTableSchemaFromQuerySpanIsReportedAsQuery() {
         TableSchema schema = client.getTableSchemaFromQuery("SELECT id FROM " + TABLE);
         Assert.assertEquals(schema.getColumns().size(), 1);
 
         CapturedSpan operationSpan = recorder.operationSpan();
-        Assert.assertEquals(operationSpan.getName(), "getTableSchema " + database);
-        Assert.assertEquals(operationSpan.getAttribute(SpanAttribute.DB_OPERATION_NAME), "getTableSchema");
-        Assert.assertNull(operationSpan.getAttribute(SpanAttribute.DB_COLLECTION_NAME),
-                "a schema derived from a query has no single target table");
+        Assert.assertEquals(operationSpan.getName(), "query " + database);
+        Assert.assertEquals(operationSpan.getAttribute(SpanAttribute.DB_QUERY_TEXT),
+                "DESC (SELECT id FROM " + TABLE + ") FORMAT TSKV");
+        Assert.assertNull(operationSpan.getAttribute(SpanAttribute.DB_OPERATION_NAME));
         Assert.assertEquals(operationSpan.getEndCount(), 1);
     }
 }

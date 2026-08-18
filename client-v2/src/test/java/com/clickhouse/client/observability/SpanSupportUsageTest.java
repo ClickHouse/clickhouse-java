@@ -23,7 +23,7 @@ public class SpanSupportUsageTest {
         Assert.assertTrue(spanSupport.isEnabled());
 
         Span span = spanSupport.startQuerySpan(new QuerySettings().setDatabase("db1").setQueryId("q1"),
-                "SELECT 1", null, null, null);
+                "SELECT 1", null);
         spanSupport.recordFailure(span, new IllegalStateException("boom"));
         span.end();
 
@@ -48,7 +48,7 @@ public class SpanSupportUsageTest {
             }
         };
 
-        spanSupport.startQuerySpan(new QuerySettings().setDatabase("db1"), "SELECT 1", null, null, null).end();
+        spanSupport.startQuerySpan(new QuerySettings().setDatabase("db1"), "SELECT 1", null).end();
 
         Assert.assertEquals(recorder.operationSpan().getName(), "custom:query db1");
     }
@@ -58,15 +58,21 @@ public class SpanSupportUsageTest {
         CapturingSpanRecorder recorder = new CapturingSpanRecorder();
 
         Assert.assertFalse(SpanSupport.DISABLED.isEnabled());
-        Assert.assertFalse(new SpanSupport(null).isEnabled());
         Assert.assertFalse(new SpanSupport(DefaultSpanRecorder.NOOP).isEnabled(),
                 "a recorder that records nothing keeps the fast path");
 
         Span span = SpanSupport.DISABLED.startQuerySpan(new QuerySettings().setDatabase("db1"),
-                "SELECT 1", null, null, null);
+                "SELECT 1", null);
         Assert.assertSame(span, DefaultSpanRecorder.NOOP_SPAN);
         Assert.assertSame(SpanSupport.DISABLED.startRequestSpan(span, "localhost", 8123),
                 DefaultSpanRecorder.NOOP_SPAN);
         Assert.assertTrue(recorder.getSpans().isEmpty());
+    }
+
+    @Test
+    public void testRecorderIsRequired() {
+        // the client's default recorder already records nothing, so a null recorder is a
+        // configuration error rather than a way to disable recording
+        Assert.assertThrows(NullPointerException.class, () -> new SpanSupport(null));
     }
 }

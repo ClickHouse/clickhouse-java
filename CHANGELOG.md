@@ -6,9 +6,9 @@
 
 - **[client-v2]** Added an observability SPI that lets an application observe client operations as spans.
   `Client.Builder.setSpanRecorder(SpanRecorder)` registers a backend-agnostic recorder from the new
-  `com.clickhouse.client.api.observability` package: each operation (query, command, insert, `ping`,
-  `getTableSchema`) starts one operation span, and every transport request made for it - including each retry -
-  starts a child request span. `SpanRecorder` and `Span` are plain interfaces; an implementation extends the
+  `com.clickhouse.client.api.observability` package: each operation (a query, a command or an insert - including
+  the `ping` and `getTableSchema` calls, which run a query) starts one operation span, and every transport
+  request made for it - including each retry - starts a child request span. `SpanRecorder` and `Span` are plain interfaces; an implementation extends the
   `DefaultSpanRecorder` base class and overrides only the kinds of spans it cares about, so it keeps working when
   the client starts a kind of span it does not know about. The operation's `QuerySettings`/`InsertSettings` is
   passed to `startSpan(...)` so a recorder can take the properties it needs from it, and the reusable
@@ -18,7 +18,8 @@
   statement parameters, batch size, the first configured endpoint on the operation span and the per-attempt
   server address and port on the request spans, HTTP status, returned rows, and the error type and ClickHouse
   error code on failure). An operation span is started on the calling thread, so it joins
-  the caller's ambient trace even when the operation runs on the client's executor, and it is ended exactly once. Previously the client exposed no hook for tracing, so an
+  the caller's ambient trace even when the operation runs on the client's executor, and it is ended exactly once
+  for every operation that starts. Previously the client exposed no hook for tracing, so an
   application could not attribute a query or a retried request to its own trace. When no recorder is registered
   nothing is recorded and no span-related work is done, so the default path is unchanged. An OpenTelemetry
   implementation of the SPI follows in a separate module.

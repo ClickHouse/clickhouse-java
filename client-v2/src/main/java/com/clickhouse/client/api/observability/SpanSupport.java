@@ -10,6 +10,7 @@ import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.transport.Endpoint;
 
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Starts spans on a {@link SpanRecorder} and records the client's standard set of attributes on
@@ -20,9 +21,10 @@ import java.util.Map;
  * the client can reuse this class, or extend it to report additional attributes - every method may
  * be overridden.
  * <p>
- * When constructed without a recorder ({@code null}) the instance is disabled: every method returns
- * immediately and no attribute value is computed, so an application that did not register a recorder
- * pays only a boolean check.
+ * A recorder is required; an application that records nothing registers
+ * {@link DefaultSpanRecorder#NOOP} (the client's default). With that recorder the instance is
+ * disabled: every method returns immediately and no attribute value is computed, so an application
+ * that did not register a recorder pays only a boolean check.
  */
 public class SpanSupport {
 
@@ -34,10 +36,6 @@ public class SpanSupport {
     public static final String OPERATION_QUERY = "query";
 
     public static final String OPERATION_INSERT = "insert";
-
-    public static final String OPERATION_PING = "ping";
-
-    public static final String OPERATION_GET_TABLE_SCHEMA = "getTableSchema";
 
     /**
      * Name of a transport request span. All requests the client makes are HTTP {@code POST}s.
@@ -57,7 +55,7 @@ public class SpanSupport {
     /**
      * Shared instance that records nothing.
      */
-    public static final SpanSupport DISABLED = new SpanSupport(null);
+    public static final SpanSupport DISABLED = new SpanSupport(DefaultSpanRecorder.NOOP);
 
     private final SpanRecorder recorder;
 
@@ -66,11 +64,14 @@ public class SpanSupport {
     /**
      * Creates support for the given recorder.
      *
-     * @param recorder - recorder registered by the application, or {@code null} to record nothing
+     * @param recorder - recorder registered by the application; {@link DefaultSpanRecorder#NOOP} to
+     *                 record nothing. Must not be {@code null} - the client's default recorder
+     *                 already records nothing, so a {@code null} here is a configuration error.
+     * @throws NullPointerException when {@code recorder} is {@code null}
      */
     public SpanSupport(SpanRecorder recorder) {
-        this.enabled = recorder != null && recorder != DefaultSpanRecorder.NOOP;
-        this.recorder = recorder == null ? DefaultSpanRecorder.NOOP : recorder;
+        this.recorder = Objects.requireNonNull(recorder, "recorder is required; use DefaultSpanRecorder.NOOP to record nothing");
+        this.enabled = recorder != DefaultSpanRecorder.NOOP;
     }
 
     /**
@@ -93,33 +94,26 @@ public class SpanSupport {
     }
 
     /**
-     * Starts an operation span for a query, a command, a ping or a table-schema lookup.
+     * Starts an operation span for a query or a command. Every operation the client implements on
+     * top of a query - a ping or a table-schema lookup - is reported as a query; a recorder that
+     * wants to describe it differently derives that from the settings it is given.
      *
      * @param settings - resolved request settings
      * @param sqlQuery - statement sent to the server
-     * @param operationName - value for {@link SpanAttribute#DB_OPERATION_NAME}; {@code null} for a
-     *                      plain query or command
-     * @param collectionName - target table; {@code null} when the operation has no single table
      * @param endpoint - endpoint the operation is expected to use
      * @return operation span
      */
-    public Span startQuerySpan(QuerySettings settings, String sqlQuery, String operationName,
-                               String collectionName, Endpoint endpoint) {
+    public Span startQuerySpan(QuerySettings settings, String sqlQuery, Endpoint endpoint) {
         if (!enabled) {
             return DefaultSpanRecorder.NOOP_SPAN;
         }
 
         final String namespace = settings.getDatabase();
-        Span span = orNoop(recorder.startSpan(spanName(operationName == null ? OPERATION_QUERY : operationName,
-                namespace, collectionName), settings));
-        recordCommonAttributes(span, namespace, settings.getQueryId(), operationName, collectionName,
+        Span span = orNoop(recorder.startSpan(spanName(OPERATION_QUERY, namespace, null), settings));
+        recordCommonAttributes(span, namespace, settings.getQueryId(), null, null,
                 BATCH_SIZE_UNKNOWN, endpoint);
-        if (operationName == null) {
-            // the statement is reported for a query or a command; a named operation is described by
-            // its operation name and target table instead
-            span.setAttribute(SpanAttribute.DB_QUERY_TEXT.getKey(), sqlQuery);
-            recordStatementParams(span, settings.getAllSettings());
-        }
+        span.setAttribute(SpanAttribute.DB_QUERY_TEXT.getKey(), sqlQuery);
+        recordStatementParams(span, settings.getAllSettings());
         return span;
     }
 
