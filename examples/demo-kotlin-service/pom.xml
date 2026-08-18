@@ -58,7 +58,7 @@
         <clickhouse-java.version>0.10.0-rc1-SNAPSHOT</clickhouse-java.version>
         <clickhouse-packages.classifier>all</clickhouse-packages.classifier>
 
-        <kotlin.version>2.0.20</kotlin.version>
+        <kotlin.version>2.4.10</kotlin.version>
         <kotlin.compiler.jvmTarget>17</kotlin.compiler.jvmTarget>
         <ktor.version>2.3.12</ktor.version>
         <logback.version>1.4.14</logback.version>
