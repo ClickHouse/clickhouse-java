@@ -182,6 +182,7 @@ public abstract class SqlParserFacade {
             parseSQL(sql, new ParsedPreparedStatementListener(stmt, processUseRolesExpr));
             if (stmt.isHasErrors()) {
                 stmt.setHasResultSet(true);
+                assumeFunctionInValuesListOfRecoveredParseTree(stmt);
             }
             // Combine database and table like JavaCC does
             String tableName = stmt.getTable();
@@ -189,9 +190,25 @@ public abstract class SqlParserFacade {
                 tableName = String.format("%s.%s", stmt.getDatabase(), stmt.getTable());
             }
             stmt.setTable(tableName);
-            
+
             parseParameters(sql, stmt);
             return stmt;
+        }
+
+        /**
+         * A function call in an insert values list is reported by a listener callback on the parse tree. A statement
+         * the grammar cannot match is still given a parse tree, completed by error recovery, which skips the tokens
+         * the parser recovered on - a function call among them is never reported, so the values list is reported to
+         * hold no function call while it does. Since such a tree cannot tell, assume a function call is present, so
+         * that a consumer requiring a values list of parameter placeholders only - the RowBinary insert path - does
+         * not take the statement.
+         */
+        static void assumeFunctionInValuesListOfRecoveredParseTree(ParsedPreparedStatement stmt) {
+            if (stmt.isInsert()) {
+                LOG.debug("Assuming a function in the values list of an insert into {} that could not be parsed without errors",
+                        stmt.getTable());
+                stmt.setUseFunction(true);
+            }
         }
 
         protected ClickHouseParser parseSQL(String sql, ClickHouseParserBaseListener listener) {
@@ -415,6 +432,7 @@ public abstract class SqlParserFacade {
             parseSQL(sql, new ParseStatementAndParamsListener(stmt, processUseRolesExpr));
             if (stmt.isHasErrors()) {
                 stmt.setHasResultSet(true);
+                assumeFunctionInValuesListOfRecoveredParseTree(stmt);
             }
             // Combine database and table like JavaCC does
             String tableName = stmt.getTable();
