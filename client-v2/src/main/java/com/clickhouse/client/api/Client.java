@@ -30,6 +30,9 @@ import com.clickhouse.client.api.metadata.DefaultColumnToMethodMatchingStrategy;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.metrics.ClientMetrics;
 import com.clickhouse.client.api.metrics.OperationMetrics;
+import com.clickhouse.client.api.observability.DefaultSpanRecorder;
+import com.clickhouse.client.api.observability.Span;
+import com.clickhouse.client.api.observability.SpanRecorder;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
@@ -155,15 +158,25 @@ public class Client implements AutoCloseable {
     private final ClientNodeSelector nodeSelector;
     private final CredentialsManager credentialsManager;
 
+    /**
+     * Recorder registered by an application; called first for every span the client starts, with
+     * everything the client knows about the operation. Never {@code null} - it is
+     * {@link DefaultSpanRecorder#NOOP} when observability is not configured, so no null check is
+     * needed on the operation paths.
+     */
+    private final SpanRecorder spanRecorder;
+
     private Client(Collection<Endpoint> endpoints, Map<String,String> configuration,
                    ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy,
                    Object metricsRegistry, Supplier<String> queryIdGenerator, CredentialsManager cManager,
-                   SSLContext sslContext) {
+                   SSLContext sslContext, SpanRecorder spanRecorder) {
         Map<String, Object> parsedConfiguration = new ConcurrentHashMap<>(ClientConfigProperties.parseConfigMap(configuration));
         if (sslContext != null) {
             parsedConfiguration.put(ClientConfigProperties.SSL_CONTEXT.getKey(), sslContext);
         }
         this.credentialsManager = cManager;
+        this.spanRecorder = Objects.requireNonNull(spanRecorder,
+                "spanRecorder is required; use DefaultSpanRecorder.NOOP to record nothing");
         this.session = Session.extractFrom(parsedConfiguration);
         this.configuration = new ConcurrentHashMap<>(parsedConfiguration);
         this.readOnlyConfig = Collections.unmodifiableMap(configuration);
@@ -210,7 +223,8 @@ public class Client implements AutoCloseable {
             this.lz4Factory = LZ4Factory.fastestJavaInstance();
         }
 
-        this.httpClientHelper = new HttpAPIClientHelper(this.configuration, metricsRegistry, initSslContext, lz4Factory);
+        this.httpClientHelper = new HttpAPIClientHelper(this.configuration, metricsRegistry, initSslContext, lz4Factory,
+                this.spanRecorder);
         this.serverVersion = configuration.getOrDefault(ClientConfigProperties.SERVER_VERSION.getKey(), "unknown");
         this.dbUser = configuration.getOrDefault(ClientConfigProperties.USER.getKey(), ClientConfigProperties.USER.getDefObjVal());
         this.typeHintMapping = (Map<ClickHouseDataType, Class<?>>) this.configuration.get(ClientConfigProperties.TYPE_HINT_MAPPING.getKey());
@@ -283,6 +297,7 @@ public class Client implements AutoCloseable {
         private Object metricRegistry = null;
         private Supplier<String> queryIdGenerator;
         private SSLContext sslContext = null;
+        private SpanRecorder spanRecorder = DefaultSpanRecorder.NOOP;
 
         // Trust/key material options that feed a context the client would otherwise build; none of them
         // may be combined with an application-supplied SSLContext (see build()).
@@ -1230,6 +1245,27 @@ public class Client implements AutoCloseable {
             return this;
         }
 
+        /**
+         * <p>Registers a {@link SpanRecorder} that observes client operations and the transport
+         * requests made for them. Each operation (query, command, insert, ping, table-schema
+         * lookup) produces one operation span, and every request attempt made for it - including
+         * retries - produces a child request span.</p>
+         *
+         * <p>When no recorder is set nothing is recorded and no span-related work is done. The
+         * default is {@link DefaultSpanRecorder#NOOP}, so registering that recorder is how an
+         * application asks for nothing to be recorded; {@code null} is rejected because it is a
+         * configuration error rather than a way to disable recording.</p>
+         *
+         * @param spanRecorder - recorder to notify; must not be {@code null}
+         * @return same instance of the builder
+         * @throws NullPointerException when {@code spanRecorder} is {@code null}
+         */
+        public Builder setSpanRecorder(SpanRecorder spanRecorder) {
+            this.spanRecorder = Objects.requireNonNull(spanRecorder,
+                    "spanRecorder is required; use DefaultSpanRecorder.NOOP to record nothing");
+            return this;
+        }
+
         public Client build() {
             // check if endpoint are empty. so can not initiate client
             if (this.endpoints.isEmpty()) {
@@ -1317,7 +1353,7 @@ public class Client implements AutoCloseable {
 
             return new Client(this.endpoints, this.configuration, this.sharedOperationExecutor,
                 this.columnToMethodMatchingStrategy, this.metricRegistry, this.queryIdGenerator, cManager,
-                this.sslContext);
+                this.sslContext, this.spanRecorder);
         }
     }
 
@@ -1459,6 +1495,8 @@ public class Client implements AutoCloseable {
         if (requestSettings.getQueryId() == null && queryIdGenerator != null) {
             requestSettings.setQueryId(queryIdGenerator.get());
         }
+        final Span operationSpan = orNoop(spanRecorder.startInsertSpan(requestSettings, tableName, data.size(),
+                endpoints.get(0)));
         Supplier<InsertResponse> supplier = () -> {
             long startTime = System.nanoTime();
             // Selecting some node
@@ -1491,10 +1529,11 @@ public class Client implements AutoCloseable {
 
                     registerTransportReq(queryId, transportRequest);
 
-                    try (TransportResponse transportResponse = httpClientHelper.executeRequest(transportRequest)) {
+                    try (TransportResponse transportResponse = httpClientHelper.executeRequest(transportRequest, operationSpan)) {
                         ClientStatisticsHolder clientStats = globalClientStats.remove(operationId);
                         OperationMetrics metrics = completeOperation(transportResponse, clientStats, requestSettings.getQueryId());
 
+                        spanRecorder.recordSuccess(operationSpan, metrics);
                         return new InsertResponse(transportResponse, metrics);
                     } catch (Exception e) {
                         String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
@@ -1510,15 +1549,19 @@ public class Client implements AutoCloseable {
                         }
                     }
                 }
+
+                String errMsg = requestExMsg("Insert", maxAttempts + 1, durationSince(startTime).toMillis(), requestSettings.getQueryId());
+                LOG.warn(errMsg);
+                throw (lastException == null ? new ClientException(errMsg) : lastException);
+            } catch (RuntimeException | Error e) {
+                spanRecorder.recordFailure(operationSpan, e);
+                throw e;
             } finally {
                 // The request of the last attempt stays registered until the operation is over, so a cancellation
                 // landing between two attempts is not lost.
                 unregisterTransportReq(queryId);
+                operationSpan.end();
             }
-
-            String errMsg = requestExMsg("Insert", maxAttempts + 1, durationSince(startTime).toMillis(), requestSettings.getQueryId());
-            LOG.warn(errMsg);
-            throw (lastException == null ? new ClientException(errMsg) : lastException);
         };
 
         return runAsyncOperation(supplier, requestSettings.getAllSettings());
@@ -1684,6 +1727,8 @@ public class Client implements AutoCloseable {
 
         final int maxRetries = ClientConfigProperties.RETRY_ON_FAILURE.getOrDefault(requestSettings.getAllSettings());
         final int maxAttempts = Math.max(maxRetries, endpoints.size() - 1);
+        final Span operationSpan = orNoop(spanRecorder.startInsertSpan(requestSettings, tableName,
+                SpanRecorder.BATCH_SIZE_UNKNOWN, endpoints.get(0)));
         Supplier<InsertResponse> responseSupplier = () -> {
             long startTime = System.nanoTime();
             // Selecting some node
@@ -1702,8 +1747,9 @@ public class Client implements AutoCloseable {
                             });
                     registerTransportReq(queryId, transportRequest);
 
-                    try (TransportResponse transportResponse = httpClientHelper.executeRequest(transportRequest)) {
+                    try (TransportResponse transportResponse = httpClientHelper.executeRequest(transportRequest, operationSpan)) {
                         OperationMetrics metrics = completeOperation(transportResponse, finalClientStats, requestSettings.getQueryId());
+                        spanRecorder.recordSuccess(operationSpan, metrics);
                         return new InsertResponse(transportResponse, metrics);
                     } catch (Exception e) {
                         String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
@@ -1727,15 +1773,19 @@ public class Client implements AutoCloseable {
                         }
                     }
                 }
+
+                String errMsg = requestExMsg("Insert", maxAttempts + 1, durationSince(startTime).toMillis(), requestSettings.getQueryId());
+                LOG.warn(errMsg);
+                throw (lastException == null ? new ClientException(errMsg) : lastException);
+            } catch (RuntimeException | Error e) {
+                spanRecorder.recordFailure(operationSpan, e);
+                throw e;
             } finally {
                 // The request of the last attempt stays registered until the operation is over, so a cancellation
                 // landing between two attempts is not lost.
                 unregisterTransportReq(queryId);
+                operationSpan.end();
             }
-
-            String errMsg = requestExMsg("Insert", maxAttempts + 1, durationSince(startTime).toMillis(), requestSettings.getQueryId());
-            LOG.warn(errMsg);
-            throw (lastException == null ? new ClientException(errMsg) : lastException);
         };
 
         return runAsyncOperation(responseSupplier, requestSettings.getAllSettings());
@@ -1824,6 +1874,9 @@ public class Client implements AutoCloseable {
 
         final int maxRetries = ClientConfigProperties.RETRY_ON_FAILURE.getOrDefault(requestSettings.getAllSettings());
         final int maxAttempts = Math.max(maxRetries, endpoints.size() - 1);
+        // Started on the calling thread so that the span joins the caller's ambient trace even when
+        // the operation itself runs on the shared operation executor.
+        final Span operationSpan = orNoop(spanRecorder.startQuerySpan(requestSettings, sqlQuery, endpoints.get(0)));
         Supplier<QueryResponse> responseSupplier = () -> {
                 long startTime = System.nanoTime();
                 // Selecting some node
@@ -1837,13 +1890,14 @@ public class Client implements AutoCloseable {
                         registerTransportReq(queryId, request);
                         TransportResponse transportResp = null;
                         try {
-                            transportResp = httpClientHelper.executeRequest(request);
+                            transportResp = httpClientHelper.executeRequest(request, operationSpan);
                             OperationMetrics metrics = completeOperation(transportResp, clientStats, requestSettings.getQueryId());
                             ClickHouseFormat responseFormat = transportResp.getDataFormat();
                             if (responseFormat == null) {
                                 responseFormat = requestSettings.getFormat();
                             }
 
+                            spanRecorder.recordSuccess(operationSpan, metrics);
                             return new QueryResponse(transportResp, responseFormat, requestSettings, metrics);
 
                         } catch (Exception e) {
@@ -1861,13 +1915,18 @@ public class Client implements AutoCloseable {
                             }
                         }
                     }
+
+                    String errMsg = requestExMsg("Query", maxAttempts + 1, durationSince(startTime).toMillis(), requestSettings.getQueryId());
+                    LOG.warn(errMsg);
+                    throw (lastException == null ? new ClientException(errMsg) : lastException);
+                } catch (RuntimeException | Error e) {
+                    spanRecorder.recordFailure(operationSpan, e);
+                    throw e;
                 } finally {
                     // unregister transport request once we are done
                     unregisterTransportReq(queryId);
+                    operationSpan.end();
                 }
-                String errMsg = requestExMsg("Query", maxAttempts + 1, durationSince(startTime).toMillis(), requestSettings.getQueryId());
-                LOG.warn(errMsg);
-                throw (lastException == null ? new ClientException(errMsg) : lastException);
             };
 
         return runAsyncOperation(responseSupplier, requestSettings.getAllSettings());
@@ -1884,6 +1943,14 @@ public class Client implements AutoCloseable {
                 operation, attemptIndex + 1, maxAttempts + 1, queryId, endpoint,
                 cause.getClass().getName(), cause.getMessage());
         return nodeSelector.getNextAliveNode(endpoint);
+    }
+
+    /**
+     * Replaces a span a recorder did not return with one that records nothing, so an incomplete
+     * implementation cannot break an operation.
+     */
+    private static Span orNoop(Span span) {
+        return span == null ? DefaultSpanRecorder.NOOP_SPAN : span;
     }
 
     private void registerTransportReq(String queryId, TransportRequest tr) {
