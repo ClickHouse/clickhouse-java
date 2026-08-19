@@ -1015,4 +1015,40 @@ public abstract class BaseSqlParserFacadeTest {
             Assert.fail(failureMessage);
         }
     }
+
+    @Test(dataProvider = "testInsertUseFunctionDP")
+    public void testInsertUseFunction(String sql, boolean useFunction, boolean parseableByGrammar) {
+        ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
+        Assert.assertTrue(stmt.isInsert(), "Statement is not recognized as an insert: " + sql);
+        assertEquals(stmt.isUseFunction(), useFunction, "Function usage expectation does not match: " + sql);
+        if (!javaCcBackend) {
+            assertEquals(stmt.isHasErrors(), !parseableByGrammar, "Parse error expectation does not match: " + sql);
+        }
+    }
+
+    @DataProvider
+    public static Object[][] testInsertUseFunctionDP() {
+        return new Object[][]{
+                /* values list of placeholders only */
+                {"INSERT INTO t (v1, v2) VALUES (?, ?)", false, true},
+                {"INSERT INTO t VALUES (?, ?)", false, true},
+                /* function call the grammar matches */
+                {"INSERT INTO t (v1, v2) VALUES (?, now())", true, true},
+                {"INSERT INTO t (v1, v2) VALUES (toString(?), ?)", true, true},
+                /* function call with an argument the grammar cannot match */
+                {"INSERT INTO t (v1, v2) VALUES (?, hex(x'AB'))", true, false},
+                {"INSERT INTO t (v1, v2) VALUES (hex(x'AB'), ?)", true, false},
+                {"INSERT INTO t (v1, v2) VALUES (?, ?), (?, hex(x'AB'))", true, false},
+        };
+    }
+
+    @Test
+    public void testUseFunctionOfUnparseableSelect() {
+        if (javaCcBackend) {
+            return; // the JavaCC backend reports any function use, not only one in an insert values list
+        }
+        ParsedPreparedStatement stmt = parser.parsePreparedStatement("SELECT hex(x'AB') WHERE v = ?");
+        Assert.assertFalse(stmt.isInsert(), "Statement is recognized as an insert");
+        Assert.assertFalse(stmt.isUseFunction(), "Function usage is reported for a statement that is not an insert");
+    }
 }
