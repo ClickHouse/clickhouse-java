@@ -954,6 +954,8 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         return new Object[][] {
                 {"SELECT ? AS v // ?", "42"},
                 {"SELECT ? AS v // ?\nUNION ALL SELECT NULL WHERE 0", "42"},
+                {"SELECT //\n? AS v", "42"},
+                {"SELECT --\n? AS v", "42"},
                 {"SELECT concat($$?$$, ?) AS v", "?42"},
                 {"SELECT concat($tag$ ? $tag$, ?) AS v", " ? 42"},
                 {"SELECT ? AS a$x$, 1 AS b$x$", "42"},

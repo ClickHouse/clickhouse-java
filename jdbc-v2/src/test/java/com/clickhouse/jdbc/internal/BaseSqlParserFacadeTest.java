@@ -409,6 +409,23 @@ public abstract class BaseSqlParserFacadeTest {
                 {"SELECT 1 //", 0},
                 {"SELECT ? // ?\n, ?", 2},
                 {"SELECT 1 // ? -- ? /* ? */ $$?$$\n, ?", 1},
+                // an empty line comment ends at its own newline, so later placeholders are still counted
+                {"SELECT ? //\n, ?", 2},
+                {"SELECT ? //\n// ?\n, ?", 2},
+                {"SELECT ? //\n?", 2},
+                {"SELECT ? --\n, ?", 2},
+                {"SELECT ? -- ?\n--\n, ?", 2},
+                {"SELECT ? #\n, ?", 2},
+                {"SELECT ? #!\n, ?", 2},
+                {"SELECT ? //\n--\n#\n, ?", 2},
+                {"//\nSELECT ?", 1},
+                // a comment that is never terminated still ends the scan
+                {"SELECT ? //\n", 1},
+                {"SELECT ? --", 1},
+                // a comment marker inside a string, a heredoc or a block comment does not start a comment
+                {"SELECT '--\n' AS v, ?", 1},
+                {"SELECT $$//\n$$ AS v, ?", 1},
+                {"SELECT ? /* --\n */, ?", 2},
                 // heredocs (dollar quoted strings)
                 {"SELECT $$?$$ AS v", 0},
                 {"SELECT $tag$ ? $tag$ AS v", 0},

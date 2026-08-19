@@ -501,7 +501,7 @@ public abstract class SqlParserFacade {
             } else if (i + 1 < len) {
                 char nextCh = originalQuery.charAt(i + 1);
                 if ((ch == '-' && nextCh == ch) || (ch == '/' && nextCh == ch) || (ch == '#')) {
-                    i = ClickHouseUtils.skipSingleLineComment(originalQuery, i + 2, len) - 1;
+                    i = skipLineComment(originalQuery, i + 1, len) - 1;
                 } else if (ch == '/' && nextCh == '*') {
                     i = ClickHouseUtils.skipMultiLineComment(originalQuery, i + 2, len) - 1;
                 } else if (ch == '$') {
@@ -509,6 +509,22 @@ public abstract class SqlParserFacade {
                 }
             }
         }
+    }
+
+    /**
+     * Skips a line comment ({@code --}, {@code //}, {@code #} or {@code #!}) up to and including the
+     * terminating newline. An empty comment is terminated by the newline that directly follows the comment
+     * marker, so scanning must continue on the next line instead of stopping at the end of the query.
+     *
+     * @param query      non-null string to scan
+     * @param startIndex index of the second character of the comment marker, which is never a newline for
+     *                   {@code --} and {@code //}, and is the first comment character for {@code #}
+     * @param len        end index, usually length of the given string
+     * @return index of the start of the next line, or {@code len} when the comment is not terminated
+     */
+    private static int skipLineComment(String query, int startIndex, int len) {
+        int index = query.indexOf('\n', startIndex);
+        return index < 0 || index >= len ? len : index + 1;
     }
 
     /**
