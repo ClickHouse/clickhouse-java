@@ -23,6 +23,7 @@ on:
         required: true
         type: string
 
+
 permissions:
   contents: read
   pull-requests: write
@@ -36,9 +37,11 @@ jobs:
       (github.event.issue.pull_request &&
        startsWith(github.event.comment.body, '/benchmark-compare') &&
        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
-    uses: ClickHouse/integrations-shared-workflows/.github/workflows/clickhouse-benchmark.yml@main
+    uses: ClickHouse/integrations-shared-workflows/.github/workflows/clickhouse-benchmark.yml@51b1407ab4b67f37333823f2c43aa42f0d9da141
     with:
       client: clickhouse-java
       profile: pr-compare
       pr_number: ${{ github.event.issue.number || inputs.pr_number }}
-    secrets: inherit
+    secrets:
+      WORKFLOW_AUTH_PUBLIC_APP_ID: ${{ secrets.WORKFLOW_AUTH_PUBLIC_APP_ID }}
+      WORKFLOW_AUTH_PUBLIC_PRIVATE_KEY: ${{ secrets.WORKFLOW_AUTH_PUBLIC_PRIVATE_KEY }}

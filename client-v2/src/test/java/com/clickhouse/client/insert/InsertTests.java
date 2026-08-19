@@ -13,6 +13,7 @@ import com.clickhouse.client.api.data_formats.RowBinaryFormatSerializer;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
+import com.clickhouse.client.api.internal.ClientUtils;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.metrics.ClientMetrics;
@@ -138,6 +139,36 @@ public class InsertTests extends BaseIntegrationTest {
         assertTrue(metrics.getMetric(ClientMetrics.OP_SERIALIZATION).getLong() > 0);
         assertEquals(metrics.getQueryId(), uuid);
         assertEquals(response.getQueryId(), uuid);
+    }
+
+    @Test(groups = { "integration" }, enabled = true)
+    public void testInsertResponseStats() throws Exception {
+        String tableName = "insert_response_stats_table";
+        String createSQL = SamplePOJO.generateTableCreateSQL(tableName);
+        String uuid = UUID.randomUUID().toString();
+
+        initTable(tableName, createSQL);
+
+        client.register(SamplePOJO.class, client.getTableSchema(tableName));
+        List<Object> simplePOJOs = new ArrayList<>();
+        for (int i = 0; i < 100; i++) {
+            simplePOJOs.add(new SamplePOJO());
+        }
+
+        settings.setQueryId(uuid);
+        try (InsertResponse response = client.insert(tableName, simplePOJOs, settings).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS)) {
+            assertEquals(response.getWrittenRows(), simplePOJOs.size());
+            assertTrue(response.getWrittenBytes() > 0, "written bytes should be positive");
+            // server reads back the inserted rows to write them, so read counters are populated
+            assertTrue(response.getReadRows() >= 0, "read rows should be non-negative");
+            assertTrue(response.getReadBytes() >= 0, "read bytes should be non-negative");
+            assertTrue(response.getServerTime() >= 0, "server time should be non-negative");
+            assertTrue(response.getResultRows() >= 0, "result rows should be non-negative");
+            assertEquals(response.getQueryId(), uuid);
+            Assert.assertNotNull(response.getMetrics(), "metrics should be present");
+            Assert.assertTrue(ClientUtils.isNotBlank(response.getServerDisplayName()));
+            Assert.assertNotNull(response.getResponseHeaders(), "response headers should be present");
+        }
     }
 
     @Test(groups = { "integration" }, enabled = true)

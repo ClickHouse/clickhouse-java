@@ -175,6 +175,36 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         }
     }
 
+    @DataProvider(name = "specialCharacterStrings")
+    Object[][] specialCharacterStrings() {
+        return new Object[][] {
+                {"plain value"},
+                {"tab\tinside"},
+                {"newline\ninside"},
+                {"C:\\temp"},
+                {"quote'inside"},
+                {"mixed\t'quote'\nand\\backslash"},
+                {"unicode é中😀"},
+        };
+    }
+
+    @Test(groups = { "integration" }, dataProvider = "specialCharacterStrings")
+    public void testSetStringWithSpecialCharacters(String value) throws Exception {
+        // A String bound with setString is inlined into the SQL as a single-quoted literal, so the
+        // backslash and single quote must be escaped (a tab or newline is a valid literal character).
+        // The value must round-trip byte-for-byte.
+        try (Connection conn = getJdbcConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT ?")) {
+                stmt.setString(1, value);
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getString(1), value);
+                    assertFalse(rs.next());
+                }
+            }
+        }
+    }
+
     @Test(groups = { "integration" })
     public void testSetBytes() throws Exception {
         // see com.clickhouse.jdbc.JdbcDataTypeTests.testStringsUsedAsBytes
@@ -1315,6 +1345,63 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                     assertThrows(SQLException.class, () -> rs.getString(14));
                     assertFalse(rs.next());
                 }
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testBoundValuesContainingJdbcEscapeSyntax() throws Exception {
+        try (Connection conn = getJdbcConnection(Map.of(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF))) {
+            final String table = "test_bound_values_with_escape_syntax";
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("DROP TABLE IF EXISTS " + table);
+                stmt.execute("CREATE TABLE " + table +
+                        "(v1 Int32, v2 Map(String, String), v3 String, v4 Int32) Engine MergeTree ORDER BY (v1)");
+            }
+
+            Map<String, String> map1 = new LinkedHashMap<>();
+            map1.put("user", "Z!F3{fn ");
+            map1.put("region", "{d '2024-01-02'}");
+            Map<String, String> map2 = Collections.singletonMap("user", "}");
+
+            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO " + table + " VALUES (?, ?, ?, ?)")) {
+                stmt.setInt(1, 1);
+                stmt.setObject(2, map1);
+                stmt.setString(3, "{fn UCASE('a')}");
+                stmt.setInt(4, 40);
+                stmt.addBatch();
+                stmt.setInt(1, 2);
+                stmt.setObject(2, map2);
+                stmt.setString(3, "{ts '2024-01-02 02:01:01'}");
+                stmt.setInt(4, 41);
+                stmt.addBatch();
+                assertEquals(stmt.executeBatch(), new int[]{1, 1});
+            }
+
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT ? AS v1, ? AS v2")) {
+                stmt.setString(1, "Z!F3{fn ");
+                stmt.setString(2, "}");
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getString(1), "Z!F3{fn ");
+                    assertEquals(rs.getString(2), "}");
+                    assertFalse(rs.next());
+                }
+            }
+
+            try (Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery("SELECT * FROM " + table + " ORDER BY v1")) {
+                assertTrue(rs.next());
+                assertEquals(rs.getInt(1), 1);
+                assertEquals(rs.getObject(2), map1);
+                assertEquals(rs.getString(3), "{fn UCASE('a')}");
+                assertEquals(rs.getInt(4), 40);
+                assertTrue(rs.next());
+                assertEquals(rs.getInt(1), 2);
+                assertEquals(rs.getObject(2), map2);
+                assertEquals(rs.getString(3), "{ts '2024-01-02 02:01:01'}");
+                assertEquals(rs.getInt(4), 41);
+                assertFalse(rs.next());
             }
         }
     }

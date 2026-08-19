@@ -2,8 +2,165 @@
 
 [Release Migration Guide](docs/releases/0_11_0.md)
 
+### New Features
+
+- **[client-v2]** Added an observability SPI that lets an application observe client operations as spans.
+  `Client.Builder.setSpanRecorder(SpanRecorder)` registers a backend-agnostic recorder from the new
+  `com.clickhouse.client.api.observability` package: each operation (a query, a command or an insert - including
+  the `ping` and `getTableSchema` calls, which run a query) starts one operation span, and every transport
+  request made for it - including each retry - starts a child request span. `SpanRecorder` and `Span` are plain interfaces; an implementation extends the
+  `DefaultSpanRecorder` base class and overrides only what it cares about, so it keeps working when
+  the client starts a kind of span it does not know about. The registered recorder is called first and receives
+  everything the client knows about the operation (its `QuerySettings`/`InsertSettings`, the statement, the target
+  table, the batch size, the endpoint, the metrics of the completed operation and the failure), so it is free to
+  record whatever it needs and in whatever form; the reusable `SpanSupport` class derives the standard span names
+  and attribute values from those same structures and is called by a recorder implementation that wants them, so
+  its logic is opt-in and overridable. Span names and attribute keys follow the OpenTelemetry semantic conventions for
+  database and HTTP client spans; the keys are defined by the `SpanAttribute` enum and the values are derived by
+  `SpanSupport`, so all recorders that use it report the same information (statement text, target database and table, query id,
+  statement parameters, batch size, the first configured endpoint on the operation span and the per-attempt
+  server address and port on the request spans, HTTP status, returned rows, and the error type and ClickHouse
+  error code on failure). An operation span is started on the calling thread, so it joins
+  the caller's ambient trace even when the operation runs on the client's executor, and it is ended exactly once
+  for every operation that starts. Previously the client exposed no hook for tracing, so an
+  application could not attribute a query or a retried request to its own trace. When no recorder is registered
+  nothing is recorded and no span-related work is done, so the default path is unchanged. An OpenTelemetry
+  implementation of the SPI follows in a separate module.
+  (https://github.com/ClickHouse/clickhouse-java/issues/2974)
+- **[client-v2, jdbc-v2]** Added support for the `BFloat16` data type (ClickHouse `24.11+`). `BFloat16` columns are read as
+  Java `float` values (widening is lossless) and written from `float`/`Float` values, including through generic records, POJO
+  binding, `Nullable(BFloat16)`, and `BFloat16` values held in `Dynamic`/`Variant` columns. On write the client keeps the
+  high 16 bits of the `float`, matching the ClickHouse server's own `Float32` → `BFloat16` conversion. In the JDBC driver
+  (`jdbc-v2`) `BFloat16` maps to `java.sql.Types.FLOAT` / `java.lang.Float` and is read and written through the standard
+  `getFloat`/`setFloat` and `getObject` accessors, and reported as such by `ResultSetMetaData` and `DatabaseMetaData`.
+  Previously reading or writing a `BFloat16` column failed with an
+  unsupported-data-type error. (https://github.com/ClickHouse/clickhouse-java/issues/2279)
+- **[client-v2, jdbc-v2]** Added support for the experimental `QBit(element_type, dimension[, stride])` vector data type
+  (ClickHouse `25.10+`; the `allow_experimental_qbit_type` server setting is required to create a column). The type-name
+  parser accepts two or three parameters (the optional third is the stride) and recognizes the documented element types
+  `Int8`, `BFloat16`, `Float32`, and `Float64`; an element type outside that set is parsed with a warning rather than
+  rejected, so a newer server-side element type keeps parsing. A `QBit` value is transmitted over `RowBinary` exactly like
+  `Array(element_type)`, so it is read and written as a Java array of the element type (`float[]` for
+  `BFloat16`/`Float32`, `double[]` for `Float64`) through generic records, binary readers, and POJO binding, via a
+  dedicated `QBit` read/serialize path. A `QBit` held inside a `Dynamic`/`Variant`/`JSON` column is also decoded (its
+  binary type encoding is read back to the concrete `QBit(...)` type). In the
+  JDBC driver (`jdbc-v2`) `QBit` maps to `java.sql.Types.ARRAY` and is returned as a `java.sql.Array` from
+  `getObject`/`getArray`. Previously `QBit` was an unimplemented type constant and reading or writing such a column
+  failed. Reading `QBit` through the `Native` output format is not supported — the server transmits it there using a
+  different internal layout — and fails fast with a clear error; use a `RowBinary` format instead.
+  (https://github.com/ClickHouse/clickhouse-java/issues/2610)
+- **[client-v2, jdbc-v2]** Added TLS cipher suite selection. `Client.Builder.setSSLCipherSuites(String...)` (client-v2)
+  and the comma-separated `ssl_cipher_suites` connection property (client-v2 and jdbc-v2) restrict the cipher suites
+  enabled on secure connections; when unset, the transport defaults are used. Cipher-suite selection is independent of the
+  trust configuration and `ssl_mode`. (https://github.com/ClickHouse/clickhouse-java/issues/2882)
+- **[client-v2, jdbc-v2]** Added support for un-flattened `Nested(...)` columns (tables created with
+  `flatten_nested = 0`). Previously the `RowBinary` writer threw `UnsupportedOperationException: Unsupported
+  data type: Nested` when inserting such a column. `client-v2` now serializes a `Nested(f1 T1, ..., fN TN)`
+  column the same way it is read — identically to `Array(Tuple(T1, ..., TN))` (a var-uint row count followed
+  by one tuple per nested row) — so it can be written through the insert path / `RowBinaryFormatWriter`. In
+  `jdbc-v2` an un-flattened `Nested(...)` column is exposed as a JDBC `ARRAY` whose element type is
+  `Tuple(f1 T1, ..., fN TN)`: it can be inserted through `Connection#createArrayOf`/`setArray` or `setObject`
+  and read back through `getArray`/`getObject`, and `java.sql.Array#getResultSet()` iterates the nested rows
+  as `(INDEX, VALUE)` pairs where each `VALUE` is the tuple. (https://github.com/ClickHouse/clickhouse-java/issues/2477)
+- **[client-v2, jdbc-v2]** Added logging on previously-silent error and diagnostic paths (no functional or
+  public-API change). (https://github.com/ClickHouse/clickhouse-java/issues/2969)
+
 ### Bug Fixes 
 
+- **[jdbc-v2]** Fixed an `INSERT` whose values list holds a function call the bundled `ANTLR4` grammar cannot match -
+  such as `hex(x'AB')`, valid ClickHouse the grammar has no hex string literal for - being reported to hold no function
+  call when an `ANTLR4` parser backend is selected (`jdbc_sql_parser=ANTLR4` / `ANTLR4_PARAMS_PARSER`). Function calls in
+  a values list are reported by a callback on the parse tree, and such a statement is still given a parse tree, completed
+  by error recovery, which skips the tokens the parser recovered on - the function call among them. With the beta
+  `RowBinary` writer enabled (`beta.row_binary_for_simple_insert=true`) the statement was then routed to it, where a
+  literal function-call column cannot be written; it now takes the generic parameter substitution path, as it already did
+  for a function call the grammar matches. Since such a parse tree cannot tell, any insert that could not be parsed
+  without errors is now assumed to hold a function call in its values list, so none of them is written with the
+  `RowBinary` writer. The default `JAVACC` backend is not affected by this.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3027)
+- **[clickhouse-client]** Fixed JPMS/module-path service loading for `ClickHouseRequestManager` by loading client
+  services from the `com.clickhouse.client` module, which declares the required `uses` directives. This avoids
+  `ServiceConfigurationError` failures from `com.clickhouse.data` when applications run on the module path.
+  (https://github.com/ClickHouse/clickhouse-java/issues/2669)
+
+- **[client-v2]** Fixed `Client.cancelTransportRequest(queryId)` being silently dropped when it landed between two
+  attempts of a retried operation (query, POJO insert and stream insert): the operation issued the next attempt anyway
+  and could complete successfully. The request of an attempt now stays registered until the whole operation is over,
+  and the cancellation is checked before every attempt, so a cancelled operation stops instead of sending another
+  request. (https://github.com/ClickHouse/clickhouse-java/issues/2989)
+- **[data]** Fixed `BlockingPipedOutputStream.close()` not being idempotent under concurrency: the check of the
+  `closed` flag and the closing handshake were not atomic, so two threads closing the same stream (e.g. a writer
+  thread and a try-with-resources block) could both put the end-of-stream marker into the queue, and the second one
+  failed with `Close stream timed out after <n> ms` once the reader had stopped consuming. Exactly one caller now
+  performs the handshake and runs the post-close action; a concurrent or repeated `close()` returns immediately. A
+  `close()` which fails while flushing the remaining data also marks the stream closed and runs the post-close
+  action, so the stream cannot stay half-closed. (https://github.com/ClickHouse/clickhouse-java/issues/3055)
+- **[jdbc-v2]** Fixed JDBC escape processing rewriting text inside string literals and quoted identifiers. Because
+  `PreparedStatement` inlines bound parameters into the statement text, a bound value containing `{fn ` (or `{d '...'}`
+  / `{ts '...'}`) was re-read as SQL syntax: the `{fn ` was removed together with the next `}` found anywhere in the
+  statement — usually the closing brace of an unrelated `Map`/`Tuple` literal in another value or row — corrupting the
+  inserted data or failing with a server-side `SYNTAX_ERROR`. Escape sequences are now recognized only outside of quoted
+  text, and a `{fn ...}` escape is unwrapped at its matching closing brace, so nested braces (e.g. a `{name:Type}` query
+  parameter or a nested escape) stay balanced. (https://github.com/ClickHouse/clickhouse-java/issues/2995)
+- **[client-v2]** Fixed LZ4 input streams not closing their underlying HTTP response stream. Closing an LZ4 stream
+  returned by `QueryResponse.getInputStream()` now releases the wrapped transport stream, including after a partial
+  read. (https://github.com/ClickHouse/clickhouse-java/issues/2985)
+- **[client-v2, jdbc-v2]** Reduced noisy and potentially sensitive logging; SQL that fails to parse is no
+  longer logged at `WARN` (it could contain credentials/PII). (https://github.com/ClickHouse/clickhouse-java/issues/2970)
+- **[client-v2]** Fixed `BigDecimal` values written into a `Dynamic` column being silently truncated when the
+  value's scale exceeded the inferred width's maximum scale, and throwing an overflow error when the value
+  carried an integer part (e.g. `19.99`). The `Dynamic` type inference now sizes the `Decimal` width to hold
+  both the integer digits and the value's scale, keeps the scale as wide as the width allows without stealing
+  room from the integer part, and writes the actual column scale into the `Dynamic` type tag. Values that
+  already round-tripped losslessly are unchanged. (https://github.com/ClickHouse/clickhouse-java/issues/2966)
+- **[client-v2]** Fixed the `RowBinary` writer throwing
+  `UnsupportedOperationException: Unsupported data type: SimpleAggregateFunction` when inserting into a
+  `SimpleAggregateFunction(func, T)` column (the reader already supported these columns). The value is now
+  serialized identically to its underlying type `T`, writing the `Nullable` null-marker byte when the
+  underlying type is nullable (e.g. `SimpleAggregateFunction(anyLast, Nullable(String))`), mirroring the
+  read path. (https://github.com/ClickHouse/clickhouse-java/issues/2477)
+- **[client-v2, jdbc-v2]** Fixed several logging-layer defects. In `client-v2`, `HttpAPIClientHelper.shouldRetry`
+  threw a `ClassCastException` when a retryable `ServerException` was wrapped as the *cause* of another exception
+  (the branch matched on the cause but the cast used the outer exception); the retry decision is now taken from
+  whichever exception is the `ServerException`. Also in `client-v2`, a failure to build the HTTP client version
+  string is now logged at `WARN` with the throwable attached instead of a bare `INFO` message that discarded the
+  cause. In `jdbc-v2`, a failure to close the response after a query error now logs the close failure itself
+  instead of the already-propagated outer exception. (https://github.com/ClickHouse/clickhouse-java/issues/2968)
+
+- **[client-v2]** Fixed scalar `String` query parameters containing a tab (`0x09`), newline
+  (`0x0a`) or backslash being mishandled through the server's `param_<name>` interface. A `{name:String}`
+  parameter value is parsed by the server with `deserializeTextEscaped`, which treated a raw tab or
+  newline as a field delimiter (failing the query with `BAD_QUERY_PARAMETER: ... isn't parsed completely`)
+  and a raw backslash as the start of an escape sequence (silently corrupting the value, e.g. `C:\temp`
+  became `C:<tab>emp`). `Client.query(sql, params, ...)` now escapes the backslash, tab and newline in a
+  scalar `String` parameter so any value round-trips; every other character the server reads verbatim —
+  including the single quote and carriage return — is left unchanged, so `Identifier` values and
+  pre-formatted `Array`/`Map` literals passed as a `String` still round-trip. The JDBC driver (`jdbc-v2`),
+  which inlines parameters as SQL literals and already escaped the backslash and single quote, is
+  unchanged and covered by a new regression test. (https://github.com/ClickHouse/clickhouse-java/issues/2781)
+
+- **[client-v2]** Fixed a `null` query-parameter value being sent as the literal string `"null"`, so
+  `Client.query(sql, params, ...)` binding a Java `null` to a scalar placeholder such as
+  `{x:Nullable(Decimal128(8))}` was rejected by the server with `BAD_QUERY_PARAMETER`
+  (`Value null cannot be parsed as Nullable(...)`). A top-level scalar `null` is now sent as the ClickHouse
+  `\N` NULL sentinel so it binds SQL `NULL`; a `null` nested inside an `Array`/`Map` parameter value
+  continues to render as the SQL `NULL` keyword. (https://github.com/ClickHouse/clickhouse-java/issues/2977)
+
+- **[client-v2]** Fixed binary array decoding for nullable element types so `Array(Nullable(Float64))` and similar columns now return boxed arrays such as `Double[]` instead of `Object[]`. This keeps null-supporting arrays aligned with their element type while preserving the existing `Object[]` fallback for Variant/Dynamic/Geometry arrays. (https://github.com/ClickHouse/clickhouse-java/issues/2846)
+
+- **[client-v2]** Fixed `Float32`/`Float64` columns throwing `ClassCastException` when a value of a
+  non-matching boxed numeric type was supplied through the `Object`-typed insert surface — for example a
+  `Double` (the natural type of a Java literal like `1.5`) for a `Float32` column, or a `Float` for a
+  `Float64` column. The `RowBinary` serializer now narrows any `Number` (and, like the `Int*` columns,
+  a `String`/`Boolean`) through `Number#floatValue()`/`Number#doubleValue()`, so the float columns accept
+  the same value types the integer columns already did. (https://github.com/ClickHouse/clickhouse-java/issues/2930)
+
+- **[client-v2]** Fixed a `NullPointerException` when serializing a `null` value into a non-nullable
+  `Enum8`/`Enum16` column. `SerializerUtils.serializeEnumData` had no `null` guard, so a `null` in a
+  non-nullable enum column reached `value.getClass()` and failed the RowBinary insert path with a confusing
+  NPE instead of a clear error. It now throws `IllegalArgumentException` naming the column, consistent with
+  the existing `IllegalArgumentException` for other unsupported enum values. Nullable enum columns are
+  unaffected. (https://github.com/ClickHouse/clickhouse-java/issues/2931)
 - **[client-v2]** Fixed POJO insert error classification so transport write failures such as java.net.SocketException:
   Broken pipe (Write failed) are now surfaced as transfer/network errors instead of being wrapped as
   DataSerializationException. This only changes the exception type reported for request-body transport failures during
@@ -30,7 +187,14 @@
   backtick-quoted `INSERT` column-name component before the by-name server-schema lookup, matching how the
   table and database identifiers are already handled. (https://github.com/ClickHouse/clickhouse-java/issues/2896)
 
-## 0.10.0-rc1,  
+### Docs & Examples
+
+- **[examples]** Converted the remaining Gradle-based example projects (`client-v2-apache-arrow`, `demo-service`,
+  `demo-kotlin-service`) to Maven so that every project under `examples/` builds with a single, consistent toolchain.
+  The Gradle wrapper and build scripts were removed and each project now has a standalone `pom.xml`.
+  (https://github.com/ClickHouse/clickhouse-java/issues/2915)
+
+## 0.10.0,  
 
 [Release Migration Guide](docs/releases/0_10_0.md)
 
@@ -78,7 +242,35 @@
   previously set in milliseconds but mistakenly retrieved and used in seconds in some places. Now it correctly uses
   milliseconds consistently. (https://github.com/ClickHouse/clickhouse-java/issues/2358)
 
+- **[client-v2]** The public `ClickHouseBinaryFormatWriter` interface gained two methods, `setString(String, byte[])`
+  and `setString(int, byte[])`, for writing raw `String`/`FixedString` bytes. Code that only *uses* the interface is
+  unaffected, but any third party that *implements* `ClickHouseBinaryFormatWriter` directly is source- and
+  binary-incompatible until it adds these methods (recompiling against the new version is required; otherwise an
+  `AbstractMethodError` can occur at runtime).
+
+- **[client-v2]** HTTP `503 Service Unavailable` responses are now surfaced as a connection-style failure (
+  `java.net.ConnectException`) and are retried by default. Previously a `503` was treated as a server error (
+  `ServerException`) and fell under the `ServerRetryable` fault cause. It has been moved to the `ConnectTimeout` fault
+  cause category so that connectivity/availability failures are handled uniformly with other connection errors. Callers
+  that specifically excluded `ServerRetryable` to avoid retrying `503` should now adjust their
+  `client_retry_on_failures` configuration to exclude `ConnectTimeout` instead.
+
+- **[client-v2]** Unexpected/unknown HTTP status codes (those the client cannot interpret as a ClickHouse response) now
+  throw a `ClientException` instead of a `ServerException`. Since the client cannot meaningfully handle these responses,
+  they are reported as a client-side error rather than being attributed to the server.
+
 ### New Features
+
+- **[client-v2, jdbc-v2]** Added support for an application-supplied `javax.net.ssl.SSLContext`. In client-v2,
+  `Client.Builder.setSSLContext(SSLContext)` hands the client a fully pre-built context that is used as is; in
+  jdbc-v2 the same context may be passed as a live object in the connection `Properties` under the `ssl_context`
+  key (added with `Properties.put`, since it is not a string). Trust/key material options cannot be combined with
+  a custom context and are rejected; `ssl_mode` still applies but only to server hostname verification. This
+  supports in-memory TLS material that must never be written to disk, including behind connection pools that only
+  expose `java.util.Properties`.
+  - Examples for client-v2 https://github.com/ClickHouse/clickhouse-java/blob/main/examples/client-v2/src/main/java/com/clickhouse/examples/client_v2/SSLExamples.java
+  - Examples for jdbc-v2 https://github.com/ClickHouse/clickhouse-java/blob/main/examples/jdbc/src/main/java/com/clickhouse/examples/jdbc/SSLExamples.java
+  (https://github.com/ClickHouse/clickhouse-java/pull/2918, https://github.com/ClickHouse/clickhouse-java/issues/2909)
 
 - **[jdbc-v2, client-v2]** Implemented SSL modes configuration. Now it is possible to set `ssl_mode` to `DISABLED`, 
   `TRUST`, `VERIFY_CA` and `STRICT`. Note for V1 users: `NONE` is supported only by JDBC driver and mapped to `TRUST`.
@@ -127,11 +319,30 @@
   to be returned in their native form regardless of the user-supplied map. Existing maps keyed only by JDBC `SQLType`
   names continue to work unchanged. (https://github.com/ClickHouse/clickhouse-java/pull/2865)
 
-  - **[jdbc-v2]** Added support of custom mapping for JDBC types. Mainly used in cases when big integers should be 
+- **[jdbc-v2]** Added support of custom mapping for JDBC types. Mainly used in cases when big integers should be 
   presented as string. Use `DriverProperties.JDBC_TYPE_MAPPINGS` (`jdbc_type_mappings`) and set needed type mapping 
   as `key=value[,]` list (For example, `Int32=Long,UInt64=String`). Deprecation notice: V1 property `typeMappings` is 
   supported but will be removed. Please migrate to the new property. 
   (https://github.com/ClickHouse/clickhouse-java/issues/2858)
+
+- **[client-v2, jdbc-v2]** Added opt-in binary string support through the `binary_string_support` configuration property
+  (or `Client.Builder#binaryStringSupport(boolean)`), disabled by default. The setting is resolved per operation from 
+  the merged client and query settings, so it can be overridden for a single request via the `binary_string_support` 
+  operation option (e.g. `QuerySettings#setOption(ClientConfigProperties.BINARY_STRING_SUPPORT.getKey(), true)`) 
+  independently of the client-level default. When enabled, top-level `String` and `FixedString` columns are read 
+  into a `StringValue` that preserves the raw bytes instead of decoding them into a `String`, allowing non-UTF-8/binary 
+  content to round-trip byte-for-byte. `StringValue` exposes the bytes via `toByteArray()`/`asByteBuffer()` and 
+  lazily decodes a `String` via `asString()` (UTF-8 by default, or a caller-supplied `Charset`). Values nested inside 
+  containers (`Array`, `Map`, `Tuple`, `Nested`, `Variant`) continue to be read as `String`, since those types are not 
+  expected to carry large/binary strings. On the JDBC side, `ResultSet#getBinaryStream(int)` and 
+  `ResultSet#getBinaryStream(String)` are now implemented (previously unsupported) and, together with `getBytes(...)`, 
+  return the raw column bytes.
+  
+- **[client-v2]** Added `Client#cancelTransportRequest(String queryId)` to cancel an in-flight request that has not yet
+  received a response from the server, identified by the query id supplied in the operation settings. This aborts the
+  request on the client side (cancels the underlying IO operation) but does **not** issue a `KILL QUERY` on the server,
+  so a query that already started executing may continue to run server-side. It is recommended to use operation timeout
+  settings where possible; this API is intended for explicitly aborting a request from the client.
 
 ### Improvements 
 
@@ -148,6 +359,11 @@ like `ch_db_01`. This is mostly used in k8s environment. (https://github.com/Cli
 - **[client-v2]** Added example of working with `Apache Arrow` library using client. (https://github.com/ClickHouse/clickhouse-java/pull/2820)
 
 - **[repo]** Added a contribution guide. Please review and send us your feedback. (https://github.com/ClickHouse/clickhouse-java/pull/2859)
+
+- **[client-v2]** Added endpoint failover support: when multiple endpoints are configured and a request fails with a
+  retryable error (connect timeout, connection refused, HTTP 503, etc.), the client now automatically retries against
+  the next available endpoint instead of always targeting the first one. Failed endpoints are quarantined for 30 seconds
+  before being retried. (https://github.com/ClickHouse/clickhouse-java/issues/2855)
 
 ### Bug Fixes
 
@@ -173,6 +389,11 @@ of `NULL` was not set and read. (https://github.com/ClickHouse/clickhouse-java/i
   (https://github.com/ClickHouse/clickhouse-java/issues/2837)
 
 - **[jdbc-v2, client-v2]** Fixed writing nullable marker for nested `Tuple` and `Map values. (https://github.com/ClickHouse/clickhouse-java/issues/2721)
+
+- **[jdbc-v2]** Fixed `ResultSet.getObject` leaking the internal `StringValue` holder for `String`/`FixedString`
+  columns when `binary_string_support` is enabled. `getObject(column, byte[].class)` now returns the exact raw bytes,
+  and `getObject(column, Object.class)` and the no-type `getObject(column)` overloads now return a decoded `String`
+  instead of the internal holder.
 
 ## 0.9.8
 

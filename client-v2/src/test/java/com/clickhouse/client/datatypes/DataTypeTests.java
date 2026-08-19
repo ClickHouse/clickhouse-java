@@ -17,12 +17,14 @@ import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.sql.SQLUtils;
 import com.clickhouse.data.ClickHouseDataType;
+import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseVersion;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
 import org.testng.Assert;
+import org.testng.SkipException;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
@@ -91,8 +93,17 @@ public class DataTypeTests extends BaseIntegrationTest {
 
     private <T> void writeReadVerify(String table, String tableDef, Class<T> dtoClass, List<T> data,
                                      BiConsumer<List<T>, T> rowVerifier) throws Exception {
+        writeReadVerify(table, tableDef, dtoClass, data, rowVerifier, null);
+    }
+
+    private <T> void writeReadVerify(String table, String tableDef, Class<T> dtoClass, List<T> data,
+                                     BiConsumer<List<T>, T> rowVerifier, CommandSettings ddlSettings) throws Exception {
         client.execute("DROP TABLE IF EXISTS " + table).get();
-        client.execute(tableDef);
+        if (ddlSettings == null) {
+            client.execute(tableDef).get();
+        } else {
+            client.execute(tableDef, ddlSettings).get();
+        }
 
         final TableSchema tableSchema = client.getTableSchema(table);
         client.register(dtoClass, tableSchema);
@@ -104,6 +115,142 @@ public class DataTypeTests extends BaseIntegrationTest {
         });
 
         Assert.assertEquals(rowCount.get(), data.size());
+    }
+
+    // QBit was introduced in ClickHouse 25.10.
+    private static final String QBIT_UNSUPPORTED_VERSIONS = "(,25.9]";
+
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class QBitFloat32DTO {
+        private long rowId;
+        private float[] vec;
+        private int tail;
+
+        public static String tblCreateSQL(String table) {
+            return tableDefinition(table, "rowId Int64", "vec QBit(Float32, 8)", "tail Int32");
+        }
+    }
+
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class QBitFloat64DTO {
+        private long rowId;
+        private double[] vec;
+        private int tail;
+
+        public static String tblCreateSQL(String table) {
+            return tableDefinition(table, "rowId Int64", "vec QBit(Float64, 8)", "tail Int32");
+        }
+    }
+
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class QBitBFloat16DTO {
+        private long rowId;
+        private float[] vec;
+        private int tail;
+
+        public static String tblCreateSQL(String table) {
+            return tableDefinition(table, "rowId Int64", "vec QBit(BFloat16, 8)", "tail Int32");
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testQBit() throws Exception {
+        if (isVersionMatch(QBIT_UNSUPPORTED_VERSIONS)) {
+            throw new SkipException("QBit requires ClickHouse 25.10+");
+        }
+
+        // A QBit(element_type, dimension) value is transmitted over RowBinary exactly like an
+        // Array(element_type): a var-int length followed by that many element values. The full
+        // client write -> server -> client read round-trip is verified for every supported
+        // element type. The trailing Int32 column would shift (and the assertion fail) if the
+        // QBit codec consumed the wrong number of bytes.
+        CommandSettings ddl = (CommandSettings) new CommandSettings()
+                .serverSetting("allow_experimental_qbit_type", "1");
+
+        final float[] f32 = {1f, -2f, 3.5f, 4f, 5f, 6f, 7f, 8f};
+        writeReadVerify("test_qbit_f32", QBitFloat32DTO.tblCreateSQL("test_qbit_f32"),
+                QBitFloat32DTO.class, Arrays.asList(new QBitFloat32DTO(0, f32, 42)),
+                (all, dto) -> {
+                    Assert.assertEquals(dto.getVec(), f32);
+                    Assert.assertEquals(dto.getTail(), 42);
+                }, ddl);
+
+        final double[] f64 = {1d, -2d, 3.5d, 4d, 5d, 6d, 7d, 8d};
+        writeReadVerify("test_qbit_f64", QBitFloat64DTO.tblCreateSQL("test_qbit_f64"),
+                QBitFloat64DTO.class, Arrays.asList(new QBitFloat64DTO(0, f64, 42)),
+                (all, dto) -> {
+                    Assert.assertEquals(dto.getVec(), f64);
+                    Assert.assertEquals(dto.getTail(), 42);
+                }, ddl);
+
+        // Integers up to 256 are exactly representable in BFloat16, so these round-trip bit-for-bit.
+        final float[] bf16 = {1f, 2f, 4f, 8f, 16f, 32f, 64f, 128f};
+        writeReadVerify("test_qbit_bf16", QBitBFloat16DTO.tblCreateSQL("test_qbit_bf16"),
+                QBitBFloat16DTO.class, Arrays.asList(new QBitBFloat16DTO(0, bf16, 42)),
+                (all, dto) -> {
+                    Assert.assertEquals(dto.getVec(), bf16);
+                    Assert.assertEquals(dto.getTail(), 42);
+                }, ddl);
+    }
+
+    @Test(groups = {"integration"})
+    public void testQBitNativeFormatRejected() throws Exception {
+        if (isVersionMatch(QBIT_UNSUPPORTED_VERSIONS)) {
+            throw new SkipException("QBit requires ClickHouse 25.10+");
+        }
+
+        // In the Native format the server transmits a QBit column using its internal bit-transposed
+        // layout, which is NOT the Array(element_type)-like representation the client decodes for QBit
+        // over RowBinary. Reading QBit via Native must therefore fail loudly with a clear error rather
+        // than silently decoding garbage and misaligning the trailing column that follows it.
+        QuerySettings settings = new QuerySettings()
+                .setFormat(ClickHouseFormat.Native)
+                .serverSetting("allow_experimental_qbit_type", "1");
+        try (QueryResponse response = client.query(
+                "SELECT CAST([1, 2, 3, 4, 5, 6, 7, 8] AS QBit(Float32, 8)) AS q, 42 AS tail", settings).get()) {
+            ClientException ex = Assert.expectThrows(ClientException.class,
+                    () -> client.newBinaryFormatReader(response));
+            Assert.assertTrue(ex.getMessage().contains("QBit"),
+                    "Expected a clear QBit message, got: " + ex.getMessage());
+            Assert.assertTrue(ex.getMessage().contains("Native"),
+                    "Expected the message to mention the Native format, got: " + ex.getMessage());
+        }
+
+        // The same rejection applies to a QBit nested inside another type (here Map(String, QBit)),
+        // which the server does support and would otherwise be misread column-by-column.
+        try (QueryResponse response = client.query(
+                "SELECT CAST(map('a', [1, 2, 3]) AS Map(String, QBit(Float32, 3))) AS m", settings).get()) {
+            ClientException ex = Assert.expectThrows(ClientException.class,
+                    () -> client.newBinaryFormatReader(response));
+            Assert.assertTrue(ex.getMessage().contains("QBit"),
+                    "Expected a clear QBit message for the nested case, got: " + ex.getMessage());
+            Assert.assertTrue(ex.getMessage().contains("Native"),
+                    "Expected the message to mention the Native format, got: " + ex.getMessage());
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testQBitInDynamicColumn() throws Exception {
+        if (isVersionMatch(QBIT_UNSUPPORTED_VERSIONS)) {
+            throw new SkipException("QBit requires ClickHouse 25.10+");
+        }
+
+        // A QBit held in a Dynamic column encodes its concrete type on the wire as
+        // 0x36 <element_type_encoding> <var_uint dimension>. The binary type-encoding reader must
+        // consume the element type AND the dimension; otherwise the following column ("tail") would
+        // misalign. The trailing 42 is the desync guard.
+        List<GenericRecord> rows = client.queryAll(
+                "SELECT CAST(CAST([1, 2, 3] AS QBit(Float32, 3)) AS Dynamic) AS d, 42 AS tail " +
+                        "SETTINGS allow_experimental_qbit_type = 1, allow_experimental_dynamic_type = 1");
+        Assert.assertEquals(rows.size(), 1);
+        Assert.assertEquals(rows.get(0).getFloatArray("d"), new float[]{1f, 2f, 3f});
+        Assert.assertEquals(rows.get(0).getInteger("tail"), 42);
     }
 
     @Test(groups = {"integration"})
@@ -152,6 +299,261 @@ public class DataTypeTests extends BaseIntegrationTest {
             return tableDefinition(table, "rowId Int16", "words Array(String)", "numbers Array(Int32)",
                     "letters Array(String)");
         }
+    }
+
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class DTOForBFloat16Tests {
+        private int rowId;
+        private float bFloat16;
+        private Float bFloat16Nullable;
+
+        public static String tblCreateSQL(String table) {
+            return tableDefinition(table, "rowId Int32", "bFloat16 BFloat16",
+                    "bFloat16Nullable Nullable(BFloat16)");
+        }
+    }
+
+    // BFloat16 was introduced in ClickHouse 24.11.
+    private static final String BFLOAT16_UNSUPPORTED_VERSIONS = "(,24.10]";
+
+    @Test(groups = {"integration"})
+    public void testBFloat16() throws Exception {
+        if (isVersionMatch(BFLOAT16_UNSUPPORTED_VERSIONS)) {
+            throw new SkipException("BFloat16 requires ClickHouse 24.11+");
+        }
+
+        // Exhaustively cover every one of the 2^16 BFloat16 bit patterns through a full client
+        // write -> server -> client read round-trip (POJO path, incl. Nullable(BFloat16)). For
+        // pattern b the value is Float.intBitsToFloat(b << 16): non-NaN values (incl. +/-0,
+        // subnormals, +/-Infinity) must return bit-for-bit, while NaN inputs collapse to a single
+        // canonical NaN on write and are only required to read back as NaN. Truncation of
+        // non-representable float inputs is covered by testBFloat16TruncationMatchesServer.
+        final String table = "test_bfloat16";
+        final int count = 1 << 16;
+        List<DTOForBFloat16Tests> data = new ArrayList<>(count);
+        for (int b = 0; b < count; b++) {
+            float value = Float.intBitsToFloat(b << 16);
+            // Row 0 exercises the null path; every other row round-trips a non-null Nullable(BFloat16).
+            data.add(new DTOForBFloat16Tests(b, value, b == 0 ? null : value));
+        }
+
+        writeReadVerify(table,
+                DTOForBFloat16Tests.tblCreateSQL(table),
+                DTOForBFloat16Tests.class,
+                data,
+                (all, dto) -> {
+                    DTOForBFloat16Tests expected = all.get(dto.getRowId());
+                    assertBFloat16Equals(dto.getBFloat16(), expected.getBFloat16());
+                    assertBFloat16Equals(dto.getBFloat16Nullable(), expected.getBFloat16Nullable());
+                });
+    }
+
+    // BFloat16 keeps the high 16 bits of a float32, so every non-NaN value round-trips bit-for-bit;
+    // NaN inputs collapse to a single canonical NaN on write and are only required to read back as NaN.
+    private static void assertBFloat16Equals(Float actual, Float expected) {
+        if (expected == null) {
+            Assert.assertNull(actual);
+        } else if (Float.isNaN(expected)) {
+            Assert.assertNotNull(actual);
+            Assert.assertTrue(Float.isNaN(actual), "expected a NaN but got " + actual);
+        } else {
+            Assert.assertNotNull(actual);
+            Assert.assertEquals(Float.floatToRawIntBits(actual), Float.floatToRawIntBits(expected));
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testBFloat16ReadFromServerWrittenValues() throws Exception {
+        if (isVersionMatch(BFLOAT16_UNSUPPORTED_VERSIONS)) {
+            throw new SkipException("BFloat16 requires ClickHouse 24.11+");
+        }
+
+        // Exhaustively cover reading every one of the 2^16 BFloat16 bit patterns. The dataset is
+        // written with SQL text literals so the *server* produces the stored bytes; this decouples
+        // the read path under test from the client's binary write path. Row b holds the BFloat16
+        // whose bit pattern is b, so a read must widen it to Float.intBitsToFloat(b << 16) (NaN
+        // inputs collapse to a single canonical NaN on the server and only read back as NaN).
+        final String table = "test_bfloat16_read";
+        final int count = 1 << 16;
+        final int batchSize = 4096; // keep each INSERT well under max_query_size
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        client.execute("CREATE TABLE " + table
+                + " (rowId Int32, v BFloat16, vNull Nullable(BFloat16)) ENGINE = MergeTree ORDER BY rowId").get();
+
+        for (int start = 0; start < count; start += batchSize) {
+            int end = Math.min(start + batchSize, count);
+            StringBuilder insert = new StringBuilder("INSERT INTO ").append(table).append(" VALUES ");
+            for (int b = start; b < end; b++) {
+                String literal = bFloat16Literal(b);
+                if (b > start) {
+                    insert.append(',');
+                }
+                insert.append('(').append(b).append(',').append(literal).append(',')
+                        .append(b == 0 ? "NULL" : literal).append(')');
+            }
+            client.execute(insert.toString()).get();
+        }
+
+        // The server's stored bits are the ground truth for the read: reinterpretAsUInt16(v) yields
+        // the exact 16-bit pattern the server wrote, so a correct read must widen it to
+        // Float.intBitsToFloat(bits << 16). Deriving the expectation from the stored bits (rather than
+        // from rowId) keeps the read assertion correct regardless of how the server converts the text
+        // literal to BFloat16 - in particular the server flushes BFloat16 subnormals to zero, so those
+        // patterns are stored as +/-0 even though the literal named a tiny subnormal.
+        AtomicInteger rowCount = new AtomicInteger(0);
+        client.queryAll("SELECT rowId, v, reinterpretAsUInt16(v) AS bits, vNull FROM " + table + " ORDER BY rowId")
+                .forEach(row -> {
+                    int b = row.getInteger("rowId");
+                    float expected = Float.intBitsToFloat(row.getInteger("bits") << 16);
+                    assertBFloat16Equals(row.getFloat("v"), expected);
+                    if (b == 0) {
+                        Assert.assertNull(row.getObject("vNull"));
+                    } else {
+                        assertBFloat16Equals((Float) row.getObject("vNull"), expected);
+                    }
+                    rowCount.incrementAndGet();
+                });
+        Assert.assertEquals(rowCount.get(), count);
+    }
+
+    // Text form of the exact BFloat16 whose bit pattern is {@code pattern}, suitable for use as a
+    // SQL numeric literal. Non-finite patterns use ClickHouse's nan/inf/-inf tokens; every other
+    // pattern uses the shortest round-trippable decimal of Float.intBitsToFloat(pattern << 16),
+    // which is exactly representable in BFloat16 (its low 16 mantissa bits are zero).
+    private static String bFloat16Literal(int pattern) {
+        float value = Float.intBitsToFloat(pattern << 16);
+        if (Float.isNaN(value)) {
+            return "nan";
+        }
+        if (value == Float.POSITIVE_INFINITY) {
+            return "inf";
+        }
+        if (value == Float.NEGATIVE_INFINITY) {
+            return "-inf";
+        }
+        return Float.toString(value);
+    }
+
+    @Test(groups = {"integration"})
+    public void testBFloat16TruncationMatchesServer() throws Exception {
+        if (isVersionMatch(BFLOAT16_UNSUPPORTED_VERSIONS)) {
+            throw new SkipException("BFloat16 requires ClickHouse 24.11+");
+        }
+
+        // (a) The client must decode a BFloat16 produced by the server (Float32 -> BFloat16
+        //     drops the low mantissa bits) to the same value.
+        List<GenericRecord> cast = client.queryAll(
+                "SELECT CAST(3.14 AS BFloat16) AS v, CAST(0.1 AS BFloat16) AS v2");
+        Assert.assertEquals(cast.get(0).getFloat("v"), 3.125f, 0.0f);        // 0x4048F5C3 -> 0x40480000
+        Assert.assertEquals(cast.get(0).getFloat("v2"), 0.099609375f, 0.0f); // 0x3DCCCCCD -> 0x3DCC0000
+
+        // (b) A value written by the client must be stored byte-for-byte identically to the
+        //     server's own Float32 -> BFloat16 conversion of the same value.
+        final String table = "test_bfloat16_truncation";
+        writeReadVerify(table,
+                DTOForBFloat16Tests.tblCreateSQL(table),
+                DTOForBFloat16Tests.class,
+                Arrays.asList(new DTOForBFloat16Tests(0, 3.14f, 0.1f)),
+                (data, dto) -> {
+                    Assert.assertEquals(dto.getBFloat16(), 3.125f, 0.0f);
+                    Assert.assertEquals(dto.getBFloat16Nullable(), Float.valueOf(0.099609375f));
+                });
+        List<GenericRecord> parity = client.queryAll(
+                "SELECT reinterpretAsUInt16(bFloat16) AS written, " +
+                        "reinterpretAsUInt16(CAST(toFloat32(3.14) AS BFloat16)) AS server FROM " + table);
+        Assert.assertEquals(parity.get(0).getInteger("written"), parity.get(0).getInteger("server"));
+    }
+
+    @Test(groups = {"integration"})
+    public void testBFloat16InDynamicColumn() throws Exception {
+        if (isVersionMatch("(,24.8]") || isVersionMatch(BFLOAT16_UNSUPPORTED_VERSIONS)) {
+            throw new SkipException("BFloat16 requires ClickHouse 24.11+");
+        }
+
+        // Reading a BFloat16 held in a Dynamic column exercises the dynamic type-tag read path.
+        List<GenericRecord> rows = client.queryAll(
+                "SELECT CAST(CAST(1.5 AS BFloat16) AS Dynamic) AS v SETTINGS allow_experimental_dynamic_type = 1");
+        Assert.assertEquals(rows.get(0).getObject("v"), Float.valueOf(1.5f));
+    }
+
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class DTOForBinaryStringTests {
+        private int rowId;
+
+        // Mapped to a ClickHouse String column but holds raw (non-UTF-8) bytes.
+        private byte[] binaryString;
+
+        // Mapped to a ClickHouse FixedString(N) column, also holding raw bytes.
+        private byte[] fixedBinary;
+
+        public static String tblCreateSQL(String table, int fixedLength) {
+            return tableDefinition(table, "rowId Int32", "binaryString String",
+                    "fixedBinary FixedString(" + fixedLength + ")");
+        }
+    }
+
+    /**
+     * Verifies that raw, non-UTF-8 binary content survives a round-trip through {@code String} and
+     * {@code FixedString} columns when binary string support is enabled. The check covers both the
+     * binary format reader ({@link ClickHouseBinaryFormatReader#getByteArray}) and the POJO mapping
+     * path (a {@code byte[]} field bound to a string-backed column).
+     */
+    @Test(groups = {"integration"})
+    public void testBinaryStringRoundTrip() throws Exception {
+        final String table = "test_binary_string_round_trip";
+        final int fixedLength = 16;
+
+        // A blob with every possible byte value guarantees invalid UTF-8 sequences (e.g. lone 0x80).
+        final byte[] binaryBlob = new byte[256];
+        for (int i = 0; i < binaryBlob.length; i++) {
+            binaryBlob[i] = (byte) i;
+        }
+        final byte[] fixedBlob = new byte[fixedLength];
+        for (int i = 0; i < fixedLength; i++) {
+            fixedBlob[i] = (byte) (0xFF - i);
+        }
+
+        final DTOForBinaryStringTests sample = new DTOForBinaryStringTests(1, binaryBlob, fixedBlob);
+
+        try (Client binClient = newClient().binaryStringSupport(true).build()) {
+            binClient.execute("DROP TABLE IF EXISTS " + table).get();
+            binClient.execute(DTOForBinaryStringTests.tblCreateSQL(table, fixedLength)).get();
+
+            final TableSchema tableSchema = binClient.getTableSchema(table);
+            binClient.register(DTOForBinaryStringTests.class, tableSchema);
+            binClient.insert(table, Collections.singletonList(sample)).get().close();
+
+            // Reader path: getByteArray must return the original raw bytes.
+            try (QueryResponse response = binClient.query("SELECT * FROM " + table).get()) {
+                ClickHouseBinaryFormatReader reader = binClient.newBinaryFormatReader(response);
+                Assert.assertNotNull(reader.next());
+                Assert.assertEquals(reader.getByteArray("binaryString"), binaryBlob);
+                Assert.assertEquals(reader.getByteArray("fixedBinary"), fixedBlob);
+            }
+
+            // POJO path: a byte[] field bound to a string-backed column must receive the raw bytes.
+            List<DTOForBinaryStringTests> pojos =
+                    binClient.queryAll("SELECT * FROM " + table + " ORDER BY rowId",
+                            DTOForBinaryStringTests.class, tableSchema);
+            Assert.assertEquals(pojos.size(), 1);
+            Assert.assertEquals(pojos.get(0).getBinaryString(), binaryBlob);
+            Assert.assertEquals(pojos.get(0).getFixedBinary(), fixedBlob);
+        }
+
+        // Negative control: without binary string support the String column is decoded as UTF-8,
+        // which is lossy for this blob, so the round-tripped bytes must NOT match the original.
+        try (QueryResponse response = client.query("SELECT * FROM " + table).get()) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+            Assert.assertNotNull(reader.next());
+            Assert.assertFalse(Arrays.equals(reader.getByteArray("binaryString"), binaryBlob),
+                    "Expected lossy UTF-8 decoding without binary string support");
+        }
+
+        client.execute("DROP TABLE IF EXISTS " + table).get();
     }
 
     @Test(groups = {"integration"})
@@ -725,6 +1127,77 @@ public class DataTypeTests extends BaseIntegrationTest {
         }
     }
 
+    @DataProvider(name = "dynamicDecimalValues")
+    public Object[][] dynamicDecimalValues() {
+        return new Object[][]{
+                // Low-precision values whose scale exceeds the inferred width's maximum scale:
+                // previously silently truncated on write.
+                {new BigDecimal("0.0123456789")},            // scale 10 > Decimal32 max scale 9
+                {new BigDecimal("0.00012345678901234567")},  // scale 20 > Decimal64 max scale 18
+                {new BigDecimal("0.12345678901234567890123456789012345678901")}, // scale 41 -> Decimal256
+                // Values carrying an integer part: previously overflowed on insert because the
+                // scale was forced to the full width precision, leaving no room for integer digits.
+                {new BigDecimal("19.99")},
+                {new BigDecimal("-19.99")},
+                {new BigDecimal("1000")},
+                {new BigDecimal("1E3")},                     // negative scale (-3)
+                {new BigDecimal("123456789.123456789")},
+                {new BigDecimal("12345678901234567890.12345678901234567890")}, // 20 int + 20 frac -> Decimal256
+                {new BigDecimal("0")},
+                // A numerically-zero value whose scale exceeds any width: it fits (zero rounds to zero
+                // with no loss) and must round-trip rather than being rejected on insert.
+                {new BigDecimal("0E-77")},                   // zero, scale 77 > Decimal256 max scale
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "dynamicDecimalValues")
+    public void testDynamicColumnPreservesBigDecimalValue(BigDecimal value) throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+        final String table = "test_dynamic_decimal_roundtrip";
+        final int tail = 987654321;
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        client.execute(tableDefinition(table, "rowId Int32", "field Dynamic", "tail Int32"),
+                (CommandSettings) new CommandSettings().serverSetting("allow_experimental_dynamic_type", "1")).get();
+        client.register(DTOForDynamicDecimalTests.class, client.getTableSchema(table));
+
+        client.insert(table, Collections.singletonList(new DTOForDynamicDecimalTests(1, value, tail))).get().close();
+
+        List<GenericRecord> rows = client.queryAll("SELECT field, tail FROM " + table);
+        Assert.assertEquals(rows.size(), 1);
+        GenericRecord row = rows.get(0);
+        Assert.assertEquals(row.getBigDecimal("field").compareTo(value), 0,
+                "Dynamic Decimal round-trip must not lose data for " + value.toPlainString());
+        // The trailing fixed-width column stays intact only if the Decimal width written matches the
+        // type tag; a wrong width would shift the following bytes and corrupt it.
+        Assert.assertEquals(row.getInteger("tail"), tail);
+    }
+
+    @Test(groups = {"integration"})
+    public void testDynamicColumnFractionalDecimalRepresentationUnchanged() throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+        final String table = "test_dynamic_decimal_unchanged";
+        final int tail = 123456789;
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        client.execute(tableDefinition(table, "rowId Int32", "field Dynamic", "tail Int32"),
+                (CommandSettings) new CommandSettings().serverSetting("allow_experimental_dynamic_type", "1")).get();
+        client.register(DTOForDynamicDecimalTests.class, client.getTableSchema(table));
+
+        // A sub-integer value (no integer part) whose scale fits the smallest width was already
+        // stored correctly, as Decimal32 with the scale padded to the width maximum. The fix must
+        // leave this representation byte-for-byte unchanged.
+        client.insert(table, Collections.singletonList(new DTOForDynamicDecimalTests(1, new BigDecimal("0.5"), tail))).get().close();
+
+        GenericRecord row = client.queryAll("SELECT field, tail FROM " + table).get(0);
+        BigDecimal readBack = row.getBigDecimal("field");
+        Assert.assertEquals(readBack, new BigDecimal("0.500000000"));
+        Assert.assertEquals(readBack.scale(), 9);
+        Assert.assertEquals(row.getInteger("tail"), tail);
+    }
+
     @Test(groups = {"integration"})
     public void testDynamicWithArrays() throws Exception {
         testDynamicWith("arrays",
@@ -986,6 +1459,14 @@ public class DataTypeTests extends BaseIntegrationTest {
         private int rowId;
         private Object dyn;
         private String extra;
+    }
+
+    @Data
+    @AllArgsConstructor
+    public static class DTOForDynamicDecimalTests {
+        private int rowId;
+        private Object field;
+        private int tail;
     }
 
     @Test(groups = {"integration"})

@@ -14,7 +14,12 @@ import com.clickhouse.client.api.TransportException;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.enums.SSLMode;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
+import com.clickhouse.client.api.observability.DefaultSpanRecorder;
+import com.clickhouse.client.api.observability.Span;
+import com.clickhouse.client.api.observability.SpanRecorder;
 import com.clickhouse.client.api.transport.Endpoint;
+import com.clickhouse.client.api.transport.internal.TransportRequest;
+import com.clickhouse.client.api.transport.internal.TransportResponse;
 import com.clickhouse.data.ClickHouseFormat;
 import net.jpountz.lz4.LZ4Factory;
 import org.apache.commons.compress.compressors.CompressorStreamFactory;
@@ -25,6 +30,7 @@ import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.entity.mime.MultipartEntityBuilder;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
+import org.apache.hc.client5.http.impl.classic.RequestFailedException;
 import org.apache.hc.client5.http.impl.io.BasicHttpClientConnectionManager;
 import org.apache.hc.client5.http.impl.io.ManagedHttpClientConnectionFactory;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
@@ -43,8 +49,10 @@ import org.apache.hc.core5.http.HttpEntity;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.HttpRequest;
+import org.apache.hc.core5.http.HttpResponse;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.NoHttpResponseException;
+import org.apache.hc.core5.http.ProtocolException;
 import org.apache.hc.core5.http.URIScheme;
 import org.apache.hc.core5.http.config.CharCodingConfig;
 import org.apache.hc.core5.http.config.Http1Config;
@@ -57,6 +65,7 @@ import org.apache.hc.core5.http.io.entity.EntityTemplate;
 import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.hc.core5.io.CloseMode;
 import org.apache.hc.core5.io.IOCallback;
+import org.apache.hc.core5.net.URIAuthority;
 import org.apache.hc.core5.net.URIBuilder;
 import org.apache.hc.core5.pool.ConnPoolControl;
 import org.apache.hc.core5.pool.PoolConcurrencyPolicy;
@@ -99,6 +108,7 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -133,7 +143,17 @@ public class HttpAPIClientHelper {
 
     private final SslContextProvider sslContextProvider = new SslContextProvider();
 
-    public HttpAPIClientHelper(Map<String, Object> configuration, Object metricsRegistry, boolean initSslContext, LZ4Factory lz4Factory) {
+    /**
+     * Recorder a span is started on per transport request. Never {@code null} -
+     * {@link com.clickhouse.client.api.observability.DefaultSpanRecorder#NOOP} when observability is
+     * not configured.
+     */
+    private final SpanRecorder spanRecorder;
+
+    public HttpAPIClientHelper(Map<String, Object> configuration, Object metricsRegistry, boolean initSslContext,
+                               LZ4Factory lz4Factory, SpanRecorder spanRecorder) {
+        this.spanRecorder = Objects.requireNonNull(spanRecorder,
+                "spanRecorder is required; use DefaultSpanRecorder.NOOP to record nothing");
         this.metricsRegistry = metricsRegistry;
         this.httpClient = createHttpClient(initSslContext, configuration);
         this.lz4Factory = lz4Factory;
@@ -154,7 +174,7 @@ public class HttpAPIClientHelper {
     }
 
     /**
-     * Creates or returns default SSL context.
+     * Creates an SSL context from the configured trust/key material.
      *
      * @return SSLContext
      */
@@ -280,7 +300,21 @@ public class HttpAPIClientHelper {
     public CloseableHttpClient createHttpClient(boolean initSslContext, Map<String, Object> configuration) {
         // Top Level builders
         HttpClientBuilder clientBuilder = HttpClientBuilder.create();
-        SSLContext sslContext = initSslContext ? createSSLContext(configuration) : null;
+        // An application-supplied SSLContext is used as is; otherwise one is built from the configured
+        // trust/key material. Server hostname verification below still applies via the SSL mode.
+        SSLContext sslContext = null;
+        if (initSslContext) {
+            Object customSSLContext = configuration.get(ClientConfigProperties.SSL_CONTEXT.getKey());
+            if (customSSLContext == null) {
+                sslContext = createSSLContext(configuration);
+            } else if (customSSLContext instanceof SSLContext) {
+                sslContext = (SSLContext) customSSLContext;
+            } else {
+                throw new ClientMisconfigurationException("'" + ClientConfigProperties.SSL_CONTEXT.getKey()
+                        + "' must be a javax.net.ssl.SSLContext instance but was "
+                        + customSSLContext.getClass().getName() + "; supply it via Client.Builder.setSSLContext(...)");
+            }
+        }
         LayeredConnectionSocketFactory sslConnectionSocketFactory;
         if (sslContext != null) {
             String socketSNI = (String)configuration.get(ClientConfigProperties.SSL_SOCKET_SNI.getKey());
@@ -288,8 +322,23 @@ public class HttpAPIClientHelper {
             // Trust and VerifyCa skip hostname verification. The same applies when a custom SNI is
             // set because the connection hostname will not match the certificate.
             boolean trustAllHostnames = sslMode == SSLMode.TRUST || sslMode == SSLMode.VERIFY_CA;
-            if (socketSNI != null && !socketSNI.trim().isEmpty() || trustAllHostnames) {
-                sslConnectionSocketFactory = new CustomSSLConnectionFactory(socketSNI, sslContext, (hostname, session) -> true);
+            boolean hasSNI = socketSNI != null && !socketSNI.trim().isEmpty();
+            // ssl_cipher_suites is parsed and sanitized in ClientConfigProperties (blank tokens dropped,
+            // names trimmed); an unset or empty list means "no restriction" so the transport defaults apply.
+            List<String> cipherSuites = ClientConfigProperties.SSL_CIPHER_SUITES.getOrDefault(configuration);
+            String[] enabledCipherSuites = cipherSuites == null || cipherSuites.isEmpty() ? null
+                    : cipherSuites.toArray(new String[0]);
+            if (hasSNI || trustAllHostnames || enabledCipherSuites != null) {
+                // Skip hostname verification only for trust-all modes or when a custom SNI is used (the
+                // connection hostname would not match the certificate); otherwise a null verifier makes the
+                // factory fall back to the JDK/HttpClient default verifier, keeping STRICT verification.
+                // java:S5527 - the permissive verifier is applied only for SSLMode.TRUST/VERIFY_CA (where the
+                // user has explicitly opted out of hostname verification) or a custom SNI; STRICT keeps the
+                // default verifying behaviour, so secure-by-default hostname verification is preserved.
+                @SuppressWarnings("java:S5527")
+                HostnameVerifier hostnameVerifier = trustAllHostnames || hasSNI ? (hostname, session) -> true : null;
+                sslConnectionSocketFactory = new CustomSSLConnectionFactory(socketSNI, sslContext, hostnameVerifier,
+                        enabledCipherSuites);
             } else {
                 sslConnectionSocketFactory = new SSLConnectionSocketFactory(sslContext);
             }
@@ -365,10 +414,7 @@ public class HttpAPIClientHelper {
      * @return exception object with server code
      */
     public Exception readError(HttpPost req, ClassicHttpResponse httpResponse) {
-        final Header serverQueryIdHeader = httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID);
-        final Header clientQueryIdHeader = req.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID);
-        final Header queryHeader = Stream.of(serverQueryIdHeader, clientQueryIdHeader).filter(Objects::nonNull).findFirst().orElse(null);
-        final String queryId = queryHeader == null ? "" : queryHeader.getValue();
+        final String queryId = getQueryId(httpResponse, req);
         int serverCode = getHeaderInt(httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE), 0);
         try {
             return serverCode > 0 ? readClickHouseError(httpResponse.getEntity(), serverCode, queryId, httpResponse.getCode()) :
@@ -505,14 +551,16 @@ public class HttpAPIClientHelper {
         return context;
     }
 
-    private URI createRequestURI(Endpoint server, Map<String,Object> requestConfig, boolean addParameters) {
+    private URI createRequestURI(Endpoint server, Map<String,Object> requestConfig, boolean isMultipartRequest) {
         URI uri;
         try {
             URIBuilder uriBuilder = new URIBuilder(server.getURI());
             addRequestParams(requestConfig, uriBuilder::addParameter);
 
-            if (addParameters) {
+            if (!isMultipartRequest) {
                 addStatementParams(requestConfig, uriBuilder::addParameter);
+            } else {
+                uriBuilder.removeParameter(ClickHouseHttpProto.QPARAM_DECOMPRESS); // multipart request doesn't support compression yet
             }
 
             uri = uriBuilder.optimize().build();
@@ -529,104 +577,294 @@ public class HttpAPIClientHelper {
         return req;
     }
 
-    public ClassicHttpResponse executeRequest(Endpoint server, Map<String, Object> requestConfig,
-                                              String body) throws Exception {
+    private static final class TransportRequestImpl implements TransportRequest {
+        private final HttpPost delegate;
+        private final Map<String, Object> config;
+        private final AtomicBoolean cancelled = new AtomicBoolean(false);
 
+        TransportRequestImpl(HttpPost delegate, Map<String, Object> config) {
+            this.delegate = delegate;
+            this.config = config;
+        }
+
+        @Override
+        public boolean cancel() {
+            cancelled.set(true);
+            if (delegate.isCancelled()) {
+                return true;
+            }
+            return delegate.cancel();
+        }
+
+        @Override
+        public boolean isCancelled() {
+            return cancelled.get();
+        }
+
+        @Override
+        public Map<String, Object> getConfig() {
+            return config;
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public <T> T getDelegate() {
+            return (T) delegate;
+        }
+    }
+
+    public TransportRequest createRequest(Endpoint server, Map<String, Object> requestConfig,
+                                          String body) {
         boolean useMultipart = ClientConfigProperties.HTTP_SEND_PARAMS_IN_BODY.<Boolean>getOrDefault(requestConfig) &&
                 requestConfig.containsKey(HttpAPIClientHelper.KEY_STATEMENT_PARAMS);
 
-        // adjust configuration
-        if (useMultipart) {
-            requestConfig.put(ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey(), false); // turn-off client-req compression
-        }
-
         // create configuration dependent objects
-        final URI uri = createRequestURI(server, requestConfig, !useMultipart);
+        final URI uri = createRequestURI(server, requestConfig, useMultipart);
         final HttpPost req = createPostRequest(uri, requestConfig);
 
+        final HttpEntity httpEntity;
         if (useMultipart) {
             MultipartEntityBuilder multipartEntityBuilder = MultipartEntityBuilder.create();
             addStatementParams(requestConfig, multipartEntityBuilder::addTextBody);
             multipartEntityBuilder.addTextBody(ClickHouseHttpProto.QPARAM_QUERY_STMT, body);
 
-            HttpEntity httpEntity = multipartEntityBuilder.build();
+            httpEntity = multipartEntityBuilder.build();
             req.setHeader(HttpHeaders.CONTENT_TYPE, httpEntity.getContentType()); // set proper content type with generated boundary value
-            req.setEntity(wrapRequestEntity(httpEntity, requestConfig));
-
         } else {
-            final String contentEncoding = req.containsHeader(HttpHeaders.CONTENT_ENCODING) ? req.getHeader(HttpHeaders.CONTENT_ENCODING).getValue() : null;
-
-            HttpEntity httpEntity = new ByteArrayEntity(body.getBytes(StandardCharsets.UTF_8.name()), CONTENT_TYPE, contentEncoding);
+            try {
+                final String contentEncoding = req.containsHeader(HttpHeaders.CONTENT_ENCODING) ? req.getHeader(HttpHeaders.CONTENT_ENCODING).getValue() : null;
+                httpEntity = new ByteArrayEntity(body.getBytes(StandardCharsets.UTF_8.name()), CONTENT_TYPE, contentEncoding);
+            } catch (UnsupportedEncodingException | ProtocolException e) {
+                throw new ClientException("failed to create request body entity", e);
+            }
+        }
+        // adjust configuration
+        if (useMultipart) {
+            req.setEntity(httpEntity); // multipart doesn't support compression right now
+        } else {
             req.setEntity(wrapRequestEntity(httpEntity, requestConfig));
         }
-
-        // execute
-        return doPostRequest(requestConfig, req);
+        return new TransportRequestImpl(req, requestConfig);
     }
 
-    public ClassicHttpResponse executeRequest(Endpoint server, Map<String, Object> requestConfig,
-                                              IOCallback<OutputStream> writeCallback) throws Exception {
 
-        final URI uri = createRequestURI(server, requestConfig, true);
-        final HttpPost req = createPostRequest(uri, requestConfig);
-        String contentEncoding = req.containsHeader(HttpHeaders.CONTENT_ENCODING) ? req.getHeader(HttpHeaders.CONTENT_ENCODING).getValue() : null;
-        req.setEntity(wrapRequestEntity(
-                new EntityTemplate(-1, CONTENT_TYPE, contentEncoding , writeCallback),
-                requestConfig));
+    private static final class TransportResponseImpl implements TransportResponse {
 
-        return doPostRequest(requestConfig, req);
+        private final ClassicHttpResponse delegate;
+
+        TransportResponseImpl(ClassicHttpResponse delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public ClickHouseFormat getDataFormat() {
+            Header formatHeader = delegate.getFirstHeader(ClickHouseHttpProto.HEADER_FORMAT);
+            return formatHeader == null ? null : ClickHouseFormat.valueOf(formatHeader.getValue());
+        }
+
+        @Override
+        public String getSummaryJson() {
+            return HttpAPIClientHelper.getHeaderVal(delegate
+                    .getFirstHeader(ClickHouseHttpProto.HEADER_SRV_SUMMARY), "{}");
+        }
+
+        @Override
+        public String getQueryId() {
+            return HttpAPIClientHelper.getHeaderVal(delegate
+                    .getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID), null);
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public <T> T getDelegate() {
+            return (T) delegate;
+        }
+
+        @Override
+        public Map<String, String> getHeaders() {
+            return HttpAPIClientHelper.collectResponseHeaders(delegate);
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.close();
+        }
+
+        @Override
+        public InputStream createDataInputStream() {
+            try {
+                return delegate.getEntity().getContent();
+            } catch (Exception e) {
+                throw new ClientException("Failed to construct input stream", e);
+            }
+        }
     }
 
-    private ClassicHttpResponse doPostRequest(Map<String, Object> requestConfig, HttpPost req) throws Exception {
+    /**
+     * Executes a single transport request and records it as a child span of the given operation
+     * span, so a retried operation reports one request span per attempt. The request itself is
+     * executed by {@link #doExecuteRequest(TransportRequest, Span)}, which stays the single place
+     * where a request is actually executed and which records the HTTP status of the response.
+     *
+     * <p>
+     * When no recorder is registered the request is executed by
+     * {@link #executeRequest(TransportRequest)}, so a client that does not observe spans keeps
+     * exactly the behaviour it had before and pays nothing for the span path.
+     *
+     * @param transportRequest - request to execute
+     * @param operationSpan - span of the operation this request is made for
+     * @return transport response
+     * @throws Exception when the request could not be completed
+     */
+    public TransportResponse executeRequest(TransportRequest transportRequest, Span operationSpan) throws Exception {
+        if (spanRecorder == DefaultSpanRecorder.NOOP) {
+            return executeRequest(transportRequest);
+        }
+
+        final Span requestSpan = startRequestSpan(operationSpan, transportRequest.getDelegate());
+        try {
+            return doExecuteRequest(transportRequest, requestSpan);
+        } catch (Exception e) {
+            spanRecorder.recordRequestFailure(requestSpan, e);
+            throw e;
+        } finally {
+            requestSpan.end();
+        }
+    }
+
+    private Span startRequestSpan(Span operationSpan, HttpPost req) {
+        final URIAuthority authority = req.getAuthority();
+        Span span = spanRecorder.startRequestSpan(operationSpan,
+                authority == null ? null : authority.getHostName(),
+                authority == null ? -1 : authority.getPort());
+        return span == null ? DefaultSpanRecorder.NOOP_SPAN : span;
+    }
+
+    public TransportResponse executeRequest(TransportRequest transportRequest) throws Exception {
+        return doExecuteRequest(transportRequest, DefaultSpanRecorder.NOOP_SPAN);
+    }
+
+    /**
+     * Executes a single transport request and records the HTTP status on the given request span as
+     * soon as a response is received - so the status is reported for every response, also for the
+     * ones this method maps onto an exception that does not carry it (for example {@code 502} and
+     * {@code 503} onto {@link ConnectException}).
+     *
+     * @param transportRequest - request to execute
+     * @param requestSpan - span of this request; {@link DefaultSpanRecorder#NOOP_SPAN} when the
+     *                    request is not recorded
+     * @return transport response
+     * @throws Exception when the request could not be completed
+     */
+    private TransportResponse doExecuteRequest(TransportRequest transportRequest, Span requestSpan) throws Exception {
+
+        final Map<String, Object> requestConfig = transportRequest.getConfig();
+        final HttpPost req = transportRequest.getDelegate();
 
         doPoolVent();
 
         ClassicHttpResponse httpResponse = null;
+        boolean closeResponse = true;
         HttpContext context = createRequestHttpContext(requestConfig);
         try {
             httpResponse = httpClient.executeOpen(null, req, context);
+            if (requestSpan != DefaultSpanRecorder.NOOP_SPAN) {
+                // nothing to report when this request is not recorded - and a recorder is never handed a
+                // span it did not create
+                spanRecorder.recordHttpStatus(requestSpan, httpResponse.getCode());
+            }
 
             httpResponse.setEntity(wrapResponseEntity(httpResponse.getEntity(),
                     httpResponse.getCode(),
                     requestConfig));
 
-            if (httpResponse.getCode() == HttpStatus.SC_PROXY_AUTHENTICATION_REQUIRED) {
-                throw new ClientMisconfigurationException("Proxy authentication required. Please check your proxy settings.");
-            } else if (httpResponse.getCode() == HttpStatus.SC_BAD_GATEWAY) {
-                httpResponse.close();
-                throw new ClientException("Server returned '502 Bad gateway'. Check network and proxy settings.");
-            } else if (httpResponse.getCode() >= HttpStatus.SC_BAD_REQUEST || httpResponse.containsHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE)) {
-                try {
-                    throw readError(req, httpResponse);
-                } finally {
-                    httpResponse.close();
-                }
+            if (httpResponse.containsHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE)) {
+                throw readError(req, httpResponse);
             }
-            return httpResponse;
 
+            int statusCode = httpResponse.getCode();
+            switch (statusCode) {
+                case HttpStatus.SC_OK:
+                    closeResponse = false;
+                    return new TransportResponseImpl(httpResponse);
+                case HttpStatus.SC_PROXY_AUTHENTICATION_REQUIRED:
+                    throw new ClientMisconfigurationException("Proxy authentication required. Please check your proxy settings.");
+                case HttpStatus.SC_BAD_GATEWAY:
+                    throw new ConnectException("Server returned '502 Bad gateway'. Check network and proxy settings.");
+                case HttpStatus.SC_SERVICE_UNAVAILABLE:
+                    throw new ConnectException("Server returned '503 Service Unavailable'. Check network settings.");
+                case HttpStatus.SC_BAD_REQUEST:
+                case HttpStatus.SC_UNAUTHORIZED:
+                case HttpStatus.SC_FORBIDDEN:
+                case HttpStatus.SC_SERVER_ERROR:
+                case HttpStatus.SC_NOT_FOUND:
+                    // ClickHouse usually uses SC_BAD_REQUEST and SC_SERVER_ERROR to return error.
+                    // SC_UNAUTHORIZED, SC_FORBIDDEN is for authentication
+                    // SC_NOT_FOUND can be returned by ClickHouse when path doesn't match database, but also by proxy
+                    // others we cannot handle properly
+                    throw readError(req, httpResponse);
+                default:
+                    // Unknown status code: log it once (the generic exception below carries no server context).
+                    logServerErrorResponse(req, httpResponse);
+                    throw new ClientException("Unexpected result status " + statusCode);
+            }
         } catch (UnknownHostException e) {
-            closeQuietly(httpResponse);
-            LOG.warn("Host '{}' unknown", req.getAuthority());
+            LOG.debug("Host '{}' unknown", req.getAuthority());
             throw e;
         } catch (ConnectException | NoRouteToHostException e) {
-            closeQuietly(httpResponse);
-            LOG.warn("Failed to connect to '{}': {}", req.getAuthority(), e.getMessage());
+            LOG.debug("Failed to connect to '{}': {}", req.getAuthority(), e.getMessage());
             throw e;
         } catch (Exception e) {
-            closeQuietly(httpResponse);
             LOG.debug("Failed to execute request to '{}': {}", req.getAuthority(), e.getMessage(), e);
+            if (e instanceof RequestFailedException && req.isCancelled()) {
+                throw new TransportException("Request was cancelled on client side", e, getQueryId(httpResponse, req));
+            }
             throw e;
+        } finally {
+            if (closeResponse) {
+                ClientUtils.quietClose(httpResponse, LOG);
+            }
         }
     }
 
-    public static void closeQuietly(ClassicHttpResponse httpResponse) {
-        if (httpResponse != null) {
-            try {
-                httpResponse.close();
-            } catch (IOException e) {
-                LOG.warn("Failed to close response");
-            }
+    public TransportRequest createRequest(Endpoint server, Map<String, Object> requestConfig, IOCallback<OutputStream> writeCallback) {
+        final URI uri = createRequestURI(server, requestConfig, false);
+        final HttpPost req = createPostRequest(uri, requestConfig);
+        try {
+            String contentEncoding = req.containsHeader(HttpHeaders.CONTENT_ENCODING) ? req.getHeader(HttpHeaders.CONTENT_ENCODING).getValue() : null;
+            req.setEntity(wrapRequestEntity(
+                    new EntityTemplate(-1, CONTENT_TYPE, contentEncoding, writeCallback),
+                    requestConfig));
+        } catch (ProtocolException e) {
+            throw new ClientException("failed to create request body entity", e);
         }
+
+        return new TransportRequestImpl(req, requestConfig);
+    }
+
+    private String getQueryId(HttpResponse httpResponse, HttpPost httpRequest) {
+        final Header serverQueryIdHeader = httpResponse == null ? null : httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID);
+        final Header clientQueryIdHeader = httpRequest == null ? null : httpRequest.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID);
+        final Header queryHeader = Stream.of(serverQueryIdHeader, clientQueryIdHeader).filter(Objects::nonNull).findFirst().orElse(null);
+        return queryHeader == null ? "" : queryHeader.getValue();
+    }
+
+    /**
+     * Logs a server error response at WARN (status, query id, authority, exception-code header). The body is
+     * not logged: {@link #readError} consumes it and it may contain SQL/data.
+     */
+    private void logServerErrorResponse(HttpPost req, ClassicHttpResponse httpResponse) {
+        // Null-safe: the error path must never let its own logger throw and mask the real failure.
+        if (req == null || httpResponse == null) {
+            return;
+        }
+        final Header exceptionCodeHeader = httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE);
+        LOG.warn("Server returned error response: status={}, queryId='{}', authority='{}', {}={}",
+                httpResponse.getCode(),
+                getQueryId(httpResponse, req),
+                req.getAuthority(),
+                ClickHouseHttpProto.HEADER_EXCEPTION_CODE,
+                exceptionCodeHeader == null ? "<none>" : exceptionCodeHeader.getValue());
     }
 
     private static final ContentType CONTENT_TYPE = ContentType.create(ContentType.TEXT_PLAIN.getMimeType(), "UTF-8");
@@ -737,13 +975,13 @@ public class HttpAPIClientHelper {
             // enable_http_compression make server react on http header
             // for client side compression Content-Encoding should be set
             // for server side compression Accept-Encoding should be set
-            consumer.accept("enable_http_compression", "1");
+            consumer.accept(ClickHouseHttpProto.QPARAM_ENABLE_HTTP_COMPRESSION, "1");
         } else {
             if (serverCompression) {
-                consumer.accept("compress", "1");
+                consumer.accept(ClickHouseHttpProto.QPARAM_COMPRESS, "1");
             }
             if (clientCompression) {
-                consumer.accept("decompress", "1");
+                consumer.accept(ClickHouseHttpProto.QPARAM_DECOMPRESS, "1");
             }
         }
 
@@ -775,9 +1013,6 @@ public class HttpAPIClientHelper {
         boolean useHttpCompression = ClientConfigProperties.USE_HTTP_COMPRESSION.getOrDefault(requestConfig);
         boolean appCompressedData = ClientConfigProperties.APP_COMPRESSED_DATA.getOrDefault(requestConfig);
 
-        LOG.debug("wrapRequestEntity: client compression: {}, http compression: {}, content encoding: {}",
-                clientCompression, useHttpCompression, httpEntity.getContentEncoding());
-
         if (httpEntity.getContentEncoding() != null && !appCompressedData) {
             // http header is set and data is not compressed
             return new CompressedEntity(httpEntity, false, CompressorStreamFactory.getSingleton());
@@ -793,9 +1028,6 @@ public class HttpAPIClientHelper {
     private HttpEntity wrapResponseEntity(HttpEntity httpEntity, int httpStatus, Map<String, Object> requestConfig) {
         boolean serverCompression = ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getOrDefault(requestConfig);
         boolean useHttpCompression = ClientConfigProperties.USE_HTTP_COMPRESSION.getOrDefault(requestConfig);
-
-        LOG.debug("wrapResponseEntity: server compression: {}, http compression: {}, content encoding: {}",
-                serverCompression, useHttpCompression, httpEntity.getContentEncoding());
 
         if (httpEntity.getContentEncoding() != null) {
             // http compressed response
@@ -820,7 +1052,10 @@ public class HttpAPIClientHelper {
             ClickHouseHttpProto.HEADER_SRV_SUMMARY,
             ClickHouseHttpProto.HEADER_SRV_DISPLAY_NAME,
             ClickHouseHttpProto.HEADER_DATABASE,
-            ClickHouseHttpProto.HEADER_DB_USER
+            ClickHouseHttpProto.HEADER_DB_USER,
+            ClickHouseHttpProto.HEADER_TIMEZONE,
+            ClickHouseHttpProto.HEADER_FORMAT,
+            ClickHouseHttpProto.HEADER_PROGRESS
     ));
 
     /**
@@ -883,7 +1118,7 @@ public class HttpAPIClientHelper {
 
         // there are some db retryable error codes
         if (ex instanceof ServerException || ex.getCause() instanceof ServerException) {
-            ServerException se = (ServerException) ex;
+            ServerException se = (ServerException) (ex instanceof ServerException ? ex : ex.getCause());
             return se.isRetryable() && retryCauses.contains(ClientFaultCause.ServerRetryable);
         }
 
@@ -893,8 +1128,11 @@ public class HttpAPIClientHelper {
     // This method wraps some client specific exceptions into specific ClientException or just ClientException
     // ClientException will be also wrapped
     public RuntimeException wrapException(String message, Exception cause, String queryId) {
-        if (cause instanceof ClientException || cause instanceof ServerException) {
-            return (RuntimeException) cause;
+        // Already-classified exceptions (ClientException, ServerException, ConnectionInitiationException, ...)
+        // are returned as-is so their specific type is preserved instead of being reboxed as a generic
+        // ClickHouseException.
+        if (cause instanceof ClickHouseException) {
+            return (ClickHouseException) cause;
         }
 
         if (cause instanceof SSLException) {
@@ -967,7 +1205,7 @@ public class HttpAPIClientHelper {
                         httpClientVersion = tmp;
                     }
                 } catch (Exception e) {
-                    // ignore
+                    LOG.debug("Failed to read HTTP client version from client-v2-version.properties", e);
                 }
             }
             userAgent.append(" ")
@@ -975,7 +1213,7 @@ public class HttpAPIClientHelper {
                     .append('/')
                     .append(httpClientVersion);
         } catch (Exception e) {
-            LOG.info("failed to construct http client version string");
+            LOG.warn("failed to construct http client version string", e);
         }
         return userAgent.toString();
     }
@@ -1065,8 +1303,14 @@ public class HttpAPIClientHelper {
 
         private final SNIHostName defaultSNI;
 
+        // Retained for backward compatibility; delegates with no cipher-suite restriction (transport defaults).
         public CustomSSLConnectionFactory(String defaultSNI, SSLContext sslContext, HostnameVerifier hostnameVerifier) {
-            super(sslContext, hostnameVerifier);
+            this(defaultSNI, sslContext, hostnameVerifier, null);
+        }
+
+        public CustomSSLConnectionFactory(String defaultSNI, SSLContext sslContext, HostnameVerifier hostnameVerifier,
+                                          String[] supportedCipherSuites) {
+            super(sslContext, null /* supportedProtocols */, supportedCipherSuites, hostnameVerifier);
             this.defaultSNI = defaultSNI == null || defaultSNI.trim().isEmpty() ? null : new SNIHostName(defaultSNI);
         }
 

@@ -14,6 +14,7 @@ import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.enums.Protocol;
+import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.internal.DataTypeConverter;
@@ -1028,6 +1029,10 @@ public class QueryTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testFloatDataTypes() {
+        final boolean usesPreciseFloatParsing = isVersionMatch("[26.7,)");
+        final float expectedMaxFloat32 = usesPreciseFloatParsing ? Float.MAX_VALUE : 3.4028233E38F;
+        final double expectedMinFloat64 = usesPreciseFloatParsing ? Double.MIN_VALUE : 0.0D;
+
         final List<String> columns = Arrays.asList(
                 "min_float32 Float32",
                 "max_float32 Float32",
@@ -1059,12 +1064,12 @@ public class QueryTests extends BaseIntegrationTest {
 
         });
         verifiers.add(r -> {
-            Assert.assertEquals(r.getFloat("max_float32"), 3.4028233E38F); // TODO: investigate why it's not Float.MAX_VALUE returned from server
-            Assert.assertEquals(r.getFloat(2), 3.4028233E38F);
+            Assert.assertEquals(r.getFloat("max_float32"), expectedMaxFloat32);
+            Assert.assertEquals(r.getFloat(2), expectedMaxFloat32);
         });
         verifiers.add(r -> {
-            Assert.assertEquals(r.getDouble("min_float64"), 0.0D); // TODO: investigate why it's not Double.MIN_VALUE returned from server
-            Assert.assertEquals(r.getDouble(3), 0.0D);
+            Assert.assertEquals(r.getDouble("min_float64"), expectedMinFloat64);
+            Assert.assertEquals(r.getDouble(3), expectedMinFloat64);
         });
         verifiers.add(r -> {
             Assert.assertEquals(r.getDouble("max_float64"), Double.MAX_VALUE);
@@ -1467,6 +1472,54 @@ public class QueryTests extends BaseIntegrationTest {
         }
     }
 
+    @Test(groups = {"integration"})
+    public void testQueryResponseGettersAndHeaders() throws Exception {
+        String uuid = UUID.randomUUID().toString();
+        QuerySettings settings = new QuerySettings()
+                .setFormat(ClickHouseFormat.TabSeparated)
+                .waitEndOfQuery(true)
+                .setQueryId(uuid);
+
+        try (QueryResponse response = client.query("SELECT number FROM system.numbers LIMIT 10", settings).get()) {
+            // Format getter
+            Assert.assertEquals(response.getFormat(), ClickHouseFormat.TabSeparated);
+
+            // Metrics getters
+            Assert.assertNotNull(response.getMetrics(), "metrics should be present");
+            Assert.assertEquals(response.getReadRows(), 10);
+            Assert.assertTrue(response.getReadBytes() > 0, "read bytes should be positive");
+            Assert.assertTrue(response.getWrittenRows() >= 0, "written rows should be non-negative");
+            Assert.assertTrue(response.getWrittenBytes() >= 0, "written bytes should be non-negative");
+            Assert.assertTrue(response.getServerTime() >= 0, "server time should be non-negative");
+            Assert.assertTrue(response.getResultRows() > 0, "result rows should be positive");
+            Assert.assertTrue(response.getTotalRowsToRead() >= 0, "total rows to read should be non-negative");
+            Assert.assertEquals(response.getQueryId(), uuid);
+
+            // Timezone and settings getters
+            Assert.assertNotNull(response.getTimeZone(), "server timezone should be resolved from response header");
+            Assert.assertNotNull(response.getSettings(), "settings should be present");
+
+            // Server display name getter
+            Assert.assertNotNull(response.getServerDisplayName(), "server display name header should be present");
+
+            // All whitelisted response headers must be returned
+            Map<String, String> headers = response.getResponseHeaders();
+            Assert.assertNotNull(headers, "response headers map should be present");
+            Assert.assertEquals(headers.get(ClickHouseHttpProto.HEADER_QUERY_ID), uuid,
+                    "query id header should round-trip");
+            Assert.assertNotNull(headers.get(ClickHouseHttpProto.HEADER_TIMEZONE),
+                    "timezone header should be present");
+            Assert.assertNotNull(headers.get(ClickHouseHttpProto.HEADER_FORMAT),
+                    "format header should be present");
+            Assert.assertNotNull(headers.get(ClickHouseHttpProto.HEADER_SRV_DISPLAY_NAME),
+                    "server display name header should be present");
+            Assert.assertNotNull(headers.get(ClickHouseHttpProto.HEADER_SRV_SUMMARY),
+                    "summary header should be present");
+            Assert.assertEquals(headers.get(ClickHouseHttpProto.HEADER_SRV_DISPLAY_NAME),
+                    response.getServerDisplayName(), "getter should match header map value");
+        }
+    }
+
     protected final static List<String> DATASET_COLUMNS = Arrays.asList(
             "col1 UInt32",
             "col2 Int32",
@@ -1690,6 +1743,40 @@ public class QueryTests extends BaseIntegrationTest {
 
         Assert.assertEquals(records.size(), 1);
         Assert.assertEquals(records.get(0).getString("v"), expected);
+    }
+
+    @DataProvider(name = "scalarStringQueryParameters")
+    Object[][] scalarStringQueryParameters() {
+        // Scalar {p:String} values that must round-trip byte-for-byte through the server's
+        // param_<name> interface. A raw tab/newline previously failed with BAD_QUERY_PARAMETER and a
+        // raw backslash was silently corrupted; the client now emits the TSV "escaped" form.
+        return new Object[][]{
+                {"plain value"},
+                {""},                             // empty string: boundary
+                {"hello\tworld"},                 // tab: rejected with BAD_QUERY_PARAMETER before the fix
+                {"line1\nline2"},                 // newline: rejected with BAD_QUERY_PARAMETER before the fix
+                {"C:\\temp"},                      // backslash before 't': silently corrupted to a tab before the fix
+                {"carriage\rreturn"},             // CR: read verbatim, must survive round-trip
+                {"quote'inside"},                 // single quote: read verbatim, must survive round-trip
+                {"mix\tof\nall\\the'specials"},
+                {"unicode é中😀"},                 // multi-byte UTF-8 must be untouched
+                {"a\u0000b"},                     // NUL: read verbatim, must survive round-trip
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "scalarStringQueryParameters")
+    public void testScalarStringQueryParamsRoundTrip(String value) {
+        // A scalar {p:String} parameter containing a tab, newline or backslash must round-trip
+        // unchanged. Before the fix the value was sent raw, so the server's deserializeTextEscaped
+        // treated a tab/newline as a field delimiter (BAD_QUERY_PARAMETER) or read a backslash as an
+        // escape sequence, corrupting the value. The trailing constant column detects a parameter
+        // parse that consumes the wrong number of bytes.
+        Map<String, Object> params = Collections.singletonMap("p", value);
+        List<GenericRecord> records = client.queryAll("SELECT {p:String} AS v, 'END' AS tail", params);
+
+        Assert.assertEquals(records.size(), 1);
+        Assert.assertEquals(records.get(0).getString("v"), value);
+        Assert.assertEquals(records.get(0).getString("tail"), "END");
     }
 
     @Test(groups = {"integration"})

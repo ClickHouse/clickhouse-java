@@ -11,9 +11,9 @@ import com.clickhouse.jdbc.JdbcV2Wrapper;
 import com.clickhouse.jdbc.internal.DetachedResultSet;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.JdbcUtils;
-import com.clickhouse.logging.Logger;
-import com.clickhouse.logging.LoggerFactory;
 import com.google.common.collect.ImmutableMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
 import java.sql.JDBCType;
@@ -873,6 +873,11 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         map.put("PaimonLocal", TableType.REMOTE_TABLE.getTypeName());
         map.put("PaimonS3", TableType.REMOTE_TABLE.getTypeName());
 
+        // Remote engines (appended 07/21/2026)
+        map.put("QueryRunner", TableType.REMOTE_TABLE.getTypeName());
+        map.put("Remote", TableType.REMOTE_TABLE.getTypeName());
+        map.put("RemoteSecure", TableType.REMOTE_TABLE.getTypeName());
+
         // Special
         map.put("TimeSeries", TableType.TABLE.getTypeName());
         map.put("Null", TableType.TABLE.getTypeName());
@@ -1127,7 +1132,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                 ClickHouseDataType dt = c.getDataType();
                 type = JdbcUtils.convertToSqlType(dt);
             } catch (Exception e) {
-                log.error("Failed to convert column data type to SQL type: {}", typeName, e);
+                log.debug("Failed to convert column data type to SQL type: " + typeName, e);
                 type = JDBCType.OTHER; // In case of error, return SQL type 0
             }
         }
@@ -1334,10 +1339,10 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
             try {
                 type = JdbcUtils.convertToSqlType(ClickHouseDataType.valueOf(typeName));
             } catch (IllegalArgumentException e) {
-                log.error("Unknown type: " + typeName + ". Please check for a new version of the client.");
+                log.debug("Unknown type: {}. Please check for a new version of the client.", typeName);
                 type = JDBCType.OTHER;
             } catch (Exception e) {
-                log.error("Failed to get SQL type for type: " + typeName, e);
+                log.debug("Failed to get SQL type for type: " + typeName, e);
                 type = JDBCType.OTHER;
             }
         }

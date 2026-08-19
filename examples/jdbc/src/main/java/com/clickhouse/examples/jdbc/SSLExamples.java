@@ -4,10 +4,17 @@ import com.clickhouse.client.api.ClientConfigProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManagerFactory;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.security.GeneralSecurityException;
+import java.security.KeyStore;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -31,6 +38,14 @@ import java.util.Properties;
  *     the {@code ssl_mode=trust} connection property accepts any server certificate and skips
  *     hostname verification ({@code ssl_mode=none} is accepted as an alias). Use it only for
  *     testing or in fully trusted environments.</li>
+ *     <li>Restricting the negotiated TLS cipher suites with the {@code ssl_cipher_suites} connection
+ *     property (a comma-separated list) - useful to enforce a stronger or compliance-mandated set of
+ *     cipher suites instead of the transport defaults.</li>
+ *     <li>Passing a fully pre-built {@link javax.net.ssl.SSLContext} as a live object in the
+ *     connection {@link Properties} under the {@code ssl_context} key - useful when the trust/key
+ *     material is assembled entirely in memory (e.g. fetched and decrypted from a secret store) and
+ *     must never be written to disk, which is common behind connection pools such as HikariCP. The
+ *     driver uses the context as is; {@code ssl_mode} then only controls hostname verification.</li>
  * </ul>
  *
  * <p>More SSL examples (mTLS, trust stores, SNI) will be added to this class later.</p>
@@ -72,6 +87,8 @@ public class SSLExamples {
                 if (rootCert != null) {
                     connectWithCustomRootCertificate(url, user, password, rootCert);
                     connectWithRootCertificateAsString(url, user, password, rootCert);
+                    connectWithCipherSuites(url, user, password, rootCert);
+                    connectWithCustomSSLContext(url, user, password, rootCert);
                 } else {
                     log.info("chRootCert is not set - skipping the custom CA certificate examples. "
                             + "Pass the path to the CA certificate (PEM) that signed the server certificate to run them.");
@@ -92,6 +109,10 @@ public class SSLExamples {
             connectWithCustomRootCertificate(server.getJdbcUrl(),
                     SecureServerSupport.USER, SecureServerSupport.PASSWORD, server.getCaCertPath());
             connectWithRootCertificateAsString(server.getJdbcUrl(),
+                    SecureServerSupport.USER, SecureServerSupport.PASSWORD, server.getCaCertPath());
+            connectWithCipherSuites(server.getJdbcUrl(),
+                    SecureServerSupport.USER, SecureServerSupport.PASSWORD, server.getCaCertPath());
+            connectWithCustomSSLContext(server.getJdbcUrl(),
                     SecureServerSupport.USER, SecureServerSupport.PASSWORD, server.getCaCertPath());
         } catch (Exception e) {
             log.error("Failed to run the SSL example against a local Docker server", e);
@@ -191,6 +212,97 @@ public class SSLExamples {
              ResultSet rs = stmt.executeQuery("SELECT currentUser() AS user, version() AS version")) {
             if (rs.next()) {
                 log.info("Connected securely (CA cert as string) as '{}' to ClickHouse {}",
+                        rs.getString("user"), rs.getString("version"));
+            }
+        }
+    }
+
+    /**
+     * Connects while restricting the TLS cipher suites the driver is allowed to negotiate, using the
+     * {@code ssl_cipher_suites} connection property (a comma-separated list). Only the listed suites are
+     * enabled on the socket (subject to what the JVM and the server support); this is useful to enforce a
+     * stronger or compliance-mandated set of cipher suites rather than relying on the transport defaults.
+     *
+     * <p>The CA certificate is still used to verify the server and hostname verification stays enabled -
+     * cipher-suite selection is independent of the trust configuration and {@code ssl_mode}. Keep at least
+     * one suite the server actually supports, or the handshake fails.</p>
+     */
+    static void connectWithCipherSuites(String url, String user, String password, String rootCert)
+            throws SQLException {
+        log.info("Connecting to {} with a restricted set of TLS cipher suites", url);
+
+        Properties properties = new Properties();
+        properties.setProperty(ClientConfigProperties.USER.getKey(), user); // user
+        properties.setProperty(ClientConfigProperties.PASSWORD.getKey(), password); // password
+        properties.setProperty("ssl", "true"); // enable TLS even if the URL has no https scheme
+        properties.setProperty(ClientConfigProperties.CA_CERTIFICATE.getKey(), rootCert); // sslrootcert
+        // Restrict negotiation to these cipher suites (TLS 1.3 and TLS 1.2), comma-separated.
+        properties.setProperty(ClientConfigProperties.SSL_CIPHER_SUITES.getKey(),
+                "TLS_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"); // ssl_cipher_suites
+
+        try (Connection connection = DriverManager.getConnection(url, properties);
+             Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT currentUser() AS user, version() AS version")) {
+            if (rs.next()) {
+                log.info("Connected securely (restricted cipher suites) as '{}' to ClickHouse {}",
+                        rs.getString("user"), rs.getString("version"));
+            }
+        }
+    }
+
+    /**
+     * Connects by passing a fully pre-built {@link SSLContext} as a live object in the connection
+     * {@link Properties} under the {@code ssl_context} key.
+     *
+     * <p>This mirrors an enterprise use-case where certificates and keys are held only in memory
+     * (for example fetched and decrypted from a secret store) and must never be written to disk, and
+     * where the application is confined to the {@link java.sql.DriverManager}/{@link Properties} API
+     * behind a connection pool such as HikariCP. Because an {@link SSLContext} cannot be represented
+     * as a string, it is added with {@link Properties#put(Object, Object)} (not
+     * {@link Properties#setProperty(String, String)}). The driver uses the context as is - the
+     * {@code sslrootcert}/{@code sslcert} properties cannot be combined with it and are rejected - and
+     * {@code ssl_mode} (default {@code strict}) then only controls hostname verification.</p>
+     */
+    static void connectWithCustomSSLContext(String url, String user, String password, String rootCertPath)
+            throws SQLException, IOException {
+        // In a real application the PEM content would typically come from an env variable or a secret
+        // manager; here we read the file generated for this example to keep it runnable.
+        byte[] caPem = Files.readAllBytes(Paths.get(rootCertPath));
+
+        final SSLContext sslContext;
+        try {
+            // Assemble the trust material and the SSLContext entirely in memory.
+            CertificateFactory cf = CertificateFactory.getInstance("X.509");
+            X509Certificate caCert = (X509Certificate) cf.generateCertificate(new ByteArrayInputStream(caPem));
+
+            KeyStore trustStore = KeyStore.getInstance(KeyStore.getDefaultType());
+            trustStore.load(null, null);
+            trustStore.setCertificateEntry("ca", caCert);
+
+            TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+            tmf.init(trustStore);
+
+            sslContext = SSLContext.getInstance("TLS");
+            sslContext.init(null, tmf.getTrustManagers(), null);
+        } catch (GeneralSecurityException | IOException e) {
+            log.error("Failed to build the in-memory SSLContext from {}", rootCertPath, e);
+            return;
+        }
+
+        log.info("Connecting to {} using an application-supplied in-memory SSLContext", url);
+
+        Properties properties = new Properties();
+        properties.setProperty(ClientConfigProperties.USER.getKey(), user); // user
+        properties.setProperty(ClientConfigProperties.PASSWORD.getKey(), password); // password
+        properties.setProperty("ssl", "true"); // enable TLS even if the URL has no https scheme
+        // The SSLContext is a live object, so it is added with put(...) rather than setProperty(...).
+        properties.put(ClientConfigProperties.SSL_CONTEXT.getKey(), sslContext); // ssl_context
+
+        try (Connection connection = DriverManager.getConnection(url, properties);
+             Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT currentUser() AS user, version() AS version")) {
+            if (rs.next()) {
+                log.info("Connected securely (custom SSLContext) as '{}' to ClickHouse {}",
                         rs.getString("user"), rs.getString("version"));
             }
         }
