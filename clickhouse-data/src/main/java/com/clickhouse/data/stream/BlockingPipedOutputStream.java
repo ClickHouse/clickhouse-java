@@ -8,6 +8,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.clickhouse.data.ClickHouseByteBuffer;
 import com.clickhouse.data.ClickHouseChecker;
@@ -33,6 +34,7 @@ public class BlockingPipedOutputStream extends ClickHousePipedOutputStream {
     private final int bufferSize;
     private final CompletableFuture<Void> future;
     private final long timeout;
+    private final AtomicBoolean closing = new AtomicBoolean(false);
 
     private ByteBuffer buffer;
 
@@ -105,16 +107,16 @@ public class BlockingPipedOutputStream extends ClickHousePipedOutputStream {
 
     @Override
     public void close() throws IOException {
-        if (closed) {
+        if (closed || !closing.compareAndSet(false, true)) {
             return;
-        }
-
-        if (buffer.position() > 0) {
-            updateBuffer(false);
         }
 
         // buffer = ClickHouseByteBuffer.EMPTY_BUFFER;
         try {
+            if (buffer.position() > 0) {
+                updateBuffer(false);
+            }
+
             if (timeout > 0L) {
                 if (!queue.offer(ClickHouseByteBuffer.EMPTY_BUFFER, timeout, TimeUnit.MILLISECONDS)) {
                     throw new IOException(ClickHouseUtils.format("Close stream timed out after %d ms", timeout));
