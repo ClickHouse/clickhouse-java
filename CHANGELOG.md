@@ -4,6 +4,29 @@
 
 ### New Features
 
+- **[client-v2]** Added an observability SPI that lets an application observe client operations as spans.
+  `Client.Builder.setSpanRecorder(SpanRecorder)` registers a backend-agnostic recorder from the new
+  `com.clickhouse.client.api.observability` package: each operation (a query, a command or an insert - including
+  the `ping` and `getTableSchema` calls, which run a query) starts one operation span, and every transport
+  request made for it - including each retry - starts a child request span. `SpanRecorder` and `Span` are plain interfaces; an implementation extends the
+  `DefaultSpanRecorder` base class and overrides only what it cares about, so it keeps working when
+  the client starts a kind of span it does not know about. The registered recorder is called first and receives
+  everything the client knows about the operation (its `QuerySettings`/`InsertSettings`, the statement, the target
+  table, the batch size, the endpoint, the metrics of the completed operation and the failure), so it is free to
+  record whatever it needs and in whatever form; the reusable `SpanSupport` class derives the standard span names
+  and attribute values from those same structures and is called by a recorder implementation that wants them, so
+  its logic is opt-in and overridable. Span names and attribute keys follow the OpenTelemetry semantic conventions for
+  database and HTTP client spans; the keys are defined by the `SpanAttribute` enum and the values are derived by
+  `SpanSupport`, so all recorders that use it report the same information (statement text, target database and table, query id,
+  statement parameters, batch size, the first configured endpoint on the operation span and the per-attempt
+  server address and port on the request spans, HTTP status, returned rows, and the error type and ClickHouse
+  error code on failure). An operation span is started on the calling thread, so it joins
+  the caller's ambient trace even when the operation runs on the client's executor, and it is ended exactly once
+  for every operation that starts. Previously the client exposed no hook for tracing, so an
+  application could not attribute a query or a retried request to its own trace. When no recorder is registered
+  nothing is recorded and no span-related work is done, so the default path is unchanged. An OpenTelemetry
+  implementation of the SPI follows in a separate module.
+  (https://github.com/ClickHouse/clickhouse-java/issues/2974)
 - **[client-v2, jdbc-v2]** Added support for the `BFloat16` data type (ClickHouse `24.11+`). `BFloat16` columns are read as
   Java `float` values (widening is lossless) and written from `float`/`Float` values, including through generic records, POJO
   binding, `Nullable(BFloat16)`, and `BFloat16` values held in `Dynamic`/`Variant` columns. On write the client keeps the
@@ -53,6 +76,27 @@
   scan the raw SQL separately (`JAVACC`, `ANTLR4`) is fixed by
   https://github.com/ClickHouse/clickhouse-java/issues/3009.
   (https://github.com/ClickHouse/clickhouse-java/issues/3023)
+- **[jdbc-v2]** Fixed an `INSERT` whose values list holds a function call the bundled `ANTLR4` grammar cannot match -
+  such as `hex(x'AB')`, valid ClickHouse the grammar has no hex string literal for - being reported to hold no function
+  call when an `ANTLR4` parser backend is selected (`jdbc_sql_parser=ANTLR4` / `ANTLR4_PARAMS_PARSER`). Function calls in
+  a values list are reported by a callback on the parse tree, and such a statement is still given a parse tree, completed
+  by error recovery, which skips the tokens the parser recovered on - the function call among them. With the beta
+  `RowBinary` writer enabled (`beta.row_binary_for_simple_insert=true`) the statement was then routed to it, where a
+  literal function-call column cannot be written; it now takes the generic parameter substitution path, as it already did
+  for a function call the grammar matches. Since such a parse tree cannot tell, any insert that could not be parsed
+  without errors is now assumed to hold a function call in its values list, so none of them is written with the
+  `RowBinary` writer. The default `JAVACC` backend is not affected by this.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3027)
+- **[clickhouse-client]** Fixed JPMS/module-path service loading for `ClickHouseRequestManager` by loading client
+  services from the `com.clickhouse.client` module, which declares the required `uses` directives. This avoids
+  `ServiceConfigurationError` failures from `com.clickhouse.data` when applications run on the module path.
+  (https://github.com/ClickHouse/clickhouse-java/issues/2669)
+
+- **[client-v2]** Fixed `Client.cancelTransportRequest(queryId)` being silently dropped when it landed between two
+  attempts of a retried operation (query, POJO insert and stream insert): the operation issued the next attempt anyway
+  and could complete successfully. The request of an attempt now stays registered until the whole operation is over,
+  and the cancellation is checked before every attempt, so a cancelled operation stops instead of sending another
+  request. (https://github.com/ClickHouse/clickhouse-java/issues/2989)
 - **[data]** Fixed `BlockingPipedOutputStream.close()` not being idempotent under concurrency: the check of the
   `closed` flag and the closing handshake were not atomic, so two threads closing the same stream (e.g. a writer
   thread and a try-with-resources block) could both put the end-of-stream marker into the queue, and the second one

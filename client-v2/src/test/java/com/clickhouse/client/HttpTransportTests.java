@@ -22,6 +22,7 @@ import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.internal.DataTypeConverter;
 import com.clickhouse.client.api.internal.HttpAPIClientHelper;
+import com.clickhouse.client.api.internal.HttpAPIClientHelperFactory;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.internal.ValidationUtils;
 import com.clickhouse.client.api.query.GenericRecord;
@@ -2695,8 +2696,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
         configuration.put(ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getKey(), Boolean.FALSE);
         configuration.put(ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey(), Boolean.FALSE);
 
-        HttpAPIClientHelper helper = new HttpAPIClientHelper(new HashMap<>(configuration), null, false,
-                LZ4Factory.fastestInstance());
+        HttpAPIClientHelper helper = HttpAPIClientHelperFactory.newHelper(new HashMap<>(configuration), LZ4Factory.fastestInstance());
 
         try (Client verifyClient = new Client.Builder()
                 .addEndpoint(Protocol.HTTP, server.getHost(), server.getPort(), false)
