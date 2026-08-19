@@ -14,6 +14,9 @@ import com.clickhouse.client.api.TransportException;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.enums.SSLMode;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
+import com.clickhouse.client.api.observability.DefaultSpanRecorder;
+import com.clickhouse.client.api.observability.Span;
+import com.clickhouse.client.api.observability.SpanRecorder;
 import com.clickhouse.client.api.transport.Endpoint;
 import com.clickhouse.client.api.transport.internal.TransportRequest;
 import com.clickhouse.client.api.transport.internal.TransportResponse;
@@ -62,6 +65,7 @@ import org.apache.hc.core5.http.io.entity.EntityTemplate;
 import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.hc.core5.io.CloseMode;
 import org.apache.hc.core5.io.IOCallback;
+import org.apache.hc.core5.net.URIAuthority;
 import org.apache.hc.core5.net.URIBuilder;
 import org.apache.hc.core5.pool.ConnPoolControl;
 import org.apache.hc.core5.pool.PoolConcurrencyPolicy;
@@ -139,7 +143,17 @@ public class HttpAPIClientHelper {
 
     private final SslContextProvider sslContextProvider = new SslContextProvider();
 
-    public HttpAPIClientHelper(Map<String, Object> configuration, Object metricsRegistry, boolean initSslContext, LZ4Factory lz4Factory) {
+    /**
+     * Recorder a span is started on per transport request. Never {@code null} -
+     * {@link com.clickhouse.client.api.observability.DefaultSpanRecorder#NOOP} when observability is
+     * not configured.
+     */
+    private final SpanRecorder spanRecorder;
+
+    public HttpAPIClientHelper(Map<String, Object> configuration, Object metricsRegistry, boolean initSslContext,
+                               LZ4Factory lz4Factory, SpanRecorder spanRecorder) {
+        this.spanRecorder = Objects.requireNonNull(spanRecorder,
+                "spanRecorder is required; use DefaultSpanRecorder.NOOP to record nothing");
         this.metricsRegistry = metricsRegistry;
         this.httpClient = createHttpClient(initSslContext, configuration);
         this.lz4Factory = lz4Factory;
@@ -686,7 +700,63 @@ public class HttpAPIClientHelper {
         }
     }
 
+    /**
+     * Executes a single transport request and records it as a child span of the given operation
+     * span, so a retried operation reports one request span per attempt. The request itself is
+     * executed by {@link #doExecuteRequest(TransportRequest, Span)}, which stays the single place
+     * where a request is actually executed and which records the HTTP status of the response.
+     *
+     * <p>
+     * When no recorder is registered the request is executed by
+     * {@link #executeRequest(TransportRequest)}, so a client that does not observe spans keeps
+     * exactly the behaviour it had before and pays nothing for the span path.
+     *
+     * @param transportRequest - request to execute
+     * @param operationSpan - span of the operation this request is made for
+     * @return transport response
+     * @throws Exception when the request could not be completed
+     */
+    public TransportResponse executeRequest(TransportRequest transportRequest, Span operationSpan) throws Exception {
+        if (spanRecorder == DefaultSpanRecorder.NOOP) {
+            return executeRequest(transportRequest);
+        }
+
+        final Span requestSpan = startRequestSpan(operationSpan, transportRequest.getDelegate());
+        try {
+            return doExecuteRequest(transportRequest, requestSpan);
+        } catch (Exception e) {
+            spanRecorder.recordRequestFailure(requestSpan, e);
+            throw e;
+        } finally {
+            requestSpan.end();
+        }
+    }
+
+    private Span startRequestSpan(Span operationSpan, HttpPost req) {
+        final URIAuthority authority = req.getAuthority();
+        Span span = spanRecorder.startRequestSpan(operationSpan,
+                authority == null ? null : authority.getHostName(),
+                authority == null ? -1 : authority.getPort());
+        return span == null ? DefaultSpanRecorder.NOOP_SPAN : span;
+    }
+
     public TransportResponse executeRequest(TransportRequest transportRequest) throws Exception {
+        return doExecuteRequest(transportRequest, DefaultSpanRecorder.NOOP_SPAN);
+    }
+
+    /**
+     * Executes a single transport request and records the HTTP status on the given request span as
+     * soon as a response is received - so the status is reported for every response, also for the
+     * ones this method maps onto an exception that does not carry it (for example {@code 502} and
+     * {@code 503} onto {@link ConnectException}).
+     *
+     * @param transportRequest - request to execute
+     * @param requestSpan - span of this request; {@link DefaultSpanRecorder#NOOP_SPAN} when the
+     *                    request is not recorded
+     * @return transport response
+     * @throws Exception when the request could not be completed
+     */
+    private TransportResponse doExecuteRequest(TransportRequest transportRequest, Span requestSpan) throws Exception {
 
         final Map<String, Object> requestConfig = transportRequest.getConfig();
         final HttpPost req = transportRequest.getDelegate();
@@ -698,6 +768,11 @@ public class HttpAPIClientHelper {
         HttpContext context = createRequestHttpContext(requestConfig);
         try {
             httpResponse = httpClient.executeOpen(null, req, context);
+            if (requestSpan != DefaultSpanRecorder.NOOP_SPAN) {
+                // nothing to report when this request is not recorded - and a recorder is never handed a
+                // span it did not create
+                spanRecorder.recordHttpStatus(requestSpan, httpResponse.getCode());
+            }
 
             httpResponse.setEntity(wrapResponseEntity(httpResponse.getEntity(),
                     httpResponse.getCode(),
