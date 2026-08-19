@@ -408,6 +408,9 @@ public abstract class BaseSqlParserFacadeTest {
                 {"CREATE TABLE check_query_log (N UInt32,S String) Engine = MergeTree", 0},
                 {"CREATE TABLE check_query_log (N UInt32,S String) Engine = ReplacingMergeTree", 0},
                 {"select abs(log(e()) - 1) < 1e-8", 0},
+                {"--\nselect count(*) from numbers(10) where number = ?", 1},
+                {"select count(*) from (\n--\nselect 1 as a) x where x.a = ?", 1},
+                {"select count(*) from ( select * EXCEPT (b), b as c from ( select 1 as a, 2 as b ) ) x where x.a = ?", 1},
                 {"SELECT SearchEngineID, ClientIP, count() AS c, sum(Refresh), avg(ResolutionWidth) " +
                         " FROM test.hits_s3 WHERE SearchPhrase != '' GROUP BY SearchEngineID, ClientIP " +
                         "   ORDER BY c DESC LIMIT 10", 0},
