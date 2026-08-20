@@ -57,12 +57,23 @@ The [`Client`](https://javadoc.io/doc/com.clickhouse/client-v2/latest/com/clickh
 ```java
 import com.clickhouse.client.api.Client;
 
-Client client = new Client.Builder()
-    .addEndpoint("http://localhost:8123")
-    .setUsername("default")
-    .setPassword("secret")
-    .setDefaultDatabase("analytics")
-    .build();
+
+public Client.Builder createBaseClient() {
+    return new Client.Builder()
+            .addEndpoint("http://localhost:8123")
+            .setUsername("default")
+            .setPassword("secret")
+            // set common configuration
+            ;
+}
+
+public Client createAnalyticsDBClient(Client.Builder baseClient) {
+    return baseClient
+        .setDefaultDatabase("analytics")
+        // add db specific configuration
+        .build();
+}
+
 ```
 
 ### Instantiation Strategy
@@ -87,18 +98,25 @@ The standard mechanism. Default installs ship a `default` user with no password.
 ```java
 import com.clickhouse.client.api.Client;
 
-Client client = new Client.Builder()
-    .addEndpoint("http://localhost:8123")
-    .setUsername("my_user")
-    .setPassword("my_password")
-    .build();
+public Client.Builder createBaseClient() {
+    return new Client.Builder()
+            .addEndpoint("http://localhost:8123")
+            .setUsername("default")
+            .setPassword("secret")
+            ;
+}
 ```
 
 Rotate credentials at runtime (thread-safe, non-blocking, applies to newly started requests):
 
 ```java
-client.updateUserAndPassword("new_user", "new_password");
+void updateClientCredentials(AppConfiguration appConf) {
+    client.updateUserAndPassword(appConf.db_username, appConf.db_password);
+} 
 ```
+
+**Note**: realtime credentials update would work well with runtime configuration update but would not work for multi-tenant setup. Multi tenant application should organize exclusive access to client 
+while handling tenant operation to avoid cross-talk problem. Separate client instance per tenant must be used when each tenant has own database.
 
 ### Option B — Token / bearer
 
@@ -107,13 +125,18 @@ For the standard `Authorization: Bearer <token>` scheme use `useBearerTokenAuth(
 ```java
 import com.clickhouse.client.api.Client;
 
-Client client = new Client.Builder()
-    .addEndpoint("http://localhost:8123")
-    .useBearerTokenAuth("my_access_token")
-    .build();
+public Client.Builder createBaseClient() {
+    return new Client.Builder()
+        .addEndpoint("http://localhost:8123")
+        .useBearerTokenAuth("my_access_token");
+}
+
 ```
 
 For a non-`Bearer` scheme, use `setAccessToken(...)` — the value is sent verbatim, so include the scheme yourself. Runtime updates: `updateBearerToken(...)` (adds prefix) and `updateAccessToken(...)` (verbatim).
+
+**Note**: realtime credentials update would work well with runtime configuration update but would not work for multi-tenant setup. Multi tenant application should organize exclusive access to client 
+while handling tenant operation to avoid cross-talk problem. Separate client instance per tenant must be used when each tenant has own database.
 
 ### Option C — Mutual TLS (client certificate)
 
@@ -121,14 +144,17 @@ For a non-`Bearer` scheme, use `setAccessToken(...)` — the value is sent verba
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.enums.SSLMode;
 
-Client client = new Client.Builder()
-    .addEndpoint("https://localhost:8443")
-    .useSSLAuthentication(true)
-    .setClientCertificate("/path/to/client.crt")
-    .setClientKey("/path/to/client.key")
-    .setRootCertificate("/path/to/ca.crt") // if the server cert is self-signed
-    .setSSLMode(SSLMode.STRICT) // STRICT (default), VERIFY_CA, TRUST, or DISABLED
-    .build();
+public Client.Builder createBaseClient() {
+    return new Client.Builder()
+        .addEndpoint("https://localhost:8443")
+        .useSSLAuthentication(true)
+        .setClientCertificate("/path/to/client.crt")
+        .setClientKey("/path/to/client.key")
+        .setRootCertificate("/path/to/ca.crt") // if the server cert is self-signed
+        .setSSLMode(SSLMode.STRICT) // STRICT (default), VERIFY_CA, TRUST, or DISABLED
+        ;
+}
+
 ```
 
 Alternatively configure a trust store with `setSSLTrustStore(...)`, `setSSLTrustStorePassword(...)`, `setSSLTrustStoreType(...)`.
@@ -140,10 +166,12 @@ For OAuth gateways or custom handler configurations, inject arbitrary headers:
 ```java
 import com.clickhouse.client.api.Client;
 
-Client client = new Client.Builder()
-    .addEndpoint("http://localhost:8123")
-    .httpHeader("X-API-Key", "my_custom_api_key")
-    .build();
+public Client.Builder createBaseClient() {
+    return new Client.Builder()
+        .addEndpoint("http://localhost:8123")
+        .httpHeader("X-API-Key", "my_custom_api_key");
+}
+
 ```
 
 ### Option E — Proxy credentials
@@ -154,15 +182,16 @@ If you connect to ClickHouse through an HTTP proxy that requires authentication,
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.enums.ProxyType;
 
-Client client = new Client.Builder()
-    .addEndpoint("http://localhost:8123")
-    // Database credentials (e.g. Option A)
-    .setUsername("default")
-    .setPassword("secret")
-    // Proxy configuration and credentials
-    .addProxy(ProxyType.HTTP, "proxy.example.com", 8080)
-    .setProxyCredentials("proxy_user", "proxy_password")
-    .build();
+public Client.Builder createBaseClient() {
+    return new Client.Builder()
+        .addEndpoint("http://localhost:8123")
+        // Database credentials (e.g. Option A)
+        .setUsername("default")
+        .setPassword("secret")
+        // Proxy configuration and credentials
+        .addProxy(ProxyType.HTTP, "proxy.example.com", 8080)
+        .setProxyCredentials("proxy_user", "proxy_password");
+}
 ```
 
 ### Client Identity & Default Database
@@ -170,11 +199,14 @@ Client client = new Client.Builder()
 Regardless of the authentication mechanism, you can also configure the client's identity and default database:
 
 ```java
-Client client = new Client.Builder()
-    // ... endpoint and auth config ...
-    .setClientName("my-analytics-app")
-    .setDefaultDatabase("analytics")   // Default database for queries
-    .build();
+import com.clickhouse.client.api.Client;
+
+public Client createAnalyticsClient(Client.Builder baseClient) {
+    return baseClient
+        .setClientName("my-analytics-app")
+        .setDefaultDatabase("analytics") // Default database for queries
+        .build();
+}
 ```
 
 > **Note on Client Name:** How the client name surfaces in `system.query_log` depends on the protocol used. For HTTP connections, it appears in the `http_user_agent` column. For TCP connections, it appears in the `client_name` column.
@@ -226,8 +258,14 @@ Timeouts are critical parameters that directly impact application stability unde
 Checking connectivity is a critical operation in the application lifecycle. The `client.ping()` method provides a lightweight way to verify that the ClickHouse server is reachable and responsive.
 
 ```java
-if (!client.ping()) { 
-    // trigger recovery logic, mark service unhealthy, or fail fast
+import com.clickhouse.client.api.Client;
+
+public boolean checkConnectivity(Client client) {
+    if (!client.ping()) { 
+        // trigger recovery logic, mark service unhealthy, or fail fast
+        return false;
+    }
+    return true;
 }
 ```
 
@@ -310,7 +348,10 @@ Select with `QuerySettings.setFormat(format)` and consume the response stream:
 
 **Choosing a format**
 
-There is no silver bullet when choosing a data format—the best choice depends entirely on your data's origin, destination, and processing constraints. 
+There is no silver bullet when choosing a data format—the best choice depends entirely on your data's origin, destination, and processing constraints. Client implements support of some ClickHouse formats. 
+Text format like JSON will work with client but require using 3rd-party library to parse stream. 
+
+Only `RowBinaryWithDefaults` is supported for write operations from the list of ClickHouse own formats. 
 
 Consider these trade-offs:
 - **Binary formats (e.g., `RowBinary`, `Native`):** Highly compact and CPU-efficient. Best for general-purpose, high-throughput data transfer where you are mapping Java objects directly to ClickHouse rows.
@@ -333,14 +374,47 @@ The `Client` interface offers multiple ways to read data, allowing you to balanc
 
 ### POJO mapping
 
-Mapping rows directly to Plain Old Java Objects (POJOs) is highly efficient when your class structure closely mirrors the table schema. However, before reading or writing POJOs, you **must** register the class and its corresponding schema with the client. This one-time registration compiles the necessary serializers and deserializers:
+Mapping rows directly to Plain Old Java Objects (POJOs) is highly efficient when your class structure closely mirrors the table schema. However, before reading or writing POJOs, you **must** register the class and its corresponding schema with the client. This one-time registration compiles the necessary serializers and deserializers.
+
+Keep the POJO definition independent of the client logic:
 
 ```java
-TableSchema schema = client.getTableSchema("events");
-client.register(Event.class, schema);
+public static class Event {
+    public long id;
+    public String name;
+    public long timestamp;
+}
+```
 
-// Now you can read directly into your POJO
-List<Event> events = client.queryAll("SELECT * FROM events", Event.class, schema);
+Register the POJO once during application initialization and retain the schema for subsequent reads:
+
+```java
+import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.metadata.TableSchema;
+
+
+// pojoTables - mapping between POJO class and table 
+void registerPojoMappings(Client client, Map<Class<?>, String> pojoTables) {
+    for (Map.Entry<Class<?>, String> entry : pojoTables.entrySet()) {
+        TableSchema schema = client.getTableSchema(entry.getValue());
+        client.register(entry.getKey(), schema);
+    }
+}
+```
+
+Read rows into typed objects by passing the registered schema:
+
+```java
+import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.metadata.TableSchema;
+
+// schema that used in previous step so it make sense to build a cache for this mapping
+public List<Event> readEvents(Client client, TableSchema schema) {
+    return client.queryAll(
+        "SELECT id, name, timestamp FROM events",
+        Event.class,
+        schema);
+}
 ```
 
 ### Streaming with Readers
@@ -350,23 +424,26 @@ Readers (such as `ClickHouseBinaryFormatReader`) enable true data streaming. Bec
 *Note:* To maintain high throughput, your application's processing loop must be fast enough to keep up with the incoming stream; otherwise, network backpressure will slow down the transfer.
 
 ```java
-import com.clickhouse.client.api.query.QuerySettings;
-import com.clickhouse.client.api.query.QueryResponse;
+import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
+import com.clickhouse.client.api.query.QueryResponse;
+import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseFormat;
-import java.util.concurrent.TimeUnit;
 
-QuerySettings settings = new QuerySettings()
-    .setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
+public void streamEvents(Client client) throws Exception {
+    QuerySettings settings = new QuerySettings()
+        .setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
 
-try (QueryResponse response = client.query("SELECT * FROM events", settings)
-        .get(30, TimeUnit.SECONDS)) {
+    try (QueryResponse response = client.query("SELECT * FROM events", settings)
+            .get(30, TimeUnit.SECONDS)) {
 
-    ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
-    while (reader.hasNext()) {
-        reader.next();
-        long id = reader.getLong("id");
-        String name = reader.getString("name");
+        ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+        while (reader.hasNext()) {
+            reader.next();
+            long id = reader.getLong("id");
+            String name = reader.getString("name");
+            // process row data
+        }
     }
 }
 ```
@@ -384,8 +461,17 @@ Because of this direct stream access, it is also possible to stream columnar for
 Parameterized queries use ClickHouse placeholder syntax `{name:Type}`:
 
 ```java
-Map<String, Object> params = Map.of("min_id", 1000);
-client.query("SELECT * FROM events WHERE id > {min_id:UInt64}", params, settings);
+import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.query.QueryResponse;
+import com.clickhouse.client.api.query.QuerySettings;
+
+public void queryEventsWithParam(Client client, long minId, QuerySettings settings) throws Exception {
+    Map<String, Object> params = Collections.singletonMap("min_id", minId);
+    try (QueryResponse response = client.query(
+            "SELECT * FROM events WHERE id > {min_id:UInt64}", params, settings).get()) {
+        // process query response
+    }
+}
 ```
 
 **Key classes:**
@@ -439,14 +525,47 @@ The `Client` interface offers multiple ways to insert data, allowing you to choo
 
 ### POJO mapping
 
-Just like with read operations, inserting POJOs requires you to register the class and schema first. This compiles the necessary serializers:
+Just like with read operations, inserting POJOs requires you to register the class and schema first. 
+
+POJO (DTO) to write:
+```java
+public static class Event {
+    public long id;
+    public String name;
+    public long timestamp;
+}
+```
+
+Register the POJO once during application initialization and retain the schema for subsequent reads:
+```java
+import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.metadata.TableSchema;
+
+
+// pojoTables - mapping between POJO class and table 
+void registerPojoMappings(Client client, Map<Class<?>, String> pojoTables) {
+    for (Map.Entry<Class<?>, String> entry : pojoTables.entrySet()) {
+        TableSchema schema = client.getTableSchema(entry.getValue());
+        client.register(entry.getKey(), schema);
+    }
+}
+```
+
+Write typed objects after registration. The insert uses the schema cached when `registerEventMapping` was called:
 
 ```java
-TableSchema schema = client.getTableSchema("events");
-client.register(Event.class, schema);
+import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.insert.InsertResponse;
 
-// Now you can insert a list of POJOs directly
-client.insert("events", List.of(new Event(...), new Event(...))).get();
+public void writeEvents(Client client, List<Event> events) throws Exception {
+    if (events.isEmpty()) {
+        return;
+    }
+
+    try (InsertResponse response = client.insert("events", events).get()) {
+        // handle response metrics or confirmation
+    }
+}
 ```
 
 ### Direct InputStream access
@@ -454,13 +573,16 @@ client.insert("events", List.of(new Event(...), new Event(...))).get();
 If you already have serialized data (e.g., a file containing JSON or CSV, or data arriving from another network stream), you can pipe it directly into ClickHouse. This is highly efficient because it avoids parsing the data into Java objects.
 
 ```java
+import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.data.ClickHouseFormat;
-import java.io.InputStream;
 
-InsertSettings settings = new InsertSettings().compressClientRequest(true);
-try (InputStream data = openJsonLinesStream()) {
-    client.insert("events", data, ClickHouseFormat.JSONEachRow, settings).get();
+public void insertJsonStream(Client client, InputStream dataStream) throws Exception {
+    InsertSettings settings = new InsertSettings().compressClientRequest(true);
+    try (InsertResponse response = client.insert("events", dataStream, ClickHouseFormat.JSONEachRow, settings).get()) {
+        // handle response metrics or confirmation
+    }
 }
 ```
 
@@ -471,22 +593,27 @@ For maximum performance when generating data programmatically, use the callback-
 This approach is highly efficient because it writes directly to the network socket. By avoiding intermediate in-memory buffers (like building a massive `List` or a large `byte[]`), you eliminate extra memory allocations and garbage collection overhead—which can otherwise cause serious performance degradation on large datasets.
 
 ```java
-import com.clickhouse.client.api.metadata.TableSchema;
+import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.data_formats.RowBinaryFormatWriter;
+import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
+import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.data.ClickHouseFormat;
 
-TableSchema schema = client.getTableSchema("events");
-ClickHouseFormat format = ClickHouseFormat.RowBinary;
+public void writeEventsStream(Client client, TableSchema schema, List<Event> events) throws Exception {
+    ClickHouseFormat format = ClickHouseFormat.RowBinary;
 
-client.insert("events", out -> {
-    RowBinaryFormatWriter writer = new RowBinaryFormatWriter(out, schema, format);
-    for (Event event : events) {
-        writer.setValue("id", event.getId());
-        writer.setValue("name", event.getName());
-        writer.commitRow();
+    try (InsertResponse response = client.insert("events", out -> {
+        RowBinaryFormatWriter writer = new RowBinaryFormatWriter(out, schema, format);
+        for (Event event : events) {
+            writer.setValue("id", event.id);
+            writer.setValue("name", event.name);
+            writer.commitRow();
+        }
+    }, format, new InsertSettings()).get()) {
+        // handle response metrics
     }
-}, format, new InsertSettings()).get();
+}
 ```
 
 Populate each row with `setValue(column, value)` (by name or 1-based index) and finish it with `commitRow()`. Do not close the stream yourself — the client manages the lifecycle.
@@ -519,12 +646,19 @@ On a `MergeTree`-family table with deduplication enabled, the **`insert_deduplic
 Please read [official documentation](https://clickhouse.com/docs/guides/developer/deduplicating-inserts-on-retries) and more about [deduplication strategies](https://clickhouse.com/docs/guides/developer/deduplication).
 
 ```java
+import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.data.ClickHouseFormat;
 
-InsertSettings settings = new InsertSettings()
-    .setDeduplicationToken("batch-2024-06-18-part-001");
-client.insert("events", dataStream, ClickHouseFormat.JSONEachRow, settings).get();
+public void insertWithDeduplication(Client client, InputStream dataStream, String deduplicationToken) throws Exception {
+    InsertSettings settings = new InsertSettings()
+        .setDeduplicationToken(deduplicationToken);
+
+    try (InsertResponse response = client.insert("events", dataStream, ClickHouseFormat.JSONEachRow, settings).get()) {
+        // handle response metrics
+    }
+}
 ```
 
 - Assign a **stable** token per logical batch (file name, Kafka offset, job ID).
@@ -555,16 +689,18 @@ See the [Error model](#error-model) for the exception hierarchy and how to unwra
 ### Table schema from a table name
 
 ```java
+import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.metadata.TableSchema;
-import com.clickhouse.client.api.data_formats.RowBinaryFormatWriter;
-import com.clickhouse.client.api.insert.InsertSettings;
-import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.data.ClickHouseColumn;
 
-TableSchema schema = client.getTableSchema("events");
-TableSchema schema = client.getTableSchema("events", "analytics"); // explicit database
+public void inspectTableSchema(Client client, String tableName) {
+    TableSchema schema = client.getTableSchema(tableName);
+    // Alternatively, specify database explicitly:
+    // TableSchema schema = client.getTableSchema(tableName, "analytics");
 
-for (ClickHouseColumn column : schema.getColumns()) {
-    System.out.println(column.getColumnName() + " : " + column.getDataType());
+    for (ClickHouseColumn column : schema.getColumns()) {
+        System.out.println(column.getColumnName() + " : " + column.getDataType());
+    }
 }
 ```
 
@@ -573,24 +709,33 @@ Internally runs `DESCRIBE TABLE` and parses via [`TableSchemaParser`](../client-
 ### Schema from a query
 
 ```java
-TableSchema schema = client.getTableSchemaFromQuery(
-    "SELECT id, name, created_at FROM events WHERE id > 0");
+import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.metadata.TableSchema;
+
+public TableSchema getQuerySchema(Client client) {
+    return client.getTableSchemaFromQuery(
+        "SELECT id, name, created_at FROM events WHERE id > 0");
+}
 ```
 
 ### POJO registration
 
 ```java
+import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.metadata.TableSchema;
-import com.clickhouse.client.api.data_formats.RowBinaryFormatWriter;
-import com.clickhouse.client.api.insert.InsertSettings;
-import com.clickhouse.data.ClickHouseFormat;
 
-TableSchema schema = client.getTableSchema("events");
-client.register(Event.class, schema);
+public void registerAndProcessEvents(Client client) throws Exception {
+    TableSchema schema = client.getTableSchema("events");
+    client.register(Event.class, schema);
 
-// The typed queryAll takes the target class AND the schema to bind against.
-List<Event> events = client.queryAll("SELECT * FROM events", Event.class, schema);
-client.insert("events", events).get();
+    // The typed queryAll takes the target class AND the schema to bind against.
+    List<Event> events = client.queryAll("SELECT * FROM events", Event.class, schema);
+
+    try (InsertResponse response = client.insert("events", events).get()) {
+        // handle response metrics or confirmation
+    }
+}
 ```
 
 Field-to-column matching is controlled by [`ColumnToMethodMatchingStrategy`](../client-v2/src/main/java/com/clickhouse/client/api/metadata/ColumnToMethodMatchingStrategy.java) (default: camelCase field → snake_case column). You can also register a known schema directly with `client.registerTableSchema("events", schema)`.
@@ -616,11 +761,14 @@ ClickHouse supports authentication via access tokens (e.g., JWTs) instead of tra
 You can configure token authentication when building the client:
 
 ```java
-Client client = new Client.Builder()
-    .addEndpoint("https://my-cluster:8443")
-    // Use either setAccessToken (raw token) OR useBearerTokenAuth (prepends "Bearer ")
-    .useBearerTokenAuth("my_jwt_token")
-    .build();
+import com.clickhouse.client.api.Client;
+
+public Client.Builder createBearerAuthClient() {
+    return new Client.Builder()
+        .addEndpoint("https://my-cluster:8443")
+        // Use either setAccessToken (raw token) OR useBearerTokenAuth (prepends "Bearer ")
+        .useBearerTokenAuth("my_jwt_token");
+}
 ```
 
 > **Constraint:** You cannot mix authentication mechanisms. A client must be built with either a username/password OR a token, not both.
@@ -630,14 +778,22 @@ Client client = new Client.Builder()
 If your application uses short-lived credentials (like expiring JWTs or rotated passwords), you can update the credentials on an existing `Client` instance without recreating it. All subsequent requests will use the new credentials:
 
 ```java
-// If the client was built with a bearer token:
-client.updateBearerToken("new_jwt_token");
+import com.clickhouse.client.api.Client;
 
-// If the client was built with a raw access token:
-client.updateAccessToken("new_raw_token");
+public void updateBearerToken(Client client, String newJwtToken) {
+    // If the client was built with a bearer token:
+    client.updateBearerToken(newJwtToken);
+}
 
-// If the client was built with a username/password:
-client.updateUserAndPassword("user", "new_password");
+public void updateAccessToken(Client client, String newRawToken) {
+    // If the client was built with a raw access token:
+    client.updateAccessToken(newRawToken);
+}
+
+public void updateBasicCredentials(Client client, String user, String newPassword) {
+    // If the client was built with a username/password:
+    client.updateUserAndPassword(user, newPassword);
+}
 ```
 
 > **Note:** The authentication *method* is fixed at construction time. If you built the client with a password, you cannot switch to a token at runtime (and vice versa). Attempting to do so will throw a `ClientMisconfigurationException`.
@@ -649,12 +805,22 @@ Updating the username and password at runtime is particularly useful for **imper
 Alternatively, you can manage access using **roles** instead of switching users. Roles can be set globally on the client or overridden per-operation:
 
 ```java
-// Set roles globally for all subsequent operations on this client
-client.setDBRoles(Arrays.asList("analyst_role", "reporting_role"));
+import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.query.QueryResponse;
+import com.clickhouse.client.api.query.QuerySettings;
 
-// Or set roles per-operation
-QuerySettings settings = new QuerySettings().setDBRoles(Arrays.asList("admin_role"));
-client.query("SELECT * FROM sensitive_data", settings).get();
+public void configureClientRoles(Client client, List<String> roles) {
+    // Set roles globally for all subsequent operations on this client
+    client.setDBRoles(roles);
+}
+
+public void queryWithCustomRoles(Client client, List<String> roles) throws Exception {
+    // Or set roles per-operation
+    QuerySettings settings = new QuerySettings().setDBRoles(roles);
+    try (QueryResponse response = client.query("SELECT * FROM sensitive_data", settings).get()) {
+        // process response
+    }
+}
 ```
 
 ### Sessions
@@ -681,64 +847,27 @@ This is the shared exception reference used by the read ([Step 6](#step-6--read-
 | [`DataTransferException`](../client-v2/src/main/java/com/clickhouse/client/api/DataTransferException.java) | Failure while streaming the request/response body | Dropped connection mid-transfer |
 
 ```java
-try {
-    client.query("SELECT * FROM missing_table").get();
-} catch (ExecutionException e) {
-    Throwable cause = e.getCause();
-    if (cause instanceof ServerException) {
-        ServerException se = (ServerException) cause;
-        // ServerException.TABLE_NOT_FOUND == 60
-        logger.error("ClickHouse error {} (query {}, retryable={}): {}",
-                se.getCode(), se.getQueryId(), se.isRetryable(), se.getMessage());
+import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.ServerException;
+import com.clickhouse.client.api.query.QueryResponse;
+
+public void executeQueryWithErrorHandling(Client client, String sql) throws Exception {
+    try (QueryResponse response = client.query(sql).get()) {
+        // process query response
+    } catch (ExecutionException e) {
+        Throwable cause = e.getCause();
+        if (cause instanceof ServerException) {
+            ServerException se = (ServerException) cause;
+            // ServerException.TABLE_NOT_FOUND == 60
+            // Handle or log ClickHouse specific error:
+            // se.getCode(), se.getQueryId(), se.isRetryable(), se.getMessage()
+        }
+        throw e;
     }
-    throw e;
 }
 ```
 
 > **On built-in retries.** `ServerException.isRetryable()` marks transient server codes (timeouts, network, memory-limit, too-many-parts, ...) and the client's own `retry` policy already re-sends those. Do not add a second retry loop on top without accounting for it. Retries behave very differently for reads vs writes — see the per-operation "Errors & how to handle them" sections for the details (in particular, an insert retry must re-send the whole payload).
-
----
-
-## Quick reference
-
-A minimal end-to-end program. `Client` implements `AutoCloseable`, so try-with-resources handles shutdown.
-
-```java
-import com.clickhouse.client.api.Client;
-import com.clickhouse.client.api.query.GenericRecord;
-import com.clickhouse.data.ClickHouseFormat;
-
-import java.io.InputStream;
-import java.util.List;
-
-public class QuickStart {
-    public static void main(String[] args) throws Exception {
-        // Steps 1–4: build one long-lived client
-        try (Client client = new Client.Builder()
-                .addEndpoint("http://localhost:8123")
-                .setUsername("default")
-                .setPassword("secret")
-                .setDefaultDatabase("default")
-                .serverSetting("max_execution_time", "120")
-                .build()) {
-
-            // Step 3: health check
-            if (!client.ping()) {
-                throw new RuntimeException("ClickHouse unreachable");
-            }
-
-            // Step 7: write (blocks on the returned future)
-            try (InputStream data = QuickStart.class.getResourceAsStream("/events.jsonl")) {
-                client.insert("my_table", data, ClickHouseFormat.JSONEachRow).get();
-            }
-
-            // Step 6: read a small result
-            List<GenericRecord> rows = client.queryAll("SELECT count() FROM my_table");
-            System.out.println("row count = " + rows.get(0).getLong(1));
-        } // client.close() runs here
-    }
-}
-```
 
 ## References
 

@@ -6,9 +6,13 @@ This document is the starting point for integrating ClickHouse into a Java appli
 
 | Document | Audience | Link |
 |----------|----------|------|
-| This guide | Anyone evaluating options | — (you are here) |
+| This guide | Anyone evaluating options | this document |
 | Java Client path | New applications, high-throughput pipelines, custom data processing | [integration-client.md](integration-client.md) |
 | JDBC path | Existing JDBC-based stacks, BI tools, ORMs | [integration-jdbc.md](integration-jdbc.md) |
+
+Reference information should be fetched from official documentation for [Java Client](https://clickhouse.com/docs/integrations/language-clients/java/client) or [JDBC Driver](https://clickhouse.com/docs/integrations/language-clients/java/jdbc). 
+
+This set of documents can be used to one's code over time. Keep checking your implementation at least per release as we going to add more information and provide migration guidance.  
 
 ---
 
@@ -42,7 +46,7 @@ Both components communicate with ClickHouse over HTTP(S). The JDBC driver is not
 
 ## Choosing Between the Java Client and JDBC
 
-The main question is whether standard JDBC compatibility is a hard requirement. JDBC is a row-oriented, transaction-centric API, so a JDBC-only design cannot express some ClickHouse capabilities well — data streaming, for example. Weigh that against the convenience of a uniform `java.sql.*` API.
+When choosing between the Java Client and JDBC Driver, start by considering how ClickHouse differs from typical OLTP databases. ClickHouse is a columnar, analytical database—designed for high-performance analytics, massive scans, and parallel data processing across large datasets, not for transactional (OLTP) workloads like MySQL or PostgreSQL. If you use JDBC simply because it's familiar or widely supported, you may miss out on ClickHouse's true strengths, such as efficient streaming, custom data formats, and bulk operations. JDBC is built around row-oriented, transaction-first APIs, which can be limiting for analytical use cases and may not align with ClickHouse's architecture or optimal access patterns.
 
 ### When to use the Java Client (recommended for new work)
 
@@ -81,6 +85,7 @@ Choose the JDBC Driver (`com.clickhouse:clickhouse-jdbc`) when you:
 | Underlying transport | HTTP(S) via Apache HttpClient | Same — wraps `client-v2` |
 | Configuration | `Client.Builder`, `ClientConfigProperties` | JDBC URL + `Properties`, passthrough to client |
 | Best for | Pipelines, services, custom analytics | Existing JDBC stacks, JDBC-only integrations |
+| Performance | Client gives access to output/input stream making it possible to use wide veriaty of performant formats. | JDBC reads/writes data via own API that may become performance bottle-neck in some cases. |
 
 ---
 
