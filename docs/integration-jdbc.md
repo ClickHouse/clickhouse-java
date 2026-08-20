@@ -34,7 +34,7 @@ Work through these steps in order. The "Common Pitfalls" notes tell you what bre
 
 | # | Milestone | Core decision |
 |---|-----------|---------------|
-| 1 | [Instantiation strategy](#step-1--instantiation-strategy) | Connection lifecycle and which external pool to use |
+| 1 | [Instantiation strategy](#step-1--instantiation-strategy) | Connection lifecycle, pooling, and workload identification |
 | 2 | [Authentication](#step-2--authentication) | Which auth mechanism and how to configure it via URL/Properties |
 | 3 | [Transport & connectivity](#step-3--transport--connectivity-tls-proxies-timeouts) | TLS/mTLS, proxies, timeouts, health checks |
 | 4 | [Formats under the hood](#step-4--formats-under-the-hood) | What the driver does internally; when JDBC is not enough |
@@ -94,6 +94,161 @@ Because each `Connection` wraps a `Client` with its own HTTP pool, the client-le
 
 - **JDBC connection pool** (your responsibility) — controls how many `Connection` objects (and thus `Client` instances) exist.
 - **HTTP pool per connection** — `max_open_connections` forwarded to `ClientConfigProperties`.
+
+### Workload identification & client name
+
+In production environments, a single ClickHouse cluster is often shared across diverse workloads: user-facing web services, streaming ingestion pipelines, ETL batch jobs, BI reporting dashboards (e.g., Superset, Tableau, Grafana), and ad-hoc analytics. When queries fail, time out, or consume excessive memory (`MEMORY_LIMIT_EXCEEDED`), identifying the originating application or workload is essential for fast troubleshooting, root-cause analysis, and resource attribution.
+
+#### Setting client name
+
+Use a structured format such as `<application-name>/<version>` or `<application-name>:<workload-type>/<version>` (for example, `order-service/1.2.0` or `etl-worker:cdc/2.0.1`).
+
+There are three ways to configure client identification in JDBC:
+
+**1. Connection Properties or JDBC URL** (static setup for the connection or pool):
+
+```java
+import com.clickhouse.client.api.ClientConfigProperties;
+
+public Connection createIdentifiedConnection() throws SQLException {
+    Properties props = new Properties();
+    props.setProperty("user", "default");
+    props.setProperty("password", "secret");
+    // Identify application workload in system.query_log (http_user_agent)
+    props.setProperty(ClientConfigProperties.CLIENT_NAME.getKey(), "order-service/1.2.0");
+    // Alternatively pass as string key:
+    // props.setProperty("client_name", "order-service/1.2.0");
+
+    return DriverManager.getConnection(
+        "jdbc:clickhouse://localhost:8123/default", props);
+}
+```
+
+Or directly via JDBC URL query parameters:
+
+```
+jdbc:clickhouse://localhost:8123/default?client_name=order-service/1.2.0
+```
+
+**2. Standard JDBC `setClientInfo`** (dynamic per-connection or per-task setup):
+
+When sharing pooled connections across different worker threads or tasks, set the application name dynamically on the borrowed connection before executing work:
+
+```java
+import com.clickhouse.jdbc.ClientInfoProperties;
+
+public void executeWorkloadTask(Connection conn, String taskName) throws SQLException {
+    // Dynamically tag the connection before executing queries
+    conn.setClientInfo(ClientInfoProperties.APPLICATION_NAME.getKey(), "order-service:" + taskName + "/1.2.0");
+    // Standard JDBC property name "ApplicationName" is also supported:
+    // conn.setClientInfo("ApplicationName", "order-service:" + taskName + "/1.2.0");
+
+    try (Statement stmt = conn.createStatement();
+         ResultSet rs = stmt.executeQuery("SELECT count() FROM orders")) {
+        // process query results
+    }
+}
+```
+
+#### How it is observed on the server (`User-Agent` header)
+
+The JDBC driver communicates over HTTP and passes the client name as the leading segment of the HTTP `User-Agent` header. The driver automatically appends the JDBC driver version, detected frameworks (e.g. HikariCP), client version, operating system, and JVM version:
+
+```text
+order-service/1.2.0 ClickHouse-JDBC/0.9.8 clickhouse-java-v2/0.9.8 (Linux; jvm:17.0.2) Apache-HttpClient/5.4.4
+```
+
+> **CRITICAL SERVER OBSERVATION NOTE:**
+> In ClickHouse's `system.query_log` and `system.processes`, HTTP requests record this information in the **`http_user_agent`** column. The `client_name` column in `system.query_log` is populated **only** for native TCP protocol connections. Always query `http_user_agent` when troubleshooting JDBC applications.
+
+#### Finding workloads in `system.query_log`
+
+Use the following queries on ClickHouse to troubleshoot and monitor application workloads:
+
+**Find recent queries and execution metrics for a specific application:**
+```sql
+SELECT
+    event_time,
+    query_id,
+    query_duration_ms,
+    memory_usage,
+    read_rows,
+    read_bytes,
+    result_rows,
+    http_user_agent,
+    query
+FROM system.query_log
+WHERE type = 'QueryFinish'
+  AND http_user_agent LIKE '%order-service%'
+  AND event_time >= now() - INTERVAL 1 HOUR
+ORDER BY event_time DESC
+LIMIT 100;
+```
+
+**Find failed queries and exceptions for a workload:**
+```sql
+SELECT
+    event_time,
+    query_id,
+    exception_code,
+    exception,
+    http_user_agent,
+    query
+FROM system.query_log
+WHERE type = 'ExceptionWhileProcessing'
+  AND http_user_agent LIKE '%order-service%'
+  AND event_time >= now() - INTERVAL 24 HOUR
+ORDER BY event_time DESC
+LIMIT 50;
+```
+
+**Aggregate workload resource consumption across all applications:**
+```sql
+SELECT
+    extract(http_user_agent, '^([^ ]+)') AS workload,
+    count() AS query_count,
+    round(avg(query_duration_ms), 2) AS avg_duration_ms,
+    round(quantile(0.95)(query_duration_ms), 2) AS p95_duration_ms,
+    round(max(query_duration_ms), 2) AS max_duration_ms,
+    formatReadableSize(sum(memory_usage)) AS total_memory,
+    formatReadableQuantity(sum(read_rows)) AS total_read_rows,
+    countIf(type = 'ExceptionWhileProcessing') AS error_count
+FROM system.query_log
+WHERE event_time >= now() - INTERVAL 24 HOUR
+  AND type IN ('QueryFinish', 'ExceptionWhileProcessing')
+GROUP BY workload
+ORDER BY query_count DESC;
+```
+
+**Inspect active running queries (`system.processes`):**
+```sql
+SELECT
+    query_id,
+    elapsed,
+    memory_usage,
+    http_user_agent,
+    query
+FROM system.processes
+WHERE http_user_agent LIKE '%order-service%';
+```
+
+**Query across a cluster:**
+```sql
+SELECT
+    hostName() AS host,
+    event_time,
+    query_id,
+    query_duration_ms,
+    memory_usage,
+    http_user_agent,
+    query
+FROM clusterAllReplicas('default', system.query_log)
+WHERE type = 'QueryFinish'
+  AND http_user_agent LIKE '%order-service%'
+  AND event_time >= now() - INTERVAL 1 HOUR
+ORDER BY event_time DESC
+LIMIT 100;
+```
 
 ### Common Pitfalls
 
@@ -585,13 +740,12 @@ For schema-driven POJO binding and binary format writers, use the [Java Client i
 
 | Feature | How to use |
 |---------|------------|
-| Application name | `Connection.setClientInfo("ApplicationName", "my-app")` — surfaces in query log |
+| Application name | Set via `client_name` property, URL parameter, or `Connection.setClientInfo("ApplicationName", "my-app")` — see [Workload identification & client name](#workload-identification--client-name) |
 | Schema / database | `Connection.setSchema("analytics")` or the URL path |
 | Query cancellation | `Statement.cancel()` → `KILL QUERY` (optionally `ON CLUSTER` via `jdbc_cluster_name`) |
 | JDBC escape syntax | `{ts '...'}`, `{d '...'}`, `{fn ...}` — translated before execution |
 | Default query settings | `default_query_settings` property |
 | Role management | `SET ROLE` statements (roles remembered by default) |
-| Framework detection | Automatic — logged at connection time (Spark, Flink, NiFi) |
 
 Key JDBC-specific properties (see [`DriverProperties`](../jdbc-v2/src/main/java/com/clickhouse/jdbc/DriverProperties.java)):
 

@@ -28,7 +28,7 @@ Work through these steps in order. Each one is a decision point; the "Common Pit
 
 | # | Step | Core decision |
 |---|-----------|---------------|
-| 1 | [Instantiation](#step-1--instantiation) | How many `Client` instances, their lifetime |
+| 1 | [Instantiation](#step-1--instantiation) | Client lifecycle, pool sizing, and workload identification |
 | 2 | [Authentication](#step-2--authentication) | Which auth mechanism and how to configure it |
 | 3 | [Transport & connectivity](#step-3--transport--connectivity-tls-proxies-timeouts) | TLS/mTLS, proxies, timeouts, health checks |
 | 4 | [Connections Configuration](#step-4--connections-configuration) | Pool sizing, async vs sync, sessions |
@@ -57,12 +57,12 @@ The [`Client`](https://javadoc.io/doc/com.clickhouse/client-v2/latest/com/clickh
 ```java
 import com.clickhouse.client.api.Client;
 
-
 public Client.Builder createBaseClient() {
     return new Client.Builder()
             .addEndpoint("http://localhost:8123")
             .setUsername("default")
             .setPassword("secret")
+            .setClientName("order-service/1.2.0")
             // set common configuration
             ;
 }
@@ -73,7 +73,6 @@ public Client createAnalyticsDBClient(Client.Builder baseClient) {
         // add db specific configuration
         .build();
 }
-
 ```
 
 ### Instantiation Strategy
@@ -83,6 +82,139 @@ public Client createAnalyticsDBClient(Client.Builder baseClient) {
 - **Serverless functions:** For serverless environments (like AWS Lambda), initialize the client outside the function handler so it can be reused across invocations.
 - **Warm-up (optional):** Calling `client.ping()` at startup can help initialize the connectivity part and verify the endpoint before serving live traffic, though it is not strictly required. It may also require to wakeup cloud instance.
 - **Caching:** The application is responsible for holding the reference to the `Client` instance (e.g., via dependency injection or a singleton). The library does not provide a global static cache.
+
+### Workload identification & client name
+
+In production environments, a single ClickHouse cluster often handles diverse workloads from multiple services: real-time user-facing APIs, event ingestion pipelines (e.g., Kafka consumers, CDC streams), scheduled ETL batch jobs, BI reporting dashboards (e.g., Superset, Tableau, Grafana), and ad-hoc analytical queries. When queries fail, time out, or cause memory spikes (`MEMORY_LIMIT_EXCEEDED`), identifying the originating application or workload is essential for fast troubleshooting, root-cause analysis, and resource attribution.
+
+#### Setting client name
+
+Use a structured format such as `<application-name>/<version>` or `<application-name>:<workload-type>/<version>` (for example, `order-service/1.2.0` or `etl-worker:cdc/2.0.1`).
+
+**1. Client Builder** (static setup at client creation):
+
+```java
+import com.clickhouse.client.api.Client;
+
+public Client.Builder createBaseClient() {
+    return new Client.Builder()
+            .addEndpoint("http://localhost:8123")
+            .setUsername("default")
+            .setPassword("secret")
+            .setClientName("order-service/1.2.0");
+}
+```
+
+**2. Dynamic Runtime Update** (updating identity on an existing client):
+
+```java
+import com.clickhouse.client.api.Client;
+
+public void updateClientWorkload(Client client, String workloadOrTenant) {
+    // Dynamically update workload identifier at runtime
+    client.updateClientName("order-service:" + workloadOrTenant + "/1.2.0");
+}
+```
+
+#### How it is observed on the server (`User-Agent` header)
+
+The Java Client communicates over HTTP and passes the client name as the leading segment of the HTTP `User-Agent` header. The client automatically appends the client library version, operating system, JVM version, and underlying HTTP client details:
+
+```text
+order-service/1.2.0 clickhouse-java-v2/0.9.6 (Linux; jvm:17.0.2) Apache-HttpClient/5.4.4
+```
+
+> **CRITICAL SERVER OBSERVATION NOTE:**
+> In ClickHouse's `system.query_log` and `system.processes`, HTTP requests record this information in the **`http_user_agent`** column. The `client_name` column in `system.query_log` is populated **only** for native TCP protocol connections. Always query `http_user_agent` when troubleshooting Java Client applications.
+
+#### Finding workloads in `system.query_log`
+
+Use the following queries on ClickHouse to troubleshoot and monitor application workloads:
+
+**Find recent queries and execution metrics for a specific application:**
+```sql
+SELECT
+    event_time,
+    query_id,
+    query_duration_ms,
+    memory_usage,
+    read_rows,
+    read_bytes,
+    result_rows,
+    http_user_agent,
+    query
+FROM system.query_log
+WHERE type = 'QueryFinish'
+  AND http_user_agent LIKE '%order-service%'
+  AND event_time >= now() - INTERVAL 1 HOUR
+ORDER BY event_time DESC
+LIMIT 100;
+```
+
+**Find failed queries and exceptions for a workload:**
+```sql
+SELECT
+    event_time,
+    query_id,
+    exception_code,
+    exception,
+    http_user_agent,
+    query
+FROM system.query_log
+WHERE type = 'ExceptionWhileProcessing'
+  AND http_user_agent LIKE '%order-service%'
+  AND event_time >= now() - INTERVAL 24 HOUR
+ORDER BY event_time DESC
+LIMIT 50;
+```
+
+**Aggregate workload resource consumption across all applications:**
+```sql
+SELECT
+    extract(http_user_agent, '^([^ ]+)') AS workload,
+    count() AS query_count,
+    round(avg(query_duration_ms), 2) AS avg_duration_ms,
+    round(quantile(0.95)(query_duration_ms), 2) AS p95_duration_ms,
+    round(max(query_duration_ms), 2) AS max_duration_ms,
+    formatReadableSize(sum(memory_usage)) AS total_memory,
+    formatReadableQuantity(sum(read_rows)) AS total_read_rows,
+    countIf(type = 'ExceptionWhileProcessing') AS error_count
+FROM system.query_log
+WHERE event_time >= now() - INTERVAL 24 HOUR
+  AND type IN ('QueryFinish', 'ExceptionWhileProcessing')
+GROUP BY workload
+ORDER BY query_count DESC;
+```
+
+**Inspect active running queries (`system.processes`):**
+```sql
+SELECT
+    query_id,
+    elapsed,
+    memory_usage,
+    http_user_agent,
+    query
+FROM system.processes
+WHERE http_user_agent LIKE '%order-service%';
+```
+
+**Query across a cluster:**
+```sql
+SELECT
+    hostName() AS host,
+    event_time,
+    query_id,
+    query_duration_ms,
+    memory_usage,
+    http_user_agent,
+    query
+FROM clusterAllReplicas('default', system.query_log)
+WHERE type = 'QueryFinish'
+  AND http_user_agent LIKE '%order-service%'
+  AND event_time >= now() - INTERVAL 1 HOUR
+ORDER BY event_time DESC
+LIMIT 100;
+```
 
 
 ## Step 2 — Authentication
@@ -203,13 +335,13 @@ import com.clickhouse.client.api.Client;
 
 public Client createAnalyticsClient(Client.Builder baseClient) {
     return baseClient
-        .setClientName("my-analytics-app")
+        .setClientName("my-analytics-app/1.0")
         .setDefaultDatabase("analytics") // Default database for queries
         .build();
 }
 ```
 
-> **Note on Client Name:** How the client name surfaces in `system.query_log` depends on the protocol used. For HTTP connections, it appears in the `http_user_agent` column. For TCP connections, it appears in the `client_name` column.
+> **Note on Client Name:** How the client name surfaces in `system.query_log` depends on the protocol used. For HTTP connections (used by Java Client V2), it appears in the `http_user_agent` column. The `client_name` column in `system.query_log` is populated only for native TCP connections. See [Workload identification & client name](#workload-identification--client-name) for full details and query log troubleshooting queries.
 
 ### Identifying the required mechanism
 
@@ -497,7 +629,7 @@ The most useful **client settings** for reads are configured on `QuerySettings`:
 > **Server settings**:
 > Server settings control query execution on the ClickHouse server itself. Pass them via `QuerySettings.serverSetting(key, value)`. Examples include `serverSetting("max_result_rows", "10000")` or `serverSetting("max_threads", "4")`. (For limiting execution time, there is a dedicated helper: `QuerySettings.setMaxExecutionTime(seconds)`).
 
-Useful correlation helpers: `settings.setQueryId(...)` and `settings.logComment(...)` surface in `system.query_log`.
+Useful correlation helpers: `settings.setQueryId(...)` and `settings.logComment(...)` surface in `system.query_log` alongside `http_user_agent` (set via `setClientName`).
 
 ### Errors & how to handle them
 
