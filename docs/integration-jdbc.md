@@ -77,15 +77,13 @@ jdbc:ch://localhost:8123/default
 ```
 
 ```java
-import java.util.Properties;
-import java.sql.Connection;
-import java.sql.DriverManager;
-
-Properties props = new Properties();
-props.setProperty("user", "default");
-props.setProperty("password", "secret");
-Connection conn = DriverManager.getConnection(
-    "jdbc:clickhouse://localhost:8123/default", props);
+public Connection createConnection() throws SQLException {
+    Properties props = new Properties();
+    props.setProperty("user", "default");
+    props.setProperty("password", "secret");
+    return DriverManager.getConnection(
+        "jdbc:clickhouse://localhost:8123/default", props);
+}
 ```
 
 Prefer `Properties` over embedding credentials in the URL. URL/Properties parsing is handled by [`JdbcConfiguration`](../jdbc-v2/src/main/java/com/clickhouse/jdbc/internal/JdbcConfiguration.java); programmatic setup is available via [`DataSourceImpl`](../jdbc-v2/src/main/java/com/clickhouse/jdbc/DataSourceImpl.java).
@@ -117,15 +115,13 @@ Because each `Connection` wraps a `Client` with its own HTTP pool, the client-le
 ### Option A — Basic (username + password)
 
 ```java
-import java.util.Properties;
-import java.sql.Connection;
-import java.sql.DriverManager;
-
-Properties props = new Properties();
-props.setProperty("user", "default");
-props.setProperty("password", "secret");
-Connection conn = DriverManager.getConnection(
-    "jdbc:clickhouse://localhost:8123/default", props);
+public Connection createBasicAuthConnection() throws SQLException {
+    Properties props = new Properties();
+    props.setProperty("user", "default");
+    props.setProperty("password", "secret");
+    return DriverManager.getConnection(
+        "jdbc:clickhouse://localhost:8123/default", props);
+}
 ```
 
 ### Option B — Token / bearer
@@ -133,45 +129,57 @@ Connection conn = DriverManager.getConnection(
 Pass the token as a client property; it forwards to the underlying client's token auth:
 
 ```java
-Properties props = new Properties();
-props.setProperty("access_token", "my_access_token");
-// or: props.setProperty("bearer_token", "my_access_token");
-Connection conn = DriverManager.getConnection(
-    "jdbc:clickhouse://localhost:8123/default", props);
+public Connection createTokenAuthConnection() throws SQLException {
+    Properties props = new Properties();
+    props.setProperty("access_token", "my_access_token");
+    // or: props.setProperty("bearer_token", "my_access_token");
+    return DriverManager.getConnection(
+        "jdbc:clickhouse://localhost:8123/default", props);
+}
 ```
 
 ### Option C — Mutual TLS (client certificate)
 
 ```java
-Properties props = new Properties();
-props.setProperty("ssl", "true");
-props.setProperty("ssl_authentication", "true");
-props.setProperty("sslcert", "/path/to/client.crt");
-props.setProperty("ssl_key", "/path/to/client.key");
-props.setProperty("sslrootcert", "/path/to/ca.crt"); // if server cert is self-signed
-Connection conn = DriverManager.getConnection(
-    "jdbc:clickhouse://localhost:8443/default", props);
+public Connection createMtlsConnection() throws SQLException {
+    Properties props = new Properties();
+    props.setProperty("ssl", "true");
+    props.setProperty("ssl_authentication", "true");
+    props.setProperty("sslcert", "/path/to/client.crt");
+    props.setProperty("ssl_key", "/path/to/client.key");
+    props.setProperty("sslrootcert", "/path/to/ca.crt"); // if server cert is self-signed
+    return DriverManager.getConnection(
+        "jdbc:clickhouse://localhost:8443/default", props);
+}
 ```
 
 A trust store may be used instead: `trust_store`, `key_store_password`, `key_store_type`.
 
 ### Option D — Custom headers (proxies / gateways)
 
-Custom per-request headers are a Java Client builder feature (`httpHeader(...)`). Through JDBC, reach them via the underlying client when a bearer/access token or standard properties are not sufficient:
+For OAuth gateways, custom authentication proxies, or API gateway configurations, inject arbitrary HTTP headers via connection properties using `DriverProperties.httpHeader(...)` (or the `http_header_<NAME>` property prefix):
 
 ```java
-Client underlying = conn.unwrap(ConnectionImpl.class).getClient();
-```
+import com.clickhouse.jdbc.DriverProperties;
 
-For most gateway setups the bearer/access token (Option B) is the right path.
+public Connection createCustomHeadersConnection() throws SQLException {
+    Properties props = new Properties();
+    props.setProperty("user", "default");
+    props.setProperty("password", "secret");
+    props.setProperty(DriverProperties.httpHeader("X-API-Key"), "my_custom_api_key");
+    // or directly: props.setProperty("http_header_X-API-Key", "my_custom_api_key");
+    return DriverManager.getConnection(
+        "jdbc:clickhouse://localhost:8123/default", props);
+}
+```
 
 ### Decisions
 
 | Question | Guidance |
 |----------|----------|
-| Which mechanism? | Password for most deployments; `access_token`/`bearer_token` for gateway-fronted or cloud setups; mTLS for certificate-based zero-trust. |
+| Which mechanism? | Password for most deployments; `access_token`/`bearer_token` for gateway-fronted or cloud setups; mTLS for certificate-based zero-trust; custom headers for API gateways. |
 | Credentials in URL or Properties? | **Properties** — keeps secrets out of URLs and logs. |
-| Behind an auth proxy? | Prefer token auth; fall back to the underlying client for custom headers. |
+| Behind an auth proxy? | Prefer token auth (Option B) or custom headers via `http_header_<NAME>` (Option D). |
 
 ### Common Pitfalls
 
@@ -204,14 +212,14 @@ See [examples/jdbc SSLExamples](../examples/jdbc/src/main/java/com/clickhouse/ex
 Both forward through URL/Properties:
 
 ```java
-import java.util.Properties;
-import java.sql.Connection;
-import java.sql.DriverManager;
-
-Properties props = new Properties();
-props.setProperty("user", "default");
-props.setProperty("max_execution_time", "60");   // server setting
-props.setProperty("max_open_connections", "20");  // client setting
+public Connection createConfiguredConnection() throws SQLException {
+    Properties props = new Properties();
+    props.setProperty("user", "default");
+    props.setProperty("max_execution_time", "60");   // server setting
+    props.setProperty("max_open_connections", "20");  // client setting
+    return DriverManager.getConnection(
+        "jdbc:clickhouse://localhost:8123/default", props);
+}
 ```
 
 Per-statement server settings: use `Statement.setQueryTimeout(...)` or an SQL `SETTINGS` clause.
@@ -219,7 +227,13 @@ Per-statement server settings: use `Statement.setQueryTimeout(...)` or an SQL `S
 ### Health check
 
 ```java
-if (!conn.isValid(5)) { throw new RuntimeException("ClickHouse unreachable"); }
+public boolean checkConnectionHealth(Connection conn, int timeoutSeconds) throws SQLException {
+    if (!conn.isValid(timeoutSeconds)) {
+        // trigger recovery logic, mark service unhealthy, or fail fast
+        return false;
+    }
+    return true;
+}
 ```
 
 ### Common Pitfalls
@@ -260,15 +274,22 @@ JDBC does **not** expose format selection. The driver picks formats internally b
 If you need maximum ingest throughput, specific binary formats, or POJO serialization, but your application is fundamentally built on JDBC, you can extract the underlying `Client` from the `Connection`.
 
 ```java
-import java.sql.Connection;
-import com.clickhouse.jdbc.ConnectionImpl;
 import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.insert.InsertResponse;
+import com.clickhouse.client.api.insert.InsertSettings;
+import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.jdbc.ConnectionImpl;
 
-// Unwrap the JDBC connection to get the native Java Client
-Client client = conn.unwrap(ConnectionImpl.class).getClient();
+public void insertStreamViaHybridClient(Connection conn, InputStream dataStream) throws Exception {
+    // Unwrap the JDBC connection to get the native Java Client
+    Client client = conn.unwrap(ConnectionImpl.class).getClient();
 
-// Now you can use the Java Client's native streaming and format capabilities
-// while sharing the same underlying HTTP connection pool
+    // Use native Java Client streaming capabilities while sharing the underlying HTTP connection pool
+    InsertSettings settings = new InsertSettings().compressClientRequest(true);
+    try (InsertResponse response = client.insert("events", dataStream, ClickHouseFormat.JSONEachRow, settings).get()) {
+        // handle response metrics or confirmation
+    }
+}
 ```
 
 This hybrid approach allows you to use standard JDBC for simple CRUD and metadata, while using the native Java Client for bulk ingest or custom data processing.
@@ -291,15 +312,17 @@ This hybrid approach allows you to use standard JDBC for simple CRUD and metadat
 ### General interface
 
 ```java
-try (Connection conn = DriverManager.getConnection(url, props);
-     Statement stmt = conn.createStatement();
-     ResultSet rs = stmt.executeQuery(
-         "SELECT id, name, created_at FROM events LIMIT 1000")) {
+public void readEvents(Connection conn) throws SQLException {
+    try (Statement stmt = conn.createStatement();
+         ResultSet rs = stmt.executeQuery(
+             "SELECT id, name, created_at FROM events LIMIT 1000")) {
 
-    while (rs.next()) {
-        long id = rs.getLong("id");
-        String name = rs.getString("name");
-        Timestamp created = rs.getTimestamp("created_at");
+        while (rs.next()) {
+            long id = rs.getLong("id");
+            String name = rs.getString("name");
+            Timestamp created = rs.getTimestamp("created_at");
+            // process row data
+        }
     }
 }
 ```
@@ -315,15 +338,17 @@ try (Connection conn = DriverManager.getConnection(url, props);
 ### Reading ClickHouse-specific types
 
 ```java
-rs.getString("uuid_col");
-rs.getBigDecimal("decimal_col");
-rs.getObject("ts_col", LocalDateTime.class);          // java.time
+public void readSpecialTypes(ResultSet rs) throws SQLException {
+    String uuid = rs.getString("uuid_col");
+    BigDecimal decimal = rs.getBigDecimal("decimal_col");
+    LocalDateTime timestamp = rs.getObject("ts_col", LocalDateTime.class); // java.time
 
-Map<String, Class<?>> typeMap = Map.of("UInt64", BigInteger.class);
-rs.getObject("big_num", typeMap);                      // custom mapping
+    Map<String, Class<?>> typeMap = Collections.singletonMap("UInt64", BigInteger.class);
+    BigInteger bigNum = (BigInteger) rs.getObject("big_num", typeMap);     // custom mapping
 
-Array array = rs.getArray("tags");                     // Array
-Struct tuple = (Struct) rs.getObject("point");         // Tuple
+    Array array = rs.getArray("tags");                                     // Array
+    Struct tuple = (Struct) rs.getObject("point");                         // Tuple
+}
 ```
 
 ### Operation configuration — tuning heavy reads
@@ -371,29 +396,46 @@ Struct tuple = (Struct) rs.getObject("point");         // Tuple
 **Simple INSERT via `Statement`:**
 
 ```java
-Statement stmt = conn.createStatement();
-stmt.executeUpdate("INSERT INTO events (id, name) VALUES (1, 'click'), (2, 'house')");
+public void insertDirect(Connection conn) throws SQLException {
+    try (Statement stmt = conn.createStatement()) {
+        stmt.executeUpdate("INSERT INTO events (id, name) VALUES (1, 'click'), (2, 'house')");
+    }
+}
 ```
 
 **Batched INSERT via `PreparedStatement`:**
 
 ```java
-PreparedStatement ps = conn.prepareStatement(
-    "INSERT INTO events (id, name, created_at) VALUES (?, ?, ?)");
-for (Event event : events) {
-    ps.setLong(1, event.getId());
-    ps.setString(2, event.getName());
-    ps.setObject(3, event.getCreatedAt());
-    ps.addBatch();
+public void insertEventsBatch(Connection conn, List<Event> events) throws SQLException {
+    if (events.isEmpty()) {
+        return;
+    }
+
+    try (PreparedStatement ps = conn.prepareStatement(
+            "INSERT INTO events (id, name, created_at) VALUES (?, ?, ?)")) {
+        for (Event event : events) {
+            ps.setLong(1, event.getId());
+            ps.setString(2, event.getName());
+            ps.setObject(3, event.getCreatedAt());
+            ps.addBatch();
+        }
+        ps.executeBatch();
+    }
 }
-ps.executeBatch();
 ```
 
 **RowBinary streaming insert (beta):** enable `beta.row_binary_for_simple_insert=true` so simple `INSERT INTO t VALUES (?, ?, ?)` statements serialize as RowBinary via [`WriterStatementImpl`](../jdbc-v2/src/main/java/com/clickhouse/jdbc/WriterStatementImpl.java) instead of SQL text.
 
 ```java
-Properties props = new Properties();
-props.setProperty("beta.row_binary_for_simple_insert", "true");
+public Connection createRowBinaryInsertConnection() throws SQLException {
+    Properties props = new Properties();
+    props.setProperty("user", "default");
+    props.setProperty("password", "secret");
+    // switch using row binary writer for inserts
+    props.setProperty("beta.row_binary_for_simple_insert", "true");
+    return DriverManager.getConnection(
+        "jdbc:clickhouse://localhost:8123/default", props);
+}
 ```
 
 ### Operation configuration — tuning heavy writes
@@ -410,20 +452,19 @@ props.setProperty("beta.row_binary_for_simple_insert", "true");
 
 JDBC does not expose `insert_deduplication_token` as a first-class API. Three ways to use it:
 
-**1. Connection property** (all inserts on the connection share the token):
+
+**SQL `SETTINGS` clause** (per statement):
 
 ```java
-props.setProperty("insert_deduplication_token", "batch-2024-06-18-part-001");
+public void insertWithPerStatementDedup(Connection conn, String token) throws SQLException {
+    try (Statement stmt = conn.createStatement()) {
+        stmt.executeUpdate(
+            "INSERT INTO events SETTINGS insert_deduplication_token = '" + token + "' VALUES (1, 'a')");
+    }
+}
 ```
 
-**2. SQL `SETTINGS` clause** (per statement):
-
-```java
-stmt.executeUpdate(
-    "INSERT INTO events SETTINGS insert_deduplication_token = 'batch-001' VALUES (1, 'a')");
-```
-
-**3. Switch to the Java Client** for per-insert token control via `InsertSettings.setDeduplicationToken(...)`.
+**2. Switch to the Java Client** for per-insert token control via `InsertSettings.setDeduplicationToken(...)`.
 
 See [integration-client.md — deduplication token](integration-client.md#idempotency--deduplication-token) for semantics and requirements.
 
@@ -456,18 +497,28 @@ See [integration-client.md — deduplication token](integration-client.md#idempo
 ### DatabaseMetaData
 
 ```java
-DatabaseMetaData meta = conn.getMetaData();
+public TableMetadata buildMetadataModel(Connection conn, String database, String table) throws SQLException {
+    DatabaseMetaData meta = conn.getMetaData();
+    TableMetadata.Builder tableMetadataBuilder = new TableMetadata.Builder()
+        .setDatabase(database)
+        .setTableName(table);
 
-try (ResultSet tables = meta.getTables(null, "default", "%", new String[]{"TABLE"})) {
-    while (tables.next()) System.out.println(tables.getString("TABLE_NAME"));
-}
-
-try (ResultSet columns = meta.getColumns(null, "default", "events", "%")) {
-    while (columns.next()) {
-        String name = columns.getString("COLUMN_NAME");
-        int jdbcType = columns.getInt("DATA_TYPE");
-        String chType = columns.getString("TYPE_NAME");
+    try (ResultSet tables = meta.getTables(null, database, table, new String[]{"TABLE"})) {
+        if (tables.next()) {
+            tableMetadataBuilder.setTableType(tables.getString("TABLE_TYPE"));
+        }
     }
+
+    try (ResultSet columns = meta.getColumns(null, database, table, "%")) {
+        while (columns.next()) {
+            String name = columns.getString("COLUMN_NAME");
+            int jdbcType = columns.getInt("DATA_TYPE");
+            String chType = columns.getString("TYPE_NAME");
+            tableMetadataBuilder.addColumn(name, jdbcType, chType);
+        }
+    }
+
+    return tableMetadataBuilder.build();
 }
 ```
 
@@ -476,25 +527,35 @@ Implemented by [`DatabaseMetaDataImpl`](../jdbc-v2/src/main/java/com/clickhouse/
 ### ResultSetMetaData & ParameterMetaData
 
 ```java
-ResultSetMetaData rsMeta = rs.getMetaData();
-for (int i = 1; i <= rsMeta.getColumnCount(); i++) {
-    rsMeta.getColumnName(i);
-    rsMeta.getColumnTypeName(i); // exact ClickHouse type, e.g. Nullable(UInt64)
-    rsMeta.getColumnType(i);     // mapped JDBC type code
+public void inspectResultSetMetadata(ResultSet rs) throws SQLException {
+    ResultSetMetaData rsMeta = rs.getMetaData();
+    for (int i = 1; i <= rsMeta.getColumnCount(); i++) {
+        String colName = rsMeta.getColumnName(i);
+        String chType = rsMeta.getColumnTypeName(i); // exact ClickHouse type, e.g. Nullable(UInt64)
+        int jdbcType = rsMeta.getColumnType(i);     // mapped JDBC type code
+        // process metadata
+    }
 }
 
-int paramCount = ps.getParameterMetaData().getParameterCount();
+public int getParameterCount(PreparedStatement ps) throws SQLException {
+    return ps.getParameterMetaData().getParameterCount();
+}
 ```
 
 ### Type mapping
 
 The driver maps ClickHouse types to JDBC types (e.g. `UInt64` → `NUMERIC`, `Tuple` → `STRUCT`); see [type_mapping.md](../type_mapping.md). Override defaults:
 
+
 ```java
-props.setProperty("jdbc_type_mappings",
-    "UInt64=java.math.BigInteger,Int128=java.math.BigInteger");
-// or per-connection:
-((ConnectionImpl) conn).setTypeMap(Map.of("UInt64", BigInteger.class));
+public Connection createConnection() throws SQLException {
+    Properties props = new Properties();
+    // .. base configuration 
+    props.setProperty("jdbc_type_mappings", "UInt64=java.math.BigInteger,Int128=java.math.BigInteger");
+
+    return DriverManager.getConnection(
+        "jdbc:clickhouse://localhost:8123/default", props);
+}
 ```
 
 ### Tools summary
@@ -546,49 +607,6 @@ Key JDBC-specific properties (see [`DriverProperties`](../jdbc-v2/src/main/java/
 | `jdbc_type_mappings` | — | Custom ClickHouse → Java type overrides |
 | `default_query_settings` | — | Default settings for all queries |
 
----
-
-## Quick reference
-
-```java
-// Step 1–3: connect (use a connection pool in production)
-import java.util.Properties;
-import java.sql.Connection;
-import java.sql.DriverManager;
-
-Properties props = new Properties();
-props.setProperty("user", "default");
-props.setProperty("password", "secret");
-
-try (Connection conn = DriverManager.getConnection(
-        "jdbc:clickhouse://localhost:8123/default", props)) {
-
-    // Step 3: health check
-    if (!conn.isValid(5)) { throw new RuntimeException("ClickHouse unreachable"); }
-
-    // Step 5: read
-    try (Statement stmt = conn.createStatement();
-         ResultSet rs = stmt.executeQuery("SELECT 1")) {
-        rs.next();
-        System.out.println(rs.getInt(1));
-    }
-
-    // Step 6: write (batched)
-    try (PreparedStatement ps = conn.prepareStatement(
-            "INSERT INTO my_table (id, name) VALUES (?, ?)")) {
-        ps.setLong(1, 1);
-        ps.setString(2, "test");
-        ps.addBatch();
-        ps.executeBatch();
-    }
-
-    // Step 7: metadata
-    DatabaseMetaData meta = conn.getMetaData();
-    try (ResultSet tables = meta.getTables(null, "default", "%", new String[]{"TABLE"})) {
-        while (tables.next()) System.out.println(tables.getString("TABLE_NAME"));
-    }
-}
-```
 
 ## References
 
