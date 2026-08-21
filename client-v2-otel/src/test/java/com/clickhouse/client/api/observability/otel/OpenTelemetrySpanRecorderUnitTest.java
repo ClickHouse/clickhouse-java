@@ -11,6 +11,7 @@ import com.clickhouse.client.api.observability.SpanAttribute;
 import com.clickhouse.client.api.observability.SpanRecorder;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.transport.Endpoint;
+import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.AttributeType;
 import io.opentelemetry.api.trace.SpanKind;
@@ -237,6 +238,37 @@ public class OpenTelemetrySpanRecorderUnitTest {
         Assert.assertEquals(exported.getInstrumentationScopeInfo().getName(), "application-scope");
         Assert.assertEquals(exported.getInstrumentationScopeInfo().getVersion(), "1.2.3");
         Assert.assertEquals(exported.getName(), "query " + DATABASE);
+    }
+
+    @Test
+    public void testGlobalInstanceIsReadWhenSpanStartsNotWhenRecorderIsCreated() {
+        GlobalOpenTelemetry.resetForTest();
+        try {
+            // the recorder is created before the application installs its SDK
+            OpenTelemetrySpanRecorder globalRecorder = new OpenTelemetrySpanRecorder();
+
+            InMemorySpanExporter lateExporter = InMemorySpanExporter.create();
+            OpenTelemetrySdk lateSdk = OpenTelemetrySdk.builder()
+                    .setTracerProvider(SdkTracerProvider.builder()
+                            .addSpanProcessor(SimpleSpanProcessor.create(lateExporter))
+                            .build())
+                    .build();
+            GlobalOpenTelemetry.set(lateSdk);
+            try {
+                globalRecorder.startQuerySpan(querySettings("q-late"), "SELECT 1", endpoint("ch-host", 8123)).end();
+
+                List<SpanData> exported = lateExporter.getFinishedSpanItems();
+                Assert.assertEquals(exported.size(), 1,
+                        "a span must reach the SDK installed after the recorder was created");
+                Assert.assertEquals(exported.get(0).getName(), "query " + DATABASE);
+                Assert.assertEquals(exported.get(0).getInstrumentationScopeInfo().getName(),
+                        OpenTelemetrySpanRecorder.INSTRUMENTATION_SCOPE_NAME);
+            } finally {
+                lateSdk.close();
+            }
+        } finally {
+            GlobalOpenTelemetry.resetForTest();
+        }
     }
 
     @Test

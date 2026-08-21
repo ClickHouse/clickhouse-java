@@ -45,7 +45,9 @@ import java.util.function.Supplier;
 public class OpenTelemetrySpanRecorder extends DefaultSpanRecorder {
 
     /**
-     * Instrumentation scope name reported for every span this recorder creates.
+     * Default instrumentation scope name. It is reported for the spans of a recorder created by a
+     * constructor of this class. A recorder created by {@link #forTracer(Tracer)} reports the scope of
+     * the given tracer instead.
      */
     public static final String INSTRUMENTATION_SCOPE_NAME = "com.clickhouse.client";
 
