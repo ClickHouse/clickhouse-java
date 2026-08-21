@@ -67,6 +67,12 @@
 
 ### Bug Fixes 
 
+- **[client-v2]** Fixed the `Native` format reader (`NativeFormatReader`) misreading `Array` columns in multi-row
+  results whose rows have different lengths. Native encodes an array column as cumulative row offsets followed by the
+  flattened elements, but the reader used the first row's offset as the element count for every row — truncating later
+  rows and desyncing the columns that follow the array in the same block. Each row's length is now derived from the
+  difference between consecutive offsets, and empty array rows (`len == 0`) no longer read a phantom element. Results
+  with uniform array lengths were unaffected. (https://github.com/ClickHouse/clickhouse-java/issues/2955)
 - **[jdbc-v2]** Fixed an `INSERT` whose values list holds a function call the bundled `ANTLR4` grammar cannot match -
   such as `hex(x'AB')`, valid ClickHouse the grammar has no hex string literal for - being reported to hold no function
   call when an `ANTLR4` parser backend is selected (`jdbc_sql_parser=ANTLR4` / `ANTLR4_PARAMS_PARSER`). Function calls in
