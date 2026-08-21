@@ -2,7 +2,6 @@ package com.clickhouse.client.api.observability.otel;
 
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.metrics.OperationMetrics;
-import com.clickhouse.client.api.observability.DefaultSpanRecorder;
 import com.clickhouse.client.api.observability.Span;
 import com.clickhouse.client.api.observability.SpanAttribute;
 import com.clickhouse.client.api.observability.SpanRecorder;
@@ -42,7 +41,7 @@ import java.util.function.Supplier;
  * <p>
  * Instances are thread-safe and can be shared by several clients.
  */
-public class OpenTelemetrySpanRecorder extends DefaultSpanRecorder {
+public class OpenTelemetrySpanRecorder implements SpanRecorder {
 
     /**
      * Default instrumentation scope name. It is reported for the spans of a recorder created by a
@@ -113,7 +112,7 @@ public class OpenTelemetrySpanRecorder extends DefaultSpanRecorder {
 
     @Override
     public Span startQuerySpan(QuerySettings settings, String sqlQuery, Endpoint endpoint) {
-        SpanSupport support = getSpanSupport();
+        SpanSupport support = SpanSupport.DEFAULT;
         OpenTelemetrySpan span = startSpan(support.querySpanName(settings), Context.current());
         support.fillQueryAttributes(span, settings, sqlQuery, endpoint);
         return span;
@@ -121,7 +120,7 @@ public class OpenTelemetrySpanRecorder extends DefaultSpanRecorder {
 
     @Override
     public Span startInsertSpan(InsertSettings settings, String tableName, int batchSize, Endpoint endpoint) {
-        SpanSupport support = getSpanSupport();
+        SpanSupport support = SpanSupport.DEFAULT;
         OpenTelemetrySpan span = startSpan(support.insertSpanName(settings, tableName), Context.current());
         support.fillInsertAttributes(span, settings, tableName, batchSize, endpoint);
         return span;
@@ -129,7 +128,7 @@ public class OpenTelemetrySpanRecorder extends DefaultSpanRecorder {
 
     @Override
     public Span startRequestSpan(Span operationSpan, String host, int port) {
-        SpanSupport support = getSpanSupport();
+        SpanSupport support = SpanSupport.DEFAULT;
         OpenTelemetrySpan span = startSpan(support.requestSpanName(), parentContextOf(operationSpan));
         support.fillRequestAttributes(span, host, port);
         return span;
@@ -137,23 +136,23 @@ public class OpenTelemetrySpanRecorder extends DefaultSpanRecorder {
 
     @Override
     public void recordHttpStatus(Span requestSpan, int statusCode) {
-        getSpanSupport().recordHttpStatus(requestSpan, statusCode);
+        SpanSupport.DEFAULT.recordHttpStatus(requestSpan, statusCode);
     }
 
     @Override
     public void recordSuccess(Span operationSpan, OperationMetrics metrics) {
-        getSpanSupport().recordSuccess(operationSpan, metrics);
+        SpanSupport.DEFAULT.recordSuccess(operationSpan, metrics);
     }
 
     @Override
     public void recordFailure(Span operationSpan, Throwable t) {
-        getSpanSupport().recordFailure(operationSpan, t);
+        SpanSupport.DEFAULT.recordFailure(operationSpan, t);
         recordException(operationSpan, t);
     }
 
     @Override
     public void recordRequestFailure(Span requestSpan, Throwable t) {
-        getSpanSupport().recordRequestFailure(requestSpan, t);
+        SpanSupport.DEFAULT.recordRequestFailure(requestSpan, t);
         recordException(requestSpan, t);
     }
 
