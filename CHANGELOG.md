@@ -67,6 +67,15 @@
 
 ### Bug Fixes 
 
+- **[client-v2]** Fixed the compiled POJO setter emitting invalid bytecode (`VerifyError` on the first row read) when a
+  column is bound to a POJO field of a different primitive type. The value read from the stream is now converted to the
+  field's primitive type following Java's narrowing/widening rules, so e.g. an `Int64`/`UInt32`/`Float32`/`Float64`/
+  `BFloat16` column can be read into a `byte`, `short`, `char` or `boolean` field, and an `Int8`/`UInt8`/`Int16`/
+  `Enum8`/`Enum16`/`Bool` column into a `long`, `float` or `double` field. A primitive field bound to a column that the
+  reader decodes into a `Number` (`Int128`, `UInt128`, `Int256`, `UInt256`, `Decimal*`) is now unboxed instead of
+  producing invalid bytecode; for a column whose value is not a number (e.g. `Date`, `IPv4`, `String`, `UUID`) reading
+  into a numeric primitive field now fails with a clear `IllegalArgumentException`.
+  (https://github.com/ClickHouse/clickhouse-java/issues/2999)
 - **[jdbc-v2]** Fixed an `INSERT` whose values list holds a function call the bundled `ANTLR4` grammar cannot match -
   such as `hex(x'AB')`, valid ClickHouse the grammar has no hex string literal for - being reported to hold no function
   call when an `ANTLR4` parser backend is selected (`jdbc_sql_parser=ANTLR4` / `ANTLR4_PARAMS_PARSER`). Function calls in
