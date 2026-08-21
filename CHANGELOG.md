@@ -67,6 +67,13 @@
 
 ### Bug Fixes 
 
+- **[jdbc-v2]** Fixed `PreparedStatement.getMetaData()` losing the result-set schema for a statement whose SQL
+  contains a comment. The `DESCRIBE` query used to resolve the metadata was built by re-scanning the SQL with a
+  regex that knew only quoted tokens, so a `?` inside a `--` / `#` / `/* */` comment was rewritten to `NULL` and
+  an odd `'` inside a comment mis-paired the quote alternative, leaving a real placeholder unreplaced — the
+  `DESCRIBE` then failed and the driver silently returned untyped metadata. The metadata query is now built from
+  the placeholder positions the statement parser already computed, so it always matches the SQL that a
+  parameterized execution produces. (https://github.com/ClickHouse/clickhouse-java/issues/3011)
 - **[jdbc-v2]** Fixed an `INSERT` whose values list holds a function call the bundled `ANTLR4` grammar cannot match -
   such as `hex(x'AB')`, valid ClickHouse the grammar has no hex string literal for - being reported to hold no function
   call when an `ANTLR4` parser backend is selected (`jdbc_sql_parser=ANTLR4` / `ANTLR4_PARAMS_PARSER`). Function calls in
