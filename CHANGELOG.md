@@ -67,6 +67,12 @@
 
 ### Bug Fixes 
 
+- **[client-v2]** Fixed reading a `SimpleAggregateFunction(func, T)` value held in a `Dynamic` column. The binary type
+  encoding of such a value (`0x2E <function_name> <parameters> <arguments> <argument_type_encodings>`) was not consumed
+  at all, so the read failed with `IndexOutOfBoundsException`, and the unconsumed encoding bytes would otherwise have
+  been interpreted as row data and desynchronized the rest of the `RowBinary` stream. The concrete type is now
+  reconstructed from the encoding and the value is read as its argument type `T`, so it reads exactly like the same
+  value in a plain `SimpleAggregateFunction` column. (https://github.com/ClickHouse/clickhouse-java/issues/3005)
 - **[jdbc-v2]** Fixed an `INSERT` whose values list holds a function call the bundled `ANTLR4` grammar cannot match -
   such as `hex(x'AB')`, valid ClickHouse the grammar has no hex string literal for - being reported to hold no function
   call when an `ANTLR4` parser backend is selected (`jdbc_sql_parser=ANTLR4` / `ANTLR4_PARAMS_PARSER`). Function calls in
