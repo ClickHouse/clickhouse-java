@@ -301,6 +301,96 @@ public class DataTypeTests extends BaseIntegrationTest {
         }
     }
 
+    @Test(groups = {"integration"}, dataProvider = "nonNullableArrayNullColumns")
+    public void testInsertNullIntoNonNullableArrayThrows(String columns) throws Exception {
+        final String table = "test_non_nullable_array_null";
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        client.execute(tableDefinition(table, columns)).get();
+
+        client.register(DTOForNonNullableArrayTests.class, client.getTableSchema(table));
+
+        Exception thrown = null;
+        try {
+            client.insert(table, Collections.singletonList(new DTOForNonNullableArrayTests(1, null, 7)))
+                    .get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            thrown = e;
+        }
+
+        Assert.assertNotNull(thrown, "Expected the insert to fail for a null in a non-nullable Array column using " + columns);
+        boolean clearMessage = false;
+        for (Throwable t = thrown; t != null; t = t.getCause()) {
+            if (t.getMessage() != null && t.getMessage().contains("An attempt to write null into not nullable column")) {
+                clearMessage = true;
+                break;
+            }
+        }
+        Assert.assertTrue(clearMessage, "Expected a clear non-nullable column error using " + columns + ", but got: " + thrown);
+    }
+
+    @DataProvider(name = "nonNullableArrayNullColumns")
+    public static Object[][] nonNullableArrayNullColumns() {
+        return new Object[][] {
+                {"rowId Int32, arr Array(Int32), tail Int32"},
+                {"rowId Int32, arr Array(Int32), tail Int32 DEFAULT 99"},
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "nonNullableArrayRoundTrip")
+    public void testInsertNonNullableArrayRoundTrips(List<Integer> arr, int expectedLength, String expectedConcat) throws Exception {
+        final String table = "test_non_nullable_array_round_trip";
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        client.execute(tableDefinition(table, "rowId Int32", "arr Array(Int32)", "tail Int32")).get();
+
+        client.register(DTOForNonNullableArrayTests.class, client.getTableSchema(table));
+        client.insert(table, Collections.singletonList(new DTOForNonNullableArrayTests(1, arr, 7)))
+                .get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS);
+
+        List<GenericRecord> records = client.queryAll(
+                "SELECT toInt32(length(arr)) AS alen, arrayStringConcat(arr, ',') AS acat, tail FROM " + table + " ORDER BY rowId");
+        Assert.assertEquals(records.size(), 1);
+        GenericRecord row = records.get(0);
+        Assert.assertEquals(row.getInteger("alen"), expectedLength);
+        Assert.assertEquals(row.getString("acat"), expectedConcat);
+        Assert.assertEquals(row.getInteger("tail"), 7);
+    }
+
+    @DataProvider(name = "nonNullableArrayRoundTrip")
+    public static Object[][] nonNullableArrayRoundTrip() {
+        return new Object[][] {
+                {new ArrayList<Integer>(), 0, ""},
+                {Arrays.asList(1, 2, 3), 3, "1,2,3"},
+        };
+    }
+
+    @Test(groups = {"integration"})
+    public void testInsertNullIntoDefaultedNonNullableArrayUsesDefault() throws Exception {
+        final String table = "test_non_nullable_array_null_default";
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        client.execute(tableDefinition(table, "rowId Int32", "arr Array(Int32) DEFAULT [1, 2]", "tail Int32")).get();
+
+        client.register(DTOForNonNullableArrayTests.class, client.getTableSchema(table));
+        client.insert(table, Collections.singletonList(new DTOForNonNullableArrayTests(1, null, 7)))
+                .get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS);
+
+        List<GenericRecord> records = client.queryAll(
+                "SELECT toInt32(length(arr)) AS alen, arrayStringConcat(arr, ',') AS acat, tail FROM " + table + " ORDER BY rowId");
+        Assert.assertEquals(records.size(), 1);
+        GenericRecord row = records.get(0);
+        Assert.assertEquals(row.getInteger("alen"), 2);
+        Assert.assertEquals(row.getString("acat"), "1,2");
+        Assert.assertEquals(row.getInteger("tail"), 7);
+    }
+
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class DTOForNonNullableArrayTests {
+        private int rowId;
+        private List<Integer> arr;
+        private int tail;
+    }
+
     @Data
     @AllArgsConstructor
     @NoArgsConstructor
