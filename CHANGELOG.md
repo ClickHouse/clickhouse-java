@@ -102,6 +102,9 @@
   inserted data or failing with a server-side `SYNTAX_ERROR`. Escape sequences are now recognized only outside of quoted
   text, and a `{fn ...}` escape is unwrapped at its matching closing brace, so nested braces (e.g. a `{name:Type}` query
   parameter or a nested escape) stay balanced. (https://github.com/ClickHouse/clickhouse-java/issues/2995)
+- **[jdbc-v2]** Fixed prepared statements losing parameter markers after an empty `--` comment line or after
+  `SELECT * EXCEPT (...)`, which caused parameter binding to fail with `ArrayIndexOutOfBoundsException` for the
+  affected SQL parser backends. (https://github.com/ClickHouse/clickhouse-java/issues/3052)
 - **[client-v2]** Fixed LZ4 input streams not closing their underlying HTTP response stream. Closing an LZ4 stream
   returned by `QueryResponse.getInputStream()` now releases the wrapped transport stream, including after a partial
   read. (https://github.com/ClickHouse/clickhouse-java/issues/2985)
