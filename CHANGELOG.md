@@ -67,6 +67,13 @@
 
 ### Bug Fixes 
 
+- **[jdbc-v2]** Fixed the ANTLR4 lexer not nesting `/* */` block comments. ClickHouse (and the JavaCC parser backend)
+  raise the nesting level on an inner `/*` and close the comment only at the matching `*/`, while the ANTLR4 lexer ended
+  the comment at the first `*/` and lexed the rest of it as SQL. With the `ANTLR4` / `ANTLR4_PARAMS_PARSER` backends this
+  made statements the server accepts (e.g. `SELECT 1 /* ) /* ) */ ) */, 2`) report syntax errors, and made
+  `ANTLR4_PARAMS_PARSER` count a `?` inside the nested part of a comment as a bind parameter. Comments that do not nest
+  are unaffected; an unterminated block comment is now skipped to the end of the statement instead of being lexed as
+  stray tokens. (https://github.com/ClickHouse/clickhouse-java/issues/3021)
 - **[jdbc-v2]** Fixed an `INSERT` whose values list holds a function call the bundled `ANTLR4` grammar cannot match -
   such as `hex(x'AB')`, valid ClickHouse the grammar has no hex string literal for - being reported to hold no function
   call when an `ANTLR4` parser backend is selected (`jdbc_sql_parser=ANTLR4` / `ANTLR4_PARAMS_PARSER`). Function calls in
