@@ -67,6 +67,12 @@
 
 ### Bug Fixes 
 
+- **[jdbc-v2]** Fixed a `?` inside a `//` line comment or inside a heredoc (dollar quoted string, e.g. `$$...$$` or
+  `$tag$...$tag$`) being counted as a `PreparedStatement` parameter. Such a statement expected a value the application
+  could not supply, so `executeQuery()` failed with `Parameter at position 'N' is not set` for a query the server
+  executes fine. The placeholder scan now skips both token kinds, like the server lexer does; a `$` that does not open a
+  heredoc is still treated as an ordinary character (it is a valid identifier character).
+  (https://github.com/ClickHouse/clickhouse-java/issues/3009)
 - **[jdbc-v2]** Fixed an `INSERT` whose values list holds a function call the bundled `ANTLR4` grammar cannot match -
   such as `hex(x'AB')`, valid ClickHouse the grammar has no hex string literal for - being reported to hold no function
   call when an `ANTLR4` parser backend is selected (`jdbc_sql_parser=ANTLR4` / `ANTLR4_PARAMS_PARSER`). Function calls in

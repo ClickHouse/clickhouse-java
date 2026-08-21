@@ -500,13 +500,71 @@ public abstract class SqlParserFacade {
                 continue;
             } else if (i + 1 < len) {
                 char nextCh = originalQuery.charAt(i + 1);
-                if ((ch == '-' && nextCh == ch) || (ch == '#')) {
-                    i = ClickHouseUtils.skipSingleLineComment(originalQuery, i + 2, len) - 1;
+                if ((ch == '-' && nextCh == ch) || (ch == '/' && nextCh == ch) || (ch == '#')) {
+                    i = skipLineComment(originalQuery, i + 1, len) - 1;
                 } else if (ch == '/' && nextCh == '*') {
                     i = ClickHouseUtils.skipMultiLineComment(originalQuery, i + 2, len) - 1;
+                } else if (ch == '$') {
+                    i = skipHeredoc(originalQuery, i, len) - 1;
                 }
             }
         }
+    }
+
+    /**
+     * Skips a line comment ({@code --}, {@code //}, {@code #} or {@code #!}) up to and including the
+     * terminating newline. An empty comment is terminated by the newline that directly follows the comment
+     * marker, so scanning must continue on the next line instead of stopping at the end of the query.
+     *
+     * @param query      non-null string to scan
+     * @param startIndex index of the second character of the comment marker, which is never a newline for
+     *                   {@code --} and {@code //}, and is the first comment character for {@code #}
+     * @param len        end index, usually length of the given string
+     * @return index of the start of the next line, or {@code len} when the comment is not terminated
+     */
+    private static int skipLineComment(String query, int startIndex, int len) {
+        int index = query.indexOf('\n', startIndex);
+        return index < 0 || index >= len ? len : index + 1;
+    }
+
+    /**
+     * Skips a heredoc (dollar quoted string) like {@code $$...$$} or {@code $tag$...$tag$}, where the tag
+     * may only contain word characters. When there is no heredoc at {@code startIndex} the dollar sign is
+     * treated as an ordinary character, because it is also a valid identifier character: a dollar sign that
+     * follows a word character continues an identifier (e.g. {@code a$b} or {@code a$x$}) instead of opening
+     * a heredoc, and a dollar sign without a matching closing tag does not open one either.
+     *
+     * @param query      non-null string to scan
+     * @param startIndex index of the dollar sign that may open a heredoc
+     * @param len        end index, usually length of the given string
+     * @return index next to the closing tag, or {@code startIndex + 1} when there is no heredoc
+     */
+    private static int skipHeredoc(String query, int startIndex, int len) {
+        if (startIndex > 0 && isWordChar(query.charAt(startIndex - 1))) {
+            return startIndex + 1;
+        }
+
+        int tagEndIndex = query.indexOf('$', startIndex + 1);
+        if (tagEndIndex < 0 || tagEndIndex >= len) {
+            return startIndex + 1;
+        }
+
+        for (int i = startIndex + 1; i < tagEndIndex; i++) {
+            if (!isWordChar(query.charAt(i))) {
+                return startIndex + 1;
+            }
+        }
+
+        String tag = query.substring(startIndex, tagEndIndex + 1);
+        int closingTagIndex = query.indexOf(tag, tagEndIndex + 1);
+        if (closingTagIndex < 0 || closingTagIndex + tag.length() > len) {
+            return startIndex + 1;
+        }
+        return closingTagIndex + tag.length();
+    }
+
+    private static boolean isWordChar(char ch) {
+        return ch == '_' || (ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z');
     }
 
 

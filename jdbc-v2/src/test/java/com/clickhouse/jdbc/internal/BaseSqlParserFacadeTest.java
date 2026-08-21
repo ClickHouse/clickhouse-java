@@ -25,9 +25,12 @@ public abstract class BaseSqlParserFacadeTest {
 
     private final boolean javaCcBackend;
 
+    private final boolean paramsFromGrammarBackend;
+
     public BaseSqlParserFacadeTest(String name) throws Exception {
         parser = SqlParserFacade.getParser(name, new JdbcConfiguration("jdbc:ch:http://localhost:8123", new Properties()));
         javaCcBackend = SqlParserFacade.SQLParser.JAVACC.name().equals(name);
+        paramsFromGrammarBackend = SqlParserFacade.SQLParser.ANTLR4_PARAMS_PARSER.name().equals(name);
     }
 
     @Test
@@ -383,6 +386,71 @@ public abstract class BaseSqlParserFacadeTest {
                 {"WITH a AS (SELECT ?), (WITH ? as b1 SELECT 3, b1) AS b SELECT b, * FROM a", 2},
                 {"WITH a AS (SELECT 2), (WITH 'a' as b1 SELECT 3, b1) AS b, c AS (SELECT 4) SELECT b, * FROM a, c", 0},
 
+        };
+    }
+
+    @Test(dataProvider = "testCommentsAndHeredocsDP")
+    public void testCommentsAndHeredocs(String sql, int args) {
+        // The ANTLR4_PARAMS_PARSER backend collects placeholders from the grammar, whose lexer has no
+        // token for '//' comments and heredocs, so it is not covered by this scan. The other backends
+        // must agree with the server on which '?' is a placeholder.
+        if (paramsFromGrammarBackend) {
+            return;
+        }
+        ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
+        Assert.assertEquals(stmt.getArgCount(), args, "Args mismatch for: " + sql);
+    }
+
+    @DataProvider
+    public static Object[][] testCommentsAndHeredocsDP() {
+        return new Object[][] {
+                // '//' line comments
+                {"SELECT 1 // ?", 0},
+                {"SELECT 1 //", 0},
+                {"SELECT ? // ?\n, ?", 2},
+                {"SELECT 1 // ? -- ? /* ? */ $$?$$\n, ?", 1},
+                // an empty line comment ends at its own newline, so later placeholders are still counted
+                {"SELECT ? //\n, ?", 2},
+                {"SELECT ? //\n// ?\n, ?", 2},
+                {"SELECT ? //\n?", 2},
+                {"SELECT ? --\n, ?", 2},
+                {"SELECT ? -- ?\n--\n, ?", 2},
+                {"SELECT ? #\n, ?", 2},
+                {"SELECT ? #!\n, ?", 2},
+                {"SELECT ? //\n--\n#\n, ?", 2},
+                {"//\nSELECT ?", 1},
+                // a comment that is never terminated still ends the scan
+                {"SELECT ? //\n", 1},
+                {"SELECT ? --", 1},
+                // a comment marker inside a string, a heredoc or a block comment does not start a comment
+                {"SELECT '--\n' AS v, ?", 1},
+                {"SELECT $$//\n$$ AS v, ?", 1},
+                {"SELECT ? /* --\n */, ?", 2},
+                // heredocs (dollar quoted strings)
+                {"SELECT $$?$$ AS v", 0},
+                {"SELECT $tag$ ? $tag$ AS v", 0},
+                {"SELECT $1$ ? $1$ AS v", 0},
+                {"SELECT $$$$ AS v, ?", 1},
+                {"SELECT $$a$b$$ AS v, ?", 1},
+                {"SELECT $t$ ?\n -- ?\n // ?\n /* ? */ $t$ AS v, ?", 1},
+                {"SELECT $$?$$, ?, $$?$$", 1},
+                {"SELECT $$it's ?$$ AS v, ?", 1},
+                {"SELECT $$ /* ? $$ AS v, ?", 1},
+                // '//' and heredoc markers that are not comments or heredocs
+                {"SELECT '// ?' AS v, ?", 1},
+                {"SELECT '$$?$$' AS v, ?", 1},
+                {"SELECT -- '// ?'\n?", 1},
+                {"SELECT /* $$?$$ */ ?", 1},
+                {"SELECT 4 / 2 AS v, ?", 1},
+                {"SELECT ? AS a$b, ? AS c$d, 3", 2},
+                {"SELECT ? AS a$x$, ? AS b$x$", 2},
+                {"SELECT 1 AS a$x$, ?", 1},
+                {"SELECT $$ ? AS v, ?", 2},
+                // already supported comment styles keep working
+                {"SELECT 1 -- ?", 0},
+                {"SELECT 1 # ?", 0},
+                {"SELECT 1 #! ?", 0},
+                {"SELECT /* ? /* ? */ ? */ ?", 1},
         };
     }
 
