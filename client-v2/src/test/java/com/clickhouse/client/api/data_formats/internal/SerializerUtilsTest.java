@@ -277,6 +277,82 @@ public class SerializerUtilsTest {
                 "No tag bytes should be written when a QBit Dynamic tag is rejected");
     }
 
+    @DataProvider(name = "simpleAggregateFunctionDynamicTypes")
+    private Object[][] simpleAggregateFunctionDynamicTypes() {
+        return new Object[][] {
+                {"SimpleAggregateFunction(sum, UInt64)"},
+                {"SimpleAggregateFunction(anyLast, Nullable(String))"},
+                {"SimpleAggregateFunction(groupArrayArray, Array(UInt64))"},
+        };
+    }
+
+    @Test(dataProvider = "simpleAggregateFunctionDynamicTypes")
+    public void testDynamicTypeTagRejectsSimpleAggregateFunction(String typeName) {
+        ClickHouseColumn column = ClickHouseColumn.of("v", typeName);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+        ClientException ex = Assert.expectThrows(ClientException.class,
+                () -> SerializerUtils.writeDynamicTypeTag(out, column));
+        Assert.assertTrue(ex.getMessage().contains(ClickHouseDataType.SimpleAggregateFunction.name()),
+                "Message should name the rejected type: " + ex.getMessage());
+        Assert.assertEquals(out.size(), 0,
+                "No tag bytes should be written when the type tag is rejected");
+    }
+
+    @DataProvider(name = "nestedSimpleAggregateFunctionDynamicTypes")
+    private Object[][] nestedSimpleAggregateFunctionDynamicTypes() {
+        return new Object[][] {
+                // The Array and Map arms recurse into writeDynamicTypeTag for the element, key and
+                // value types, so the rejection must hold in each of those positions too.
+                {"Array(SimpleAggregateFunction(sum, UInt64))"},
+                {"Array(Array(SimpleAggregateFunction(sum, UInt64)))"},
+                {"Map(String, SimpleAggregateFunction(sum, UInt64))"},
+                {"Map(SimpleAggregateFunction(anyLast, String), UInt64)"},
+        };
+    }
+
+    @Test(dataProvider = "nestedSimpleAggregateFunctionDynamicTypes")
+    public void testDynamicTypeTagRejectsNestedSimpleAggregateFunction(String typeName) {
+        ClickHouseColumn column = ClickHouseColumn.of("v", typeName);
+
+        ClientException ex = Assert.expectThrows(ClientException.class,
+                () -> SerializerUtils.writeDynamicTypeTag(new ByteArrayOutputStream(), column));
+        Assert.assertTrue(ex.getMessage().contains(ClickHouseDataType.SimpleAggregateFunction.name()),
+                "Message should name the rejected type: " + ex.getMessage());
+    }
+
+    @Test
+    public void testDynamicTypeTagKeepsAggregateFunctionRejectionMessage() {
+        // AggregateFunction has no binary tag assigned, so it is rejected earlier by the binTag == -1
+        // branch and keeps its own message.
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+        ClientException ex = Assert.expectThrows(ClientException.class,
+                () -> SerializerUtils.writeDynamicTypeTag(out, ClickHouseColumn.of("v", "AggregateFunction(uniq, UInt64)")));
+        Assert.assertEquals(ex.getMessage(),
+                "Type AggregateFunction serialization is not supported for Dynamic column");
+        Assert.assertEquals(out.size(), 0,
+                "No tag bytes should be written when the type tag is rejected");
+    }
+
+    @DataProvider(name = "unchangedDynamicTypeTags")
+    private Object[][] unchangedDynamicTypeTags() {
+        return new Object[][] {
+                {"UInt64", new byte[] {0x04}},
+                {"String", new byte[] {0x15}},
+                {"Array(UInt64)", new byte[] {0x1E, 0x04}},
+                {"Nullable(String)", new byte[] {0x23, 0x15}},
+        };
+    }
+
+    @Test(dataProvider = "unchangedDynamicTypeTags")
+    public void testDynamicTypeTagUnaffectedBySimpleAggregateFunctionRejection(String typeName, byte[] expected)
+            throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        SerializerUtils.writeDynamicTypeTag(out, ClickHouseColumn.of("v", typeName));
+        Assert.assertEquals(out.toByteArray(), expected);
+    }
+
     @Test
     public void testQBitReadRejectsWrongDimension() throws Exception {
         // Over RowBinary a QBit(Float32, 8) is a var-int element count followed by that many floats.
