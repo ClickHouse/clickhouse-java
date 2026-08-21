@@ -244,6 +244,8 @@ public class BinaryStreamReader {
                     return (T) readGeoRing();
                 case LineString:
                     return (T) readGeoRing();
+                case MultiPoint:
+                    return (T) readGeoRing();
                 case JSON: // experimental https://clickhouse.com/docs/en/sql-reference/data-types/newjson
                     if (jsonAsString) {
                         return (T) readString(input);

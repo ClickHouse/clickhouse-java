@@ -763,6 +763,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
         map.put(ClickHouseDataType.MultiPolygon, bracket);
         map.put(ClickHouseDataType.LineString, bracket);
         map.put(ClickHouseDataType.MultiLineString, bracket);
+        map.put(ClickHouseDataType.MultiPoint, bracket);
 
         String[] brace = new String[]{"{", "}"};
         map.put(ClickHouseDataType.Map, brace);
@@ -899,11 +900,17 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
                     nestedTypes.remove(typeName);
                 }
 
-                if (ClickHouseVersion.of(getServerVersion()).check("(,25.10]")) {
-                    assertEquals(nestedTypes, Arrays.asList("Geometry")); // Geometry was introduced in 25.11
+                ClickHouseVersion serverVersion = ClickHouseVersion.of(getServerVersion());
+                Set<String> expectedMissing = new HashSet<>();
+                if (serverVersion.check("(,25.10]")) {
+                    expectedMissing.add("Geometry"); // Geometry was introduced in 25.11
                 } else {
-                    assertEquals(nestedTypes, Arrays.asList("Object")); // Object is deprecated in 25.11
+                    expectedMissing.add("Object"); // Object is deprecated in 25.11
                 }
+                if (serverVersion.check("(,26.7]")) {
+                    expectedMissing.add("MultiPoint"); // MultiPoint was introduced in 26.8
+                }
+                assertEquals(nestedTypes, expectedMissing);
             }
         }
     }

@@ -79,6 +79,7 @@ public class DataTypeConverter {
             case Point:
             case Ring:
             case LineString:
+            case MultiPoint:
             case Polygon:
             case MultiLineString:
             case MultiPolygon:
@@ -487,6 +488,7 @@ public class DataTypeConverter {
             case Point:
             case Ring:
             case LineString:
+            case MultiPoint:
             case Polygon:
             case MultiLineString:
             case MultiPolygon:
@@ -502,7 +504,8 @@ public class DataTypeConverter {
             case 1:
                 return dataType == ClickHouseDataType.Point;
             case 2:
-                return dataType == ClickHouseDataType.Ring || dataType == ClickHouseDataType.LineString;
+                return dataType == ClickHouseDataType.Ring || dataType == ClickHouseDataType.LineString
+                        || dataType == ClickHouseDataType.MultiPoint;
             case 3:
                 return dataType == ClickHouseDataType.Polygon || dataType == ClickHouseDataType.MultiLineString;
             case 4:

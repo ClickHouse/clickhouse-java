@@ -603,6 +603,7 @@ public class DataTypeTests extends BaseIntegrationTest {
                 case Nullable: // virtual type
                 case LowCardinality: // virtual type
                 case LineString: // same as Ring
+                case MultiPoint: // same as Ring
                 case MultiLineString: // same as MultiPolygon
                 case Time:
                 case Time64:
@@ -1038,6 +1039,7 @@ public class DataTypeTests extends BaseIntegrationTest {
                 case LowCardinality: // virtual type
                 case Enum: // virtual type
                 case LineString: // same as Ring
+                case MultiPoint: // same as Ring
                 case MultiLineString: // same as MultiPolygon
                 case Time:
                 case Time64:
@@ -1871,6 +1873,82 @@ public class DataTypeTests extends BaseIntegrationTest {
             Assert.assertNotNull(record.getString("geom"));
             assertGeometryValue(record.getObject("geom"), expectedValues[rowId]);
         }
+    }
+
+    private static final String MULTI_POINT_UNSUPPORTED_VERSIONS = "(,26.7]";
+
+    @Data
+    @AllArgsConstructor
+    public static class DTOForMultiPointTests {
+        private int rowId;
+        private double[][] geom;
+        private double marker;
+    }
+
+    @Test(groups = {"integration"})
+    public void testMultiPoint() throws Exception {
+        if (isVersionMatch(MULTI_POINT_UNSUPPORTED_VERSIONS)) {
+            return;
+        }
+
+        final String table = "test_multi_point";
+        final double[][] expected = new double[][] {{1D, 2D}, {3D, 4D}, {5D, 6D}};
+
+        client.execute("DROP TABLE IF EXISTS " + table).get().close();
+        client.execute(tableDefinition(table, "rowId Int32", "geom MultiPoint", "marker Float64")).get().close();
+        client.register(DTOForMultiPointTests.class, client.getTableSchema(table));
+
+        client.insert(table, Collections.singletonList(new DTOForMultiPointTests(0, expected, 42D))).get().close();
+        client.execute("INSERT INTO " + table + " VALUES (1, readWKTMultiPoint('MULTIPOINT(1 2, 3 4, 5 6)'), 42)")
+                .get().close();
+
+        List<GenericRecord> records = client.queryAll("SELECT * FROM " + table + " ORDER BY rowId");
+        Assert.assertEquals(records.size(), 2);
+        for (GenericRecord record : records) {
+            Assert.assertTrue(Arrays.deepEquals((double[][]) record.getObject("geom"), expected));
+            Assert.assertTrue(Arrays.deepEquals(record.getGeoRing("geom").getValue(), expected));
+            Assert.assertEquals(record.getDouble("marker"), 42D);
+        }
+
+        try (QueryResponse response = client.query("SELECT * FROM " + table + " ORDER BY rowId").get()) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+            int rows = 0;
+            while (reader.next() != null) {
+                Assert.assertTrue(Arrays.deepEquals((double[][]) reader.readValue("geom"), expected));
+                Assert.assertEquals(reader.getString("geom"), "[(1.0,2.0),(3.0,4.0),(5.0,6.0)]");
+                Assert.assertEquals(reader.getDouble("marker"), 42D);
+                rows++;
+            }
+            Assert.assertEquals(rows, 2);
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testGeometryWithMultiPoint() throws Exception {
+        if (isVersionMatch(MULTI_POINT_UNSUPPORTED_VERSIONS)) {
+            return;
+        }
+
+        final String table = "test_geometry_multi_point";
+        final double[][] points = new double[][] {{1D, 2D}, {3D, 4D}, {5D, 6D}};
+        final double[][] ring = new double[][] {{1D, 2D}, {3D, 4D}, {1D, 2D}};
+
+        client.execute("DROP TABLE IF EXISTS " + table).get().close();
+        client.execute(tableDefinition(table, "rowId Int32", "geom Geometry", "marker Float64"),
+                (CommandSettings) new CommandSettings().serverSetting("allow_suspicious_variant_types", "1"))
+                .get().close();
+        client.execute("INSERT INTO " + table + " VALUES "
+                + "(0, readWKTMultiPoint('MULTIPOINT(1 2, 3 4, 5 6)'), 42), "
+                + "(1, CAST([(1, 2), (3, 4), (1, 2)] AS Ring), 42)").get().close();
+
+        List<GenericRecord> records = client.queryAll("SELECT * FROM " + table + " ORDER BY rowId");
+        Assert.assertEquals(records.size(), 2);
+        // A MultiPoint value stored in a Geometry column decodes to the same double[][] shape as a
+        // Ring value, which keeps decoding unchanged.
+        Assert.assertTrue(Arrays.deepEquals((double[][]) records.get(0).getObject("geom"), points));
+        Assert.assertTrue(Arrays.deepEquals((double[][]) records.get(1).getObject("geom"), ring));
+        Assert.assertEquals(records.get(0).getDouble("marker"), 42D);
+        Assert.assertEquals(records.get(1).getDouble("marker"), 42D);
     }
 
     @Test(groups = {"integration"})

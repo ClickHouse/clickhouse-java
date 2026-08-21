@@ -4,6 +4,19 @@
 
 ### New Features
 
+- **[client-v2, jdbc-v2]** Added support for the `MultiPoint` geo data type (ClickHouse `26.8+`). Previously the type was
+  unknown to the client, so reading or writing a `MultiPoint` column failed with `Unknown data type: MultiPoint`, and a
+  `MultiPoint` value inside a `Geometry` column failed with an out-of-range variant discriminator. `MultiPoint` is
+  `Array(Point)` on the wire, exactly like `Ring` and `LineString`, so it is read and written as `double[][]` through
+  generic records, binary readers, POJO binding, and SQL parameter formatting, and is read from `Dynamic` columns. In the
+  JDBC driver (`jdbc-v2`) `MultiPoint` maps
+  to `java.sql.Types.ARRAY`, is returned as `double[][]` from `getObject` and as a `java.sql.Array` from `getArray`, and is
+  reported by `ResultSetMetaData` and `DatabaseMetaData`. ClickHouse `26.8` also adds `MultiPoint` to the `Geometry`
+  variant; the server appends it after the existing six variants instead of ordering it by type name, so the client now
+  keeps that order and decodes a `MultiPoint` held in a `Geometry` column. Because `MultiPoint` shares its Java
+  representation (`double[][]`) with `Ring` and `LineString`, it is not selectable through the shape-based `Geometry`
+  write path — a 2D value keeps resolving to `Ring` as before, and writing `MultiPoint` requires a concrete `MultiPoint`
+  column. (https://github.com/ClickHouse/clickhouse-java/issues/3048)
 - **[client-v2]** Added an observability SPI that lets an application observe client operations as spans.
   `Client.Builder.setSpanRecorder(SpanRecorder)` registers a backend-agnostic recorder from the new
   `com.clickhouse.client.api.observability` package: each operation (a query, a command or an insert - including
