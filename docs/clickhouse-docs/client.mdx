@@ -328,44 +328,22 @@ Server side settings can be set on the client level once while creation (see `se
 
 Custom HTTP headers can be set for all operations (client level) or a single one (operation level). Operation settings override client-level headers with the same name.
 
-**Single header**
-
 ```java showLineNumbers
+Map<String, String> userHeaders = new HashMap<>();
+userHeaders.put("X-User-Header1", "value1");
+userHeaders.put("X-User-Header2", "value2");
+
 Client client = new Client.Builder()
         .addEndpoint("https://clickhouse-cloud-instance:8443/")
         .setUsername(user)
         .setPassword(password)
         .httpHeader("X-ClickHouse-Quota", "test")
-        .build();
-
-QuerySettings settings = new QuerySettings()
-        .httpHeader(HttpHeaders.REFERER, clientReferer);
-```
-
-**Multiple headers**
-
-Use repeated `httpHeader` calls, or `httpHeaders(Map)`:
-
-```java showLineNumbers
-Map<String, String> headers = new HashMap<>();
-headers.put("X-ClickHouse-Quota", "test");
-headers.put("X-ClickHouse-Test", "test");
-
-Client client = new Client.Builder()
-        .addEndpoint("https://clickhouse-cloud-instance:8443/")
-        .setUsername(user)
-        .setPassword(password)
-        .httpHeaders(headers)
+        .httpHeader("X-Forwarded-For", Arrays.asList("1.2.3.4", "5.6.7.8"))
+        .httpHeaders(userHeaders)
         .build();
 ```
-
-**Multiple values for one header**
-
-```java showLineNumbers
-clientBuilder.httpHeader("X-Forwarded-For", Arrays.asList("1.2.3.4", "5.6.7.8"));
-```
-
-When options are set via `setOption` (on `Client.Builder` or an operation settings class), prefix the header name with `http_header_`. `ClientConfigProperties.httpHeader(String)` builds that key:
+**Important**: When options are set via `setOption` (on `Client.Builder` or an operation settings class), prefix the header name with `http_header_`. `ClientConfigProperties.httpHeader(String)` builds that key.
+As header name is simple String key it should be in one letter case otherwise duplicate values will result undefined behavior, `ClientConfigProperties.httpHeader(String)` fixes this problem.
 
 ```java showLineNumbers
 clientBuilder.setOption(ClientConfigProperties.httpHeader("X-ClickHouse-Quota"), "test");
@@ -377,9 +355,10 @@ clientBuilder.setOption("http_header_X-CLICKHOUSE-QUOTA", "test");
 
 Features that apply when connecting to [ClickHouse Cloud](https://clickhouse.com/cloud).
 
-### Sticky sessions {#sticky-sessions}
+### Replica-aware Routing (CLOUD) {#replica-aware-routing}
 
 ClickHouse Cloud can pin related HTTP requests to the same replica. Send the `X-ClickHouse-Replica-Tag` header so a Cloud proxy routes every request that shares the tag to one replica. Use this for session-scoped objects such as temporary tables, replica-local cache reuse, or read-after-write consistency.
+Read more: https://clickhouse.com/docs/products/cloud/features/infrastructure/replica-aware-routing.
 
 **What to set:** HTTP header `X-ClickHouse-Replica-Tag` (`com.clickhouse.client.api.http.ClickHouseHttpProto.HEADER_REPLICA_TAG`). Use the same tag value for all requests that should stay on one replica.
 
@@ -1580,9 +1559,10 @@ client.read(server)
 
 Features that apply when connecting to [ClickHouse Cloud](https://clickhouse.com/cloud).
 
-### Sticky sessions {#v1-sticky-sessions}
+### Replica-aware Routing (CLOUD) {#v1-replica-aware-routing}
 
 ClickHouse Cloud can pin related HTTP requests to the same replica. Send the `X-ClickHouse-Replica-Tag` header so a Cloud proxy routes every request that shares the tag to one replica. Use this for session-scoped objects such as temporary tables, replica-local cache reuse, or read-after-write consistency.
+Read more: https://clickhouse.com/docs/products/cloud/features/infrastructure/replica-aware-routing.
 
 **What to set:** HTTP header `X-ClickHouse-Replica-Tag` (`com.clickhouse.client.http.config.ClickHouseHttpOption.HEADER_REPLICA_TAG`) via `custom_http_headers`. Use the same tag value for all requests that should stay on one replica.
 

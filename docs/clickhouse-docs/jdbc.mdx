@@ -190,47 +190,24 @@ stmt.getLocalSettings().logComment("some-comment");
 
 Custom HTTP headers are passed as client properties. Each header uses the `http_header_` prefix. `ClientConfigProperties.httpHeader(String)` (or `DriverProperties.httpHeader(String)`) builds that key. The V1 `custom_http_headers` property is not used in JDBC V2.
 
-**Single header**
-
 ```java showLineNumbers
 Properties properties = new Properties();
 properties.setProperty(ClientConfigProperties.httpHeader("X-ClickHouse-Quota"), "test");
-// equivalent to:
-properties.setProperty("http_header_X-CLICKHOUSE-QUOTA", "test");
-
+properties.setProperty(ClientConfigProperties.httpHeader("X-ClickHouse-Test"), "value1,value2");
 Connection conn = Driver.connect("jdbc:ch:https://localhost:8443/", properties);
-```
 
-**Multiple headers**
-
-Set one property per header:
-
-```java showLineNumbers
-Properties properties = new Properties();
-properties.setProperty(ClientConfigProperties.httpHeader("X-ClickHouse-Quota"), "test");
-properties.setProperty(ClientConfigProperties.httpHeader("X-ClickHouse-Test"), "test");
-```
-
-The same keys can be added to the JDBC URL:
-
-```
-jdbc:ch:https://localhost:8443?http_header_X-CLICKHOUSE-QUOTA=test&http_header_X-CLICKHOUSE-TEST=test
-```
-
-To set a header for one statement only, use `StatementImpl#getLocalSettings`:
-
-```java showLineNumbers
-StatementImpl stmt = (StatementImpl) conn.createStatement();
-stmt.getLocalSettings().httpHeader("X-ClickHouse-Quota", "test");
+// URL equivalent:
+// jdbc:ch:https://localhost:8443?http_header_X-CLICKHOUSE-QUOTA=test&http_header_X-CLICKHOUSE-TEST=value1,value2
 ```
 
 ## ClickHouse Cloud Features {#clickhouse-cloud-features}
 
 Features that apply when connecting to [ClickHouse Cloud](https://clickhouse.com/cloud).
 
-### Sticky sessions {#sticky-sessions}
+### Replica-aware Routing (CLOUD) {#replica-aware-routing}
 
 ClickHouse Cloud can pin related HTTP requests to the same replica. Send the `X-ClickHouse-Replica-Tag` header so a Cloud proxy routes every request that shares the tag to one replica. Use this for session-scoped objects such as temporary tables, replica-local cache reuse, or read-after-write consistency.
+Read more: https://clickhouse.com/docs/products/cloud/features/infrastructure/replica-aware-routing.
 
 **What to set:** HTTP header `X-ClickHouse-Replica-Tag` (`com.clickhouse.client.api.http.ClickHouseHttpProto.HEADER_REPLICA_TAG`). Use the same tag value for all requests that should stay on one replica.
 
@@ -245,12 +222,9 @@ properties.setProperty(
         replicaTag);
 
 Connection conn = Driver.connect("jdbc:ch:https://your-service.clickhouse.cloud:8443", properties);
-```
 
-URL equivalent:
-
-```
-jdbc:ch:https://your-service.clickhouse.cloud:8443?http_header_X-CLICKHOUSE-REPLICA-TAG=my-app-session-1
+// URL equivalent:
+// jdbc:ch:https://your-service.clickhouse.cloud:8443?http_header_X-CLICKHOUSE-REPLICA-TAG=my-app-session-1
 ```
 
 ## Supported data types {#supported-data-types}
@@ -1092,31 +1066,22 @@ Note: please refer to [JDBC specific configuration](https://github.com/ClickHous
 
 Extra request headers are set with `custom_http_headers`. Each header is `Name=Value`. Separate multiple headers with a comma. Escape a comma inside a value as `\,`. An `=` inside a value is kept as part of the value.
 
-**Single header**
-
 ```java
 properties.setProperty("custom_http_headers", "X-ClickHouse-Quota=test");
-```
-
-**Multiple headers**
-
-```java
 properties.setProperty("custom_http_headers", "X-ClickHouse-Quota=test, X-ClickHouse-Test=test");
+
+// URL Equivalent
+// jdbc:ch:http://localhost:8123?custom_http_headers=X-ClickHouse-Quota%3Dtest,X-ClickHouse-Test%3Dtest
 ```
 
-The same property can be added to the JDBC URL. URL-encode `=` in the value as `%3D`:
-
-```
-jdbc:ch:http://localhost:8123?custom_http_headers=X-ClickHouse-Quota%3Dtest,X-ClickHouse-Test%3Dtest
-```
-
-## ClickHouse Cloud Features {#v07-clickhouse-cloud-features}
+## ClickHouse Cloud Features {#v1-clickhouse-cloud-features}
 
 Features that apply when connecting to [ClickHouse Cloud](https://clickhouse.com/cloud).
 
-### Sticky sessions {#v07-sticky-sessions}
+### Replica-aware Routing (CLOUD) {#v1-replica-aware-routing}
 
 ClickHouse Cloud can pin related HTTP requests to the same replica. Send the `X-ClickHouse-Replica-Tag` header so a Cloud proxy routes every request that shares the tag to one replica. Use this for session-scoped objects such as temporary tables, replica-local cache reuse, or read-after-write consistency.
+Read more: https://clickhouse.com/docs/products/cloud/features/infrastructure/replica-aware-routing.
 
 **What to set:** HTTP header `X-ClickHouse-Replica-Tag` (`com.clickhouse.client.http.config.ClickHouseHttpOption.HEADER_REPLICA_TAG`) via `custom_http_headers`. Use the same tag value for all requests that should stay on one replica.
 
