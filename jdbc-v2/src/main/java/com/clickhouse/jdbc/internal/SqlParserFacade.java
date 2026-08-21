@@ -100,8 +100,9 @@ public abstract class SqlParserFacade {
             stmt.setAssignValuesGroups(parsedStmt.getValueGroups());
 
             Integer startIndex = parsedStmt.getPositions().get(ClickHouseSqlStatement.KEYWORD_VALUES_START);
-            if (startIndex != null) {
-                int endIndex = parsedStmt.getPositions().get(ClickHouseSqlStatement.KEYWORD_VALUES_END);
+            Integer endIndexValue = parsedStmt.getPositions().get(ClickHouseSqlStatement.KEYWORD_VALUES_END);
+            if (startIndex != null && endIndexValue != null) {
+                int endIndex = endIndexValue;
                 stmt.setAssignValuesListStartPosition(startIndex);
                 stmt.setAssignValuesListStopPosition(endIndex);
                 String query = parsedStmt.getSQL();

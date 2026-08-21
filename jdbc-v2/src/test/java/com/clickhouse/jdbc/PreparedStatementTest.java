@@ -879,6 +879,29 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = { "integration" })
+    void testInsertWithHeredocValue() throws Exception {
+        final String table = "test_insert_heredoc";
+        try (Connection conn = getJdbcConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("DROP TABLE IF EXISTS " + table);
+                stmt.execute("CREATE TABLE " + table + " (s String, n Int32) Engine MergeTree ORDER BY ()");
+            }
+            try (PreparedStatement stmt = conn.prepareStatement(
+                    "INSERT INTO " + table + " (s, n) VALUES ($$a@b$$, ?)")) {
+                stmt.setInt(1, 42);
+                assertEquals(stmt.executeUpdate(), 1);
+            }
+            try (Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery("SELECT s, n FROM " + table)) {
+                assertTrue(rs.next());
+                assertEquals(rs.getString(1), "a@b");
+                assertEquals(rs.getInt(2), 42);
+                assertFalse(rs.next());
+            }
+        }
+    }
+
+    @Test(groups = { "integration" })
     void testStatementSplit() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
