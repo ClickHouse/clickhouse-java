@@ -67,6 +67,15 @@
 
 ### Bug Fixes 
 
+- **[client-v2]** Fixed reading a `JSON` or named `Tuple` value nested in a `Dynamic` column when a typed path or
+  element name requires quoting (it contains a space, a comma or a bracket). Names read from the binary type encoding
+  were appended to the reconstructed type name unquoted, so e.g. ``JSON(`a b` Int64)`` inside a `Dynamic` column
+  produced a malformed type name and the whole query failed with `IllegalArgumentException: Unknown data type: b Int64`.
+  Such names are now back-quoted (with inner back-quotes escaped) exactly as the server renders them, and `JSON` skip
+  paths and path regexps are emitted with their `SKIP` / `SKIP REGEXP` markers. Names that need no quoting are
+  rendered as before. Top-level `JSON` columns and `JSON` nested in `Map`/`Tuple`/`Array` were
+  not affected — their type comes from the `RowBinaryWithNamesAndTypes` header, which the server already quotes.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3001)
 - **[jdbc-v2]** Fixed an `INSERT` whose values list holds a function call the bundled `ANTLR4` grammar cannot match -
   such as `hex(x'AB')`, valid ClickHouse the grammar has no hex string literal for - being reported to hold no function
   call when an `ANTLR4` parser backend is selected (`jdbc_sql_parser=ANTLR4` / `ANTLR4_PARAMS_PARSER`). Function calls in
