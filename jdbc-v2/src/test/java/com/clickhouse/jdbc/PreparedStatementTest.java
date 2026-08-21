@@ -7,6 +7,7 @@ import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseVersion;
 import com.clickhouse.data.Tuple;
 import com.clickhouse.jdbc.internal.JdbcUtils;
+import com.clickhouse.jdbc.internal.SqlParserFacade;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
@@ -1971,6 +1972,54 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                 Assert.assertNull(stmt.getResultSet(), "ResultSet should be null for DDL");
                 assertThrows(SQLException.class,
                         () -> stmt.executeQuery("CREATE TABLE " + tmpTable2 + " (x Int32) Engine MergeTree ORDER BY()"));
+            }
+        }
+    }
+
+    @DataProvider
+    public static Object[][] testInsertWithUnparsableValueExpression_dp() {
+        return new Object[][] {
+                {SqlParserFacade.SQLParser.ANTLR4.name()},
+                {SqlParserFacade.SQLParser.ANTLR4_PARAMS_PARSER.name()},
+                {SqlParserFacade.SQLParser.JAVACC.name()},
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "testInsertWithUnparsableValueExpression_dp")
+    public void testInsertWithUnparsableValueExpression(String parserName) throws Exception {
+        String table = "test_pstmt_unparsable_value_expr";
+        Properties properties = new Properties();
+        properties.setProperty(DriverProperties.SQL_PARSER.getKey(), parserName);
+        properties.setProperty(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF);
+        try (Connection conn = getJdbcConnection(properties)) {
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("DROP TABLE IF EXISTS " + table);
+                stmt.execute("CREATE TABLE " + table + " (v1 String, v2 String) Engine MergeTree ORDER BY ()");
+            }
+
+            try (PreparedStatement stmt = conn.prepareStatement(
+                    "INSERT INTO " + table + " (v1, v2) VALUES (hex(x'AB'), ?)")) {
+                assertEquals(stmt.getParameterMetaData().getParameterCount(), 1);
+                stmt.setString(1, "abc");
+                assertEquals(stmt.executeUpdate(), 1);
+            }
+
+            try (Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery("SELECT v1, v2 FROM " + table)) {
+                assertTrue(rs.next());
+                assertEquals(rs.getString(1), "AB");
+                assertEquals(rs.getString(2), "abc");
+                assertFalse(rs.next());
+            }
+
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT ? AS v1, hex(x'AB') AS v2")) {
+                assertEquals(stmt.getParameterMetaData().getParameterCount(), 1);
+                stmt.setString(1, "abc");
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getString(1), "abc");
+                    assertEquals(rs.getString(2), "AB");
+                }
             }
         }
     }

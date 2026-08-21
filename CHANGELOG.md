@@ -67,6 +67,14 @@
 
 ### Bug Fixes 
 
+- **[jdbc-v2]** Fixed `?` parameter placeholders being lost when `jdbc_sql_parser=ANTLR4_PARAMS_PARSER` is selected and
+  the bundled grammar cannot match part of the statement - a JDBC escape sequence (`{d '...'}`), or valid ClickHouse
+  syntax the grammar does not cover such as a hex string literal (`hex(x'AB')`). That backend read the placeholders only
+  from the parse tree, and the tokens error recovery skips are not part of it, so a placeholder inside such an expression
+  was dropped: `getParameterMetaData().getParameterCount()` was too low, `setXxx` for a dropped placeholder failed, and
+  the remaining values were substituted at the wrong offsets. The placeholders are now re-derived from the original SQL
+  when the statement could not be parsed without errors, as the other two backends always do.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3025)
 - **[jdbc-v2]** Fixed an `INSERT` whose values list holds a function call the bundled `ANTLR4` grammar cannot match -
   such as `hex(x'AB')`, valid ClickHouse the grammar has no hex string literal for - being reported to hold no function
   call when an `ANTLR4` parser backend is selected (`jdbc_sql_parser=ANTLR4` / `ANTLR4_PARAMS_PARSER`). Function calls in
