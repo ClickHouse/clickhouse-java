@@ -67,6 +67,14 @@
 
 ### Bug Fixes 
 
+- **[client-v2]** Fixed reading a `Variant`, `Nested`, `Decimal` or `Enum` value held in a `Dynamic` column. The
+  concrete type rebuilt from the binary type encoding did not match what the server encoded: `Variant` was wrapped
+  twice (so the discriminator selected the wrong element), `Nested` read only the element names and left the element
+  type encodings in the stream, and `Decimal`/`Enum` lost their precision and scale / their constants whenever the
+  value sat inside another type, so a decimal read back unscaled (`1.2500` as `12500`) and every enum value read back
+  as `<unknown>`. The constant width of an enum is now taken from the type tag rather than from the number of
+  constants, which also fixes reading an `Enum16` with fewer than 128 constants and negative `Enum8` constants.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3003)
 - **[jdbc-v2]** Fixed an `INSERT` whose values list holds a function call the bundled `ANTLR4` grammar cannot match -
   such as `hex(x'AB')`, valid ClickHouse the grammar has no hex string literal for - being reported to hold no function
   call when an `ANTLR4` parser backend is selected (`jdbc_sql_parser=ANTLR4` / `ANTLR4_PARAMS_PARSER`). Function calls in
