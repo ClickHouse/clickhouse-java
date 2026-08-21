@@ -137,7 +137,7 @@
         <dependency>
             <groupId>org.wiremock</groupId>
             <artifactId>wiremock-standalone</artifactId>
-            <version>3.13.0</version>
+            <version>${wiremock.version}</version>
             <scope>test</scope>
         </dependency>
 
