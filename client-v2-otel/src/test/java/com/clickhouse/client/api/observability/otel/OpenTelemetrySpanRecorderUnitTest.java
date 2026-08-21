@@ -12,10 +12,12 @@ import com.clickhouse.client.api.observability.SpanRecorder;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.transport.Endpoint;
 import io.opentelemetry.api.GlobalOpenTelemetry;
+import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.AttributeType;
 import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.api.trace.StatusCode;
+import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.context.Scope;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter;
@@ -230,7 +232,7 @@ public class OpenTelemetrySpanRecorderUnitTest {
     @Test
     public void testSpansAreReportedUnderTheGivenTracerScope() {
         OpenTelemetrySpanRecorder tracerRecorder =
-                OpenTelemetrySpanRecorder.forTracer(openTelemetry.getTracer("application-scope", "1.2.3"));
+                new OpenTelemetrySpanRecorder(openTelemetry.getTracer("application-scope", "1.2.3"));
 
         tracerRecorder.startQuerySpan(querySettings("q-1"), "SELECT 1", null).end();
 
@@ -358,12 +360,12 @@ public class OpenTelemetrySpanRecorderUnitTest {
 
     @Test(expectedExceptions = IllegalArgumentException.class)
     public void testNullOpenTelemetryIsRejected() {
-        new OpenTelemetrySpanRecorder(null);
+        new OpenTelemetrySpanRecorder((OpenTelemetry) null);
     }
 
     @Test(expectedExceptions = IllegalArgumentException.class)
     public void testNullTracerIsRejected() {
-        OpenTelemetrySpanRecorder.forTracer(null);
+        new OpenTelemetrySpanRecorder((Tracer) null);
     }
 
     private QuerySettings querySettings(String queryId) {

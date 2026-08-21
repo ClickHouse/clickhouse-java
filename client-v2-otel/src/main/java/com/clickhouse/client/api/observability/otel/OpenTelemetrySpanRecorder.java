@@ -17,7 +17,6 @@ import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.context.Context;
 
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
 
 /**
  * {@link SpanRecorder} that reports client operations and transport requests as OpenTelemetry spans.
@@ -44,13 +43,20 @@ import java.util.function.Supplier;
 public class OpenTelemetrySpanRecorder implements SpanRecorder {
 
     /**
-     * Default instrumentation scope name. It is reported for the spans of a recorder created by a
-     * constructor of this class. A recorder created by {@link #forTracer(Tracer)} reports the scope of
-     * the given tracer instead.
+     * Default instrumentation scope name. It is reported for the spans of a recorder created by the
+     * no-argument constructor or by {@link #OpenTelemetrySpanRecorder(OpenTelemetry)}. A recorder
+     * created by {@link #OpenTelemetrySpanRecorder(Tracer)} reports the scope of the given tracer
+     * instead.
      */
     public static final String INSTRUMENTATION_SCOPE_NAME = "com.clickhouse.client";
 
-    private final Supplier<Tracer> tracer;
+    private final SpanSupport spanSupport = SpanSupport.DEFAULT;
+
+    /**
+     * Tracer the spans are created with, or {@code null} when they are created with the tracer of the
+     * global OpenTelemetry instance, which is then read every time a span is started.
+     */
+    private final Tracer tracer;
 
     /**
      * Creates a recorder that reports to the {@linkplain GlobalOpenTelemetry#get() global}
@@ -61,12 +67,7 @@ public class OpenTelemetrySpanRecorder implements SpanRecorder {
      * the application installs its OpenTelemetry SDK.
      */
     public OpenTelemetrySpanRecorder() {
-        this.tracer = new Supplier<Tracer>() {
-            @Override
-            public Tracer get() {
-                return GlobalOpenTelemetry.get().getTracer(INSTRUMENTATION_SCOPE_NAME);
-            }
-        };
+        this.tracer = null;
     }
 
     /**
@@ -75,25 +76,7 @@ public class OpenTelemetrySpanRecorder implements SpanRecorder {
      * @param openTelemetry - OpenTelemetry instance to report to; must not be {@code null}
      */
     public OpenTelemetrySpanRecorder(OpenTelemetry openTelemetry) {
-        if (openTelemetry == null) {
-            throw new IllegalArgumentException("openTelemetry must not be null");
-        }
-        final Tracer resolved = openTelemetry.getTracer(INSTRUMENTATION_SCOPE_NAME);
-        this.tracer = new Supplier<Tracer>() {
-            @Override
-            public Tracer get() {
-                return resolved;
-            }
-        };
-    }
-
-    private OpenTelemetrySpanRecorder(final Tracer tracer) {
-        this.tracer = new Supplier<Tracer>() {
-            @Override
-            public Tracer get() {
-                return tracer;
-            }
-        };
+        this(tracerOf(openTelemetry));
     }
 
     /**
@@ -101,58 +84,71 @@ public class OpenTelemetrySpanRecorder implements SpanRecorder {
      * an instrumentation scope of the application's choice.
      *
      * @param tracer - tracer to create spans with; must not be {@code null}
-     * @return new recorder
      */
-    public static OpenTelemetrySpanRecorder forTracer(Tracer tracer) {
+    public OpenTelemetrySpanRecorder(Tracer tracer) {
         if (tracer == null) {
             throw new IllegalArgumentException("tracer must not be null");
         }
-        return new OpenTelemetrySpanRecorder(tracer);
+        this.tracer = tracer;
+    }
+
+    private static Tracer tracerOf(OpenTelemetry openTelemetry) {
+        if (openTelemetry == null) {
+            throw new IllegalArgumentException("openTelemetry must not be null");
+        }
+        return openTelemetry.getTracer(INSTRUMENTATION_SCOPE_NAME);
+    }
+
+    /**
+     * Returns the tracer the next span is created with - the one given to this recorder, or the tracer
+     * of the global OpenTelemetry instance as it is installed now.
+     *
+     * @return tracer; never {@code null}
+     */
+    protected Tracer getTracer() {
+        return tracer != null ? tracer : GlobalOpenTelemetry.get().getTracer(INSTRUMENTATION_SCOPE_NAME);
     }
 
     @Override
     public Span startQuerySpan(QuerySettings settings, String sqlQuery, Endpoint endpoint) {
-        SpanSupport support = SpanSupport.DEFAULT;
-        OpenTelemetrySpan span = startSpan(support.querySpanName(settings), Context.current());
-        support.fillQueryAttributes(span, settings, sqlQuery, endpoint);
+        OpenTelemetrySpan span = startSpan(spanSupport.querySpanName(settings), Context.current());
+        spanSupport.fillQueryAttributes(span, settings, sqlQuery, endpoint);
         return span;
     }
 
     @Override
     public Span startInsertSpan(InsertSettings settings, String tableName, int batchSize, Endpoint endpoint) {
-        SpanSupport support = SpanSupport.DEFAULT;
-        OpenTelemetrySpan span = startSpan(support.insertSpanName(settings, tableName), Context.current());
-        support.fillInsertAttributes(span, settings, tableName, batchSize, endpoint);
+        OpenTelemetrySpan span = startSpan(spanSupport.insertSpanName(settings, tableName), Context.current());
+        spanSupport.fillInsertAttributes(span, settings, tableName, batchSize, endpoint);
         return span;
     }
 
     @Override
     public Span startRequestSpan(Span operationSpan, String host, int port) {
-        SpanSupport support = SpanSupport.DEFAULT;
-        OpenTelemetrySpan span = startSpan(support.requestSpanName(), parentContextOf(operationSpan));
-        support.fillRequestAttributes(span, host, port);
+        OpenTelemetrySpan span = startSpan(spanSupport.requestSpanName(), parentContextOf(operationSpan));
+        spanSupport.fillRequestAttributes(span, host, port);
         return span;
     }
 
     @Override
     public void recordHttpStatus(Span requestSpan, int statusCode) {
-        SpanSupport.DEFAULT.recordHttpStatus(requestSpan, statusCode);
+        spanSupport.recordHttpStatus(requestSpan, statusCode);
     }
 
     @Override
     public void recordSuccess(Span operationSpan, OperationMetrics metrics) {
-        SpanSupport.DEFAULT.recordSuccess(operationSpan, metrics);
+        spanSupport.recordSuccess(operationSpan, metrics);
     }
 
     @Override
     public void recordFailure(Span operationSpan, Throwable t) {
-        SpanSupport.DEFAULT.recordFailure(operationSpan, t);
+        spanSupport.recordFailure(operationSpan, t);
         recordException(operationSpan, t);
     }
 
     @Override
     public void recordRequestFailure(Span requestSpan, Throwable t) {
-        SpanSupport.DEFAULT.recordRequestFailure(requestSpan, t);
+        spanSupport.recordRequestFailure(requestSpan, t);
         recordException(requestSpan, t);
     }
 
@@ -177,7 +173,7 @@ public class OpenTelemetrySpanRecorder implements SpanRecorder {
      * @return new span
      */
     protected OpenTelemetrySpan startSpan(String spanName, Context parentContext) {
-        io.opentelemetry.api.trace.Span span = tracer.get().spanBuilder(spanName)
+        io.opentelemetry.api.trace.Span span = getTracer().spanBuilder(spanName)
                 .setSpanKind(SpanKind.CLIENT)
                 .setParent(parentContext)
                 .startSpan();

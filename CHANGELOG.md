@@ -12,7 +12,7 @@
   ones of the SPI (the recorder derives them through `SpanSupport`), every value is recorded with the OpenTelemetry
   attribute type that matches it, and a failure sets the span status to `ERROR` and is recorded as an OpenTelemetry
   exception event next to the `error.type` and `db.response.status_code` attributes. The recorder reports to a
-  supplied `OpenTelemetry` instance, to a `Tracer` given to `OpenTelemetrySpanRecorder.forTracer(Tracer)`, or to
+  supplied `OpenTelemetry` instance, to a `Tracer` given to `new OpenTelemetrySpanRecorder(Tracer)`, or to
   `GlobalOpenTelemetry` - read when a span is started - when constructed without arguments. Previously an application that wanted
   OpenTelemetry spans had to write that mapping itself. The module is optional and is not part of
   `clickhouse-jdbc-all`, so `client-v2` still needs no OpenTelemetry on the classpath.
