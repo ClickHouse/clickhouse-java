@@ -25,9 +25,12 @@ public abstract class BaseSqlParserFacadeTest {
 
     private final boolean javaCcBackend;
 
+    private final boolean grammarParamsBackend;
+
     public BaseSqlParserFacadeTest(String name) throws Exception {
         parser = SqlParserFacade.getParser(name, new JdbcConfiguration("jdbc:ch:http://localhost:8123", new Properties()));
         javaCcBackend = SqlParserFacade.SQLParser.JAVACC.name().equals(name);
+        grammarParamsBackend = SqlParserFacade.SQLParser.ANTLR4_PARAMS_PARSER.name().equals(name);
     }
 
     @Test
@@ -386,6 +389,38 @@ public abstract class BaseSqlParserFacadeTest {
         };
     }
 
+    @Test(dataProvider = "testDoubleSlashLineCommentDp")
+    public void testDoubleSlashLineComments(String sql, int args, boolean insert, boolean hasResultSet) {
+        ParsedPreparedStatement prepared = parser.parsePreparedStatement(sql);
+        Assert.assertFalse(prepared.isHasErrors(), "Statement has errors: " + sql);
+        Assert.assertEquals(prepared.isInsert(), insert, "Insert type does not match for: " + sql);
+        assertEquals(prepared.isHasResultSet(), hasResultSet, "Result set expectation does not match for: " + sql);
+        // Only ANTLR4_PARAMS_PARSER derives placeholders from the grammar. The other two backends
+        // use the standalone raw-SQL scan, whose `//` handling is fixed separately.
+        if (grammarParamsBackend) {
+            assertEquals(prepared.getArgCount(), args, "Args do not match for: " + sql);
+        }
+
+        ParsedStatement stmt = parser.parsedStatement(sql);
+        Assert.assertFalse(stmt.isHasErrors(), "Statement has errors: " + sql);
+        assertEquals(stmt.isHasResultSet(), hasResultSet, "Result set expectation does not match for: " + sql);
+    }
+
+    @DataProvider
+    public Object[][] testDoubleSlashLineCommentDp() {
+        return new Object[][]{
+                {"// INSERT ? TESTING \n SELECT ? AS num", 1, false, true},
+                {"//INSERT ? TESTING \n SELECT ? AS num", 1, false, true},
+                {"SELECT 1 // INSERT ? TESTING\n, ? AS num", 1, false, true},
+                {" SELECT ?    // INSERT ? TESTING", 1, false, true},
+                {"SELECT 1 // INSERT ? TESTING\r\n, ? AS num", 1, false, true},
+                {"SELECT 1 //* not a block comment ? */\n, ? AS num", 1, false, true},
+                {" SELECT '//?0.1' as f, ? as a\n // this is debug \n FROM table", 1, false, true},
+                {"// line comment ?\nINSERT INTO `test_stmt_split2` (v1, v2) VALUES (?, ?)", 2, true, false},
+                {"INSERT INTO `test_stmt_split2` (v1, v2) VALUES (1 // inline comment ?\n, ?)", 1, true, false},
+        };
+    }
+
     @Test(dataProvider = "testMiscStmtDp")
     public void testMiscStatements(String sql, int args) {
         ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
@@ -496,6 +531,9 @@ public abstract class BaseSqlParserFacadeTest {
                 {"#!INSERT ? TESTING \n SELECT ? AS num", 1},
                 {"# INSERT ? TESTING \n SELECT ? AS num", 1},
                 {"#INSERT ? TESTING \n SELECT ? AS num", 1},
+                {"SELECT 10 / 2 AS d, ? AS num", 1},
+                {" SELECT '//?0.1' as f, ? as a FROM table", 1},
+                {"SELECT `a//b?` FROM table WHERE c = ?", 1},
                 {"\nINSERT INTO TESTING \n SELECT ? AS num", 1},
                 {"         \n          INSERT INTO TESTING \n SELECT ? AS num", 1},
                 {" SELECT '##?0.1' as f, ? as a\n #this is debug \n FROM table", 1},
