@@ -67,6 +67,13 @@
 
 ### Bug Fixes 
 
+- **[client-v2]** Fixed a `Nullable(T)` column bound to a **primitive** POJO field silently corrupting a row on the
+  POJO read path. The compiled setter went straight to a primitive read method without consuming the `Nullable`
+  null-marker byte, which is on the wire for every value of a nullable column regardless of the value, so the stream
+  stayed shifted by one byte per row and the nullable column and every column after it decoded from the wrong offset
+  without any error being raised. The generated setter now consumes the marker; a value that is actually `NULL` cannot
+  be held by a primitive field and is reported with a `NullValueException`. Boxed POJO fields are unaffected.
+  (https://github.com/ClickHouse/clickhouse-java/issues/2993)
 - **[jdbc-v2]** Fixed an `INSERT` whose values list holds a function call the bundled `ANTLR4` grammar cannot match -
   such as `hex(x'AB')`, valid ClickHouse the grammar has no hex string literal for - being reported to hold no function
   call when an `ANTLR4` parser backend is selected (`jdbc_sql_parser=ANTLR4` / `ANTLR4_PARAMS_PARSER`). Function calls in
