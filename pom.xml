@@ -48,7 +48,6 @@
         <module>clickhouse-http-client</module>
         <!-- client v2 -->
         <module>client-v2</module>
-        <module>client-v2-otel</module>
         <!-- driver -->
         <module>clickhouse-jdbc</module>
         <module>jdbc-v2</module>
