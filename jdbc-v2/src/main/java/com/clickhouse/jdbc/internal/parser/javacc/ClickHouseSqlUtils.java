@@ -60,7 +60,21 @@ public final class ClickHouseSqlUtils {
                 "UNDROP", "UNFREEZE", "UNIQUE", "UNLOCK", "UNSET", "UNSIGNED", "UNTIL", "UPDATE", "URL", "USE",
                 "USER", "VALID", "VALUES", "VARYING", "VIEW", "VISIBLE", "VOLUME", "WATCH", "WATERMARK", "WEEK",
                 "WEEKS", "WHEN", "WITH_ITEMINDEX", "WK", "WORKER", "WORKLOAD", "WRITABLE", "WRITE", "WW",
-                "YEAR", "YEARS", "YY", "YYYY", "ZKPATH");
+                "YEAR", "YEARS", "YY", "YYYY", "ZKPATH",
+                // Appended 04/01/2026.
+                "CENTURY", "DECADE", "DOW", "DOY", "EPOCH", "ISODOW", "ISOYEAR", "MILLENNIUM", "NATURAL", "SOME",
+                "ZONE",
+                // Appended 04/10/2026
+                "PATH", "PLACING",
+                // Appended 05/27/2026
+                "CURSOR", "DETERMINISTIC", "ESCAPE", "SAMPLES", "STREAM", "UNKNOWN",
+                // Appended 06/10/2026
+                "IPV4_PREFIX_BITS", "IPV6_PREFIX_BITS", "TIMEZONE_HOUR", "TIMEZONE_MINUTE",
+                // Appended 06/26/2026
+                "ENUM", "HYPOTHETICAL", "WHATIF",
+                // Appended 07/21/2026
+                "ANALYZE", "AT", "MANIFEST", "RESERVATION"
+                );
     }
 
     private static Set<String> buildKeywordSet(String... values) {

@@ -1,5 +1,12 @@
 ## 0.9.8
 
+### Bug Fixes 
+
+- **[client-v2]** `ServerException` with code `159 Execution Timeout` is retried unconditionally. After the fix this
+error treated as non-retriable. 
+
+## 0.9.8
+
 ### Improvements 
 
 - **[client-v2]** Added `Records#getSchema()` to expose table schema metadata even when query result is empty. (https://github.com/ClickHouse/clickhouse-java/pull/2777)

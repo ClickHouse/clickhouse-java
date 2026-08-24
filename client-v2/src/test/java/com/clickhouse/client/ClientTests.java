@@ -1,12 +1,6 @@
 package com.clickhouse.client;
 
-import com.clickhouse.client.api.Client;
-import com.clickhouse.client.api.ClientConfigProperties;
-import com.clickhouse.client.api.ClientException;
-import com.clickhouse.client.api.ClientFaultCause;
-import com.clickhouse.client.api.ClientMisconfigurationException;
-import com.clickhouse.client.api.ConnectionReuseStrategy;
-import com.clickhouse.client.api.ServerException;
+import com.clickhouse.client.api.*;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.internal.ClickHouseLZ4OutputStream;
@@ -30,17 +24,7 @@ import org.testng.util.Strings;
 
 import java.io.ByteArrayInputStream;
 import java.net.ConnectException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Queue;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -567,6 +551,25 @@ public class ClientTests extends BaseIntegrationTest {
 
         Assert.assertEquals(queryIds.size(), requests);
         Assert.assertEquals(actualIds, new ArrayList<>(queryIds));
+    }
+
+    @Test(groups = {"integration"})
+    public void testExecutionTimeout() throws Exception{
+        final String query = "SELECT count(), sum(sipHash64(number)) " +
+                "FROM numbers(1000000000) " +
+                "SETTINGS max_threads = 1;";
+
+        long startTime = System.currentTimeMillis();
+        int maxExecTime = 4000;
+        try (Client client = newClient().serverSetting("max_execution_time",  String.valueOf(TimeUnit.MILLISECONDS.toSeconds(maxExecTime))).build();
+             QueryResponse response = client.query(query).get()) {
+
+        } catch (ServerException e) {
+            long queryTime = System.currentTimeMillis() - startTime;
+            System.out.println(queryTime + " - query time");
+            Assert.assertTrue(Math.abs(queryTime - maxExecTime) < 1000);
+            Assert.assertEquals(e.getCode(), ServerException.EXECUTION_TIMEOUT);
+        }
     }
 
     public boolean isVersionMatch(String versionExpression, Client client) {

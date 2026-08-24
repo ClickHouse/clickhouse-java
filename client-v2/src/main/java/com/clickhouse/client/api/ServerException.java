@@ -8,6 +8,8 @@ public class ServerException extends ClickHouseException {
 
     public static final int UNKNOWN_SETTING = 115;
 
+    public static final int EXECUTION_TIMEOUT = 159;
+
     private final int code;
 
     private final int transportProtocolCode;
@@ -56,10 +58,9 @@ public class ServerException extends ClickHouseException {
     private boolean discoverIsRetryable(int code, String message, int transportProtocolCode) {
         //Let's check if we have a ServerException to reference the error code
         //https://github.com/ClickHouse/ClickHouse/blob/master/src/Common/ErrorCodes.cpp
-        switch (code) { // UNEXPECTED_END_OF_FILE
+        switch (code) {
             case 3: // UNEXPECTED_END_OF_FILE
             case 107: // FILE_DOESNT_EXIST
-            case 159: // TIMEOUT_EXCEEDED
             case 164: // READONLY
             case 202: // TOO_MANY_SIMULTANEOUS_QUERIES
             case 203: // NO_FREE_CONNECTION

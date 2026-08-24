@@ -19,9 +19,7 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import java.time.temporal.ChronoUnit;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.fail;
@@ -40,7 +38,7 @@ public class MetricsTest extends BaseIntegrationTest {
         meterRegistry.clear();
         Metrics.globalRegistry.clear();
     }
-    
+
     @Test(groups = {"integration"}, enabled = true)
     public void testRegisterMetrics() throws Exception {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
@@ -54,6 +52,7 @@ public class MetricsTest extends BaseIntegrationTest {
                 .serverSetting(ServerSettings.ASYNC_INSERT, "0")
                 .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1")
                 .registerClientMetrics(meterRegistry, "pool-test")
+                .setKeepAliveTimeout(10, ChronoUnit.SECONDS) // enforce connection cleanup
                 .build()) {
 
             client.ping();
@@ -66,21 +65,38 @@ public class MetricsTest extends BaseIntegrationTest {
             Assert.assertEquals((int) available.value(), 1);
             Assert.assertEquals((int) leased.value(), 0);
 
+            CountDownLatch responsesReady = new CountDownLatch(2);
+            CountDownLatch releaseResponses = new CountDownLatch(1);
             Runnable task = () -> {
                 try (QueryResponse response = client.query("SELECT 1").get()) {
-                    Assert.assertEquals((int) available.value(), 0);
-                    Assert.assertEquals((int) leased.value(), 1);
+                    responsesReady.countDown();
+                    Assert.assertTrue(releaseResponses.await(10, TimeUnit.SECONDS),
+                            "Timed out waiting to release query responses");
                 } catch (Exception e) {
-                    e.printStackTrace();
-                    fail("Failed to to request", e);
+                    throw new RuntimeException("Failed to execute request", e);
                 }
             };
 
-            ExecutorService executor = Executors.newFixedThreadPool(3);
-            executor.submit(task);
-            executor.submit(task);
-            executor.shutdown();
-            executor.awaitTermination(10, TimeUnit.SECONDS);
+            ExecutorService executor = Executors.newFixedThreadPool(2);
+            Future<?> firstQuery = executor.submit(task);
+            Future<?> secondQuery = executor.submit(task);
+            try {
+                try {
+                    Assert.assertTrue(responsesReady.await(10, TimeUnit.SECONDS),
+                            "Timed out waiting for concurrent query responses");
+                    Assert.assertEquals((int) available.value(), 0);
+                    Assert.assertEquals((int) leased.value(), 2);
+                } finally {
+                    releaseResponses.countDown();
+                }
+                firstQuery.get(10, TimeUnit.SECONDS);
+                secondQuery.get(10, TimeUnit.SECONDS);
+            } finally {
+                releaseResponses.countDown();
+                executor.shutdownNow();
+            }
+            Assert.assertTrue(executor.awaitTermination(10, TimeUnit.SECONDS),
+                    "Timed out waiting for query executor to terminate");
 
             Assert.assertEquals((int) available.value(), 2);
             Assert.assertEquals((int) leased.value(), 0);
@@ -90,7 +106,10 @@ public class MetricsTest extends BaseIntegrationTest {
             Assert.assertEquals((int) available.value(), 2);
             Assert.assertEquals((int) leased.value(), 0);
 
-            task.run();
+            try (QueryResponse response = client.query("SELECT 1").get()) {
+                Assert.assertEquals((int) available.value(), 0);
+                Assert.assertEquals((int) leased.value(), 1);
+            }
 
             Assert.assertEquals((int) available.value(), 1);
             Assert.assertEquals((int) leased.value(), 0);

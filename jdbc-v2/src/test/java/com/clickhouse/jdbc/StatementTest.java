@@ -27,15 +27,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
-import static org.testng.Assert.assertEquals;
-import static org.testng.Assert.assertFalse;
-import static org.testng.Assert.assertNotNull;
-import static org.testng.Assert.assertNull;
-import static org.testng.Assert.assertSame;
-import static org.testng.Assert.assertThrows;
-import static org.testng.Assert.assertTrue;
-import static org.testng.Assert.fail;
+import static org.testng.Assert.*;
 
 
 @Test(groups = {"integration"})
@@ -386,14 +380,30 @@ public class StatementTest extends JdbcIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testExecuteQueryTimeout() throws Exception {
-        try (Connection conn = getJdbcConnection()) {
+        Properties config = new Properties();
+        config.setProperty(ClientConfigProperties.ASYNC_OPERATIONS.getKey(), "true");
+        try (Connection conn = getJdbcConnection(config)) {
             try (Statement stmt = conn.createStatement()) {
-                stmt.setQueryTimeout(1);
-                assertThrows(SQLException.class, () -> {
-                    try (ResultSet rs = stmt.executeQuery("SELECT sleep(5)")) {
-                        assertFalse(rs.next());
+                long woTimeoutStart = System.currentTimeMillis();
+                final String query = "SELECT count(), sum(sipHash64(number)) " +
+                        "FROM numbers(1000000000) " +
+                        "SETTINGS max_threads = 1;";
+                try (ResultSet rs = stmt.executeQuery(query)) {
+                    assertTrue(rs.next());
+                }
+                long woTimeoutTime = System.currentTimeMillis() - woTimeoutStart;
+
+                int queryTimeoutMs = (int) (woTimeoutTime * 0.75);
+                stmt.setQueryTimeout((int) TimeUnit.MILLISECONDS.toSeconds(queryTimeoutMs));
+
+                long wTimeoutStart = System.currentTimeMillis();
+                SQLException ex = expectThrows(SQLException.class, () -> {
+                    try (ResultSet rs = stmt.executeQuery(query)) {
+                        assertTrue(rs.next());
                     }
                 });
+                long wTimeoutTime = System.currentTimeMillis() - wTimeoutStart;
+                assertTrue(Math.abs(wTimeoutTime - queryTimeoutMs) < 1000);
             }
         }
     }

@@ -775,26 +775,26 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
     static final Map<String, String> ENGINE_TO_TABLE_TYPE;
     static {
         Map<String, String> map = new java.util.HashMap<>();
-        
+
         // Log tables
         map.put("Log", TableType.LOG_TABLE.getTypeName());
         map.put("StripeLog", TableType.LOG_TABLE.getTypeName());
         map.put("TinyLog", TableType.LOG_TABLE.getTypeName());
-        
+
         // Memory tables
         map.put("Buffer", TableType.MEMORY_TABLE.getTypeName());
         map.put("Memory", TableType.MEMORY_TABLE.getTypeName());
         map.put("Set", TableType.MEMORY_TABLE.getTypeName());
-        
+
         // Views
         map.put("View", TableType.VIEW.getTypeName());
         map.put("LiveView", TableType.VIEW.getTypeName());
         map.put("MaterializedView", TableType.MATERIALIZED_VIEW.getTypeName());
         map.put("WindowView", TableType.VIEW.getTypeName());
-        
+
         // Dictionary
         map.put("Dictionary", TableType.DICTIONARY.getTypeName());
-        
+
         // Remote/External tables
         map.put("AzureBlobStorage", TableType.REMOTE_TABLE.getTypeName());
         map.put("AzureQueue", TableType.REMOTE_TABLE.getTypeName());
@@ -864,6 +864,18 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         map.put("SharedSet", TableType.TABLE.getTypeName());
         map.put("SharedSummingMergeTree", TableType.TABLE.getTypeName());
         map.put("SharedVersionedCollapsingMergeTree", TableType.TABLE.getTypeName());
+
+        // Paimon (appended 05/27/2026)
+        map.put("Paimon", TableType.REMOTE_TABLE.getTypeName());
+        map.put("PaimonAzure", TableType.REMOTE_TABLE.getTypeName());
+        map.put("PaimonHDFS", TableType.REMOTE_TABLE.getTypeName());
+        map.put("PaimonLocal", TableType.REMOTE_TABLE.getTypeName());
+        map.put("PaimonS3", TableType.REMOTE_TABLE.getTypeName());
+
+        // Remote engines (appended 07/21/2026)
+        map.put("QueryRunner", TableType.REMOTE_TABLE.getTypeName());
+        map.put("Remote", TableType.REMOTE_TABLE.getTypeName());
+        map.put("RemoteSecure", TableType.REMOTE_TABLE.getTypeName());
 
         // Special
         map.put("TimeSeries", TableType.TABLE.getTypeName());

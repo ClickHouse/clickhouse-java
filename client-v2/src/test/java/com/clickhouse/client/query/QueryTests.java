@@ -988,6 +988,10 @@ public class QueryTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testFloatDataTypes() {
+        final boolean usesPreciseFloatParsing = isVersionMatch("[26.7,)");
+        final float expectedMaxFloat32 = usesPreciseFloatParsing ? Float.MAX_VALUE : 3.4028233E38F;
+        final double expectedMinFloat64 = usesPreciseFloatParsing ? Double.MIN_VALUE : 0.0D;
+
         final List<String> columns = Arrays.asList(
                 "min_float32 Float32",
                 "max_float32 Float32",
@@ -1019,12 +1023,12 @@ public class QueryTests extends BaseIntegrationTest {
 
         });
         verifiers.add(r -> {
-            Assert.assertEquals(r.getFloat("max_float32"), 3.4028233E38F); // TODO: investigate why it's not Float.MAX_VALUE returned from server
-            Assert.assertEquals(r.getFloat(2), 3.4028233E38F);
+            Assert.assertEquals(r.getFloat("max_float32"), expectedMaxFloat32);
+            Assert.assertEquals(r.getFloat(2), expectedMaxFloat32);
         });
         verifiers.add(r -> {
-            Assert.assertEquals(r.getDouble("min_float64"), 0.0D); // TODO: investigate why it's not Double.MIN_VALUE returned from server
-            Assert.assertEquals(r.getDouble(3), 0.0D);
+            Assert.assertEquals(r.getDouble("min_float64"), expectedMinFloat64);
+            Assert.assertEquals(r.getDouble(3), expectedMinFloat64);
         });
         verifiers.add(r -> {
             Assert.assertEquals(r.getDouble("max_float64"), Double.MAX_VALUE);
