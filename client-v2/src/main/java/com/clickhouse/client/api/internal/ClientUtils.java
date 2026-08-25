@@ -4,6 +4,10 @@ import com.clickhouse.data.ClickHouseFormat;
 import org.slf4j.Logger;
 
 import java.io.Closeable;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
 
 /**
  * Class containing utility methods used across the client.
@@ -22,7 +26,8 @@ public final class ClientUtils {
 
     /**
      * <p>Returns the format of a trailing {@code FORMAT <name>} clause of a statement, or {@code null} when the
-     * statement has no such clause or names a format this client does not know.</p>
+     * statement has no such clause or names a format this client does not know. The name of the format is read
+     * without regard to case, as the server reads it.</p>
      *
      * <p>String literals, quoted identifiers and comments are skipped, so a {@code FORMAT} written inside them is
      * not taken as a clause. Only a clause that closes the statement is reported - a {@code SETTINGS} clause may
@@ -83,11 +88,18 @@ public final class ClientUtils {
         if (formatName == null || (state != NAME_READ && state != IN_SETTINGS)) {
             return null;
         }
-        try {
-            return ClickHouseFormat.valueOf(formatName);
-        } catch (IllegalArgumentException e) {
-            return null;
+        // the server reads a format name without regard to case, so this client does too
+        return FORMATS_BY_NAME.get(formatName.toUpperCase(Locale.ROOT));
+    }
+
+    private static final Map<String, ClickHouseFormat> FORMATS_BY_NAME;
+
+    static {
+        Map<String, ClickHouseFormat> formats = new HashMap<>();
+        for (ClickHouseFormat format : ClickHouseFormat.values()) {
+            formats.put(format.name().toUpperCase(Locale.ROOT), format);
         }
+        FORMATS_BY_NAME = Collections.unmodifiableMap(formats);
     }
 
     private static final int NO_CLAUSE = 0;

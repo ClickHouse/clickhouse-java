@@ -67,6 +67,10 @@ public class ClientUtilsTest {
                 {"SELECT 1 FORMAT CSV -- as csv", ClickHouseFormat.CSV},
                 {"SELECT 1 FORMAT CSV /* as csv */", ClickHouseFormat.CSV},
                 {"SELECT /* FORMAT TSKV */ 1 FORMAT CSV", ClickHouseFormat.CSV},
+                // the name of the format is read without regard to case, as the server reads it
+                {"SELECT 1 FORMAT jsoneachrow", ClickHouseFormat.JSONEachRow},
+                {"SELECT 1 FORMAT JsOnEaChRoW", ClickHouseFormat.JSONEachRow},
+                {"SELECT 1 FORMAT TABSEPARATEDWITHNAMES", ClickHouseFormat.TabSeparatedWithNames},
                 // statements that name no format
                 {"SELECT 1", null},
                 {"SELECT 1 FORMAT", null},
@@ -74,6 +78,7 @@ public class ClientUtilsTest {
                 {null, null},
                 // a format name the client does not know is left to the server
                 {"SELECT 1 FORMAT NoSuchFormat", null},
+                {"SELECT 1 FORMAT nosuchformat", null},
                 // FORMAT that is not a clause of the statement
                 {"SELECT 'x FORMAT CSV'", null},
                 {"SELECT 'it''s x FORMAT CSV'", null},

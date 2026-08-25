@@ -85,6 +85,9 @@ public class RequestFormatUnitTest {
                         "SELECT 4 FORMAT JSONEachRow", ClickHouseFormat.JSONEachRow},
                 {(Consumer<Client>) c -> runQuery(c, "SELECT 5 FORMAT JSONEachRow", new QuerySettings()),
                         "SELECT 5 FORMAT JSONEachRow", ClickHouseFormat.JSONEachRow},
+                // The name of the format is read without regard to case, as the server reads it
+                {(Consumer<Client>) c -> runQuery(c, "SELECT 7 FORMAT jsoneachrow", null),
+                        "SELECT 7 FORMAT jsoneachrow", ClickHouseFormat.JSONEachRow},
                 // Settings win over a FORMAT clause
                 {(Consumer<Client>) c -> runQuery(c, "SELECT 6 FORMAT JSONEachRow",
                         new QuerySettings().setFormat(ClickHouseFormat.CSV)),
