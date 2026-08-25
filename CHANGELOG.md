@@ -67,6 +67,10 @@
 
 ### Bug Fixes 
 
+- **[client-v2, jdbc-v2]** Fixed `Client.getTableSchema(...)`, `Client.getTableSchemaFromQuery(...)` and `ping()`
+  failing against ClickHouse `26.8+`, where the `X-ClickHouse-Format` header the client sends wins over a `FORMAT`
+  clause in the query. These internal queries now set their format in the settings instead of a `FORMAT` clause.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3068)
 - **[jdbc-v2]** Fixed an `INSERT` whose values list holds a function call the bundled `ANTLR4` grammar cannot match -
   such as `hex(x'AB')`, valid ClickHouse the grammar has no hex string literal for - being reported to hold no function
   call when an `ANTLR4` parser backend is selected (`jdbc_sql_parser=ANTLR4` / `ANTLR4_PARAMS_PARSER`). Function calls in
