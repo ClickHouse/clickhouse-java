@@ -25,8 +25,8 @@ public final class ClientUtils {
      * statement has no such clause or names a format this client does not know.</p>
      *
      * <p>String literals, quoted identifiers and comments are skipped, so a {@code FORMAT} written inside them is
-     * not taken as a clause. Only a clause that closes the statement is reported: an {@code INSERT} that carries
-     * its data after the clause returns {@code null}.</p>
+     * not taken as a clause. Only a clause that closes the statement is reported - a {@code SETTINGS} clause may
+     * follow it - so an {@code INSERT} that carries its data after the clause returns {@code null}.</p>
      *
      * @param sqlQuery statement to read, may be null
      * @return format of the trailing FORMAT clause or null
@@ -36,44 +36,64 @@ public final class ClientUtils {
             return null;
         }
 
-        String previousWord = null;
-        String lastWord = null;
+        // state of reading a FORMAT clause: no clause seen, the name of the format is expected, the name was read,
+        // or a SETTINGS clause follows the name and closes the statement
+        int state = NO_CLAUSE;
+        String formatName = null;
         final int len = sqlQuery.length();
         int i = 0;
         while (i < len) {
             final char c = sqlQuery.charAt(i);
             if (Character.isWhitespace(c) || c == ';') {
                 i++;
-            } else if (c == '-' && i + 1 < len && sqlQuery.charAt(i + 1) == '-') {
+                continue;
+            }
+            if ((c == '-' && i + 1 < len && sqlQuery.charAt(i + 1) == '-') || c == '#') {
                 i = skipLineComment(sqlQuery, i);
-            } else if (c == '#') {
-                i = skipLineComment(sqlQuery, i);
-            } else if (c == '/' && i + 1 < len && sqlQuery.charAt(i + 1) == '*') {
+                continue;
+            }
+            if (c == '/' && i + 1 < len && sqlQuery.charAt(i + 1) == '*') {
                 i = skipBlockComment(sqlQuery, i);
-            } else if (isWordChar(c)) {
+                continue;
+            }
+            if (isWordChar(c)) {
                 final int start = i;
                 while (i < len && isWordChar(sqlQuery.charAt(i))) {
                     i++;
                 }
-                previousWord = lastWord;
-                lastWord = sqlQuery.substring(start, i);
-            } else {
-                // a quoted part or any other character ends the word sequence
-                i = (c == '\'' || c == '"' || c == '`') ? skipQuoted(sqlQuery, i, c) : i + 1;
-                previousWord = lastWord;
-                lastWord = null;
+                final String word = sqlQuery.substring(start, i);
+                if (state == EXPECT_NAME) {
+                    formatName = word;
+                    state = NAME_READ;
+                } else if (state == NAME_READ) {
+                    // only a SETTINGS clause may close a statement after the format name
+                    state = "SETTINGS".equalsIgnoreCase(word) ? IN_SETTINGS : NO_CLAUSE;
+                } else if (state != IN_SETTINGS && "FORMAT".equalsIgnoreCase(word)) {
+                    state = EXPECT_NAME;
+                }
+                continue;
+            }
+            // a quoted part or any other character cannot be part of a FORMAT clause
+            i = (c == '\'' || c == '"' || c == '`') ? skipQuoted(sqlQuery, i, c) : i + 1;
+            if (state == EXPECT_NAME || state == NAME_READ) {
+                state = NO_CLAUSE;
             }
         }
 
-        if (lastWord == null || !"FORMAT".equalsIgnoreCase(previousWord)) {
+        if (formatName == null || (state != NAME_READ && state != IN_SETTINGS)) {
             return null;
         }
         try {
-            return ClickHouseFormat.valueOf(lastWord);
+            return ClickHouseFormat.valueOf(formatName);
         } catch (IllegalArgumentException e) {
             return null;
         }
     }
+
+    private static final int NO_CLAUSE = 0;
+    private static final int EXPECT_NAME = 1;
+    private static final int NAME_READ = 2;
+    private static final int IN_SETTINGS = 3;
 
     private static boolean isWordChar(char c) {
         return Character.isLetterOrDigit(c) || c == '_' || c == '$';

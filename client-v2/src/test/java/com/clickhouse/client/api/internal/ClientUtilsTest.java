@@ -61,6 +61,9 @@ public class ClientUtilsTest {
                 {"SELECT 1\n  FORMAT\tCSV \n ", ClickHouseFormat.CSV},
                 {"SELECT 1 FORMAT CSV;", ClickHouseFormat.CSV},
                 {"SELECT 1 SETTINGS max_block_size = 10 FORMAT Pretty", ClickHouseFormat.Pretty},
+                {"SELECT 1 FORMAT CSV SETTINGS format_csv_delimiter = '|'", ClickHouseFormat.CSV},
+                {"SELECT 1 FORMAT CSV\r\n", ClickHouseFormat.CSV},
+                {"SELECT 1 FORMAT CSV # as csv", ClickHouseFormat.CSV},
                 {"SELECT 1 FORMAT CSV -- as csv", ClickHouseFormat.CSV},
                 {"SELECT 1 FORMAT CSV /* as csv */", ClickHouseFormat.CSV},
                 {"SELECT /* FORMAT TSKV */ 1 FORMAT CSV", ClickHouseFormat.CSV},
@@ -80,7 +83,9 @@ public class ClientUtilsTest {
                 {"SELECT 1 -- FORMAT CSV", null},
                 {"SELECT 1 /* FORMAT CSV */", null},
                 {"INSERT INTO t FORMAT CSV\n1,2\n", null},
+                {"INSERT INTO t FORMAT CSV\n'a',2\n", null},
                 {"SELECT formatDateTime(d, '%F') FROM t", null},
+                {"SELECT 1 AS format FROM t LIMIT 1", null},
         };
     }
 }
