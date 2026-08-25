@@ -1429,6 +1429,123 @@ public class StatementTest extends JdbcIntegrationTest {
         };
     }
 
+
+    private void assertQueryTimeout(Statement stmt, int expectedTimeoutSec) {
+        final String slowQuery = "SELECT count(), sum(sipHash64(number)) FROM numbers(1000000000) SETTINGS max_threads = 1;";
+        long start = System.currentTimeMillis();
+        expectThrows(SQLTimeoutException.class, () -> {
+            try (ResultSet rs = stmt.executeQuery(slowQuery)) {
+                assertTrue(rs.next());
+            }
+        });
+        long elapsed = System.currentTimeMillis() - start;
+        long expectedMs = expectedTimeoutSec * 1000L;
+        assertTrue(Math.abs(elapsed - expectedMs) < 1000,
+                "Expected timeout ~" + expectedMs + "ms, but execution took " + elapsed + "ms");
+    }
+
+    @Test(groups = {"integration"})
+    public void testConnectionLevelExecutionTimeoutOverriddenByStatement() throws Exception {
+        Properties config = new Properties();
+        final int connExecTimeout = 7;
+        config.setProperty(ClientConfigProperties.serverSetting(ServerSettings.MAX_EXECUTION_TIME), String.valueOf(connExecTimeout));
+        try (Connection conn = getJdbcConnection(config);
+             StatementImpl stmt = (StatementImpl) conn.createStatement()) {
+            assertEquals(stmt.connectionLvlExecTimeout, Integer.valueOf(connExecTimeout));
+            assertEquals(stmt.getLocalSettings().getMaxExecutionTime(), connExecTimeout);
+            assertEquals(stmt.getQueryTimeout(), 0);
+            assertQueryTimeout(stmt, connExecTimeout);
+
+            final int stmtExecTimeout = 5;
+            stmt.setQueryTimeout(stmtExecTimeout);
+            assertEquals(stmt.getQueryTimeout(), stmtExecTimeout);
+            assertEquals(stmt.getLocalSettings().getMaxExecutionTime(), stmtExecTimeout);
+            assertQueryTimeout(stmt, stmtExecTimeout);
+
+            // reset back to connection
+            stmt.setQueryTimeout(0);
+            assertEquals(stmt.getQueryTimeout(), 0);
+            assertEquals(stmt.getLocalSettings().getMaxExecutionTime(), connExecTimeout);
+        }
+
+        config = new Properties();
+        config.setProperty(DriverProperties.DEFAULT_QUERY_SETTINGS.getKey(), "max_execution_time=" + connExecTimeout);
+        try (Connection conn = getJdbcConnection(config);
+             StatementImpl stmt = (StatementImpl) conn.createStatement()) {
+            assertEquals(stmt.connectionLvlExecTimeout, connExecTimeout);
+            assertEquals(stmt.getLocalSettings().getMaxExecutionTime(), connExecTimeout);
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testAsyncOperationsEnabledTimeout() throws Exception {
+        Properties config = new Properties();
+        config.setProperty(ClientConfigProperties.ASYNC_OPERATIONS.getKey(), "true");
+        try (Connection conn = getJdbcConnection(config);
+             StatementImpl stmt = (StatementImpl) conn.createStatement()) {
+            assertNull(stmt.connectionLvlExecTimeout);
+            assertNull(stmt.getLocalSettings().getMaxExecutionTime());
+            assertEquals(stmt.getQueryTimeout(), 0);
+
+            final int stmtExecTimeout = 5;
+            stmt.setQueryTimeout(stmtExecTimeout);
+            assertEquals(stmt.getQueryTimeout(), stmtExecTimeout);
+            assertNull(stmt.getLocalSettings().getMaxExecutionTime());
+            assertQueryTimeout(stmt, stmtExecTimeout);
+
+            stmt.setQueryTimeout(0);
+            assertEquals(stmt.getQueryTimeout(), 0);
+            assertNull(stmt.getLocalSettings().getMaxExecutionTime());
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testAsyncOperationsEnabledWithConnectionLevelTimeout() throws Exception {
+        Properties config = new Properties();
+        final int connExecTimeout = 7;
+        config.setProperty(ClientConfigProperties.ASYNC_OPERATIONS.getKey(), "true");
+        config.setProperty(ClientConfigProperties.serverSetting(ServerSettings.MAX_EXECUTION_TIME), String.valueOf(connExecTimeout));
+        try (Connection conn = getJdbcConnection(config);
+             StatementImpl stmt = (StatementImpl) conn.createStatement()) {
+            assertEquals(stmt.connectionLvlExecTimeout, connExecTimeout);
+            assertEquals(stmt.getLocalSettings().getMaxExecutionTime(), connExecTimeout);
+            assertEquals(stmt.getQueryTimeout(), 0);
+
+            assertQueryTimeout(stmt, connExecTimeout);
+
+            int stmtExecTimeout = 5;
+            stmt.setQueryTimeout(stmtExecTimeout);
+            assertEquals(stmt.getQueryTimeout(), stmtExecTimeout);
+            assertEquals(stmt.getLocalSettings().getMaxExecutionTime(), connExecTimeout);
+            assertQueryTimeout(stmt, stmtExecTimeout);
+
+            stmt.setQueryTimeout(0);
+            assertEquals(stmt.getQueryTimeout(), 0);
+            assertEquals(stmt.getLocalSettings().getMaxExecutionTime(), connExecTimeout);
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testNoConnectionLevelTimeoutOverriddenAndReset() throws Exception {
+        try (Connection conn = getJdbcConnection();
+             StatementImpl stmt = (StatementImpl) conn.createStatement()) {
+            assertNull(stmt.connectionLvlExecTimeout);
+            assertNull(stmt.getLocalSettings().getMaxExecutionTime());
+            assertEquals(stmt.getQueryTimeout(), 0);
+
+            stmt.setQueryTimeout(1);
+            assertEquals(stmt.getQueryTimeout(), 1);
+            assertEquals(stmt.getLocalSettings().getMaxExecutionTime(), Integer.valueOf(1));
+            assertQueryTimeout(stmt, 1);
+
+            stmt.setQueryTimeout(0);
+            assertEquals(stmt.getQueryTimeout(), 0);
+            assertNull(stmt.getLocalSettings().getMaxExecutionTime());
+
+            assertThrows(SQLException.class, () -> stmt.setQueryTimeout(-1));
+        }
+    }
+
     private static String getDBName(Statement stmt) throws SQLException {
         try (ResultSet rs = stmt.executeQuery("SELECT database()")) {
             rs.next();
