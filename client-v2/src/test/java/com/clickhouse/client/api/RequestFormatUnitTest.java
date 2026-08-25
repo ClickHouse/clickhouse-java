@@ -80,6 +80,18 @@ public class RequestFormatUnitTest {
                 {(Consumer<Client>) c -> runQuery(c, "SELECT 3",
                         new QuerySettings().setFormat(ClickHouseFormat.JSONEachRow)),
                         "SELECT 3", ClickHouseFormat.JSONEachRow},
+                // A format asked for with a FORMAT clause is sent in the header too, so both agree
+                {(Consumer<Client>) c -> runQuery(c, "SELECT 4 FORMAT JSONEachRow", null),
+                        "SELECT 4 FORMAT JSONEachRow", ClickHouseFormat.JSONEachRow},
+                {(Consumer<Client>) c -> runQuery(c, "SELECT 5 FORMAT JSONEachRow", new QuerySettings()),
+                        "SELECT 5 FORMAT JSONEachRow", ClickHouseFormat.JSONEachRow},
+                // Settings win over a FORMAT clause
+                {(Consumer<Client>) c -> runQuery(c, "SELECT 6 FORMAT JSONEachRow",
+                        new QuerySettings().setFormat(ClickHouseFormat.CSV)),
+                        "SELECT 6 FORMAT JSONEachRow", ClickHouseFormat.CSV},
+                // A FORMAT inside a literal is not a clause
+                {(Consumer<Client>) c -> runQuery(c, "SELECT 'x FORMAT JSONEachRow'", null),
+                        "SELECT 'x FORMAT JSONEachRow'", ClickHouseFormat.RowBinaryWithNamesAndTypes},
         };
     }
 
