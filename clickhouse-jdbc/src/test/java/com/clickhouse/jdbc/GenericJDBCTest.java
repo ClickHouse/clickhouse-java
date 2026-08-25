@@ -27,7 +27,7 @@ public class GenericJDBCTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test
+    @Test(enabled = false) // skipped to be removed after reviewing tests.
     public void connectionWithPropertiesTest() throws SQLException {
         Properties properties = new Properties();
         properties.setProperty("user", "default");

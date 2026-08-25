@@ -1,6 +1,7 @@
 package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.query.QueryResponse;
@@ -13,15 +14,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.SocketTimeoutException;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.SQLWarning;
-import java.sql.Statement;
+import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 
 public class StatementImpl implements Statement, JdbcV2Wrapper {
@@ -215,6 +214,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             }
             handleSocketTimeoutException(e);
             onResultSetClosed(null);
+            throwOnExecutionTimeout(e, mergedSettings.getQueryId());
             throw ExceptionUtils.toSqlState(e);
         }
     }
@@ -222,6 +222,18 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     protected void handleSocketTimeoutException(Exception e) {
         if (e.getCause() instanceof SocketTimeoutException || e instanceof SocketTimeoutException) {
             this.connection.onNetworkTimeout();
+        }
+    }
+
+    protected void throwOnExecutionTimeout(Exception e, String queryId) throws SQLTimeoutException {
+        boolean shouldThrow = e instanceof TimeoutException;
+        ServerException se = e instanceof ServerException ? (ServerException) e : e.getCause() instanceof ServerException ? (ServerException) e.getCause() : null;
+        if (se != null && se.getCode() == ServerException.EXECUTION_TIMEOUT) {
+            shouldThrow = true;
+        }
+
+        if (shouldThrow) {
+            throw new SQLTimeoutException("Query execution time exceeded limit (queryId=" + queryId + ", timeout = " + queryTimeout + "s)", e);
         }
     }
 
@@ -251,6 +263,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             lastQueryId = response.getQueryId();
         } catch (Exception e) {
             handleSocketTimeoutException(e);
+            throwOnExecutionTimeout(e, mergedSettings.getQueryId());
             throw ExceptionUtils.toSqlState(e);
         }
 
