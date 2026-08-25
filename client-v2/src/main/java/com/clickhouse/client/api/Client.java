@@ -1806,8 +1806,8 @@ public class Client implements AutoCloseable {
      * <b>Notes:</b>
      * <ul>
      * <li>Server response format should be specified thru `settings` and not with a FORMAT clause in the SQL query.</li>
-     * <li>A format asked for with a FORMAT clause that closes the `sqlQuery` is used when `settings` name no format.</li>
-     * <li>If specified in both, the `settings` take precedence.</li>
+     * <li>If specified in both, the format that wins depends on the server version: a server before v26.8 uses the
+     * format from the `sqlQuery`, a server since v26.8 uses the format from the `settings`.</li>
      * </ul>
      * @param sqlQuery - complete SQL query.
      * @param settings - query operation settings.
@@ -1838,9 +1838,8 @@ public class Client implements AutoCloseable {
      * <ul>
      * <li>Server response format should be specified through {@code settings} and not with a FORMAT clause in the
      * SQL query.</li>
-     * <li>A format asked for with a FORMAT clause that closes the {@code sqlQuery} is used when {@code settings}
-     * name no format.</li>
-     * <li>If specified in both, the {@code settings} take precedence.</li>
+     * <li>If specified in both, the format that wins depends on the server version: a server before v26.8 uses the
+     * format from the {@code sqlQuery}, a server since v26.8 uses the format from the {@code settings}.</li>
      * </ul>
      *
      * @param sqlQuery - complete SQL query.
@@ -1855,12 +1854,7 @@ public class Client implements AutoCloseable {
         final QuerySettings requestSettings = new QuerySettings(buildRequestSettings(settings.getAllSettings()));
 
         if (requestSettings.getFormat() == null) {
-            // A format is always sent in the X-ClickHouse-Format header, and since v26.8 the server lets that header
-            // override the FORMAT clause of the query. A caller that asks for a format only with a FORMAT clause
-            // gets it in the header too, so both agree and the answer keeps the format the caller asked for.
-            final ClickHouseFormat formatOfQuery = ClientUtils.extractTrailingFormat(sqlQuery);
-            requestSettings.setFormat(
-                    formatOfQuery == null ? ClickHouseFormat.RowBinaryWithNamesAndTypes : formatOfQuery);
+            requestSettings.setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
         }
         applyFormatSpecificSettings(requestSettings);
         ClientStatisticsHolder clientStats = new ClientStatisticsHolder();

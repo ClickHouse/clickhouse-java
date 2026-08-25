@@ -67,17 +67,9 @@
 
 ### Bug Fixes 
 
-- **[client-v2, jdbc-v2]** Fixed `Client.getTableSchema(...)` and `Client.getTableSchemaFromQuery(...)` failing with
-  `Failed to parse column null defined by type 'null'` against ClickHouse `26.8+` (and `jdbc-v2` failing with it,
-  because `Connection`/`PreparedStatement` metadata calls use them). Both methods asked for `TSKV` with a `FORMAT`
-  clause in the `DESCRIBE` query, while the client sends the requested format of the operation in the
-  `X-ClickHouse-Format` header on every request. A server before `26.8` used the format from the query, but since
-  `26.8` the header wins, so the server answered with `RowBinaryWithNamesAndTypes` and the `TSKV` parser read binary
-  data. The internal queries of the client (the two schema calls and `ping()`) now request their format through the
-  settings of the operation only, so the header and the query always agree. For the same reason a query of a caller
-  that asks for a format with a `FORMAT` clause that closes the statement - like `SELECT 1 FORMAT JSONEachRow` - now
-  sends that format in the header too, so a `26.8+` server answers with the format the caller asked for. A format
-  named in the settings of the operation still takes precedence over the `FORMAT` clause of a query.
+- **[client-v2, jdbc-v2]** Fixed `Client.getTableSchema(...)`, `Client.getTableSchemaFromQuery(...)` and `ping()`
+  failing against ClickHouse `26.8+`, where the `X-ClickHouse-Format` header the client sends wins over a `FORMAT`
+  clause in the query. These internal queries now set their format in the settings instead of a `FORMAT` clause.
   (https://github.com/ClickHouse/clickhouse-java/issues/3068)
 - **[jdbc-v2]** Fixed an `INSERT` whose values list holds a function call the bundled `ANTLR4` grammar cannot match -
   such as `hex(x'AB')`, valid ClickHouse the grammar has no hex string literal for - being reported to hold no function
