@@ -237,7 +237,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         }
 
         if (shouldThrow) {
-            throw new SQLTimeoutException("Query execution time exceeded limit (queryId=" + queryId + ", timeout = " + queryTimeout + "s)", e);
+            throw new SQLTimeoutException("Query execution time exceeded limit (queryId=" + queryId + ")", e);
         }
     }
 
