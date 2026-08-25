@@ -77,12 +77,12 @@
     - name: column_types
       expected: ["UInt64", "UInt64"]
 - name: explain_stmt_01
-  query: EXPLAIN SELECT 1
+  query: EXPLAIN AST SELECT 1
   tables:
     events: datasets/empty_table
   checks:
     - name: row_count
-      expected: 2
+      expected: 5
     - name: column_count
       expected: 1
     - name: column_names

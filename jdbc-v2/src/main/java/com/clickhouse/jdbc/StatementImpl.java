@@ -1,6 +1,7 @@
 package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.query.QueryResponse;
@@ -13,15 +14,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.SocketTimeoutException;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.SQLWarning;
-import java.sql.Statement;
+import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 
 public class StatementImpl implements Statement, JdbcV2Wrapper {
@@ -54,6 +53,8 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     // settings local to a statement
     protected QuerySettings localSettings;
 
+    protected Integer connectionLvlExecTimeout; // to properly reset
+
 
     public StatementImpl(ConnectionImpl connection) throws SQLException {
         this.connection = connection;
@@ -67,6 +68,8 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         this.escapeProcessingEnabled = true;
         this.featureManager = new FeatureManager(connection.getJdbcConfig());
         this.queryIdGenerator = connection.getJdbcConfig().getQueryIdGenerator();
+
+        this.connectionLvlExecTimeout = connection.getDefaultQuerySettings().getMaxExecutionTime();
     }
 
     protected void ensureOpen() throws SQLException {
@@ -215,6 +218,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             }
             handleSocketTimeoutException(e);
             onResultSetClosed(null);
+            throwOnExecutionTimeout(e, mergedSettings.getQueryId());
             throw ExceptionUtils.toSqlState(e);
         }
     }
@@ -222,6 +226,18 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     protected void handleSocketTimeoutException(Exception e) {
         if (e.getCause() instanceof SocketTimeoutException || e instanceof SocketTimeoutException) {
             this.connection.onNetworkTimeout();
+        }
+    }
+
+    protected void throwOnExecutionTimeout(Exception e, String queryId) throws SQLTimeoutException {
+        boolean shouldThrow = e instanceof TimeoutException || e.getCause() instanceof TimeoutException;
+        ServerException se = e instanceof ServerException ? (ServerException) e : e.getCause() instanceof ServerException ? (ServerException) e.getCause() : null;
+        if (se != null && se.getCode() == ServerException.EXECUTION_TIMEOUT) {
+            shouldThrow = true;
+        }
+
+        if (shouldThrow) {
+            throw new SQLTimeoutException("Query execution time exceeded limit (queryId=" + queryId + ")", e);
         }
     }
 
@@ -251,6 +267,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             lastQueryId = response.getQueryId();
         } catch (Exception e) {
             handleSocketTimeoutException(e);
+            throwOnExecutionTimeout(e, mergedSettings.getQueryId());
             throw ExceptionUtils.toSqlState(e);
         }
 
@@ -324,6 +341,30 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public void setQueryTimeout(int seconds) throws SQLException {
         ensureOpen();
+        if (seconds < 0) {
+            throw new SQLException("Timeout should be >= 0 but " + seconds + " was passed");
+        }
+
+        if (seconds > 0) {
+            boolean isAsyncEnabled;
+            try {
+                isAsyncEnabled = Boolean.parseBoolean(
+                        getConnection().getClient().getConfiguration().getOrDefault(ClientConfigProperties.ASYNC_OPERATIONS.getKey(),
+                        ClientConfigProperties.ASYNC_OPERATIONS.getDefaultValue()));
+            } catch (Exception e) {
+                LOG.error("Failed to read client configuration " + ClientConfigProperties.ASYNC_OPERATIONS.getKey(), e);
+                isAsyncEnabled = false;
+            }
+
+            if (!isAsyncEnabled) {
+                // `max_execution_time` is only option when not async operations enabled
+                getLocalSettings().setMaxExecutionTime(seconds);
+            }
+        } else if (connectionLvlExecTimeout != null) {
+            getLocalSettings().setMaxExecutionTime(connectionLvlExecTimeout);
+        } else {
+            getLocalSettings().resetOption(ClientConfigProperties.serverSetting(ServerSettings.MAX_EXECUTION_TIME));
+        }
         queryTimeout = seconds;
     }
 
