@@ -1,9 +1,12 @@
-## 0.9.8
+## 0.9.9
 
 ### Bug Fixes 
 
 - **[client-v2]** `ServerException` with code `159 Execution Timeout` is retried unconditionally. After the fix this
-error treated as non-retriable. 
+error treated as non-retriable. (part of https://github.com/ClickHouse/clickhouse-java/issues/2637)
+- **[jdbc-v2]** Fixes `Statement#setQueryTimeout`. By default, client executes query in calling thread and future timeout 
+has no effect. Fix makes `setQueryTimeout` to set `max_execution_time` server setting in this case to overcome limitation.
+  (https://github.com/ClickHouse/clickhouse-java/issues/2637)
 
 ## 0.9.8
 
