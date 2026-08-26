@@ -4,6 +4,7 @@ import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.internal.ClientStatisticsHolder;
 import com.clickhouse.client.api.metrics.OperationMetrics;
+import com.clickhouse.client.api.metrics.OperationType;
 import com.clickhouse.client.api.metrics.ServerMetrics;
 import com.clickhouse.client.api.observability.DefaultSpanRecorder;
 import com.clickhouse.client.api.observability.Span;
@@ -188,31 +189,114 @@ public class OpenTelemetrySpanRecorderUnitTest {
     }
 
     @Test
-    public void testSuccessRecordsQueryIdAndReturnedRows() {
-        OperationMetrics metrics = new OperationMetrics(new ClientStatisticsHolder());
+    public void testQuerySuccessRecordsQueryIdAndWhatTheServerReadAndReturned() {
+        OperationMetrics metrics = queryMetrics();
         metrics.setQueryId("server-assigned-id");
         metrics.updateMetric(ServerMetrics.RESULT_ROWS, 7);
+        metrics.updateMetric(ServerMetrics.NUM_ROWS_READ, 4096);
+        metrics.updateMetric(ServerMetrics.NUM_BYTES_READ, 65536);
 
         Span span = recorder.startQuerySpan(querySettings(null), "SELECT 1", null);
-        recorder.recordSuccess(span, metrics);
+        recorder.recordQuerySuccess(span, metrics);
         span.end();
 
         SpanData exported = onlySpan();
         Assert.assertEquals(stringAttribute(exported, SpanAttribute.CLICKHOUSE_QUERY_ID), "server-assigned-id");
         Assert.assertEquals(longAttribute(exported, SpanAttribute.DB_RESPONSE_RETURNED_ROWS), Long.valueOf(7L));
+        Assert.assertEquals(longAttribute(exported, SpanAttribute.CLICKHOUSE_RESPONSE_READ_ROWS), Long.valueOf(4096L));
+        Assert.assertEquals(longAttribute(exported, SpanAttribute.CLICKHOUSE_RESPONSE_READ_BYTES), Long.valueOf(65536L));
         Assert.assertEquals(exported.getStatus().getStatusCode(), StatusCode.UNSET);
     }
 
     @Test
-    public void testSuccessWithoutMetricsRecordsNothing() {
-        Span span = recorder.startQuerySpan(querySettings(null), "SELECT 1", null);
-        recorder.recordSuccess(span, null);
+    public void testInsertSuccessRecordsQueryIdAndWhatTheServerWrote() {
+        OperationMetrics metrics = insertMetrics();
+        metrics.setQueryId("server-assigned-id");
+        metrics.updateMetric(ServerMetrics.NUM_ROWS_WRITTEN, 12);
+        metrics.updateMetric(ServerMetrics.NUM_BYTES_WRITTEN, 480);
+
+        Span span = recorder.startInsertSpan(insertSettings(null), "t1", 12, null);
+        recorder.recordInsertSuccess(span, metrics);
         span.end();
 
         SpanData exported = onlySpan();
-        Assert.assertNull(stringAttribute(exported, SpanAttribute.CLICKHOUSE_QUERY_ID));
-        Assert.assertNull(longAttribute(exported, SpanAttribute.DB_RESPONSE_RETURNED_ROWS));
+        Assert.assertEquals(stringAttribute(exported, SpanAttribute.CLICKHOUSE_QUERY_ID), "server-assigned-id");
+        Assert.assertEquals(longAttribute(exported, SpanAttribute.CLICKHOUSE_RESPONSE_WRITTEN_ROWS), Long.valueOf(12L));
+        Assert.assertEquals(longAttribute(exported, SpanAttribute.CLICKHOUSE_RESPONSE_WRITTEN_BYTES), Long.valueOf(480L));
         Assert.assertEquals(exported.getStatus().getStatusCode(), StatusCode.UNSET);
+    }
+
+    @Test
+    public void testEachTrackRecordsOnlyTheMetricsOfItsOwnOperation() {
+        // the server reports the whole summary for both kinds of operation; each track picks the
+        // metrics that are meaningful for it, so a query never claims written rows and the reverse
+        OperationMetrics metrics = queryMetrics();
+        metrics.updateMetric(ServerMetrics.RESULT_ROWS, 7);
+        metrics.updateMetric(ServerMetrics.NUM_ROWS_READ, 4096);
+        metrics.updateMetric(ServerMetrics.NUM_BYTES_READ, 65536);
+        metrics.updateMetric(ServerMetrics.NUM_ROWS_WRITTEN, 12);
+        metrics.updateMetric(ServerMetrics.NUM_BYTES_WRITTEN, 480);
+
+        Span querySpan = recorder.startQuerySpan(querySettings(null), "SELECT 1", null);
+        recorder.recordQuerySuccess(querySpan, metrics);
+        querySpan.end();
+        Span insertSpan = recorder.startInsertSpan(insertSettings(null), "t1", 12, null);
+        recorder.recordInsertSuccess(insertSpan, metrics);
+        insertSpan.end();
+
+        List<SpanData> spans = exporter.getFinishedSpanItems();
+        Assert.assertEquals(spans.size(), 2, "Unexpected spans: " + spans);
+        SpanData query = spans.get(0);
+        SpanData insert = spans.get(1);
+
+        Assert.assertEquals(longAttribute(query, SpanAttribute.DB_RESPONSE_RETURNED_ROWS), Long.valueOf(7L));
+        Assert.assertEquals(longAttribute(query, SpanAttribute.CLICKHOUSE_RESPONSE_READ_ROWS), Long.valueOf(4096L));
+        Assert.assertNull(longAttribute(query, SpanAttribute.CLICKHOUSE_RESPONSE_WRITTEN_ROWS));
+        Assert.assertNull(longAttribute(query, SpanAttribute.CLICKHOUSE_RESPONSE_WRITTEN_BYTES));
+
+        Assert.assertEquals(longAttribute(insert, SpanAttribute.CLICKHOUSE_RESPONSE_WRITTEN_ROWS), Long.valueOf(12L));
+        Assert.assertEquals(longAttribute(insert, SpanAttribute.CLICKHOUSE_RESPONSE_WRITTEN_BYTES), Long.valueOf(480L));
+        Assert.assertNull(longAttribute(insert, SpanAttribute.DB_RESPONSE_RETURNED_ROWS));
+        Assert.assertNull(longAttribute(insert, SpanAttribute.CLICKHOUSE_RESPONSE_READ_ROWS));
+        Assert.assertNull(longAttribute(insert, SpanAttribute.CLICKHOUSE_RESPONSE_READ_BYTES));
+    }
+
+    @Test
+    public void testMetricTheServerDidNotReportIsNotRecorded() {
+        // ProcessParser sets every server metric to -1 before it applies the summary, so a metric
+        // missing from the summary must not reach the span as a negative count
+        OperationMetrics metrics = queryMetrics();
+        metrics.updateMetric(ServerMetrics.RESULT_ROWS, -1);
+        metrics.updateMetric(ServerMetrics.NUM_ROWS_READ, -1);
+        metrics.updateMetric(ServerMetrics.NUM_BYTES_READ, 65536);
+
+        Span span = recorder.startQuerySpan(querySettings(null), "SELECT 1", null);
+        recorder.recordQuerySuccess(span, metrics);
+        span.end();
+
+        SpanData exported = onlySpan();
+        Assert.assertNull(longAttribute(exported, SpanAttribute.DB_RESPONSE_RETURNED_ROWS));
+        Assert.assertNull(longAttribute(exported, SpanAttribute.CLICKHOUSE_RESPONSE_READ_ROWS));
+        Assert.assertEquals(longAttribute(exported, SpanAttribute.CLICKHOUSE_RESPONSE_READ_BYTES), Long.valueOf(65536L));
+    }
+
+    @Test
+    public void testSuccessWithoutMetricsRecordsNothing() {
+        Span querySpan = recorder.startQuerySpan(querySettings(null), "SELECT 1", null);
+        recorder.recordQuerySuccess(querySpan, null);
+        querySpan.end();
+        Span insertSpan = recorder.startInsertSpan(insertSettings(null), "t1", 1, null);
+        recorder.recordInsertSuccess(insertSpan, null);
+        insertSpan.end();
+
+        List<SpanData> spans = exporter.getFinishedSpanItems();
+        Assert.assertEquals(spans.size(), 2, "Unexpected spans: " + spans);
+        for (SpanData exported : spans) {
+            Assert.assertNull(stringAttribute(exported, SpanAttribute.CLICKHOUSE_QUERY_ID));
+            Assert.assertNull(longAttribute(exported, SpanAttribute.DB_RESPONSE_RETURNED_ROWS));
+            Assert.assertNull(longAttribute(exported, SpanAttribute.CLICKHOUSE_RESPONSE_WRITTEN_ROWS));
+            Assert.assertEquals(exported.getStatus().getStatusCode(), StatusCode.UNSET);
+        }
     }
 
     @Test
@@ -366,6 +450,25 @@ public class OpenTelemetrySpanRecorderUnitTest {
     @Test(expectedExceptions = IllegalArgumentException.class)
     public void testNullTracerIsRejected() {
         new OpenTelemetrySpanRecorder((Tracer) null);
+    }
+
+    @Test
+    public void testMetricsCreatedWithoutAKindReportUnknown() {
+        // the client always reports the kind; metrics created by user code may not know it
+        Assert.assertEquals(new OperationMetrics(new ClientStatisticsHolder()).getOperationType(),
+                OperationType.UNKNOWN);
+        Assert.assertEquals(new OperationMetrics(new ClientStatisticsHolder(), null).getOperationType(),
+                OperationType.UNKNOWN);
+        Assert.assertEquals(queryMetrics().getOperationType(), OperationType.QUERY);
+        Assert.assertEquals(insertMetrics().getOperationType(), OperationType.INSERT);
+    }
+
+    private OperationMetrics queryMetrics() {
+        return new OperationMetrics(new ClientStatisticsHolder(), OperationType.QUERY);
+    }
+
+    private OperationMetrics insertMetrics() {
+        return new OperationMetrics(new ClientStatisticsHolder(), OperationType.INSERT);
     }
 
     private QuerySettings querySettings(String queryId) {

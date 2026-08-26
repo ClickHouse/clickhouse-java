@@ -19,8 +19,39 @@ public class OperationMetrics {
 
     private final ClientStatisticsHolder clientStatistics;
 
+    private final OperationType operationType;
+
+    /**
+     * Creates metrics of an operation whose kind is not known - their
+     * {@link #getOperationType()} is {@link OperationType#UNKNOWN}. The client always reports the
+     * kind of the operation, so this constructor is only for metrics created by user code.
+     *
+     * @param clientStatisticsHolder - holder of the client-side statistics of the operation
+     */
     public OperationMetrics(ClientStatisticsHolder clientStatisticsHolder) {
+        this(clientStatisticsHolder, OperationType.UNKNOWN);
+    }
+
+    /**
+     * Creates metrics of an operation of the given kind.
+     *
+     * @param clientStatisticsHolder - holder of the client-side statistics of the operation
+     * @param operationType - kind of the operation; {@code null} is read as {@link OperationType#UNKNOWN}
+     */
+    public OperationMetrics(ClientStatisticsHolder clientStatisticsHolder, OperationType operationType) {
         this.clientStatistics = clientStatisticsHolder;
+        this.operationType = operationType == null ? OperationType.UNKNOWN : operationType;
+    }
+
+    /**
+     * Returns the kind of the operation these metrics were collected for. It tells which of the
+     * metrics are meaningful - a read operation reports what the server read and returned, an insert
+     * reports what it wrote.
+     *
+     * @return kind of the operation; never {@code null}
+     */
+    public OperationType getOperationType() {
+        return operationType;
     }
 
     public Metric getMetric(ServerMetrics metric) {
@@ -59,6 +90,7 @@ public class OperationMetrics {
     public String toString() {
         return "OperationStatistics{" +
                 "\"queryId\"=\"" + queryId + "\", " +
+                "\"operationType\"=\"" + operationType + "\", " +
                 "\"metrics\"=" + metrics +
                 '}';
     }

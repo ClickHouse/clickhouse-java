@@ -34,7 +34,14 @@
   `SpanSupport`, so all recorders that use it report the same information (statement text, target database and table, query id,
   statement parameters, batch size, the first configured endpoint on the operation span and the per-attempt
   server address and port on the request spans, HTTP status, returned rows, and the error type and ClickHouse
-  error code on failure). An operation span is started on the calling thread, so it joins
+  error code on failure). The outcome of a completed operation is reported per operation kind - `recordQuerySuccess`
+  for a read and `recordInsertSuccess` for an insert - because the metrics that describe a read are not the ones that
+  describe a write: a query reports `db.response.returned_rows`, `clickhouse.response.read_rows` and
+  `clickhouse.response.read_bytes`, an insert reports `clickhouse.response.written_rows` and
+  `clickhouse.response.written_bytes`. The same distinction is available on the metrics themselves through the new
+  `OperationMetrics#getOperationType()`, which returns the new `com.clickhouse.client.api.metrics.OperationType` -
+  the kind of the call the application made, so a command that writes is reported as a query.
+  An operation span is started on the calling thread, so it joins
   the caller's ambient trace even when the operation runs on the client's executor, and it is ended exactly once
   for every operation that starts. Previously the client exposed no hook for tracing, so an
   application could not attribute a query or a retried request to its own trace. When no recorder is registered

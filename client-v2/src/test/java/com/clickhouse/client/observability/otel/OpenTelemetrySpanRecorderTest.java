@@ -7,10 +7,13 @@ import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.enums.Protocol;
+import com.clickhouse.client.api.insert.InsertResponse;
+import com.clickhouse.client.api.metrics.OperationType;
 import com.clickhouse.client.api.observability.SpanAttribute;
 import com.clickhouse.client.api.observability.otel.OpenTelemetrySpanRecorder;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
+import com.clickhouse.data.ClickHouseFormat;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.api.trace.StatusCode;
@@ -24,6 +27,8 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
@@ -75,6 +80,7 @@ public class OpenTelemetrySpanRecorderTest extends BaseIntegrationTest {
         QuerySettings settings = new QuerySettings().waitEndOfQuery(true);
         try (QueryResponse response = client.query("SELECT id FROM " + TABLE + " ORDER BY id", settings).get()) {
             Assert.assertNotNull(response);
+            Assert.assertEquals(response.getMetrics().getOperationType(), OperationType.QUERY);
         }
 
         SpanData operation = spanByName("query " + database);
@@ -84,6 +90,11 @@ public class OpenTelemetrySpanRecorderTest extends BaseIntegrationTest {
         Assert.assertEquals(stringAttribute(operation, SpanAttribute.DB_QUERY_TEXT),
                 "SELECT id FROM " + TABLE + " ORDER BY id");
         Assert.assertEquals(longAttribute(operation, SpanAttribute.DB_RESPONSE_RETURNED_ROWS), Long.valueOf(3L));
+        Assert.assertEquals(longAttribute(operation, SpanAttribute.CLICKHOUSE_RESPONSE_READ_ROWS), Long.valueOf(3L));
+        Assert.assertNotNull(longAttribute(operation, SpanAttribute.CLICKHOUSE_RESPONSE_READ_BYTES));
+        // the query track does not report what an insert would
+        Assert.assertNull(longAttribute(operation, SpanAttribute.CLICKHOUSE_RESPONSE_WRITTEN_ROWS));
+        Assert.assertNull(longAttribute(operation, SpanAttribute.CLICKHOUSE_RESPONSE_WRITTEN_BYTES));
         Assert.assertNotNull(stringAttribute(operation, SpanAttribute.CLICKHOUSE_QUERY_ID));
         Assert.assertEquals(operation.getStatus().getStatusCode(), StatusCode.UNSET);
 
@@ -127,14 +138,40 @@ public class OpenTelemetrySpanRecorderTest extends BaseIntegrationTest {
         SpanRecorderPojo pojo = new SpanRecorderPojo();
         pojo.setId(4);
         pojo.setName("d");
-        client.insert(TABLE, java.util.Collections.singletonList(pojo)).get().close();
+        try (InsertResponse response = client.insert(TABLE, java.util.Collections.singletonList(pojo)).get()) {
+            Assert.assertEquals(response.getMetrics().getOperationType(), OperationType.INSERT);
+        }
 
         SpanData operation = spanByName("insert " + database + "." + TABLE);
         Assert.assertEquals(stringAttribute(operation, SpanAttribute.DB_OPERATION_NAME), "insert");
         Assert.assertEquals(stringAttribute(operation, SpanAttribute.DB_COLLECTION_NAME), TABLE);
         Assert.assertEquals(longAttribute(operation, SpanAttribute.DB_OPERATION_BATCH_SIZE), Long.valueOf(1L));
+        Assert.assertEquals(longAttribute(operation, SpanAttribute.CLICKHOUSE_RESPONSE_WRITTEN_ROWS), Long.valueOf(1L));
+        Assert.assertNotNull(longAttribute(operation, SpanAttribute.CLICKHOUSE_RESPONSE_WRITTEN_BYTES));
+        // the insert track does not report what a query would
+        Assert.assertNull(longAttribute(operation, SpanAttribute.DB_RESPONSE_RETURNED_ROWS));
+        Assert.assertNull(longAttribute(operation, SpanAttribute.CLICKHOUSE_RESPONSE_READ_ROWS));
         Assert.assertEquals(operation.getStatus().getStatusCode(), StatusCode.UNSET);
         Assert.assertEquals(spanByName("POST").getParentSpanId(), operation.getSpanId());
+    }
+
+    @Test(groups = {"integration"})
+    public void testStreamInsertExportsSpanWithWrittenRows() throws Exception {
+        // the second insert entry point: it does not know the batch size, but it reports the same
+        // insert track as a POJO insert
+        byte[] rows = "4,d\n5,e\n".getBytes(StandardCharsets.UTF_8);
+        try (InsertResponse response = client.insert(TABLE, new ByteArrayInputStream(rows),
+                ClickHouseFormat.CSV).get()) {
+            Assert.assertEquals(response.getMetrics().getOperationType(), OperationType.INSERT);
+        }
+
+        SpanData operation = spanByName("insert " + database + "." + TABLE);
+        Assert.assertEquals(longAttribute(operation, SpanAttribute.CLICKHOUSE_RESPONSE_WRITTEN_ROWS), Long.valueOf(2L));
+        Assert.assertNotNull(longAttribute(operation, SpanAttribute.CLICKHOUSE_RESPONSE_WRITTEN_BYTES));
+        Assert.assertNull(longAttribute(operation, SpanAttribute.DB_RESPONSE_RETURNED_ROWS));
+        Assert.assertNull(longAttribute(operation, SpanAttribute.DB_OPERATION_BATCH_SIZE),
+                "a stream insert does not know the batch size");
+        Assert.assertEquals(operation.getStatus().getStatusCode(), StatusCode.UNSET);
     }
 
     private SpanData spanByName(String name) {

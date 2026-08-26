@@ -136,8 +136,13 @@ public class OpenTelemetrySpanRecorder implements SpanRecorder {
     }
 
     @Override
-    public void recordSuccess(Span operationSpan, OperationMetrics metrics) {
-        spanSupport.recordSuccess(operationSpan, metrics);
+    public void recordQuerySuccess(Span operationSpan, OperationMetrics metrics) {
+        spanSupport.recordQuerySuccess(operationSpan, metrics);
+    }
+
+    @Override
+    public void recordInsertSuccess(Span operationSpan, OperationMetrics metrics) {
+        spanSupport.recordInsertSuccess(operationSpan, metrics);
     }
 
     @Override
