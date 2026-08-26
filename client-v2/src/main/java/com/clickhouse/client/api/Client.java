@@ -30,6 +30,7 @@ import com.clickhouse.client.api.metadata.DefaultColumnToMethodMatchingStrategy;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.metrics.ClientMetrics;
 import com.clickhouse.client.api.metrics.OperationMetrics;
+import com.clickhouse.client.api.metrics.OperationType;
 import com.clickhouse.client.api.observability.DefaultSpanRecorder;
 import com.clickhouse.client.api.observability.Span;
 import com.clickhouse.client.api.observability.SpanRecorder;
@@ -1532,9 +1533,10 @@ public class Client implements AutoCloseable {
 
                     try (TransportResponse transportResponse = httpClientHelper.executeRequest(transportRequest, operationSpan)) {
                         ClientStatisticsHolder clientStats = globalClientStats.remove(operationId);
-                        OperationMetrics metrics = completeOperation(transportResponse, clientStats, requestSettings.getQueryId());
+                        OperationMetrics metrics = completeOperation(transportResponse, clientStats,
+                                requestSettings.getQueryId(), OperationType.INSERT);
 
-                        spanRecorder.recordSuccess(operationSpan, metrics);
+                        spanRecorder.recordInsertSuccess(operationSpan, metrics);
                         return new InsertResponse(transportResponse, metrics);
                     } catch (Exception e) {
                         String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
@@ -1749,8 +1751,9 @@ public class Client implements AutoCloseable {
                     registerTransportReq(queryId, transportRequest);
 
                     try (TransportResponse transportResponse = httpClientHelper.executeRequest(transportRequest, operationSpan)) {
-                        OperationMetrics metrics = completeOperation(transportResponse, finalClientStats, requestSettings.getQueryId());
-                        spanRecorder.recordSuccess(operationSpan, metrics);
+                        OperationMetrics metrics = completeOperation(transportResponse, finalClientStats,
+                                requestSettings.getQueryId(), OperationType.INSERT);
+                        spanRecorder.recordInsertSuccess(operationSpan, metrics);
                         return new InsertResponse(transportResponse, metrics);
                     } catch (Exception e) {
                         String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
@@ -1895,13 +1898,14 @@ public class Client implements AutoCloseable {
                         TransportResponse transportResp = null;
                         try {
                             transportResp = httpClientHelper.executeRequest(request, operationSpan);
-                            OperationMetrics metrics = completeOperation(transportResp, clientStats, requestSettings.getQueryId());
+                            OperationMetrics metrics = completeOperation(transportResp, clientStats,
+                                    requestSettings.getQueryId(), OperationType.QUERY);
                             ClickHouseFormat responseFormat = transportResp.getDataFormat();
                             if (responseFormat == null) {
                                 responseFormat = requestSettings.getFormat();
                             }
 
-                            spanRecorder.recordSuccess(operationSpan, metrics);
+                            spanRecorder.recordQuerySuccess(operationSpan, metrics);
                             return new QueryResponse(transportResp, responseFormat, requestSettings, metrics);
 
                         } catch (Exception e) {
@@ -1999,8 +2003,9 @@ public class Client implements AutoCloseable {
         return query(sqlQuery, queryParams, null);
     }
 
-    private OperationMetrics completeOperation(TransportResponse transportResponse, ClientStatisticsHolder clientStats, String originalQueryId) {
-        OperationMetrics metrics = new OperationMetrics(clientStats);
+    private OperationMetrics completeOperation(TransportResponse transportResponse, ClientStatisticsHolder clientStats,
+                                               String originalQueryId, OperationType operationType) {
+        OperationMetrics metrics = new OperationMetrics(clientStats, operationType);
         String summary = transportResponse.getSummaryJson();
         ProcessParser.parseSummary(summary, metrics);
         String queryId = transportResponse.getQueryId();

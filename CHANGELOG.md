@@ -2,8 +2,30 @@
 
 [Release Migration Guide](docs/releases/0_11_0.md)
 
+### Breaking Changes
+
+- **[client-v2]** `com.clickhouse.client.api.metrics.OperationMetrics` now has a single constructor,
+  `OperationMetrics(ClientStatisticsHolder, OperationType)`; the constructor without an operation type was removed.
+  Metrics are created by the client, which always knows the kind of the operation it runs, and the constructor takes
+  an internal type (`com.clickhouse.client.api.internal.ClientStatisticsHolder`), so application code is not expected
+  to call it. (https://github.com/ClickHouse/clickhouse-java/issues/2974)
+
 ### New Features
 
+- **[client-v2]** Added an OpenTelemetry implementation of the observability SPI.
+  `Client.Builder.setSpanRecorder(new OpenTelemetrySpanRecorder(openTelemetry))`
+  reports every client operation and every transport request as an OpenTelemetry `CLIENT` span: an operation span is
+  started as a child of the current OpenTelemetry context, so it joins the application's own trace, and each request
+  span - including one per retry - is a child of its operation span. Span names and attribute keys are the standard
+  ones of the SPI (the recorder derives them through `SpanSupport`), every value is recorded with the OpenTelemetry
+  attribute type that matches it, and a failure sets the span status to `ERROR` and is recorded as an OpenTelemetry
+  exception event next to the `error.type` and `db.response.status_code` attributes. The recorder reports to a
+  supplied `OpenTelemetry` instance, to a `Tracer` given to `new OpenTelemetrySpanRecorder(Tracer)`, or to
+  `GlobalOpenTelemetry` - read when a span is started - when constructed without arguments. Previously an application that wanted
+  OpenTelemetry spans had to write that mapping itself. The OpenTelemetry API is a compile-only dependency of
+  `client-v2`: the recorder is used only by an application that already provides `opentelemetry-api` at runtime, so
+  nothing is added to the classpath of a client that does not use it.
+  (https://github.com/ClickHouse/clickhouse-java/issues/2974)
 - **[client-v2]** Added an observability SPI that lets an application observe client operations as spans.
   `Client.Builder.setSpanRecorder(SpanRecorder)` registers a backend-agnostic recorder from the new
   `com.clickhouse.client.api.observability` package: each operation (a query, a command or an insert - including
@@ -20,12 +42,19 @@
   `SpanSupport`, so all recorders that use it report the same information (statement text, target database and table, query id,
   statement parameters, batch size, the first configured endpoint on the operation span and the per-attempt
   server address and port on the request spans, HTTP status, returned rows, and the error type and ClickHouse
-  error code on failure). An operation span is started on the calling thread, so it joins
+  error code on failure). The outcome of a completed operation is reported per operation kind - `recordQuerySuccess`
+  for a read and `recordInsertSuccess` for an insert - because the metrics that describe a read are not the ones that
+  describe a write: a query reports `db.response.returned_rows`, `clickhouse.response.read_rows` and
+  `clickhouse.response.read_bytes`, an insert reports `clickhouse.response.written_rows` and
+  `clickhouse.response.written_bytes`. The same distinction is available on the metrics themselves through the new
+  `OperationMetrics#getOperationType()`, which returns the new `com.clickhouse.client.api.metrics.OperationType` -
+  the kind of the call the application made, so a command that writes is reported as a query.
+  An operation span is started on the calling thread, so it joins
   the caller's ambient trace even when the operation runs on the client's executor, and it is ended exactly once
   for every operation that starts. Previously the client exposed no hook for tracing, so an
   application could not attribute a query or a retried request to its own trace. When no recorder is registered
   nothing is recorded and no span-related work is done, so the default path is unchanged. An OpenTelemetry
-  implementation of the SPI follows in a separate module.
+  implementation of the SPI is available as `OpenTelemetrySpanRecorder`.
   (https://github.com/ClickHouse/clickhouse-java/issues/2974)
 - **[client-v2, jdbc-v2]** Added support for the `BFloat16` data type (ClickHouse `24.11+`). `BFloat16` columns are read as
   Java `float` values (widening is lossless) and written from `float`/`Float` values, including through generic records, POJO
