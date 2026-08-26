@@ -663,6 +663,87 @@ public class BinaryStreamReader {
     }
 
     /**
+     * Reads a plain, non-strided {@code QBit(Float32|Float64|BFloat16, dimension)} column from the
+     * Native format, reversing the server's bit-plane transpose into one vector per row. Values match
+     * the RowBinary path ({@link #readQBit}), so a {@code QBit} round-trips equally through either
+     * format. See {@code docs/qbit-encoding.md} for the wire layout and the transpose math.
+     *
+     * @param column QBit column information (element type in the nested column, dimension in precision)
+     * @param nRows  number of rows in the current block
+     * @return one materialized vector per row, in row order
+     * @throws IOException when an IO error occurs
+     */
+    public List<Object> readQBitNative(ClickHouseColumn column, int nRows) throws IOException {
+        ClickHouseDataType elementType = column.getNestedColumns().get(0).getDataType();
+        final boolean isDouble = elementType == ClickHouseDataType.Float64;
+        final boolean isBFloat16 = elementType == ClickHouseDataType.BFloat16;
+        if (!isDouble && !isBFloat16 && elementType != ClickHouseDataType.Float32) {
+            throw new ClientException("QBit Native decoding supports only Float32, Float64 and BFloat16 "
+                    + "element types, got: " + elementType);
+        }
+
+        final int elementBits = elementType.getByteLength() * 8; // 16 (BFloat16), 32 (Float32), 64 (Float64)
+        final int dimension = column.getPrecision();
+        final int bytesPerPlane = (dimension + 7) / 8;
+        final int totalBits = bytesPerPlane * 8;
+
+        // Planes are column-major: each holds nRows * bytesPerPlane bytes (docs/qbit-encoding.md).
+        // Size it in a long and guard against int overflow, since both factors come off the wire.
+        final long planeBytesLong = (long) nRows * bytesPerPlane;
+        if (planeBytesLong > Integer.MAX_VALUE) {
+            throw new ClientException("QBit Native block too large to decode: " + nRows + " rows x "
+                    + bytesPerPlane + " bytes per bit plane exceeds the maximum array size ("
+                    + Integer.MAX_VALUE + ")");
+        }
+        final int planeBytes = (int) planeBytesLong;
+        byte[][] planes = new byte[elementBits][];
+        for (int p = 0; p < elementBits; p++) {
+            planes[p] = readNBytes(input, planeBytes);
+        }
+
+        // Per-element byte offset and bit mask within a plane row (docs/qbit-encoding.md).
+        int[] elementByte = new int[dimension];
+        int[] elementMask = new int[dimension];
+        for (int j = 0; j < dimension; j++) {
+            int bitIndex = (totalBits - 1) - (j ^ 7);
+            elementByte[j] = bitIndex >> 3;
+            elementMask[j] = 1 << (bitIndex & 7);
+        }
+
+        List<Object> values = new ArrayList<>(nRows);
+        for (int r = 0; r < nRows; r++) {
+            final int rowBase = r * bytesPerPlane;
+            long[] bits = new long[dimension];
+            for (int p = 0; p < elementBits; p++) {
+                final byte[] plane = planes[p];
+                final long planeBit = 1L << (elementBits - 1 - p);
+                for (int j = 0; j < dimension; j++) {
+                    if ((plane[rowBase + elementByte[j]] & elementMask[j]) != 0) {
+                        bits[j] |= planeBit;
+                    }
+                }
+            }
+
+            ArrayValue vector;
+            if (isDouble) {
+                vector = new ArrayValue(double.class, dimension);
+                for (int j = 0; j < dimension; j++) {
+                    vector.set(j, Double.longBitsToDouble(bits[j]));
+                }
+            } else {
+                vector = new ArrayValue(float.class, dimension);
+                for (int j = 0; j < dimension; j++) {
+                    // BFloat16 carries the high 16 bits of a Float32; widen it the same way readBFloat16LE does.
+                    int intBits = isBFloat16 ? ((int) bits[j] << 16) : (int) bits[j];
+                    vector.set(j, Float.intBitsToFloat(intBits));
+                }
+            }
+            values.add(convertArray(vector, arrayDefaultTypeHint));
+        }
+        return values;
+    }
+
+    /**
      * Reads a array into an ArrayValue object.
      * @param column - column information
      * @return array value
