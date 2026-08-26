@@ -12,6 +12,23 @@
 
 ### New Features
 
+- **[client-v2, jdbc-v2]** Added a metrics SPI that lets an application export the metrics of client operations to any
+  metrics backend. `Client.Builder.setMetricsRecorder(MetricsRecorder)` registers a backend-agnostic recorder from the
+  `com.clickhouse.client.api.observability` package, and the jdbc-v2 property `jdbc_metrics_recorder` names the recorder
+  class a connection registers with its own client. Previously the client collected operation metrics but only returned
+  them to the caller, so exporting them was left to the application. Each completed operation reports exactly one
+  success or one failure event, and each retried attempt reports a retry event, which gives the operation duration, the
+  serialization duration, the number of operations by outcome and the number of retries. The SPI follows the pattern of
+  the span SPI: an implementation extends the `DefaultMetricsRecorder` base class and overrides only what it cares
+  about, so it keeps working when the client starts reporting an event it does not know about, and the reusable
+  `MetricsSupport` class derives the standard values from the same structures, so its logic is opt-in and overridable.
+  Metric names, units and attribute keys follow the OpenTelemetry semantic conventions for database clients where a
+  convention exists and are placed under `clickhouse.` where it does not; they are defined by the `MetricName` and
+  `MetricAttribute` enums, durations are reported in seconds, and a duration the client did not measure is reported as
+  `MetricsSupport.DURATION_UNKNOWN` instead of a made-up value. The metric attributes are deliberately a smaller set
+  than the span attributes, because an attribute of a metric becomes a time series: the statement text, the query id and
+  the statement parameters stay on spans. Nothing is recorded and no metrics-related work is done when no recorder is
+  registered. (https://github.com/ClickHouse/clickhouse-java/issues/2975)
 - **[client-v2]** Added an OpenTelemetry implementation of the observability SPI.
   `Client.Builder.setSpanRecorder(new OpenTelemetrySpanRecorder(openTelemetry))`
   reports every client operation and every transport request as an OpenTelemetry `CLIENT` span: an operation span is
