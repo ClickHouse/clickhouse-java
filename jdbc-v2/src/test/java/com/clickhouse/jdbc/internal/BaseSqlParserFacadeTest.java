@@ -257,6 +257,63 @@ public abstract class BaseSqlParserFacadeTest {
         Assert.assertEquals(stmt.getTable(), expectedTableName, "Table name mismatch for: " + sql);
     }
 
+    @Test(dataProvider = "antlr4HeredocStatementsDP")
+    public void testHeredocStatementsAntlr4Only(String sql, boolean insert, String expectedTable,
+                                                String expectedValuesList, int expectedArgCount) {
+        // The JavaCC lexer has no heredoc token yet, so these expectations only hold for the
+        // ANTLR4 backends.
+        if (javaCcBackend) {
+            return;
+        }
+        ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
+        Assert.assertFalse(stmt.isHasErrors(), "Query should parse without errors: " + sql);
+        Assert.assertEquals(stmt.isInsert(), insert, "Insert type mismatch for: " + sql);
+        Assert.assertEquals(stmt.isHasResultSet(), !insert, "Result set flag mismatch for: " + sql);
+        Assert.assertEquals(stmt.getTable(), expectedTable, "Table name mismatch for: " + sql);
+        Assert.assertEquals(stmt.getArgCount(), expectedArgCount, "Parameter count mismatch for: " + sql);
+        if (expectedValuesList == null) {
+            Assert.assertEquals(stmt.getAssignValuesListStartPosition(), -1, "Should have no values list: " + sql);
+        } else {
+            Assert.assertEquals(sql.substring(stmt.getAssignValuesListStartPosition(),
+                            stmt.getAssignValuesListStopPosition() + 1), expectedValuesList,
+                    "Values list mismatch for: " + sql);
+        }
+    }
+
+    @DataProvider
+    public static Object[][] antlr4HeredocStatementsDP() {
+        return new Object[][] {
+                // A heredoc body is opaque: a statement separator in it must not end the statement
+                {"INSERT INTO t VALUES ($$a;b$$, 1)", true, "t", "($$a;b$$, 1)", 0},
+                // Empty body
+                {"INSERT INTO t VALUES ($$$$, 1)", true, "t", "($$$$, 1)", 0},
+                // The untagged form ends at the first '$$', so a single '$' is part of the body
+                {"INSERT INTO t VALUES ($$a$b$$, 1)", true, "t", "($$a$b$$, 1)", 0},
+                // Tagged form
+                {"INSERT INTO t (c1, c2) VALUES ($tag_1$a;b$tag_1$, 1)", true, "t", "($tag_1$a;b$tag_1$, 1)", 0},
+                // Parentheses and commas in a body must not shift the values list positions
+                {"INSERT INTO t VALUES ($$a(b,c)$$, 1)", true, "t", "($$a(b,c)$$, 1)", 0},
+                // Two heredocs in one values list are two separate literals
+                {"INSERT INTO t VALUES ($$a;b$$, $$c;d$$)", true, "t", "($$a;b$$, $$c;d$$)", 0},
+                // A heredoc value next to a parameter placeholder
+                {"INSERT INTO t VALUES ($$a;b$$, ?)", true, "t", "($$a;b$$, ?)", 1},
+                // A body may span lines
+                {"INSERT INTO t VALUES ($$line1\nline2$$, 1)", true, "t", "($$line1\nline2$$, 1)", 0},
+                // Several value groups
+                {"INSERT INTO t VALUES ($$a;b$$, 1), ($$c;d$$, 2)", true, "t", "($$c;d$$, 2)", 0},
+                // A heredoc is a value expression anywhere a string literal is accepted
+                {"SELECT $$a;b$$ AS x FROM t", false, "t", null, 0},
+                // Contrast: an unterminated tag is not a heredoc and stays an identifier
+                {"SELECT $foo$bar FROM t", false, "t", null, 0},
+                {"SELECT 1 AS a$b FROM t", false, "t", null, 0},
+                // Contrast: a tag that continues an identifier belongs to that identifier
+                {"SELECT 1 AS t$$a$$ FROM t", false, "t", null, 0},
+                // Contrast: a quoted string literal keeps its existing handling
+                {"INSERT INTO t VALUES ('a;b', 1)", true, "t", "('a;b', 1)", 0},
+                {"INSERT INTO t VALUES ('a;b', 1), ('c;d', 2)", true, "t", "('c;d', 2)", 0},
+        };
+    }
+
     @Test
     public void testInsertColumnNamesAreUnescaped() {
         /*
@@ -408,6 +465,9 @@ public abstract class BaseSqlParserFacadeTest {
                 {"CREATE TABLE check_query_log (N UInt32,S String) Engine = MergeTree", 0},
                 {"CREATE TABLE check_query_log (N UInt32,S String) Engine = ReplacingMergeTree", 0},
                 {"select abs(log(e()) - 1) < 1e-8", 0},
+                {"--\nselect count(*) from numbers(10) where number = ?", 1},
+                {"select count(*) from (\n--\nselect 1 as a) x where x.a = ?", 1},
+                {"select count(*) from ( select * EXCEPT (b), b as c from ( select 1 as a, 2 as b ) ) x where x.a = ?", 1},
                 {"SELECT SearchEngineID, ClientIP, count() AS c, sum(Refresh), avg(ResolutionWidth) " +
                         " FROM test.hits_s3 WHERE SearchPhrase != '' GROUP BY SearchEngineID, ClientIP " +
                         "   ORDER BY c DESC LIMIT 10", 0},

@@ -75,6 +75,10 @@
   the remaining values were substituted at the wrong offsets. The placeholders are now re-derived from the original SQL
   when the statement could not be parsed without errors, as the other two backends always do.
   (https://github.com/ClickHouse/clickhouse-java/issues/3025)
+- **[client-v2, jdbc-v2]** Fixed `Client.getTableSchema(...)`, `Client.getTableSchemaFromQuery(...)` and `ping()`
+  failing against ClickHouse `26.8+`, where the `X-ClickHouse-Format` header the client sends wins over a `FORMAT`
+  clause in the query. These internal queries now set their format in the settings instead of a `FORMAT` clause.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3068)
 - **[jdbc-v2]** Fixed an `INSERT` whose values list holds a function call the bundled `ANTLR4` grammar cannot match -
   such as `hex(x'AB')`, valid ClickHouse the grammar has no hex string literal for - being reported to hold no function
   call when an `ANTLR4` parser backend is selected (`jdbc_sql_parser=ANTLR4` / `ANTLR4_PARAMS_PARSER`). Function calls in
@@ -110,6 +114,9 @@
   inserted data or failing with a server-side `SYNTAX_ERROR`. Escape sequences are now recognized only outside of quoted
   text, and a `{fn ...}` escape is unwrapped at its matching closing brace, so nested braces (e.g. a `{name:Type}` query
   parameter or a nested escape) stay balanced. (https://github.com/ClickHouse/clickhouse-java/issues/2995)
+- **[jdbc-v2]** Fixed prepared statements losing parameter markers after an empty `--` comment line or after
+  `SELECT * EXCEPT (...)`, which caused parameter binding to fail with `ArrayIndexOutOfBoundsException` for the
+  affected SQL parser backends. (https://github.com/ClickHouse/clickhouse-java/issues/3052)
 - **[client-v2]** Fixed LZ4 input streams not closing their underlying HTTP response stream. Closing an LZ4 stream
   returned by `QueryResponse.getInputStream()` now releases the wrapped transport stream, including after a partial
   read. (https://github.com/ClickHouse/clickhouse-java/issues/2985)
@@ -188,6 +195,17 @@
 - **[client-v2]** Fixed `DateTime`/`DateTime64` columns declared with a synthetic fixed-offset timezone name
   (`Fixed/UTC±HH:MM:SS`, e.g. `Fixed/UTC+05:30:00`) being silently read in UTC instead of the declared offset. The
   `RowBinary` reader now recovers the offset from the column's declared type. (https://github.com/ClickHouse/clickhouse-java/issues/2876)
+
+- **[jdbc-v2]** Fixed the ANTLR4 SQL parser backends (`jdbc_sql_parser=ANTLR4` and `ANTLR4_PARAMS_PARSER`) lexing
+  the body of a heredoc string (`$$body$$`, `$tag$body$tag$`) as ordinary SQL. The lexer had no heredoc token, so
+  every `$` was dropped as an unrecognized character and the body was parsed as identifiers, operators and
+  statement separators: a body that still looked like valid SQL was silently mis-parsed (wrong table name and
+  VALUES-list positions), and a body containing `;` — as well as the empty heredoc `$$$$` — was reported as a
+  parse error, which classifies an INSERT as a result-set-bearing statement with no values-list positions. A
+  heredoc is now lexed as a single string literal and accepted as a literal value (`INSERT ... VALUES` lists,
+  column expressions, settings), and a `$` inside an identifier (`a$b`, or an unterminated tag such as
+  `$foo$bar`) is part of the identifier, as the server reads it.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3031)
 
 - **[jdbc-v2]** Fixed the beta RowBinary writer (`DriverProperties.BETA_ROW_BINARY_WRITER`) throwing
   `NoSuchColumnException` for `INSERT` statements whose column names are backtick-quoted, in particular the
