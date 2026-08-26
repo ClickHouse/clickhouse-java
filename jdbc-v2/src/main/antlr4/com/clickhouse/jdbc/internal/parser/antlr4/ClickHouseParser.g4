@@ -1051,10 +1051,15 @@ columnExprList
     ;
 
 columnsExpr
-    : (tableIdentifier DOT)? ASTERISK # ColumnsExprAsterisk
+    : (tableIdentifier DOT)? ASTERISK columnExceptExpr? # ColumnsExprAsterisk
     | LPAREN selectUnionStmt RPAREN   # ColumnsExprSubquery
     // NOTE: asterisk and subquery goes before |columnExpr| so that we can mark them as multi-column expressions.
     | columnExpr # ColumnsExprColumn
+    ;
+
+columnExceptExpr
+    : EXCEPT (STRING_LITERAL | (LPAREN STRING_LITERAL RPAREN))                         # ColumnExceptExprRegexp
+    | EXCEPT (identifier | (LPAREN identifier (COMMA identifier)* RPAREN))             # ColumnExceptExprIdentifiers
     ;
 
 columnExpr
@@ -1198,6 +1203,7 @@ numberLiteral
 literal
     : numberLiteral
     | STRING_LITERAL
+    | HEREDOC_LITERAL
     | NULL_SQL
     ;
 
