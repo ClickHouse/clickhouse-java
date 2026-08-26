@@ -1203,6 +1203,7 @@ numberLiteral
 literal
     : numberLiteral
     | STRING_LITERAL
+    | HEREDOC_LITERAL
     | NULL_SQL
     ;
 
