@@ -508,7 +508,7 @@ UNDERSCORE   : '_';
 // Comments and whitespace
 
 MULTI_LINE_COMMENT  : '/*'                                     -> skip, pushMode(IN_MULTI_LINE_COMMENT);
-SINGLE_LINE_COMMENT : ('--' | '#!' | '#') ~('\n' | '\r')* ('\n' | '\r' | EOF) -> skip;
+SINGLE_LINE_COMMENT : ('--' | '//' | '#!' | '#') ~('\n' | '\r')* ('\n' | '\r' | EOF) -> skip;
 WHITESPACE          : [ \u000B\u000C\t\r\n]                    -> skip; // '\n' can be part of multiline single query
 
 // Block comments nest, as they do on the server: the mode stack holds the nesting level, so only the
@@ -518,6 +518,3 @@ mode IN_MULTI_LINE_COMMENT;
 NESTED_MULTI_LINE_COMMENT : '/*' -> skip, pushMode(IN_MULTI_LINE_COMMENT);
 MULTI_LINE_COMMENT_END    : '*/' -> skip, popMode;
 MULTI_LINE_COMMENT_BODY   : .    -> skip;
-MULTI_LINE_COMMENT  : '/*' .*? '*/'                            -> skip;
-SINGLE_LINE_COMMENT : ('--' | '//' | '#!' | '#') ~('\n' | '\r')* ('\n' | '\r' | EOF) -> skip;
-WHITESPACE          : [ \u000B\u000C\t\r\n]                    -> skip; // '\n' can be part of multiline single query
