@@ -116,7 +116,7 @@ public class SpanRecorderTest extends BaseIntegrationTest {
         // implements on top of a query
         CapturedSpan operationSpan = recorder.operationSpan();
         Assert.assertEquals(operationSpan.getName(), "query " + database);
-        Assert.assertEquals(operationSpan.getAttribute(SpanAttribute.DB_QUERY_TEXT), "SELECT 1 FORMAT TabSeparated");
+        Assert.assertEquals(operationSpan.getAttribute(SpanAttribute.DB_QUERY_TEXT), "SELECT 1");
         Assert.assertNull(operationSpan.getAttribute(SpanAttribute.DB_OPERATION_NAME));
         Assert.assertNull(operationSpan.getAttribute(SpanAttribute.DB_COLLECTION_NAME));
         Assert.assertEquals(operationSpan.getEndCount(), 1);
@@ -143,7 +143,7 @@ public class SpanRecorderTest extends BaseIntegrationTest {
         CapturedSpan operationSpan = recorder.operationSpan();
         Assert.assertEquals(operationSpan.getName(), "query " + database);
         Assert.assertEquals(operationSpan.getAttribute(SpanAttribute.DB_QUERY_TEXT),
-                "DESCRIBE TABLE " + TABLE + " FORMAT TSKV");
+                "DESCRIBE TABLE " + TABLE);
         Assert.assertNull(operationSpan.getAttribute(SpanAttribute.DB_OPERATION_NAME));
         Assert.assertNull(operationSpan.getAttribute(SpanAttribute.DB_COLLECTION_NAME));
         Assert.assertEquals(operationSpan.getEndCount(), 1);
@@ -157,7 +157,7 @@ public class SpanRecorderTest extends BaseIntegrationTest {
         CapturedSpan operationSpan = recorder.operationSpan();
         Assert.assertEquals(operationSpan.getName(), "query " + database);
         Assert.assertEquals(operationSpan.getAttribute(SpanAttribute.DB_QUERY_TEXT),
-                "DESC (SELECT id FROM " + TABLE + ") FORMAT TSKV");
+                "DESC (SELECT id FROM " + TABLE + ")");
         Assert.assertNull(operationSpan.getAttribute(SpanAttribute.DB_OPERATION_NAME));
         Assert.assertEquals(operationSpan.getEndCount(), 1);
     }
