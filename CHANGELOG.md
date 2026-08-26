@@ -67,6 +67,14 @@
 
 ### Bug Fixes 
 
+- **[jdbc-v2]** Fixed `?` parameter placeholders being lost when `jdbc_sql_parser=ANTLR4_PARAMS_PARSER` is selected and
+  the bundled grammar cannot match part of the statement - a JDBC escape sequence (`{d '...'}`), or valid ClickHouse
+  syntax the grammar does not cover such as a hex string literal (`hex(x'AB')`). That backend read the placeholders only
+  from the parse tree, and the tokens error recovery skips are not part of it, so a placeholder inside such an expression
+  was dropped: `getParameterMetaData().getParameterCount()` was too low, `setXxx` for a dropped placeholder failed, and
+  the remaining values were substituted at the wrong offsets. The placeholders are now re-derived from the original SQL
+  when the statement could not be parsed without errors, as the other two backends always do.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3025)
 - **[client-v2, jdbc-v2]** Fixed `Client.getTableSchema(...)`, `Client.getTableSchemaFromQuery(...)` and `ping()`
   failing against ClickHouse `26.8+`, where the `X-ClickHouse-Format` header the client sends wins over a `FORMAT`
   clause in the query. These internal queries now set their format in the settings instead of a `FORMAT` clause.
