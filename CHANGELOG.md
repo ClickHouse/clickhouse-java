@@ -101,6 +101,13 @@
 
 ### Bug Fixes 
 
+- **[jdbc-v2]** Fixed `PreparedStatement.getMetaData()` losing the result-set schema for a statement whose SQL
+  contains a comment. The `DESCRIBE` query used to resolve the metadata was built by re-scanning the SQL with a
+  regex that knew only quoted tokens, so a `?` inside a `--` / `#` / `/* */` comment was rewritten to `NULL` and
+  an odd `'` inside a comment mis-paired the quote alternative, leaving a real placeholder unreplaced — the
+  `DESCRIBE` then failed and the driver silently returned untyped metadata. The metadata query is now built from
+  the placeholder positions the statement parser already computed, so it always matches the SQL that a
+  parameterized execution produces. (https://github.com/ClickHouse/clickhouse-java/issues/3011)
 - **[client-v2]** Fixed reading a `UInt64` column into a **primitive** POJO field (e.g. `long`) always failing with
   `ClassCastException: BinaryStreamReader cannot be cast to java.math.BigInteger`. The compiled setter for that
   combination never emitted a read call, so it cast the reader itself instead of a value and consumed nothing from the
