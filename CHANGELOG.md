@@ -2,8 +2,30 @@
 
 [Release Migration Guide](docs/releases/0_11_0.md)
 
+### Breaking Changes
+
+- **[client-v2]** `com.clickhouse.client.api.metrics.OperationMetrics` now has a single constructor,
+  `OperationMetrics(ClientStatisticsHolder, OperationType)`; the constructor without an operation type was removed.
+  Metrics are created by the client, which always knows the kind of the operation it runs, and the constructor takes
+  an internal type (`com.clickhouse.client.api.internal.ClientStatisticsHolder`), so application code is not expected
+  to call it. (https://github.com/ClickHouse/clickhouse-java/issues/2974)
+
 ### New Features
 
+- **[client-v2]** Added an OpenTelemetry implementation of the observability SPI.
+  `Client.Builder.setSpanRecorder(new OpenTelemetrySpanRecorder(openTelemetry))`
+  reports every client operation and every transport request as an OpenTelemetry `CLIENT` span: an operation span is
+  started as a child of the current OpenTelemetry context, so it joins the application's own trace, and each request
+  span - including one per retry - is a child of its operation span. Span names and attribute keys are the standard
+  ones of the SPI (the recorder derives them through `SpanSupport`), every value is recorded with the OpenTelemetry
+  attribute type that matches it, and a failure sets the span status to `ERROR` and is recorded as an OpenTelemetry
+  exception event next to the `error.type` and `db.response.status_code` attributes. The recorder reports to a
+  supplied `OpenTelemetry` instance, to a `Tracer` given to `new OpenTelemetrySpanRecorder(Tracer)`, or to
+  `GlobalOpenTelemetry` - read when a span is started - when constructed without arguments. Previously an application that wanted
+  OpenTelemetry spans had to write that mapping itself. The OpenTelemetry API is a compile-only dependency of
+  `client-v2`: the recorder is used only by an application that already provides `opentelemetry-api` at runtime, so
+  nothing is added to the classpath of a client that does not use it.
+  (https://github.com/ClickHouse/clickhouse-java/issues/2974)
 - **[client-v2]** Added an observability SPI that lets an application observe client operations as spans.
   `Client.Builder.setSpanRecorder(SpanRecorder)` registers a backend-agnostic recorder from the new
   `com.clickhouse.client.api.observability` package: each operation (a query, a command or an insert - including
@@ -20,12 +42,19 @@
   `SpanSupport`, so all recorders that use it report the same information (statement text, target database and table, query id,
   statement parameters, batch size, the first configured endpoint on the operation span and the per-attempt
   server address and port on the request spans, HTTP status, returned rows, and the error type and ClickHouse
-  error code on failure). An operation span is started on the calling thread, so it joins
+  error code on failure). The outcome of a completed operation is reported per operation kind - `recordQuerySuccess`
+  for a read and `recordInsertSuccess` for an insert - because the metrics that describe a read are not the ones that
+  describe a write: a query reports `db.response.returned_rows`, `clickhouse.response.read_rows` and
+  `clickhouse.response.read_bytes`, an insert reports `clickhouse.response.written_rows` and
+  `clickhouse.response.written_bytes`. The same distinction is available on the metrics themselves through the new
+  `OperationMetrics#getOperationType()`, which returns the new `com.clickhouse.client.api.metrics.OperationType` -
+  the kind of the call the application made, so a command that writes is reported as a query.
+  An operation span is started on the calling thread, so it joins
   the caller's ambient trace even when the operation runs on the client's executor, and it is ended exactly once
   for every operation that starts. Previously the client exposed no hook for tracing, so an
   application could not attribute a query or a retried request to its own trace. When no recorder is registered
   nothing is recorded and no span-related work is done, so the default path is unchanged. An OpenTelemetry
-  implementation of the SPI follows in a separate module.
+  implementation of the SPI is available as `OpenTelemetrySpanRecorder`.
   (https://github.com/ClickHouse/clickhouse-java/issues/2974)
 - **[client-v2, jdbc-v2]** Added support for the `BFloat16` data type (ClickHouse `24.11+`). `BFloat16` columns are read as
   Java `float` values (widening is lossless) and written from `float`/`Float` values, including through generic records, POJO
@@ -46,8 +75,13 @@
   binary type encoding is read back to the concrete `QBit(...)` type). In the
   JDBC driver (`jdbc-v2`) `QBit` maps to `java.sql.Types.ARRAY` and is returned as a `java.sql.Array` from
   `getObject`/`getArray`. Previously `QBit` was an unimplemented type constant and reading or writing such a column
-  failed. Reading `QBit` through the `Native` output format is not supported — the server transmits it there using a
-  different internal layout — and fails fast with a clear error; use a `RowBinary` format instead.
+  failed. A plain top-level `QBit` column with a `Float32`, `Float64`, or `BFloat16` element type is also read through
+  the `Native` output format: there the server transmits it using its internal bit-plane-transposed
+  `Tuple(FixedString(...))` layout, and the client reverses that transposition to reconstruct the same
+  `float[]`/`double[]` vector as `RowBinary`. A `QBit` that is strided (`QBit(element_type, dimension, stride)`),
+  wrapped in `Nullable`/`LowCardinality`, nested inside another type (e.g. `Array`/`Tuple`/`Map(String, QBit(...))`),
+  or carrying any other element type is not yet decoded over `Native` and fails fast with a clear error directing you
+  to a `RowBinary` format such as `RowBinaryWithNamesAndTypes`.
   (https://github.com/ClickHouse/clickhouse-java/issues/2610)
 - **[client-v2, jdbc-v2]** Added TLS cipher suite selection. `Client.Builder.setSSLCipherSuites(String...)` (client-v2)
   and the comma-separated `ssl_cipher_suites` connection property (client-v2 and jdbc-v2) restrict the cipher suites
@@ -75,6 +109,66 @@
   narrowing conversion does (a `long` holds every `UInt64` value bit-for-bit and can be read back with
   `Long.toUnsignedString(long)`; a `boolean` is `true` for any non-zero value). Boxed fields (`BigInteger`, `Long`) are
   unaffected. (https://github.com/ClickHouse/clickhouse-java/issues/2996)
+- **[jdbc-v2]** Fixed `ResultSetMetaData.getPrecision()` and `getScale()` returning `0` for columns wrapped in
+  `SimpleAggregateFunction(func, T)`. The wrapper is transparent on the read path (values are read as plain `T`), but
+  both accessors described the wrapper itself, which carries no precision or scale — so a
+  `SimpleAggregateFunction(sum, Decimal(18, 4))` column looked like a scale-0 value and
+  `SimpleAggregateFunction(any, DateTime64(3, tz))` looked like second precision. They now describe the nested type.
+  `AggregateFunction` columns are unchanged, since their values are aggregation states rather than values of the
+  nested type. (https://github.com/ClickHouse/clickhouse-java/issues/3042)
+- **[clickhouse-jdbc]** Fixed `Connection#prepareStatement` throwing a `NullPointerException` for an
+  `INSERT ... VALUES (...)` statement whose values list the JavaCC parser cannot parse — most commonly one
+  containing a heredoc string (`$$...$$`), which the grammar has no token for, but also any other unparsable token
+  inside the list. The parser's error recovery left the values list's start position recorded without its matching end
+  position, which was then unboxed unguarded. Both positions are now dropped together, so the driver falls back to its
+  generic parameter-substitution path instead of failing, and a statement such as
+  `insert into t values ($$a@b$$, ?)` is prepared and executed successfully.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3033)
+- **[jdbc-v2]** Fixed the ANTLR4 lexer not nesting `/* */` block comments. ClickHouse (and the JavaCC parser backend)
+  raise the nesting level on an inner `/*` and close the comment only at the matching `*/`, while the ANTLR4 lexer ended
+  the comment at the first `*/` and lexed the rest of it as SQL. With the `ANTLR4` / `ANTLR4_PARAMS_PARSER` backends this
+  made statements the server accepts (e.g. `SELECT 1 /* ) /* ) */ ) */, 2`) report syntax errors, and made
+  `ANTLR4_PARAMS_PARSER` count a `?` inside the nested part of a comment as a bind parameter. Comments that do not nest
+  are unaffected; an unterminated block comment is now skipped to the end of the statement instead of being lexed as
+  stray tokens. (https://github.com/ClickHouse/clickhouse-java/issues/3021)
+- **[client-v2]** Fixed reading a `SimpleAggregateFunction(func, T)` value held in a `Dynamic` column. The binary type
+  encoding of such a value (`0x2E <function_name> <parameters> <arguments> <argument_type_encodings>`) was not consumed
+  at all, so the read failed with `IndexOutOfBoundsException`, and the unconsumed encoding bytes would otherwise have
+  been interpreted as row data and desynchronized the rest of the `RowBinary` stream. The concrete type is now
+  reconstructed from the encoding and the value is read as its argument type `T`, so it reads exactly like the same
+  value in a plain `SimpleAggregateFunction` column. (https://github.com/ClickHouse/clickhouse-java/issues/3005)
+- **[jdbc-v2]** Fixed `PreparedStatement#executeBatch` sending a syntactically broken `INSERT` when an `ANTLR4` parser
+  backend is selected (`jdbc_sql_parser=ANTLR4` / `ANTLR4_PARAMS_PARSER`) and the values list contains a value
+  expression the bundled grammar cannot parse - a JDBC escape sequence (`{d '...'}`), or valid ClickHouse syntax the
+  grammar does not cover such as a hex string literal (`hex(x'AB')`). Such a statement is still given a parse tree,
+  completed by error recovery, and the values list positions and the value group count were read from it: the values
+  list was reported to stop at the closing parenthesis of a nested function call, so the batch template lost its own
+  closing parenthesis, and a two-group values list could be reported as a single group. Both are now discarded when the
+  statement could not be parsed without errors, so the driver uses its generic parameter substitution path instead - and,
+  with the beta `RowBinary` writer enabled, such a statement is no longer routed to it. The default `JAVACC` backend is
+  not affected by this.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3019)
+- **[jdbc-v2]** Fixed the ANTLR4 lexer rejecting `//` line comments, which the ClickHouse server and the driver's
+  JavaCC grammar both accept. Because `/` is also the division operator, `// comment` was lexed as two operator
+  tokens, so a statement containing a `//` comment was reported as a syntax error by the ANTLR4-based parser
+  backends (`ANTLR4`, `ANTLR4_PARAMS_PARSER`), and an `INSERT` preceded by such a comment was misclassified as a
+  statement with a result set. `//` is now skipped like `--`, `#` and `#!`; a single `/` and `//` inside a string
+  literal or a quoted identifier are unaffected. Placeholder counting inside `//` comments for the backends that
+  scan the raw SQL separately (`JAVACC`, `ANTLR4`) is fixed by
+  https://github.com/ClickHouse/clickhouse-java/issues/3009.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3023)
+- **[jdbc-v2]** Fixed `?` parameter placeholders being lost when `jdbc_sql_parser=ANTLR4_PARAMS_PARSER` is selected and
+  the bundled grammar cannot match part of the statement - a JDBC escape sequence (`{d '...'}`), or valid ClickHouse
+  syntax the grammar does not cover such as a hex string literal (`hex(x'AB')`). That backend read the placeholders only
+  from the parse tree, and the tokens error recovery skips are not part of it, so a placeholder inside such an expression
+  was dropped: `getParameterMetaData().getParameterCount()` was too low, `setXxx` for a dropped placeholder failed, and
+  the remaining values were substituted at the wrong offsets. The placeholders are now re-derived from the original SQL
+  when the statement could not be parsed without errors, as the other two backends always do.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3025)
+- **[client-v2, jdbc-v2]** Fixed `Client.getTableSchema(...)`, `Client.getTableSchemaFromQuery(...)` and `ping()`
+  failing against ClickHouse `26.8+`, where the `X-ClickHouse-Format` header the client sends wins over a `FORMAT`
+  clause in the query. These internal queries now set their format in the settings instead of a `FORMAT` clause.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3068)
 - **[jdbc-v2]** Fixed an `INSERT` whose values list holds a function call the bundled `ANTLR4` grammar cannot match -
   such as `hex(x'AB')`, valid ClickHouse the grammar has no hex string literal for - being reported to hold no function
   call when an `ANTLR4` parser backend is selected (`jdbc_sql_parser=ANTLR4` / `ANTLR4_PARAMS_PARSER`). Function calls in
@@ -110,6 +204,9 @@
   inserted data or failing with a server-side `SYNTAX_ERROR`. Escape sequences are now recognized only outside of quoted
   text, and a `{fn ...}` escape is unwrapped at its matching closing brace, so nested braces (e.g. a `{name:Type}` query
   parameter or a nested escape) stay balanced. (https://github.com/ClickHouse/clickhouse-java/issues/2995)
+- **[jdbc-v2]** Fixed prepared statements losing parameter markers after an empty `--` comment line or after
+  `SELECT * EXCEPT (...)`, which caused parameter binding to fail with `ArrayIndexOutOfBoundsException` for the
+  affected SQL parser backends. (https://github.com/ClickHouse/clickhouse-java/issues/3052)
 - **[client-v2]** Fixed LZ4 input streams not closing their underlying HTTP response stream. Closing an LZ4 stream
   returned by `QueryResponse.getInputStream()` now releases the wrapped transport stream, including after a partial
   read. (https://github.com/ClickHouse/clickhouse-java/issues/2985)
@@ -127,6 +224,13 @@
   serialized identically to its underlying type `T`, writing the `Nullable` null-marker byte when the
   underlying type is nullable (e.g. `SimpleAggregateFunction(anyLast, Nullable(String))`), mirroring the
   read path. (https://github.com/ClickHouse/clickhouse-java/issues/2477)
+- **[client-v2]** Fixed the `Dynamic` type tag for a `SimpleAggregateFunction` type being written as a bare
+  `0x2E` byte. The binary type encoding also carries the function name, its parameters and its argument
+  types, so the server read the function name out of the value bytes that followed and failed with
+  `ATTEMPT_TO_READ_AFTER_EOF`. Since the client never infers a `SimpleAggregateFunction` from a Java value
+  and the reader cannot read one back out of a `Dynamic` column, this now fails fast with a clear
+  `ClientException` instead of producing a corrupt `RowBinary` stream (the same treatment `QBit` already
+  gets). (https://github.com/ClickHouse/clickhouse-java/issues/3007)
 - **[client-v2, jdbc-v2]** Fixed several logging-layer defects. In `client-v2`, `HttpAPIClientHelper.shouldRetry`
   threw a `ClassCastException` when a retryable `ServerException` was wrapped as the *cause* of another exception
   (the branch matched on the cause but the cast used the outer exception); the retry decision is now taken from
@@ -189,11 +293,28 @@
   (`Fixed/UTC±HH:MM:SS`, e.g. `Fixed/UTC+05:30:00`) being silently read in UTC instead of the declared offset. The
   `RowBinary` reader now recovers the offset from the column's declared type. (https://github.com/ClickHouse/clickhouse-java/issues/2876)
 
+- **[jdbc-v2]** Fixed the ANTLR4 SQL parser backends (`jdbc_sql_parser=ANTLR4` and `ANTLR4_PARAMS_PARSER`) lexing
+  the body of a heredoc string (`$$body$$`, `$tag$body$tag$`) as ordinary SQL. The lexer had no heredoc token, so
+  every `$` was dropped as an unrecognized character and the body was parsed as identifiers, operators and
+  statement separators: a body that still looked like valid SQL was silently mis-parsed (wrong table name and
+  VALUES-list positions), and a body containing `;` — as well as the empty heredoc `$$$$` — was reported as a
+  parse error, which classifies an INSERT as a result-set-bearing statement with no values-list positions. A
+  heredoc is now lexed as a single string literal and accepted as a literal value (`INSERT ... VALUES` lists,
+  column expressions, settings), and a `$` inside an identifier (`a$b`, or an unterminated tag such as
+  `$foo$bar`) is part of the identifier, as the server reads it.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3031)
+
 - **[jdbc-v2]** Fixed the beta RowBinary writer (`DriverProperties.BETA_ROW_BINARY_WRITER`) throwing
   `NoSuchColumnException` for `INSERT` statements whose column names are backtick-quoted, in particular the
   canonical `Nested` sub-column wire form `` `directory`.`id` ``. The SQL parser now unescapes each
   backtick-quoted `INSERT` column-name component before the by-name server-schema lookup, matching how the
   table and database identifiers are already handled. (https://github.com/ClickHouse/clickhouse-java/issues/2896)
+
+### Updated Dependencies
+
+- **[repo]** Upgraded `org.apache.httpcomponents.client5:httpclient5` from `5.4.4` to `5.6.4` in `client-v2` and
+  `clickhouse-http-client` to pick up the fixes of the newer 5.x releases, including known vulnerabilities.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3078)
 
 ### Docs & Examples
 

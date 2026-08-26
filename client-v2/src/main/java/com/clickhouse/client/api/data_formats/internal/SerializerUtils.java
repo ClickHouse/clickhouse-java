@@ -485,11 +485,22 @@ public class SerializerUtils {
                 stream.write(binTag);
                 break;
             case SimpleAggregateFunction:
-                stream.write(binTag);
-                break;
             case AggregateFunction:
-                stream.write(binTag);
-                break;
+                // A SimpleAggregateFunction inside a Dynamic column has to be encoded as
+                // 0x2E <var_uint function_name_size> <function_name> <var_uint number_of_parameters>
+                // <parameter_1>...<parameter_N> <var_uint number_of_arguments>
+                // <argument_type_encoding_1>...<argument_type_encoding_N> (an AggregateFunction
+                // additionally carries a var_uint version). The name and the argument types are what
+                // identify the aggregate state, so a bare tag byte is not a valid encoding: the server
+                // keeps reading the function name out of the bytes that follow, consuming the value and
+                // desynchronizing the RowBinary stream (it fails with ATTEMPT_TO_READ_AFTER_EOF).
+                // The client never infers either type from a Java value (valueToColumnForDynamicType
+                // only yields Array/Map/scalar types) and BinaryStreamReader.readDynamicData cannot
+                // read them back, so reject explicitly instead of emitting an unparseable tag.
+                // AggregateFunction has no binary tag assigned yet and is already rejected above by
+                // the binTag == -1 branch; it is grouped here so it stays rejected if one is added.
+                throw new ClientException("Serializing a " + dt.name()
+                        + " value inside a Dynamic column is not supported");
             case Time64:
                 stream.write(binTag);
                 BinaryStreamUtils.writeUnsignedInt8(stream, dt.getMaxPrecision());

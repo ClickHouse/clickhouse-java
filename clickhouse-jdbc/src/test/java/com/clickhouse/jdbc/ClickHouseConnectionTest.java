@@ -13,14 +13,20 @@ import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.data.ClickHouseCompression;
+import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseUtils;
 import com.clickhouse.data.value.UnsignedByte;
+import com.github.tomakehurst.wiremock.WireMockServer;
+import com.github.tomakehurst.wiremock.client.WireMock;
+import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 
 import org.testng.Assert;
 import org.testng.SkipException;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 public class ClickHouseConnectionTest extends JdbcIntegrationTest {
@@ -35,6 +41,62 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
         }
         properties.setProperty("custom_http_params", "async_insert=0");
         return (ClickHouseConnection) newDataSource(properties).getConnection();
+    }
+
+    @Test(groups = "unit", dataProvider = "replicaTags")
+    public void testCustomHeadersRouteToReplica(String replicaTag) throws Exception {
+        String host = "replica-router.clickhouse.test";
+        String expectedReplica = "replica-for-requested-tag";
+        String otherReplicaTag = "other-" + replicaTag;
+        WireMockServer mockServer = new WireMockServer(WireMockConfiguration.options().dynamicPort());
+        mockServer.start();
+        try {
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .withHeader(ClickHouseHttpOption.HEADER_REPLICA_TAG, WireMock.equalTo(replicaTag))
+                    .withHeader("Host", WireMock.equalTo(host))
+                    .withRequestBody(WireMock.matching("(?is)select\\s+hostname\\(\\).*"))
+                    .willReturn(WireMock.ok("hostname()\nString\n" + expectedReplica + "\n"))
+                    .build());
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .withHeader(ClickHouseHttpOption.HEADER_REPLICA_TAG, WireMock.equalTo(otherReplicaTag))
+                    .withHeader("Host", WireMock.equalTo(host))
+                    .withRequestBody(WireMock.matching("(?is)select\\s+hostname\\(\\).*"))
+                    .willReturn(WireMock.ok("hostname()\nString\nother-replica\n"))
+                    .build());
+
+            Properties properties = new Properties();
+            properties.setProperty(ClickHouseClientOption.SERVER_TIME_ZONE.getKey(), "UTC");
+            properties.setProperty(ClickHouseClientOption.SERVER_VERSION.getKey(), "25.8");
+            properties.setProperty(ClickHouseClientOption.COMPRESS.getKey(), Boolean.FALSE.toString());
+            properties.setProperty(ClickHouseClientOption.FORMAT.getKey(),
+                    ClickHouseFormat.TabSeparatedWithNamesAndTypes.name());
+            properties.setProperty(ClickHouseHttpOption.CUSTOM_HEADERS.getKey(),
+                    ClickHouseHttpOption.HEADER_REPLICA_TAG + "=" + replicaTag + ",Host=" + host);
+
+            String url = "jdbc:clickhouse:http://localhost:" + mockServer.port() + "?clickhouse.jdbc.v1=true";
+            try (Connection connection = new ClickHouseDataSource(url, properties).getConnection();
+                    Statement statement = connection.createStatement();
+                    ResultSet resultSet = statement.executeQuery("select hostname()")) {
+                Assert.assertTrue(resultSet.next());
+                Assert.assertEquals(resultSet.getString(1), expectedReplica);
+                Assert.assertFalse(resultSet.next());
+            }
+
+            mockServer.verify(WireMock.postRequestedFor(WireMock.anyUrl())
+                    .withHeader(ClickHouseHttpOption.HEADER_REPLICA_TAG, WireMock.equalTo(replicaTag))
+                    .withHeader("Host", WireMock.equalTo(host)));
+        } finally {
+            mockServer.stop();
+        }
+    }
+
+    @DataProvider(name = "replicaTags")
+    public static Object[][] replicaTags() {
+        return new Object[][] {
+                { "550e8400-e29b-41d4-a716-446655440000" },
+                { "replica-primary" },
+                { "replica=primary" }
+        };
     }
 
     @Test(groups = "integration")
