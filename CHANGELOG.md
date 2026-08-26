@@ -96,6 +96,13 @@
 
 ### Bug Fixes 
 
+- **[jdbc-v2]** Fixed the ANTLR4 lexer not nesting `/* */` block comments. ClickHouse (and the JavaCC parser backend)
+  raise the nesting level on an inner `/*` and close the comment only at the matching `*/`, while the ANTLR4 lexer ended
+  the comment at the first `*/` and lexed the rest of it as SQL. With the `ANTLR4` / `ANTLR4_PARAMS_PARSER` backends this
+  made statements the server accepts (e.g. `SELECT 1 /* ) /* ) */ ) */, 2`) report syntax errors, and made
+  `ANTLR4_PARAMS_PARSER` count a `?` inside the nested part of a comment as a bind parameter. Comments that do not nest
+  are unaffected; an unterminated block comment is now skipped to the end of the statement instead of being lexed as
+  stray tokens. (https://github.com/ClickHouse/clickhouse-java/issues/3021)
 - **[client-v2]** Fixed reading a `SimpleAggregateFunction(func, T)` value held in a `Dynamic` column. The binary type
   encoding of such a value (`0x2E <function_name> <parameters> <arguments> <argument_type_encodings>`) was not consumed
   at all, so the read failed with `IndexOutOfBoundsException`, and the unconsumed encoding bytes would otherwise have
