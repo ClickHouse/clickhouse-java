@@ -14,6 +14,7 @@ import com.clickhouse.client.config.ClickHouseProxyType;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.client.http.config.HttpConnectionProvider;
 import com.clickhouse.config.ClickHouseOption;
+import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseUtils;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.client.WireMock;
@@ -75,6 +76,57 @@ public class ApacheHttpConnectionImplTest extends ClickHouseHttpClientTest {
     protected Map<ClickHouseOption, Serializable> getClientOptions() {
         return Collections.singletonMap(ClickHouseHttpOption.CONNECTION_PROVIDER,
                 HttpConnectionProvider.APACHE_HTTP_CLIENT);
+    }
+
+    @Test(groups = { "unit" }, dataProvider = "replicaTags")
+    public void testCustomHeadersRouteToReplica(String replicaTag) throws Exception {
+        String host = "replica-router.clickhouse.test";
+        String otherReplicaTag = "other-" + replicaTag;
+        WireMockServer mockServer = new WireMockServer(WireMockConfiguration.options().dynamicPort());
+        mockServer.start();
+        try {
+            for (String replica : new String[]{replicaTag, otherReplicaTag}) {
+                mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                        .withHeader(ClickHouseHttpOption.HEADER_REPLICA_TAG, WireMock.equalTo(replica))
+                        .withHeader("Host", WireMock.equalTo(host))
+                        .withRequestBody(WireMock.matching("(?is)select\\s+hostname\\(\\).*"))
+                        .willReturn(WireMock.ok("hostname()\nString\n" + replica + "\n"))
+                        .build());
+            }
+            Map<ClickHouseOption, Serializable> options = new HashMap<>();
+            options.put(ClickHouseHttpOption.CONNECTION_PROVIDER, HttpConnectionProvider.APACHE_HTTP_CLIENT);
+            options.put(ClickHouseClientOption.COMPRESS, false);
+            options.put(ClickHouseHttpOption.CUSTOM_HEADERS,
+                    ClickHouseHttpOption.HEADER_REPLICA_TAG + "=" + replicaTag + ",Host=" + host);
+
+            final int reqCount = 4;
+            for (int i = 0; i < reqCount; i++) {
+                try (ClickHouseClient client = ClickHouseClient.builder().config(new ClickHouseConfig(options)).build();
+                     ClickHouseResponse response = client.read("http://localhost:" + mockServer.port())
+                             .format(ClickHouseFormat.TabSeparatedWithNamesAndTypes)
+                             .query("select hostname()").executeAndWait()) {
+                    Assert.assertEquals(response.firstRecord().getValue(0).asString(), replicaTag);
+                }
+            }
+            mockServer.verify(reqCount, WireMock.postRequestedFor(WireMock.anyUrl())
+                    .withHeader(ClickHouseHttpOption.HEADER_REPLICA_TAG, WireMock.equalTo(replicaTag))
+                    .withHeader("Host", WireMock.equalTo(host)));
+            mockServer.verify(0, WireMock.postRequestedFor(WireMock.anyUrl())
+                    .withHeader(ClickHouseHttpOption.HEADER_REPLICA_TAG, WireMock.equalTo(otherReplicaTag))
+                    .withHeader("Host", WireMock.equalTo(host)));
+
+        } finally {
+            mockServer.stop();
+        }
+    }
+
+    @DataProvider(name = "replicaTags")
+    public static Object[][] replicaTags() {
+        return new Object[][] {
+                { "550e8400-e29b-41d4-a716-446655440000" },
+                { "replica-primary" },
+                { "replica=primary" }
+        };
     }
 
     @Test(groups = { "integration" })
