@@ -96,6 +96,12 @@
 
 ### Bug Fixes 
 
+- **[client-v2]** Fixed reading a `SimpleAggregateFunction(func, T)` value held in a `Dynamic` column. The binary type
+  encoding of such a value (`0x2E <function_name> <parameters> <arguments> <argument_type_encodings>`) was not consumed
+  at all, so the read failed with `IndexOutOfBoundsException`, and the unconsumed encoding bytes would otherwise have
+  been interpreted as row data and desynchronized the rest of the `RowBinary` stream. The concrete type is now
+  reconstructed from the encoding and the value is read as its argument type `T`, so it reads exactly like the same
+  value in a plain `SimpleAggregateFunction` column. (https://github.com/ClickHouse/clickhouse-java/issues/3005)
 - **[jdbc-v2]** Fixed `PreparedStatement#executeBatch` sending a syntactically broken `INSERT` when an `ANTLR4` parser
   backend is selected (`jdbc_sql_parser=ANTLR4` / `ANTLR4_PARAMS_PARSER`) and the values list contains a value
   expression the bundled grammar cannot parse - a JDBC escape sequence (`{d '...'}`), or valid ClickHouse syntax the

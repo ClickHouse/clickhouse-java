@@ -253,6 +253,43 @@ public class DataTypeTests extends BaseIntegrationTest {
         Assert.assertEquals(rows.get(0).getInteger("tail"), 42);
     }
 
+    @DataProvider(name = "simpleAggregateFunctionInDynamicColumn")
+    public static Object[][] simpleAggregateFunctionInDynamicColumn() {
+        return new Object[][]{
+                {"sum", "UInt64", "42", "42"},
+                {"max", "Int32", "-7", "-7"},
+                {"anyLast", "String", "'abc'", "abc"},
+                {"anyLast", "LowCardinality(String)", "'lc'", "lc"},
+                {"anyLast", "DateTime(\\'UTC\\')", "toDateTime(1700000000)", "2023-11-14T22:13:20Z[UTC]"},
+                {"groupArrayArray", "Array(String)", "['a', 'b']", "[a, b]"},
+                {"anyLast", "Map(String, UInt8)", "map('k', 1)", "{k=1}"},
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "simpleAggregateFunctionInDynamicColumn")
+    public void testSimpleAggregateFunctionInDynamicColumn(String function, String argType, String valueSQL,
+                                                           String expected) throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            throw new SkipException("Dynamic requires ClickHouse 24.8+");
+        }
+
+        // A SimpleAggregateFunction held in a Dynamic column encodes its concrete type on the wire as
+        // 0x2E <function_name> <var_uint number_of_parameters> <var_uint number_of_arguments>
+        // <argument_type_encodings>. All of it must be consumed and the value must then be read as its
+        // argument type, otherwise the following column ("tail") misaligns. The trailing 42 is the
+        // desync guard; "plain" is the same value in a Dynamic column without the wrapper.
+        List<GenericRecord> rows = client.queryAll(
+                "SELECT CAST(CAST(" + valueSQL + ", 'SimpleAggregateFunction(" + function + ", " + argType + ")')"
+                        + " AS Dynamic) AS d, CAST(CAST(" + valueSQL + ", '" + argType + "') AS Dynamic) AS plain,"
+                        + " 42 AS tail SETTINGS allow_experimental_dynamic_type = 1");
+        Assert.assertEquals(rows.size(), 1);
+        GenericRecord row = rows.get(0);
+        Assert.assertEquals(row.getString("d"), expected);
+        Assert.assertEquals(row.getString("d"), row.getString("plain"));
+        Assert.assertEquals(row.getObject("d").getClass(), row.getObject("plain").getClass());
+        Assert.assertEquals(row.getInteger("tail"), 42);
+    }
+
     @Test(groups = {"integration"})
     public void testNestedDataTypes() throws Exception {
         final String table = "test_nested_types";
