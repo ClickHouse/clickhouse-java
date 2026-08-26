@@ -6,6 +6,7 @@ import com.clickhouse.client.api.internal.StopWatch;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * OperationStatistics objects hold various stats for complete operations.
@@ -19,8 +20,29 @@ public class OperationMetrics {
 
     private final ClientStatisticsHolder clientStatistics;
 
-    public OperationMetrics(ClientStatisticsHolder clientStatisticsHolder) {
+    private final OperationType operationType;
+
+    /**
+     * Creates metrics of an operation of the given kind. Called by the client, which always knows
+     * the kind of the operation it runs.
+     *
+     * @param clientStatisticsHolder - holder of the client-side statistics of the operation
+     * @param operationType - kind of the operation
+     */
+    public OperationMetrics(ClientStatisticsHolder clientStatisticsHolder, OperationType operationType) {
         this.clientStatistics = clientStatisticsHolder;
+        this.operationType = Objects.requireNonNull(operationType, "operationType must not be null");
+    }
+
+    /**
+     * Returns the kind of the operation these metrics were collected for. It tells which of the
+     * metrics are meaningful - a read operation reports what the server read and returned, an insert
+     * reports what it wrote.
+     *
+     * @return kind of the operation; never {@code null}
+     */
+    public OperationType getOperationType() {
+        return operationType;
     }
 
     public Metric getMetric(ServerMetrics metric) {
@@ -59,6 +81,7 @@ public class OperationMetrics {
     public String toString() {
         return "OperationStatistics{" +
                 "\"queryId\"=\"" + queryId + "\", " +
+                "\"operationType\"=\"" + operationType + "\", " +
                 "\"metrics\"=" + metrics +
                 '}';
     }

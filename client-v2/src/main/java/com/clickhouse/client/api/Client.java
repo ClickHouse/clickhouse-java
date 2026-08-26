@@ -30,6 +30,7 @@ import com.clickhouse.client.api.metadata.DefaultColumnToMethodMatchingStrategy;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.metrics.ClientMetrics;
 import com.clickhouse.client.api.metrics.OperationMetrics;
+import com.clickhouse.client.api.metrics.OperationType;
 import com.clickhouse.client.api.observability.DefaultSpanRecorder;
 import com.clickhouse.client.api.observability.Span;
 import com.clickhouse.client.api.observability.SpanRecorder;
@@ -1374,7 +1375,8 @@ public class Client implements AutoCloseable {
     public boolean ping(long timeout) {
         long startTime = System.nanoTime();
         try {
-            CompletableFuture<QueryResponse> future = query("SELECT 1 FORMAT TabSeparated");
+            CompletableFuture<QueryResponse> future =
+                    query("SELECT 1", new QuerySettings().setFormat(ClickHouseFormat.TabSeparated));
             try (QueryResponse response = timeout > 0 ? future.get(timeout, TimeUnit.MILLISECONDS) : future.get()) {
                 return true;
             }
@@ -1531,9 +1533,10 @@ public class Client implements AutoCloseable {
 
                     try (TransportResponse transportResponse = httpClientHelper.executeRequest(transportRequest, operationSpan)) {
                         ClientStatisticsHolder clientStats = globalClientStats.remove(operationId);
-                        OperationMetrics metrics = completeOperation(transportResponse, clientStats, requestSettings.getQueryId());
+                        OperationMetrics metrics = completeOperation(transportResponse, clientStats,
+                                requestSettings.getQueryId(), OperationType.INSERT);
 
-                        spanRecorder.recordSuccess(operationSpan, metrics);
+                        spanRecorder.recordInsertSuccess(operationSpan, metrics);
                         return new InsertResponse(transportResponse, metrics);
                     } catch (Exception e) {
                         String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
@@ -1748,8 +1751,9 @@ public class Client implements AutoCloseable {
                     registerTransportReq(queryId, transportRequest);
 
                     try (TransportResponse transportResponse = httpClientHelper.executeRequest(transportRequest, operationSpan)) {
-                        OperationMetrics metrics = completeOperation(transportResponse, finalClientStats, requestSettings.getQueryId());
-                        spanRecorder.recordSuccess(operationSpan, metrics);
+                        OperationMetrics metrics = completeOperation(transportResponse, finalClientStats,
+                                requestSettings.getQueryId(), OperationType.INSERT);
+                        spanRecorder.recordInsertSuccess(operationSpan, metrics);
                         return new InsertResponse(transportResponse, metrics);
                     } catch (Exception e) {
                         String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
@@ -1804,8 +1808,9 @@ public class Client implements AutoCloseable {
      * <p>Sends SQL query to server.</p>
      * <b>Notes:</b>
      * <ul>
-     * <li>Server response format can be specified thru `settings` or in SQL query.</li>
-     * <li>If specified in both, the `sqlQuery` will take precedence.</li>
+     * <li>Server response format should be specified thru `settings` and not with a FORMAT clause in the SQL query.</li>
+     * <li>If specified in both, the format that wins depends on the server version: a server before v26.8 uses the
+     * format from the `sqlQuery`, a server since v26.8 uses the format from the `settings`.</li>
      * </ul>
      * @param sqlQuery - complete SQL query.
      * @param settings - query operation settings.
@@ -1834,8 +1839,10 @@ public class Client implements AutoCloseable {
      *
      * <b>Notes:</b>
      * <ul>
-     * <li>Server response format can be specified through {@code settings} or in SQL query.</li>
-     * <li>If specified in both, the {@code sqlQuery} will take precedence.</li>
+     * <li>Server response format should be specified through {@code settings} and not with a FORMAT clause in the
+     * SQL query.</li>
+     * <li>If specified in both, the format that wins depends on the server version: a server before v26.8 uses the
+     * format from the {@code sqlQuery}, a server since v26.8 uses the format from the {@code settings}.</li>
      * </ul>
      *
      * @param sqlQuery - complete SQL query.
@@ -1891,13 +1898,14 @@ public class Client implements AutoCloseable {
                         TransportResponse transportResp = null;
                         try {
                             transportResp = httpClientHelper.executeRequest(request, operationSpan);
-                            OperationMetrics metrics = completeOperation(transportResp, clientStats, requestSettings.getQueryId());
+                            OperationMetrics metrics = completeOperation(transportResp, clientStats,
+                                    requestSettings.getQueryId(), OperationType.QUERY);
                             ClickHouseFormat responseFormat = transportResp.getDataFormat();
                             if (responseFormat == null) {
                                 responseFormat = requestSettings.getFormat();
                             }
 
-                            spanRecorder.recordSuccess(operationSpan, metrics);
+                            spanRecorder.recordQuerySuccess(operationSpan, metrics);
                             return new QueryResponse(transportResp, responseFormat, requestSettings, metrics);
 
                         } catch (Exception e) {
@@ -1995,8 +2003,9 @@ public class Client implements AutoCloseable {
         return query(sqlQuery, queryParams, null);
     }
 
-    private OperationMetrics completeOperation(TransportResponse transportResponse, ClientStatisticsHolder clientStats, String originalQueryId) {
-        OperationMetrics metrics = new OperationMetrics(clientStats);
+    private OperationMetrics completeOperation(TransportResponse transportResponse, ClientStatisticsHolder clientStats,
+                                               String originalQueryId, OperationType operationType) {
+        OperationMetrics metrics = new OperationMetrics(clientStats, operationType);
         String summary = transportResponse.getSummaryJson();
         ProcessParser.parseSummary(summary, metrics);
         String queryId = transportResponse.getQueryId();
@@ -2201,7 +2210,7 @@ public class Client implements AutoCloseable {
      * @return {@code TableSchema} - Schema of the table
      */
     public TableSchema getTableSchema(String table, String database) {
-        final String sql = "DESCRIBE TABLE " + table + " FORMAT " + ClickHouseFormat.TSKV.name();
+        final String sql = "DESCRIBE TABLE " + table;
         return getTableSchemaImpl(sql, table, null, database, null);
     }
 
@@ -2215,7 +2224,7 @@ public class Client implements AutoCloseable {
     }
 
     public TableSchema getTableSchemaFromQuery(String sql, Map<String, Object> params) {
-        final String describeQuery = "DESC (" + sql + ") FORMAT " + ClickHouseFormat.TSKV.name();
+        final String describeQuery = "DESC (" + sql + ")";
         return getTableSchemaImpl(describeQuery, null, sql, getDefaultDatabase(), params);
     }
 
@@ -2223,7 +2232,10 @@ public class Client implements AutoCloseable {
             String describeQuery, String name, String originalQuery, String database, Map<String, Object> queryParams) {
         int operationTimeout = getOperationTimeout();
 
-        QuerySettings settings = new QuerySettings().setDatabase(database);
+        // The format is requested thru settings (the X-ClickHouse-Format header) and not with a FORMAT clause:
+        // since v26.8 the server lets the header override the format written in the query, so a query that asks
+        // for one format while the client sends another in the header returns data the caller cannot parse.
+        QuerySettings settings = new QuerySettings().setDatabase(database).setFormat(ClickHouseFormat.TSKV);
         try (QueryResponse response = operationTimeout == 0
                 ? query(describeQuery, queryParams, settings).get()
                 : query(describeQuery, queryParams, settings).get(operationTimeout, TimeUnit.MILLISECONDS)) {

@@ -2,6 +2,7 @@ package com.clickhouse.client.api.observability;
 
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.metrics.OperationMetrics;
+import com.clickhouse.client.api.metrics.OperationType;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.transport.Endpoint;
 
@@ -93,13 +94,27 @@ public interface SpanRecorder {
     void recordHttpStatus(Span requestSpan, int statusCode);
 
     /**
-     * Reports that an operation completed successfully.
+     * Reports that a read operation completed successfully. It is the counterpart of
+     * {@link #startQuerySpan(QuerySettings, String, Endpoint)}.
      *
      * @param operationSpan - span of the operation
-     * @param metrics - metrics of the completed operation; source of the query id and of the number
-     *                of returned rows. May be {@code null}
+     * @param metrics - metrics of the completed operation, whose
+     *                {@link OperationMetrics#getOperationType()} is {@link OperationType#QUERY};
+     *                source of the query id and of what the server read and returned. May be
+     *                {@code null}
      */
-    void recordSuccess(Span operationSpan, OperationMetrics metrics);
+    void recordQuerySuccess(Span operationSpan, OperationMetrics metrics);
+
+    /**
+     * Reports that an insert operation completed successfully. It is the counterpart of
+     * {@link #startInsertSpan(InsertSettings, String, int, Endpoint)}.
+     *
+     * @param operationSpan - span of the operation
+     * @param metrics - metrics of the completed operation, whose
+     *                {@link OperationMetrics#getOperationType()} is {@link OperationType#INSERT};
+     *                source of the query id and of what the server wrote. May be {@code null}
+     */
+    void recordInsertSuccess(Span operationSpan, OperationMetrics metrics);
 
     /**
      * Reports that an operation failed.
