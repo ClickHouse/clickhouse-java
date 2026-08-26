@@ -22,7 +22,9 @@ import java.time.Duration;
  *     operation.</li>
  *     <li><b>Failure</b> - {@link #recordQueryFailure(QuerySettings, Duration, Throwable)} and
  *     {@link #recordInsertFailure(InsertSettings, String, Duration, Throwable)}. An operation that
- *     failed has no metrics, so the client measures its duration itself and passes it in.</li>
+ *     failed has no metrics, so the client measures its duration itself and passes it in. It measures
+ *     the same work a successful operation reports - from where it starts the operation until the
+ *     outcome is known, before any recorder runs - so that both outcomes form one latency series.</li>
  *     <li><b>Retry</b> - {@link #recordQueryRetry(QuerySettings, Throwable)} and
  *     {@link #recordInsertRetry(InsertSettings, String, Throwable)}, called once per retried
  *     attempt. The operation itself may still succeed.</li>

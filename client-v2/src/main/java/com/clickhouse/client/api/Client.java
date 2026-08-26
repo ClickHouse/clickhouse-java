@@ -1497,6 +1497,9 @@ public class Client implements AutoCloseable {
 
         String operationId = registerOperationMetrics();
         requestSettings.setOperationId(operationId);
+        // Origin of the duration of a failed operation. Taken where the client starts OP_DURATION, which is
+        // the duration reported for a successful operation, so that both outcomes measure the same work.
+        final long operationStartNanos = System.nanoTime();
         globalClientStats.get(operationId).start(ClientMetrics.OP_DURATION);
         globalClientStats.get(operationId).start(ClientMetrics.OP_SERIALIZATION);
 
@@ -1533,9 +1536,6 @@ public class Client implements AutoCloseable {
         }
         final Span operationSpan = orNoop(spanRecorder.startInsertSpan(requestSettings, tableName, data.size(),
                 endpoints.get(0)));
-        // Measured on the calling thread, like the operation duration of a successful operation, so that
-        // both outcomes report a duration with the same origin.
-        final long operationStartNanos = System.nanoTime();
         Supplier<InsertResponse> supplier = () -> {
             long startTime = System.nanoTime();
             // Selecting some node
@@ -1596,8 +1596,11 @@ public class Client implements AutoCloseable {
                 LOG.warn(errMsg);
                 throw (lastException == null ? new ClientException(errMsg) : lastException);
             } catch (RuntimeException | Error e) {
+                // Taken before any recorder runs, like the duration of a successful operation, which the
+                // client stops in completeOperation.
+                final Duration failureDuration = durationSince(operationStartNanos);
                 spanRecorder.recordFailure(operationSpan, e);
-                metricsRecorder.recordInsertFailure(requestSettings, tableName, durationSince(operationStartNanos), e);
+                metricsRecorder.recordInsertFailure(requestSettings, tableName, failureDuration, e);
                 throw e;
             } finally {
                 // The request of the last attempt stays registered until the operation is over, so a cancellation
@@ -1740,6 +1743,9 @@ public class Client implements AutoCloseable {
         if (clientStats == null) {
             clientStats = new ClientStatisticsHolder();
         }
+        // Origin of the duration of a failed operation. Taken where the client starts OP_DURATION, which is
+        // the duration reported for a successful operation, so that both outcomes measure the same work.
+        final long operationStartNanos = System.nanoTime();
         clientStats.start(ClientMetrics.OP_DURATION);
         final ClientStatisticsHolder finalClientStats = clientStats;
 
@@ -1772,9 +1778,6 @@ public class Client implements AutoCloseable {
         final int maxAttempts = Math.max(maxRetries, endpoints.size() - 1);
         final Span operationSpan = orNoop(spanRecorder.startInsertSpan(requestSettings, tableName,
                 SpanRecorder.BATCH_SIZE_UNKNOWN, endpoints.get(0)));
-        // Measured on the calling thread, like the operation duration of a successful operation, so that
-        // both outcomes report a duration with the same origin.
-        final long operationStartNanos = System.nanoTime();
         Supplier<InsertResponse> responseSupplier = () -> {
             long startTime = System.nanoTime();
             // Selecting some node
@@ -1827,8 +1830,11 @@ public class Client implements AutoCloseable {
                 LOG.warn(errMsg);
                 throw (lastException == null ? new ClientException(errMsg) : lastException);
             } catch (RuntimeException | Error e) {
+                // Taken before any recorder runs, like the duration of a successful operation, which the
+                // client stops in completeOperation.
+                final Duration failureDuration = durationSince(operationStartNanos);
                 spanRecorder.recordFailure(operationSpan, e);
-                metricsRecorder.recordInsertFailure(requestSettings, tableName, durationSince(operationStartNanos), e);
+                metricsRecorder.recordInsertFailure(requestSettings, tableName, failureDuration, e);
                 throw e;
             } finally {
                 // The request of the last attempt stays registered until the operation is over, so a cancellation
@@ -1907,6 +1913,9 @@ public class Client implements AutoCloseable {
         }
         applyFormatSpecificSettings(requestSettings);
         ClientStatisticsHolder clientStats = new ClientStatisticsHolder();
+        // Origin of the duration of a failed operation. Taken where the client starts OP_DURATION, which is
+        // the duration reported for a successful operation, so that both outcomes measure the same work.
+        final long operationStartNanos = System.nanoTime();
         clientStats.start(ClientMetrics.OP_DURATION);
 
         if (queryParams != null) {
@@ -1930,9 +1939,6 @@ public class Client implements AutoCloseable {
         // Started on the calling thread so that the span joins the caller's ambient trace even when
         // the operation itself runs on the shared operation executor.
         final Span operationSpan = orNoop(spanRecorder.startQuerySpan(requestSettings, sqlQuery, endpoints.get(0)));
-        // Measured on the calling thread, like the operation duration of a successful operation, so that
-        // both outcomes report a duration with the same origin.
-        final long operationStartNanos = System.nanoTime();
         Supplier<QueryResponse> responseSupplier = () -> {
                 long startTime = System.nanoTime();
                 // Selecting some node
@@ -1979,8 +1985,11 @@ public class Client implements AutoCloseable {
                     LOG.warn(errMsg);
                     throw (lastException == null ? new ClientException(errMsg) : lastException);
                 } catch (RuntimeException | Error e) {
+                    // Taken before any recorder runs, like the duration of a successful operation, which the
+                    // client stops in completeOperation.
+                    final Duration failureDuration = durationSince(operationStartNanos);
                     spanRecorder.recordFailure(operationSpan, e);
-                    metricsRecorder.recordQueryFailure(requestSettings, durationSince(operationStartNanos), e);
+                    metricsRecorder.recordQueryFailure(requestSettings, failureDuration, e);
                     throw e;
                 } finally {
                     // unregister transport request once we are done

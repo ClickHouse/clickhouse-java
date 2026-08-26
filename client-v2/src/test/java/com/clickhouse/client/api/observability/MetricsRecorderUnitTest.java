@@ -2,9 +2,11 @@ package com.clickhouse.client.api.observability;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.metadata.TableSchema;
+import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.observability.CapturingMetricsRecorder.RecordedMetric;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
+import com.clickhouse.client.api.transport.Endpoint;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseFormat;
 import com.github.tomakehurst.wiremock.WireMockServer;
@@ -28,6 +30,12 @@ import java.util.concurrent.TimeUnit;
 public class MetricsRecorderUnitTest {
 
     private static final String DEAD_ENDPOINT = "http://127.0.0.1:1"; // nothing listens here
+
+    // Work a span recorder does before the operation runs and after it failed. The two delays differ so that
+    // each end of the measured interval is pinned on its own, and both are long enough to stand out from the
+    // operation itself, which fails as soon as the connection to the dead endpoint is refused.
+    private static final Duration SPAN_START_DELAY = Duration.ofMillis(800);
+    private static final Duration RECORD_FAILURE_DELAY = Duration.ofMillis(500);
 
     private CapturingMetricsRecorder recorder;
     private WireMockServer mockServer;
@@ -210,6 +218,79 @@ public class MetricsRecorderUnitTest {
         }
         Assert.assertEquals(recorder.getMetrics(MetricName.OPERATION_COUNT).size(), 1,
                 "a retried operation is still one operation");
+    }
+
+    @Test
+    public void testFailedQueryIsMeasuredFromTheSameOriginAsASuccessfulOne() throws Exception {
+        try (Client client = newClientBuilder().addEndpoint(DEAD_ENDPOINT).setMaxRetries(0)
+                .setSpanRecorder(new DelayingSpanRecorder()).build()) {
+            Assert.assertThrows(Exception.class,
+                    () -> client.query("SELECT 1").get(30, TimeUnit.SECONDS).close());
+        }
+
+        assertFailureDurationOrigin(recorder.getOnlyMetric(MetricName.OPERATION_DURATION).getValue());
+    }
+
+    @Test
+    public void testFailedInsertIsMeasuredFromTheSameOriginAsASuccessfulOne() throws Exception {
+        try (Client client = newClientBuilder().addEndpoint(DEAD_ENDPOINT).setMaxRetries(0)
+                .setSpanRecorder(new DelayingSpanRecorder()).build()) {
+            client.register(ValuePojo.class, new TableSchema("target_table", null, "",
+                    Collections.singletonList(ClickHouseColumn.of("value", "String"))));
+            Assert.assertThrows(Exception.class, () -> client
+                    .insert("target_table", Collections.singletonList(new ValuePojo("a"))).get(30, TimeUnit.SECONDS));
+        }
+
+        assertFailureDurationOrigin(recorder.getOnlyMetric(MetricName.OPERATION_DURATION).getValue());
+    }
+
+    /**
+     * The client starts the duration of a successful operation before it prepares the request and before it
+     * starts the operation span, and stops it before any recorder runs. A failed operation must report a
+     * duration that covers the same work, so that both outcomes form one latency series.
+     */
+    private static void assertFailureDurationOrigin(double reportedSeconds) {
+        double spanStartSeconds = SPAN_START_DELAY.toMillis() / 1000d;
+        double recordFailureSeconds = RECORD_FAILURE_DELAY.toMillis() / 1000d;
+        Assert.assertTrue(reportedSeconds >= spanStartSeconds,
+                "the duration must start where the client starts the duration of a successful operation, so that it "
+                        + "covers the work done before the operation span starts; reported: " + reportedSeconds);
+        Assert.assertTrue(reportedSeconds < spanStartSeconds + recordFailureSeconds,
+                "the duration must be taken before any recorder runs, like the duration of a successful operation; "
+                        + "reported: " + reportedSeconds);
+    }
+
+    /**
+     * Span recorder that spends a known amount of time when the client starts an operation span and again
+     * when it reports a failure - the two points that fence the origin of a failed operation's duration.
+     */
+    private static final class DelayingSpanRecorder extends DefaultSpanRecorder {
+
+        @Override
+        public Span startQuerySpan(QuerySettings settings, String sqlQuery, Endpoint endpoint) {
+            sleep(SPAN_START_DELAY);
+            return super.startQuerySpan(settings, sqlQuery, endpoint);
+        }
+
+        @Override
+        public Span startInsertSpan(InsertSettings settings, String tableName, int batchSize, Endpoint endpoint) {
+            sleep(SPAN_START_DELAY);
+            return super.startInsertSpan(settings, tableName, batchSize, endpoint);
+        }
+
+        @Override
+        public void recordFailure(Span operationSpan, Throwable t) {
+            sleep(RECORD_FAILURE_DELAY);
+        }
+
+        private static void sleep(Duration delay) {
+            try {
+                Thread.sleep(delay.toMillis());
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException(e);
+            }
+        }
     }
 
     @Test
