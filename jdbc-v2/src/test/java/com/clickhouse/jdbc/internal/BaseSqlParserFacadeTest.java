@@ -1,6 +1,7 @@
 package com.clickhouse.jdbc.internal;
 
 
+import com.clickhouse.data.ClickHouseUtils;
 import com.clickhouse.jdbc.internal.parser.javacc.ClickHouseSqlUtils;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
@@ -18,6 +19,7 @@ import java.util.stream.Collectors;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
+import static org.testng.Assert.assertNotEquals;
 import static org.testng.Assert.assertTrue;
 
 public abstract class BaseSqlParserFacadeTest {
@@ -26,9 +28,12 @@ public abstract class BaseSqlParserFacadeTest {
 
     private final boolean javaCcBackend;
 
+    private final boolean grammarParamsBackend;
+
     public BaseSqlParserFacadeTest(String name) throws Exception {
         parser = SqlParserFacade.getParser(name, new JdbcConfiguration("jdbc:ch:http://localhost:8123", new Properties()));
         javaCcBackend = SqlParserFacade.SQLParser.JAVACC.name().equals(name);
+        grammarParamsBackend = SqlParserFacade.SQLParser.ANTLR4_PARAMS_PARSER.name().equals(name);
     }
 
     @Test
@@ -152,6 +157,70 @@ public abstract class BaseSqlParserFacadeTest {
         };
     }
 
+    @Test(dataProvider = "testValuesListOfUnsupportedSyntaxDP")
+    public void testValuesListOfUnsupportedSyntax(String sql, boolean parseable, int valueGroups, int args) {
+        ParsedPreparedStatement parsed = parser.parsePreparedStatement(sql);
+        assertTrue(parsed.isInsert(), "Should be of insert type");
+
+        int reportedValueGroups = parsed.getAssignValuesGroups();
+        int start = parsed.getAssignValuesListStartPosition();
+        int stop = parsed.getAssignValuesListStopPosition();
+        if (parseable) {
+            assertEquals(reportedValueGroups, valueGroups, "Value groups do not match");
+            assertEquals(parsed.getArgCount(), args, "Args do not match");
+            if (valueGroups == 1) {
+                assertTrue(start > -1 && stop > -1,
+                        "Values list positions should be reported, but got [" + start + ", " + stop + "]");
+            }
+        } else if (valueGroups > 1) {
+            assertNotEquals(reportedValueGroups, 1, "Should not report a single value group");
+        }
+        if (reportedValueGroups != 1 || start < 0 || stop < 0) {
+            return; // the positions are only used to slice the statement of a single value group
+        }
+
+        assertTrue(stop > start && stop < sql.length(), "Values list should stop after it starts and within the "
+                + "statement of " + sql.length() + " characters, but got [" + start + ", " + stop + "]");
+        assertEquals(sql.charAt(start), '(', "Values list should start with an opening parenthesis");
+        assertEquals(stop, indexOfClosingParenthesis(sql, start),
+                "Values list should stop where the value group opened at " + start + " is closed");
+
+        int[] paramPositions = parsed.getParamPositions();
+        for (int i = 0; i < parsed.getArgCount(); i++) {
+            assertTrue(paramPositions[i] > start && paramPositions[i] < stop, "Parameter " + (i + 1)
+                    + " at position " + paramPositions[i] + " should be inside the values list '"
+                    + sql.substring(start, stop + 1) + "'");
+        }
+    }
+
+    @DataProvider
+    public static Object[][] testValuesListOfUnsupportedSyntaxDP() {
+        return new Object[][] {
+                { "INSERT INTO t (a, b) VALUES (?, hex(x'AB'))", false, 1, 1 },
+                { "INSERT INTO t (a, b) VALUES (?, toDate({d '2024-01-01'}))", false, 1, 1 },
+                { "INSERT INTO t (a, b) VALUES (?, hex(x'AB')), (?, hex(x'CD'))", false, 2, 2 },
+                { "INSERT INTO t (a, b) VALUES (?, hex('AB'))", true, 1, 1 },
+                { "INSERT INTO t (a, b) VALUES (?, 'a)b')", true, 1, 1 },
+                { "INSERT INTO t (a, b) VALUES (?, hex('AB')) ;", true, 1, 1 },
+                { "INSERT INTO t (a, b) VALUES (?, ?), (?, ?)", true, 2, 4 },
+        };
+    }
+
+    private static int indexOfClosingParenthesis(String sql, int openingPosition) {
+        int depth = 0;
+        for (int i = openingPosition; i < sql.length(); i++) {
+            char ch = sql.charAt(i);
+            if (ClickHouseUtils.isQuote(ch)) {
+                i = ClickHouseUtils.skipQuotedString(sql, i, sql.length(), ch) - 1;
+            } else if (ch == '(') {
+                depth++;
+            } else if (ch == ')' && --depth == 0) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
     @Test
     public void testStmtWithCasts() {
         String sql = "SELECT ?::integer, ?, '?:: integer' FROM table WHERE v = ?::integer"; // CAST(?, INTEGER)
@@ -256,6 +325,63 @@ public abstract class BaseSqlParserFacadeTest {
         ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
         Assert.assertFalse(stmt.isHasErrors(), "Query should parse without errors: " + sql);
         Assert.assertEquals(stmt.getTable(), expectedTableName, "Table name mismatch for: " + sql);
+    }
+
+    @Test(dataProvider = "antlr4HeredocStatementsDP")
+    public void testHeredocStatementsAntlr4Only(String sql, boolean insert, String expectedTable,
+                                                String expectedValuesList, int expectedArgCount) {
+        // The JavaCC lexer has no heredoc token yet, so these expectations only hold for the
+        // ANTLR4 backends.
+        if (javaCcBackend) {
+            return;
+        }
+        ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
+        Assert.assertFalse(stmt.isHasErrors(), "Query should parse without errors: " + sql);
+        Assert.assertEquals(stmt.isInsert(), insert, "Insert type mismatch for: " + sql);
+        Assert.assertEquals(stmt.isHasResultSet(), !insert, "Result set flag mismatch for: " + sql);
+        Assert.assertEquals(stmt.getTable(), expectedTable, "Table name mismatch for: " + sql);
+        Assert.assertEquals(stmt.getArgCount(), expectedArgCount, "Parameter count mismatch for: " + sql);
+        if (expectedValuesList == null) {
+            Assert.assertEquals(stmt.getAssignValuesListStartPosition(), -1, "Should have no values list: " + sql);
+        } else {
+            Assert.assertEquals(sql.substring(stmt.getAssignValuesListStartPosition(),
+                            stmt.getAssignValuesListStopPosition() + 1), expectedValuesList,
+                    "Values list mismatch for: " + sql);
+        }
+    }
+
+    @DataProvider
+    public static Object[][] antlr4HeredocStatementsDP() {
+        return new Object[][] {
+                // A heredoc body is opaque: a statement separator in it must not end the statement
+                {"INSERT INTO t VALUES ($$a;b$$, 1)", true, "t", "($$a;b$$, 1)", 0},
+                // Empty body
+                {"INSERT INTO t VALUES ($$$$, 1)", true, "t", "($$$$, 1)", 0},
+                // The untagged form ends at the first '$$', so a single '$' is part of the body
+                {"INSERT INTO t VALUES ($$a$b$$, 1)", true, "t", "($$a$b$$, 1)", 0},
+                // Tagged form
+                {"INSERT INTO t (c1, c2) VALUES ($tag_1$a;b$tag_1$, 1)", true, "t", "($tag_1$a;b$tag_1$, 1)", 0},
+                // Parentheses and commas in a body must not shift the values list positions
+                {"INSERT INTO t VALUES ($$a(b,c)$$, 1)", true, "t", "($$a(b,c)$$, 1)", 0},
+                // Two heredocs in one values list are two separate literals
+                {"INSERT INTO t VALUES ($$a;b$$, $$c;d$$)", true, "t", "($$a;b$$, $$c;d$$)", 0},
+                // A heredoc value next to a parameter placeholder
+                {"INSERT INTO t VALUES ($$a;b$$, ?)", true, "t", "($$a;b$$, ?)", 1},
+                // A body may span lines
+                {"INSERT INTO t VALUES ($$line1\nline2$$, 1)", true, "t", "($$line1\nline2$$, 1)", 0},
+                // Several value groups
+                {"INSERT INTO t VALUES ($$a;b$$, 1), ($$c;d$$, 2)", true, "t", "($$c;d$$, 2)", 0},
+                // A heredoc is a value expression anywhere a string literal is accepted
+                {"SELECT $$a;b$$ AS x FROM t", false, "t", null, 0},
+                // Contrast: an unterminated tag is not a heredoc and stays an identifier
+                {"SELECT $foo$bar FROM t", false, "t", null, 0},
+                {"SELECT 1 AS a$b FROM t", false, "t", null, 0},
+                // Contrast: a tag that continues an identifier belongs to that identifier
+                {"SELECT 1 AS t$$a$$ FROM t", false, "t", null, 0},
+                // Contrast: a quoted string literal keeps its existing handling
+                {"INSERT INTO t VALUES ('a;b', 1)", true, "t", "('a;b', 1)", 0},
+                {"INSERT INTO t VALUES ('a;b', 1), ('c;d', 2)", true, "t", "('c;d', 2)", 0},
+        };
     }
 
     @Test
@@ -387,6 +513,38 @@ public abstract class BaseSqlParserFacadeTest {
         };
     }
 
+    @Test(dataProvider = "testDoubleSlashLineCommentDp")
+    public void testDoubleSlashLineComments(String sql, int args, boolean insert, boolean hasResultSet) {
+        ParsedPreparedStatement prepared = parser.parsePreparedStatement(sql);
+        Assert.assertFalse(prepared.isHasErrors(), "Statement has errors: " + sql);
+        Assert.assertEquals(prepared.isInsert(), insert, "Insert type does not match for: " + sql);
+        assertEquals(prepared.isHasResultSet(), hasResultSet, "Result set expectation does not match for: " + sql);
+        // Only ANTLR4_PARAMS_PARSER derives placeholders from the grammar. The other two backends
+        // use the standalone raw-SQL scan, whose `//` handling is fixed separately.
+        if (grammarParamsBackend) {
+            assertEquals(prepared.getArgCount(), args, "Args do not match for: " + sql);
+        }
+
+        ParsedStatement stmt = parser.parsedStatement(sql);
+        Assert.assertFalse(stmt.isHasErrors(), "Statement has errors: " + sql);
+        assertEquals(stmt.isHasResultSet(), hasResultSet, "Result set expectation does not match for: " + sql);
+    }
+
+    @DataProvider
+    public Object[][] testDoubleSlashLineCommentDp() {
+        return new Object[][]{
+                {"// INSERT ? TESTING \n SELECT ? AS num", 1, false, true},
+                {"//INSERT ? TESTING \n SELECT ? AS num", 1, false, true},
+                {"SELECT 1 // INSERT ? TESTING\n, ? AS num", 1, false, true},
+                {" SELECT ?    // INSERT ? TESTING", 1, false, true},
+                {"SELECT 1 // INSERT ? TESTING\r\n, ? AS num", 1, false, true},
+                {"SELECT 1 //* not a block comment ? */\n, ? AS num", 1, false, true},
+                {" SELECT '//?0.1' as f, ? as a\n // this is debug \n FROM table", 1, false, true},
+                {"// line comment ?\nINSERT INTO `test_stmt_split2` (v1, v2) VALUES (?, ?)", 2, true, false},
+                {"INSERT INTO `test_stmt_split2` (v1, v2) VALUES (1 // inline comment ?\n, ?)", 1, true, false},
+        };
+    }
+
     @Test(dataProvider = "testMiscStmtDp")
     public void testMiscStatements(String sql, int args) {
         ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
@@ -409,6 +567,9 @@ public abstract class BaseSqlParserFacadeTest {
                 {"CREATE TABLE check_query_log (N UInt32,S String) Engine = MergeTree", 0},
                 {"CREATE TABLE check_query_log (N UInt32,S String) Engine = ReplacingMergeTree", 0},
                 {"select abs(log(e()) - 1) < 1e-8", 0},
+                {"--\nselect count(*) from numbers(10) where number = ?", 1},
+                {"select count(*) from (\n--\nselect 1 as a) x where x.a = ?", 1},
+                {"select count(*) from ( select * EXCEPT (b), b as c from ( select 1 as a, 2 as b ) ) x where x.a = ?", 1},
                 {"SELECT SearchEngineID, ClientIP, count() AS c, sum(Refresh), avg(ResolutionWidth) " +
                         " FROM test.hits_s3 WHERE SearchPhrase != '' GROUP BY SearchEngineID, ClientIP " +
                         "   ORDER BY c DESC LIMIT 10", 0},
@@ -494,6 +655,9 @@ public abstract class BaseSqlParserFacadeTest {
                 {"#!INSERT ? TESTING \n SELECT ? AS num", 1},
                 {"# INSERT ? TESTING \n SELECT ? AS num", 1},
                 {"#INSERT ? TESTING \n SELECT ? AS num", 1},
+                {"SELECT 10 / 2 AS d, ? AS num", 1},
+                {" SELECT '//?0.1' as f, ? as a FROM table", 1},
+                {"SELECT `a//b?` FROM table WHERE c = ?", 1},
                 {"\nINSERT INTO TESTING \n SELECT ? AS num", 1},
                 {"         \n          INSERT INTO TESTING \n SELECT ? AS num", 1},
                 {" SELECT '##?0.1' as f, ? as a\n #this is debug \n FROM table", 1},
@@ -1014,6 +1178,30 @@ public abstract class BaseSqlParserFacadeTest {
                     failedKeywords.stream().collect(Collectors.joining("\n"));
             Assert.fail(failureMessage);
         }
+    }
+
+    @Test(dataProvider = "testParametersInUnparsableExpressionsDP")
+    public void testParametersInUnparsableExpressions(String sql, int args) {
+        ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
+        assertEquals(stmt.getArgCount(), args, "Args do not match for: " + sql);
+        int[] positions = stmt.getParamPositions();
+        int expectedPosition = -1;
+        for (int i = 0; i < args; i++) {
+            expectedPosition = sql.indexOf('?', expectedPosition + 1);
+            assertEquals(positions[i], expectedPosition, "Position of parameter " + (i + 1) + " for: " + sql);
+        }
+    }
+
+    @DataProvider
+    public static Object[][] testParametersInUnparsableExpressionsDP() {
+        return new Object[][] {
+                {"INSERT INTO t (v1, v2) VALUES (hex(x'AB'), ?)", 1},
+                {"INSERT INTO t (v1, v2) VALUES (?, hex(x'AB')), (?, hex(x'CD'))", 2},
+                {"INSERT INTO t (v1, v2) VALUES (hex(x'AB'), ?), (hex(x'CD'), ?)", 2},
+                {"SELECT ? FROM t WHERE v1 = hex(x'AB') AND v2 = ?", 2},
+                {"INSERT INTO t (v1, v2) VALUES (hex(x'AB'), 'z')", 0},
+                {"INSERT INTO t (v1, v2) VALUES (?, ?)", 2},
+        };
     }
 
     @Test(dataProvider = "testInsertUseFunctionDP")

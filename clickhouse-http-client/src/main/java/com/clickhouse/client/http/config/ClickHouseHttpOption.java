@@ -116,6 +116,12 @@ public enum ClickHouseHttpOption implements ClickHouseOption {
      */
     USE_BASIC_AUTHENTICATION("http_use_basic_auth", true, "Whether to use basic authentication.");
 
+    /**
+     * Replica tag header used by a proxy to route a request to a specific replica.
+     * ClickHouse Cloud feature only.
+     */
+    public static final String HEADER_REPLICA_TAG = "X-ClickHouse-Replica-Tag";
+
     private final String key;
     private final Serializable defaultValue;
     private final Class<? extends Serializable> clazz;

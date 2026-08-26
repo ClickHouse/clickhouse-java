@@ -239,6 +239,9 @@ public class ClickHouseUtilsTest {
                 args.indexOf('\n') + 1);
         Assert.assertEquals(ClickHouseUtils.skipSingleLineComment(args, args.indexOf("--", 11), args.length()),
                 args.length());
+
+        args = "--\nselect 1";
+        Assert.assertEquals(ClickHouseUtils.skipSingleLineComment(args, 2, args.length()), 3);
     }
 
     @Test(groups = { "unit" })
