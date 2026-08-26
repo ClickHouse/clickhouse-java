@@ -4,6 +4,29 @@
 
 ### New Features
 
+- **[client-v2]** Added an observability SPI that lets an application observe client operations as spans.
+  `Client.Builder.setSpanRecorder(SpanRecorder)` registers a backend-agnostic recorder from the new
+  `com.clickhouse.client.api.observability` package: each operation (a query, a command or an insert - including
+  the `ping` and `getTableSchema` calls, which run a query) starts one operation span, and every transport
+  request made for it - including each retry - starts a child request span. `SpanRecorder` and `Span` are plain interfaces; an implementation extends the
+  `DefaultSpanRecorder` base class and overrides only what it cares about, so it keeps working when
+  the client starts a kind of span it does not know about. The registered recorder is called first and receives
+  everything the client knows about the operation (its `QuerySettings`/`InsertSettings`, the statement, the target
+  table, the batch size, the endpoint, the metrics of the completed operation and the failure), so it is free to
+  record whatever it needs and in whatever form; the reusable `SpanSupport` class derives the standard span names
+  and attribute values from those same structures and is called by a recorder implementation that wants them, so
+  its logic is opt-in and overridable. Span names and attribute keys follow the OpenTelemetry semantic conventions for
+  database and HTTP client spans; the keys are defined by the `SpanAttribute` enum and the values are derived by
+  `SpanSupport`, so all recorders that use it report the same information (statement text, target database and table, query id,
+  statement parameters, batch size, the first configured endpoint on the operation span and the per-attempt
+  server address and port on the request spans, HTTP status, returned rows, and the error type and ClickHouse
+  error code on failure). An operation span is started on the calling thread, so it joins
+  the caller's ambient trace even when the operation runs on the client's executor, and it is ended exactly once
+  for every operation that starts. Previously the client exposed no hook for tracing, so an
+  application could not attribute a query or a retried request to its own trace. When no recorder is registered
+  nothing is recorded and no span-related work is done, so the default path is unchanged. An OpenTelemetry
+  implementation of the SPI follows in a separate module.
+  (https://github.com/ClickHouse/clickhouse-java/issues/2974)
 - **[client-v2, jdbc-v2]** Added support for the `BFloat16` data type (ClickHouse `24.11+`). `BFloat16` columns are read as
   Java `float` values (widening is lossless) and written from `float`/`Float` values, including through generic records, POJO
   binding, `Nullable(BFloat16)`, and `BFloat16` values held in `Dynamic`/`Variant` columns. On write the client keeps the
@@ -44,6 +67,76 @@
 
 ### Bug Fixes 
 
+- **[jdbc-v2]** Fixed `PreparedStatement#executeBatch` sending a syntactically broken `INSERT` when an `ANTLR4` parser
+  backend is selected (`jdbc_sql_parser=ANTLR4` / `ANTLR4_PARAMS_PARSER`) and the values list contains a value
+  expression the bundled grammar cannot parse - a JDBC escape sequence (`{d '...'}`), or valid ClickHouse syntax the
+  grammar does not cover such as a hex string literal (`hex(x'AB')`). Such a statement is still given a parse tree,
+  completed by error recovery, and the values list positions and the value group count were read from it: the values
+  list was reported to stop at the closing parenthesis of a nested function call, so the batch template lost its own
+  closing parenthesis, and a two-group values list could be reported as a single group. Both are now discarded when the
+  statement could not be parsed without errors, so the driver uses its generic parameter substitution path instead - and,
+  with the beta `RowBinary` writer enabled, such a statement is no longer routed to it. The default `JAVACC` backend is
+  not affected by this.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3019)
+- **[jdbc-v2]** Fixed the ANTLR4 lexer rejecting `//` line comments, which the ClickHouse server and the driver's
+  JavaCC grammar both accept. Because `/` is also the division operator, `// comment` was lexed as two operator
+  tokens, so a statement containing a `//` comment was reported as a syntax error by the ANTLR4-based parser
+  backends (`ANTLR4`, `ANTLR4_PARAMS_PARSER`), and an `INSERT` preceded by such a comment was misclassified as a
+  statement with a result set. `//` is now skipped like `--`, `#` and `#!`; a single `/` and `//` inside a string
+  literal or a quoted identifier are unaffected. Placeholder counting inside `//` comments for the backends that
+  scan the raw SQL separately (`JAVACC`, `ANTLR4`) is fixed by
+  https://github.com/ClickHouse/clickhouse-java/issues/3009.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3023)
+- **[jdbc-v2]** Fixed `?` parameter placeholders being lost when `jdbc_sql_parser=ANTLR4_PARAMS_PARSER` is selected and
+  the bundled grammar cannot match part of the statement - a JDBC escape sequence (`{d '...'}`), or valid ClickHouse
+  syntax the grammar does not cover such as a hex string literal (`hex(x'AB')`). That backend read the placeholders only
+  from the parse tree, and the tokens error recovery skips are not part of it, so a placeholder inside such an expression
+  was dropped: `getParameterMetaData().getParameterCount()` was too low, `setXxx` for a dropped placeholder failed, and
+  the remaining values were substituted at the wrong offsets. The placeholders are now re-derived from the original SQL
+  when the statement could not be parsed without errors, as the other two backends always do.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3025)
+- **[client-v2, jdbc-v2]** Fixed `Client.getTableSchema(...)`, `Client.getTableSchemaFromQuery(...)` and `ping()`
+  failing against ClickHouse `26.8+`, where the `X-ClickHouse-Format` header the client sends wins over a `FORMAT`
+  clause in the query. These internal queries now set their format in the settings instead of a `FORMAT` clause.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3068)
+- **[jdbc-v2]** Fixed an `INSERT` whose values list holds a function call the bundled `ANTLR4` grammar cannot match -
+  such as `hex(x'AB')`, valid ClickHouse the grammar has no hex string literal for - being reported to hold no function
+  call when an `ANTLR4` parser backend is selected (`jdbc_sql_parser=ANTLR4` / `ANTLR4_PARAMS_PARSER`). Function calls in
+  a values list are reported by a callback on the parse tree, and such a statement is still given a parse tree, completed
+  by error recovery, which skips the tokens the parser recovered on - the function call among them. With the beta
+  `RowBinary` writer enabled (`beta.row_binary_for_simple_insert=true`) the statement was then routed to it, where a
+  literal function-call column cannot be written; it now takes the generic parameter substitution path, as it already did
+  for a function call the grammar matches. Since such a parse tree cannot tell, any insert that could not be parsed
+  without errors is now assumed to hold a function call in its values list, so none of them is written with the
+  `RowBinary` writer. The default `JAVACC` backend is not affected by this.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3027)
+- **[clickhouse-client]** Fixed JPMS/module-path service loading for `ClickHouseRequestManager` by loading client
+  services from the `com.clickhouse.client` module, which declares the required `uses` directives. This avoids
+  `ServiceConfigurationError` failures from `com.clickhouse.data` when applications run on the module path.
+  (https://github.com/ClickHouse/clickhouse-java/issues/2669)
+
+- **[client-v2]** Fixed `Client.cancelTransportRequest(queryId)` being silently dropped when it landed between two
+  attempts of a retried operation (query, POJO insert and stream insert): the operation issued the next attempt anyway
+  and could complete successfully. The request of an attempt now stays registered until the whole operation is over,
+  and the cancellation is checked before every attempt, so a cancelled operation stops instead of sending another
+  request. (https://github.com/ClickHouse/clickhouse-java/issues/2989)
+- **[data]** Fixed `BlockingPipedOutputStream.close()` not being idempotent under concurrency: the check of the
+  `closed` flag and the closing handshake were not atomic, so two threads closing the same stream (e.g. a writer
+  thread and a try-with-resources block) could both put the end-of-stream marker into the queue, and the second one
+  failed with `Close stream timed out after <n> ms` once the reader had stopped consuming. Exactly one caller now
+  performs the handshake and runs the post-close action; a concurrent or repeated `close()` returns immediately. A
+  `close()` which fails while flushing the remaining data also marks the stream closed and runs the post-close
+  action, so the stream cannot stay half-closed. (https://github.com/ClickHouse/clickhouse-java/issues/3055)
+- **[jdbc-v2]** Fixed JDBC escape processing rewriting text inside string literals and quoted identifiers. Because
+  `PreparedStatement` inlines bound parameters into the statement text, a bound value containing `{fn ` (or `{d '...'}`
+  / `{ts '...'}`) was re-read as SQL syntax: the `{fn ` was removed together with the next `}` found anywhere in the
+  statement — usually the closing brace of an unrelated `Map`/`Tuple` literal in another value or row — corrupting the
+  inserted data or failing with a server-side `SYNTAX_ERROR`. Escape sequences are now recognized only outside of quoted
+  text, and a `{fn ...}` escape is unwrapped at its matching closing brace, so nested braces (e.g. a `{name:Type}` query
+  parameter or a nested escape) stay balanced. (https://github.com/ClickHouse/clickhouse-java/issues/2995)
+- **[jdbc-v2]** Fixed prepared statements losing parameter markers after an empty `--` comment line or after
+  `SELECT * EXCEPT (...)`, which caused parameter binding to fail with `ArrayIndexOutOfBoundsException` for the
+  affected SQL parser backends. (https://github.com/ClickHouse/clickhouse-java/issues/3052)
 - **[client-v2]** Fixed LZ4 input streams not closing their underlying HTTP response stream. Closing an LZ4 stream
   returned by `QueryResponse.getInputStream()` now releases the wrapped transport stream, including after a partial
   read. (https://github.com/ClickHouse/clickhouse-java/issues/2985)
@@ -128,6 +221,17 @@
 - **[client-v2]** Fixed `DateTime`/`DateTime64` columns declared with a synthetic fixed-offset timezone name
   (`Fixed/UTC±HH:MM:SS`, e.g. `Fixed/UTC+05:30:00`) being silently read in UTC instead of the declared offset. The
   `RowBinary` reader now recovers the offset from the column's declared type. (https://github.com/ClickHouse/clickhouse-java/issues/2876)
+
+- **[jdbc-v2]** Fixed the ANTLR4 SQL parser backends (`jdbc_sql_parser=ANTLR4` and `ANTLR4_PARAMS_PARSER`) lexing
+  the body of a heredoc string (`$$body$$`, `$tag$body$tag$`) as ordinary SQL. The lexer had no heredoc token, so
+  every `$` was dropped as an unrecognized character and the body was parsed as identifiers, operators and
+  statement separators: a body that still looked like valid SQL was silently mis-parsed (wrong table name and
+  VALUES-list positions), and a body containing `;` — as well as the empty heredoc `$$$$` — was reported as a
+  parse error, which classifies an INSERT as a result-set-bearing statement with no values-list positions. A
+  heredoc is now lexed as a single string literal and accepted as a literal value (`INSERT ... VALUES` lists,
+  column expressions, settings), and a `$` inside an identifier (`a$b`, or an unterminated tag such as
+  `$foo$bar`) is part of the identifier, as the server reads it.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3031)
 
 - **[jdbc-v2]** Fixed the beta RowBinary writer (`DriverProperties.BETA_ROW_BINARY_WRITER`) throwing
   `NoSuchColumnException` for `INSERT` statements whose column names are backtick-quoted, in particular the

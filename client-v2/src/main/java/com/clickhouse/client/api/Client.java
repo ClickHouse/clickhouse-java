@@ -30,6 +30,9 @@ import com.clickhouse.client.api.metadata.DefaultColumnToMethodMatchingStrategy;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.metrics.ClientMetrics;
 import com.clickhouse.client.api.metrics.OperationMetrics;
+import com.clickhouse.client.api.observability.DefaultSpanRecorder;
+import com.clickhouse.client.api.observability.Span;
+import com.clickhouse.client.api.observability.SpanRecorder;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
@@ -155,15 +158,25 @@ public class Client implements AutoCloseable {
     private final ClientNodeSelector nodeSelector;
     private final CredentialsManager credentialsManager;
 
+    /**
+     * Recorder registered by an application; called first for every span the client starts, with
+     * everything the client knows about the operation. Never {@code null} - it is
+     * {@link DefaultSpanRecorder#NOOP} when observability is not configured, so no null check is
+     * needed on the operation paths.
+     */
+    private final SpanRecorder spanRecorder;
+
     private Client(Collection<Endpoint> endpoints, Map<String,String> configuration,
                    ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy,
                    Object metricsRegistry, Supplier<String> queryIdGenerator, CredentialsManager cManager,
-                   SSLContext sslContext) {
+                   SSLContext sslContext, SpanRecorder spanRecorder) {
         Map<String, Object> parsedConfiguration = new ConcurrentHashMap<>(ClientConfigProperties.parseConfigMap(configuration));
         if (sslContext != null) {
             parsedConfiguration.put(ClientConfigProperties.SSL_CONTEXT.getKey(), sslContext);
         }
         this.credentialsManager = cManager;
+        this.spanRecorder = Objects.requireNonNull(spanRecorder,
+                "spanRecorder is required; use DefaultSpanRecorder.NOOP to record nothing");
         this.session = Session.extractFrom(parsedConfiguration);
         this.configuration = new ConcurrentHashMap<>(parsedConfiguration);
         this.readOnlyConfig = Collections.unmodifiableMap(configuration);
@@ -210,7 +223,8 @@ public class Client implements AutoCloseable {
             this.lz4Factory = LZ4Factory.fastestJavaInstance();
         }
 
-        this.httpClientHelper = new HttpAPIClientHelper(this.configuration, metricsRegistry, initSslContext, lz4Factory);
+        this.httpClientHelper = new HttpAPIClientHelper(this.configuration, metricsRegistry, initSslContext, lz4Factory,
+                this.spanRecorder);
         this.serverVersion = configuration.getOrDefault(ClientConfigProperties.SERVER_VERSION.getKey(), "unknown");
         this.dbUser = configuration.getOrDefault(ClientConfigProperties.USER.getKey(), ClientConfigProperties.USER.getDefObjVal());
         this.typeHintMapping = (Map<ClickHouseDataType, Class<?>>) this.configuration.get(ClientConfigProperties.TYPE_HINT_MAPPING.getKey());
@@ -283,6 +297,7 @@ public class Client implements AutoCloseable {
         private Object metricRegistry = null;
         private Supplier<String> queryIdGenerator;
         private SSLContext sslContext = null;
+        private SpanRecorder spanRecorder = DefaultSpanRecorder.NOOP;
 
         // Trust/key material options that feed a context the client would otherwise build; none of them
         // may be combined with an application-supplied SSLContext (see build()).
@@ -1230,6 +1245,27 @@ public class Client implements AutoCloseable {
             return this;
         }
 
+        /**
+         * <p>Registers a {@link SpanRecorder} that observes client operations and the transport
+         * requests made for them. Each operation (query, command, insert, ping, table-schema
+         * lookup) produces one operation span, and every request attempt made for it - including
+         * retries - produces a child request span.</p>
+         *
+         * <p>When no recorder is set nothing is recorded and no span-related work is done. The
+         * default is {@link DefaultSpanRecorder#NOOP}, so registering that recorder is how an
+         * application asks for nothing to be recorded; {@code null} is rejected because it is a
+         * configuration error rather than a way to disable recording.</p>
+         *
+         * @param spanRecorder - recorder to notify; must not be {@code null}
+         * @return same instance of the builder
+         * @throws NullPointerException when {@code spanRecorder} is {@code null}
+         */
+        public Builder setSpanRecorder(SpanRecorder spanRecorder) {
+            this.spanRecorder = Objects.requireNonNull(spanRecorder,
+                    "spanRecorder is required; use DefaultSpanRecorder.NOOP to record nothing");
+            return this;
+        }
+
         public Client build() {
             // check if endpoint are empty. so can not initiate client
             if (this.endpoints.isEmpty()) {
@@ -1317,7 +1353,7 @@ public class Client implements AutoCloseable {
 
             return new Client(this.endpoints, this.configuration, this.sharedOperationExecutor,
                 this.columnToMethodMatchingStrategy, this.metricRegistry, this.queryIdGenerator, cManager,
-                this.sslContext);
+                this.sslContext, this.spanRecorder);
         }
     }
 
@@ -1338,7 +1374,8 @@ public class Client implements AutoCloseable {
     public boolean ping(long timeout) {
         long startTime = System.nanoTime();
         try {
-            CompletableFuture<QueryResponse> future = query("SELECT 1 FORMAT TabSeparated");
+            CompletableFuture<QueryResponse> future =
+                    query("SELECT 1", new QuerySettings().setFormat(ClickHouseFormat.TabSeparated));
             try (QueryResponse response = timeout > 0 ? future.get(timeout, TimeUnit.MILLISECONDS) : future.get()) {
                 return true;
             }
@@ -1459,61 +1496,73 @@ public class Client implements AutoCloseable {
         if (requestSettings.getQueryId() == null && queryIdGenerator != null) {
             requestSettings.setQueryId(queryIdGenerator.get());
         }
+        final Span operationSpan = orNoop(spanRecorder.startInsertSpan(requestSettings, tableName, data.size(),
+                endpoints.get(0)));
         Supplier<InsertResponse> supplier = () -> {
             long startTime = System.nanoTime();
             // Selecting some node
             Endpoint selectedEndpoint = nodeSelector.getEndpoint();
             final String queryId = requestSettings.getQueryId();
             RuntimeException lastException = null;
-            for (int i = 0; i <= maxAttempts; i++) {
-                // Execute request
-                TransportRequest transportRequest = httpClientHelper.createRequest(selectedEndpoint, requestSettings.getAllSettings(),
-                        out -> {
-                            out.write("INSERT INTO ".getBytes());
-                            out.write(tableName.getBytes());
-                            out.write(" \n FORMAT ".getBytes());
-                            out.write(format.name().getBytes());
-                            out.write(" \n".getBytes());
-                            for (Object obj : data) {
+            try {
+                for (int i = 0; i <= maxAttempts; i++) {
+                    failIfCancelled(queryId, i, lastException);
+                    // Execute request
+                    TransportRequest transportRequest = httpClientHelper.createRequest(selectedEndpoint, requestSettings.getAllSettings(),
+                            out -> {
+                                out.write("INSERT INTO ".getBytes());
+                                out.write(tableName.getBytes());
+                                out.write(" \n FORMAT ".getBytes());
+                                out.write(format.name().getBytes());
+                                out.write(" \n".getBytes());
+                                for (Object obj : data) {
 
-                                for (POJOFieldSerializer serializer : serializersForTable) {
-                                    try {
-                                        serializer.serialize(obj, out);
-                                    } catch (InvocationTargetException | IllegalAccessException e) {
-                                        throw new DataSerializationException(obj, serializer, e);
+                                    for (POJOFieldSerializer serializer : serializersForTable) {
+                                        try {
+                                            serializer.serialize(obj, out);
+                                        } catch (InvocationTargetException | IllegalAccessException e) {
+                                            throw new DataSerializationException(obj, serializer, e);
+                                        }
                                     }
                                 }
+                                out.close();
+                            });
+
+                    registerTransportReq(queryId, transportRequest);
+
+                    try (TransportResponse transportResponse = httpClientHelper.executeRequest(transportRequest, operationSpan)) {
+                        ClientStatisticsHolder clientStats = globalClientStats.remove(operationId);
+                        OperationMetrics metrics = completeOperation(transportResponse, clientStats, requestSettings.getQueryId());
+
+                        spanRecorder.recordSuccess(operationSpan, metrics);
+                        return new InsertResponse(transportResponse, metrics);
+                    } catch (Exception e) {
+                        String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
+                        lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
+                        if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings()) && requestIsNotCancelled(queryId)) {
+                            if (i < maxAttempts) {
+                                selectedEndpoint = logRetryAndSelectNextNode("Insert", i, maxAttempts, requestSettings.getQueryId(), selectedEndpoint, e);
+                            } else {
+                                nodeSelector.getNextAliveNode(selectedEndpoint);
                             }
-                            out.close();
-                        });
-
-                registerTransportReq(queryId, transportRequest);
-
-                try (TransportResponse transportResponse = httpClientHelper.executeRequest(transportRequest)) {
-                    ClientStatisticsHolder clientStats = globalClientStats.remove(operationId);
-                    OperationMetrics metrics = completeOperation(transportResponse, clientStats, requestSettings.getQueryId());
-
-                    return new InsertResponse(transportResponse, metrics);
-                } catch (Exception e) {
-                    String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
-                    lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
-                    if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings()) && requestIsNotCancelled(queryId)) {
-                        if (i < maxAttempts) {
-                            selectedEndpoint = logRetryAndSelectNextNode("Insert", i, maxAttempts, requestSettings.getQueryId(), selectedEndpoint, e);
                         } else {
-                            nodeSelector.getNextAliveNode(selectedEndpoint);
+                            throw lastException;
                         }
-                    } else {
-                        throw lastException;
                     }
-                } finally {
-                    unregisterTransportReq(queryId);
                 }
-            }
 
-            String errMsg = requestExMsg("Insert", maxAttempts + 1, durationSince(startTime).toMillis(), requestSettings.getQueryId());
-            LOG.warn(errMsg);
-            throw (lastException == null ? new ClientException(errMsg) : lastException);
+                String errMsg = requestExMsg("Insert", maxAttempts + 1, durationSince(startTime).toMillis(), requestSettings.getQueryId());
+                LOG.warn(errMsg);
+                throw (lastException == null ? new ClientException(errMsg) : lastException);
+            } catch (RuntimeException | Error e) {
+                spanRecorder.recordFailure(operationSpan, e);
+                throw e;
+            } finally {
+                // The request of the last attempt stays registered until the operation is over, so a cancellation
+                // landing between two attempts is not lost.
+                unregisterTransportReq(queryId);
+                operationSpan.end();
+            }
         };
 
         return runAsyncOperation(supplier, requestSettings.getAllSettings());
@@ -1679,6 +1728,8 @@ public class Client implements AutoCloseable {
 
         final int maxRetries = ClientConfigProperties.RETRY_ON_FAILURE.getOrDefault(requestSettings.getAllSettings());
         final int maxAttempts = Math.max(maxRetries, endpoints.size() - 1);
+        final Span operationSpan = orNoop(spanRecorder.startInsertSpan(requestSettings, tableName,
+                SpanRecorder.BATCH_SIZE_UNKNOWN, endpoints.get(0)));
         Supplier<InsertResponse> responseSupplier = () -> {
             long startTime = System.nanoTime();
             // Selecting some node
@@ -1688,6 +1739,7 @@ public class Client implements AutoCloseable {
             final String queryId = requestSettings.getQueryId();
             try {
                 for (int i = 0; i <= maxAttempts; i++) {
+                    failIfCancelled(queryId, i, lastException);
                     // Execute request
                     TransportRequest transportRequest = httpClientHelper.createRequest(selectedEndpoint, requestSettings.getAllSettings(),
                             out -> {
@@ -1696,8 +1748,9 @@ public class Client implements AutoCloseable {
                             });
                     registerTransportReq(queryId, transportRequest);
 
-                    try (TransportResponse transportResponse = httpClientHelper.executeRequest(transportRequest)) {
+                    try (TransportResponse transportResponse = httpClientHelper.executeRequest(transportRequest, operationSpan)) {
                         OperationMetrics metrics = completeOperation(transportResponse, finalClientStats, requestSettings.getQueryId());
+                        spanRecorder.recordSuccess(operationSpan, metrics);
                         return new InsertResponse(transportResponse, metrics);
                     } catch (Exception e) {
                         String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
@@ -1711,10 +1764,6 @@ public class Client implements AutoCloseable {
                         } else {
                             throw lastException;
                         }
-                    } finally {
-                        // Insert completes once the request returns; the response exposes no stream to read afterwards,
-                        // so the request is no longer cancellable and can be unregistered.
-                        unregisterTransportReq(requestSettings.getQueryId());
                     }
 
                     if (i < maxAttempts) {
@@ -1725,13 +1774,19 @@ public class Client implements AutoCloseable {
                         }
                     }
                 }
-            } finally {
-                unregisterTransportReq(queryId);
-            }
 
-            String errMsg = requestExMsg("Insert", maxAttempts + 1, durationSince(startTime).toMillis(), requestSettings.getQueryId());
-            LOG.warn(errMsg);
-            throw (lastException == null ? new ClientException(errMsg) : lastException);
+                String errMsg = requestExMsg("Insert", maxAttempts + 1, durationSince(startTime).toMillis(), requestSettings.getQueryId());
+                LOG.warn(errMsg);
+                throw (lastException == null ? new ClientException(errMsg) : lastException);
+            } catch (RuntimeException | Error e) {
+                spanRecorder.recordFailure(operationSpan, e);
+                throw e;
+            } finally {
+                // The request of the last attempt stays registered until the operation is over, so a cancellation
+                // landing between two attempts is not lost.
+                unregisterTransportReq(queryId);
+                operationSpan.end();
+            }
         };
 
         return runAsyncOperation(responseSupplier, requestSettings.getAllSettings());
@@ -1750,8 +1805,9 @@ public class Client implements AutoCloseable {
      * <p>Sends SQL query to server.</p>
      * <b>Notes:</b>
      * <ul>
-     * <li>Server response format can be specified thru `settings` or in SQL query.</li>
-     * <li>If specified in both, the `sqlQuery` will take precedence.</li>
+     * <li>Server response format should be specified thru `settings` and not with a FORMAT clause in the SQL query.</li>
+     * <li>If specified in both, the format that wins depends on the server version: a server before v26.8 uses the
+     * format from the `sqlQuery`, a server since v26.8 uses the format from the `settings`.</li>
      * </ul>
      * @param sqlQuery - complete SQL query.
      * @param settings - query operation settings.
@@ -1780,8 +1836,10 @@ public class Client implements AutoCloseable {
      *
      * <b>Notes:</b>
      * <ul>
-     * <li>Server response format can be specified through {@code settings} or in SQL query.</li>
-     * <li>If specified in both, the {@code sqlQuery} will take precedence.</li>
+     * <li>Server response format should be specified through {@code settings} and not with a FORMAT clause in the
+     * SQL query.</li>
+     * <li>If specified in both, the format that wins depends on the server version: a server before v26.8 uses the
+     * format from the {@code sqlQuery}, a server since v26.8 uses the format from the {@code settings}.</li>
      * </ul>
      *
      * @param sqlQuery - complete SQL query.
@@ -1820,6 +1878,9 @@ public class Client implements AutoCloseable {
 
         final int maxRetries = ClientConfigProperties.RETRY_ON_FAILURE.getOrDefault(requestSettings.getAllSettings());
         final int maxAttempts = Math.max(maxRetries, endpoints.size() - 1);
+        // Started on the calling thread so that the span joins the caller's ambient trace even when
+        // the operation itself runs on the shared operation executor.
+        final Span operationSpan = orNoop(spanRecorder.startQuerySpan(requestSettings, sqlQuery, endpoints.get(0)));
         Supplier<QueryResponse> responseSupplier = () -> {
                 long startTime = System.nanoTime();
                 // Selecting some node
@@ -1828,17 +1889,19 @@ public class Client implements AutoCloseable {
                 final String queryId = requestSettings.getQueryId();
                 try {
                     for (int i = 0; i <= maxAttempts; i++) {
+                        failIfCancelled(queryId, i, lastException);
                         TransportRequest request = httpClientHelper.createRequest(selectedEndpoint, requestSettings.getAllSettings(), sqlQuery);
                         registerTransportReq(queryId, request);
                         TransportResponse transportResp = null;
                         try {
-                            transportResp = httpClientHelper.executeRequest(request);
+                            transportResp = httpClientHelper.executeRequest(request, operationSpan);
                             OperationMetrics metrics = completeOperation(transportResp, clientStats, requestSettings.getQueryId());
                             ClickHouseFormat responseFormat = transportResp.getDataFormat();
                             if (responseFormat == null) {
                                 responseFormat = requestSettings.getFormat();
                             }
 
+                            spanRecorder.recordSuccess(operationSpan, metrics);
                             return new QueryResponse(transportResp, responseFormat, requestSettings, metrics);
 
                         } catch (Exception e) {
@@ -1856,13 +1919,18 @@ public class Client implements AutoCloseable {
                             }
                         }
                     }
+
+                    String errMsg = requestExMsg("Query", maxAttempts + 1, durationSince(startTime).toMillis(), requestSettings.getQueryId());
+                    LOG.warn(errMsg);
+                    throw (lastException == null ? new ClientException(errMsg) : lastException);
+                } catch (RuntimeException | Error e) {
+                    spanRecorder.recordFailure(operationSpan, e);
+                    throw e;
                 } finally {
                     // unregister transport request once we are done
                     unregisterTransportReq(queryId);
+                    operationSpan.end();
                 }
-                String errMsg = requestExMsg("Query", maxAttempts + 1, durationSince(startTime).toMillis(), requestSettings.getQueryId());
-                LOG.warn(errMsg);
-                throw (lastException == null ? new ClientException(errMsg) : lastException);
             };
 
         return runAsyncOperation(responseSupplier, requestSettings.getAllSettings());
@@ -1879,6 +1947,14 @@ public class Client implements AutoCloseable {
                 operation, attemptIndex + 1, maxAttempts + 1, queryId, endpoint,
                 cause.getClass().getName(), cause.getMessage());
         return nodeSelector.getNextAliveNode(endpoint);
+    }
+
+    /**
+     * Replaces a span a recorder did not return with one that records nothing, so an incomplete
+     * implementation cannot break an operation.
+     */
+    private static Span orNoop(Span span) {
+        return span == null ? DefaultSpanRecorder.NOOP_SPAN : span;
     }
 
     private void registerTransportReq(String queryId, TransportRequest tr) {
@@ -1899,6 +1975,24 @@ public class Client implements AutoCloseable {
             return tr == null || !tr.isCancelled();
         }
         return true;
+    }
+
+    /**
+     * Stops an operation that was cancelled before its next attempt is issued. A cancellation may have landed
+     * between two attempts (on the stream insert path for instance from {@link DataStreamWriter#onRetry()}): the
+     * request of the previous attempt stays registered until the operation is over, so it is seen here and no
+     * further request is issued.
+     * Only attempts that follow a failed one are checked: before the first attempt this operation has nothing
+     * registered yet, so a request found under the same query id belongs to another operation that is still
+     * running and its cancellation must not stop this one.
+     * The same exception type and message are used when a cancellation aborts an in-flight request, so a caller
+     * sees one outcome for a cancelled operation regardless of when the cancellation landed. The failure of the
+     * last attempt is kept as cause. Called from the retry loop of every operation.
+     */
+    private void failIfCancelled(String queryId, int attempt, RuntimeException lastException) {
+        if (attempt > 0 && !requestIsNotCancelled(queryId)) {
+            throw new TransportException("Request was cancelled on client side", lastException, queryId);
+        }
     }
 
     public CompletableFuture<QueryResponse> query(String sqlQuery, Map<String, Object> queryParams) {
@@ -2111,7 +2205,7 @@ public class Client implements AutoCloseable {
      * @return {@code TableSchema} - Schema of the table
      */
     public TableSchema getTableSchema(String table, String database) {
-        final String sql = "DESCRIBE TABLE " + table + " FORMAT " + ClickHouseFormat.TSKV.name();
+        final String sql = "DESCRIBE TABLE " + table;
         return getTableSchemaImpl(sql, table, null, database, null);
     }
 
@@ -2125,7 +2219,7 @@ public class Client implements AutoCloseable {
     }
 
     public TableSchema getTableSchemaFromQuery(String sql, Map<String, Object> params) {
-        final String describeQuery = "DESC (" + sql + ") FORMAT " + ClickHouseFormat.TSKV.name();
+        final String describeQuery = "DESC (" + sql + ")";
         return getTableSchemaImpl(describeQuery, null, sql, getDefaultDatabase(), params);
     }
 
@@ -2133,7 +2227,10 @@ public class Client implements AutoCloseable {
             String describeQuery, String name, String originalQuery, String database, Map<String, Object> queryParams) {
         int operationTimeout = getOperationTimeout();
 
-        QuerySettings settings = new QuerySettings().setDatabase(database);
+        // The format is requested thru settings (the X-ClickHouse-Format header) and not with a FORMAT clause:
+        // since v26.8 the server lets the header override the format written in the query, so a query that asks
+        // for one format while the client sends another in the header returns data the caller cannot parse.
+        QuerySettings settings = new QuerySettings().setDatabase(database).setFormat(ClickHouseFormat.TSKV);
         try (QueryResponse response = operationTimeout == 0
                 ? query(describeQuery, queryParams, settings).get()
                 : query(describeQuery, queryParams, settings).get(operationTimeout, TimeUnit.MILLISECONDS)) {
@@ -2416,7 +2513,8 @@ public class Client implements AutoCloseable {
      * Tries to cancel ongoing request. This method cancels IO operations but doesn't
      * kill query on server side. Original queryId should be used to cancel the request.
      * This operation cancels only operations on client side and only that still waiting
-     * for response.
+     * for response. A cancellation that lands between two attempts of a retried operation is effective too:
+     * the operation stops instead of issuing another request.
      *
      * @param queryId - original query id that was passed in operation settings.
      */

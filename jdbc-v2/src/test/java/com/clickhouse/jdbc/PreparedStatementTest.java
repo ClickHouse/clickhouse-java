@@ -7,6 +7,7 @@ import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseVersion;
 import com.clickhouse.data.Tuple;
 import com.clickhouse.jdbc.internal.JdbcUtils;
+import com.clickhouse.jdbc.internal.SqlParserFacade;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
@@ -1194,6 +1195,48 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         }
     }
 
+    @Test(groups = {"integration"}, dataProvider = "sqlParserDP")
+    void testBatchInsertWithValueOfUnsupportedSyntax(String parserName) throws Exception {
+        String table = "test_pstmt_batch_unsupported_syntax";
+        Properties properties = new Properties();
+        properties.setProperty(DriverProperties.SQL_PARSER.getKey(), parserName);
+        properties.setProperty(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF);
+        try (Connection conn = getJdbcConnection(properties)) {
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("DROP TABLE IF EXISTS " + table);
+                stmt.execute("CREATE TABLE " + table + " (v1 Int32, v2 String) Engine MergeTree ORDER BY ()");
+            }
+
+            try (PreparedStatement stmt = conn.prepareStatement(
+                    "INSERT INTO " + table + " (v1, v2) VALUES (?, hex(x'AB'))")) {
+                for (int i = 1; i <= 2; i++) {
+                    stmt.setInt(1, i);
+                    stmt.addBatch();
+                }
+                assertEquals(stmt.executeBatch().length, 2);
+            }
+
+            try (Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery("SELECT v1, v2 FROM " + table + " ORDER BY v1")) {
+                for (int i = 1; i <= 2; i++) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getInt(1), i);
+                    assertEquals(rs.getString(2), "AB");
+                }
+                assertFalse(rs.next());
+            }
+        }
+    }
+
+    @DataProvider(name = "sqlParserDP")
+    public static Object[][] sqlParserDP() {
+        return new Object[][] {
+                { SqlParserFacade.SQLParser.JAVACC.name() },
+                { SqlParserFacade.SQLParser.ANTLR4.name() },
+                { SqlParserFacade.SQLParser.ANTLR4_PARAMS_PARSER.name() },
+        };
+    }
+
     @Test(groups = {"integration"})
     void testWriteUUID() throws Exception {
         String sql = "insert into `test_issue_2327` (`id`, `uuid`) values (?, ?)";
@@ -1345,6 +1388,63 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                     assertThrows(SQLException.class, () -> rs.getString(14));
                     assertFalse(rs.next());
                 }
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testBoundValuesContainingJdbcEscapeSyntax() throws Exception {
+        try (Connection conn = getJdbcConnection(Map.of(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF))) {
+            final String table = "test_bound_values_with_escape_syntax";
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("DROP TABLE IF EXISTS " + table);
+                stmt.execute("CREATE TABLE " + table +
+                        "(v1 Int32, v2 Map(String, String), v3 String, v4 Int32) Engine MergeTree ORDER BY (v1)");
+            }
+
+            Map<String, String> map1 = new LinkedHashMap<>();
+            map1.put("user", "Z!F3{fn ");
+            map1.put("region", "{d '2024-01-02'}");
+            Map<String, String> map2 = Collections.singletonMap("user", "}");
+
+            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO " + table + " VALUES (?, ?, ?, ?)")) {
+                stmt.setInt(1, 1);
+                stmt.setObject(2, map1);
+                stmt.setString(3, "{fn UCASE('a')}");
+                stmt.setInt(4, 40);
+                stmt.addBatch();
+                stmt.setInt(1, 2);
+                stmt.setObject(2, map2);
+                stmt.setString(3, "{ts '2024-01-02 02:01:01'}");
+                stmt.setInt(4, 41);
+                stmt.addBatch();
+                assertEquals(stmt.executeBatch(), new int[]{1, 1});
+            }
+
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT ? AS v1, ? AS v2")) {
+                stmt.setString(1, "Z!F3{fn ");
+                stmt.setString(2, "}");
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getString(1), "Z!F3{fn ");
+                    assertEquals(rs.getString(2), "}");
+                    assertFalse(rs.next());
+                }
+            }
+
+            try (Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery("SELECT * FROM " + table + " ORDER BY v1")) {
+                assertTrue(rs.next());
+                assertEquals(rs.getInt(1), 1);
+                assertEquals(rs.getObject(2), map1);
+                assertEquals(rs.getString(3), "{fn UCASE('a')}");
+                assertEquals(rs.getInt(4), 40);
+                assertTrue(rs.next());
+                assertEquals(rs.getInt(1), 2);
+                assertEquals(rs.getObject(2), map2);
+                assertEquals(rs.getString(3), "{ts '2024-01-02 02:01:01'}");
+                assertEquals(rs.getInt(4), 41);
+                assertFalse(rs.next());
             }
         }
     }
@@ -1914,6 +2014,54 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                 Assert.assertNull(stmt.getResultSet(), "ResultSet should be null for DDL");
                 assertThrows(SQLException.class,
                         () -> stmt.executeQuery("CREATE TABLE " + tmpTable2 + " (x Int32) Engine MergeTree ORDER BY()"));
+            }
+        }
+    }
+
+    @DataProvider
+    public static Object[][] testInsertWithUnparsableValueExpression_dp() {
+        return new Object[][] {
+                {SqlParserFacade.SQLParser.ANTLR4.name()},
+                {SqlParserFacade.SQLParser.ANTLR4_PARAMS_PARSER.name()},
+                {SqlParserFacade.SQLParser.JAVACC.name()},
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "testInsertWithUnparsableValueExpression_dp")
+    public void testInsertWithUnparsableValueExpression(String parserName) throws Exception {
+        String table = "test_pstmt_unparsable_value_expr";
+        Properties properties = new Properties();
+        properties.setProperty(DriverProperties.SQL_PARSER.getKey(), parserName);
+        properties.setProperty(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF);
+        try (Connection conn = getJdbcConnection(properties)) {
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("DROP TABLE IF EXISTS " + table);
+                stmt.execute("CREATE TABLE " + table + " (v1 String, v2 String) Engine MergeTree ORDER BY ()");
+            }
+
+            try (PreparedStatement stmt = conn.prepareStatement(
+                    "INSERT INTO " + table + " (v1, v2) VALUES (hex(x'AB'), ?)")) {
+                assertEquals(stmt.getParameterMetaData().getParameterCount(), 1);
+                stmt.setString(1, "abc");
+                assertEquals(stmt.executeUpdate(), 1);
+            }
+
+            try (Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery("SELECT v1, v2 FROM " + table)) {
+                assertTrue(rs.next());
+                assertEquals(rs.getString(1), "AB");
+                assertEquals(rs.getString(2), "abc");
+                assertFalse(rs.next());
+            }
+
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT ? AS v1, hex(x'AB') AS v2")) {
+                assertEquals(stmt.getParameterMetaData().getParameterCount(), 1);
+                stmt.setString(1, "abc");
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getString(1), "abc");
+                    assertEquals(rs.getString(2), "AB");
+                }
             }
         }
     }
