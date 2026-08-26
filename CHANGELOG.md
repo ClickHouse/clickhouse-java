@@ -101,6 +101,14 @@
 
 ### Bug Fixes 
 
+- **[clickhouse-jdbc]** Fixed `Connection#prepareStatement` throwing a `NullPointerException` for an
+  `INSERT ... VALUES (...)` statement whose values list the JavaCC parser cannot parse — most commonly one
+  containing a heredoc string (`$$...$$`), which the grammar has no token for, but also any other unparsable token
+  inside the list. The parser's error recovery left the values list's start position recorded without its matching end
+  position, which was then unboxed unguarded. Both positions are now dropped together, so the driver falls back to its
+  generic parameter-substitution path instead of failing, and a statement such as
+  `insert into t values ($$a@b$$, ?)` is prepared and executed successfully.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3033)
 - **[jdbc-v2]** Fixed the ANTLR4 lexer not nesting `/* */` block comments. ClickHouse (and the JavaCC parser backend)
   raise the nesting level on an inner `/*` and close the comment only at the matching `*/`, while the ANTLR4 lexer ended
   the comment at the first `*/` and lexed the rest of it as SQL. With the `ANTLR4` / `ANTLR4_PARAMS_PARSER` backends this
