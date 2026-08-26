@@ -377,6 +377,11 @@ public abstract class BaseSqlParserFacadeTest {
                 // Tagged form and a body with whitespace
                 {"INSERT INTO t (c1, c2) VALUES ($tag_1$a!b$tag_1$, 1)", true, "t", "($tag_1$a!b$tag_1$, 1)"},
                 {"INSERT INTO t VALUES ($$a b$$, 1)", true, "t", "($$a b$$, 1)"},
+                // A single '$' in the body is data, not a tag delimiter (the server reads
+                // $$a$b$$ as a$b), so the statement must keep its classification
+                {"INSERT INTO t VALUES ($$a$b$$, 1)", true, "t", "($$a$b$$, 1)"},
+                {"INSERT INTO t VALUES ($tag$a$b$tag$, 1)", true, "t", "($tag$a$b$tag$, 1)"},
+                {"SELECT $$a$b$$ AS x FROM t", false, "t", null},
                 // Parentheses and commas in a body must not shift the values list positions
                 {"INSERT INTO t VALUES ($$a(b,c)$$, 1)", true, "t", "($$a(b,c)$$, 1)"},
                 // Two heredocs in one values list are two separate literals
