@@ -1,11 +1,14 @@
 package com.clickhouse.client.api.data_formats.internal;
 
+import com.clickhouse.client.api.ClientException;
 import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.format.BinaryStreamUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.math.BigInteger;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
@@ -190,6 +193,49 @@ public class BinaryStreamReaderTests {
         int[] array1 = (int[]) array.getArray();
         Object[] array2 = array.getArrayOfObjects();
         Assert.assertEquals(array1.length, array2.length);
+    }
+
+    @Test
+    public void testDynamicSimpleAggregateFunctionConsumesWholeTypeEncoding() throws Exception {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(ClickHouseDataType.SimpleAggregateFunction.getBinTag());
+        BinaryStreamUtils.writeString(baos, "sum");
+        BinaryStreamUtils.writeVarInt(baos, 0);
+        BinaryStreamUtils.writeVarInt(baos, 1);
+        baos.write(ClickHouseDataType.UInt64.getBinTag());
+        BinaryStreamUtils.writeUnsignedInt64(baos, 42);
+        BinaryStreamUtils.writeInt32(baos, 4242);
+
+        BinaryStreamReader reader = new BinaryStreamReader(
+                new ByteArrayInputStream(baos.toByteArray()),
+                TimeZone.getTimeZone("UTC"),
+                null,
+                new BinaryStreamReader.CachingByteBufferAllocator(),
+                false,
+                null,
+                false);
+
+        Assert.assertEquals(reader.readValue(ClickHouseColumn.of("v", "Dynamic")), BigInteger.valueOf(42));
+        Assert.assertEquals(reader.readValue(ClickHouseColumn.of("guard", "Int32")), Integer.valueOf(4242));
+    }
+
+    @Test(expectedExceptions = ClientException.class)
+    public void testDynamicParameterizedSimpleAggregateFunctionRejected() throws Exception {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(ClickHouseDataType.SimpleAggregateFunction.getBinTag());
+        BinaryStreamUtils.writeString(baos, "sum");
+        BinaryStreamUtils.writeVarInt(baos, 1);
+
+        BinaryStreamReader reader = new BinaryStreamReader(
+                new ByteArrayInputStream(baos.toByteArray()),
+                TimeZone.getTimeZone("UTC"),
+                null,
+                new BinaryStreamReader.CachingByteBufferAllocator(),
+                false,
+                null,
+                false);
+
+        reader.readValue(ClickHouseColumn.of("v", "Dynamic"));
     }
 
     @Test

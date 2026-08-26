@@ -359,7 +359,8 @@ public class SpanRecorderUnitTest {
         Span noopSpan = DefaultSpanRecorder.NOOP_SPAN;
         // the base class records nothing for every outcome the client reports
         defaultRecorder.recordHttpStatus(noopSpan, 200);
-        defaultRecorder.recordSuccess(noopSpan, null);
+        defaultRecorder.recordQuerySuccess(noopSpan, null);
+        defaultRecorder.recordInsertSuccess(noopSpan, null);
         defaultRecorder.recordFailure(noopSpan, new IllegalStateException("boom"));
         defaultRecorder.recordRequestFailure(noopSpan, new IllegalStateException("boom"));
         noopSpan.setAttribute(SpanAttribute.DB_NAMESPACE.getKey(), "db");
@@ -446,7 +447,12 @@ public class SpanRecorderUnitTest {
             }
 
             @Override
-            public void recordSuccess(Span operationSpan, OperationMetrics metrics) {
+            public void recordQuerySuccess(Span operationSpan, OperationMetrics metrics) {
+                // records nothing
+            }
+
+            @Override
+            public void recordInsertSuccess(Span operationSpan, OperationMetrics metrics) {
                 // records nothing
             }
 
