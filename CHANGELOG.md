@@ -295,6 +295,12 @@
   backtick-quoted `INSERT` column-name component before the by-name server-schema lookup, matching how the
   table and database identifiers are already handled. (https://github.com/ClickHouse/clickhouse-java/issues/2896)
 
+### Updated Dependencies
+
+- **[repo]** Upgraded `org.apache.httpcomponents.client5:httpclient5` from `5.4.4` to `5.6.4` in `client-v2` and
+  `clickhouse-http-client` to pick up the fixes of the newer 5.x releases, including known vulnerabilities.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3078)
+
 ### Docs & Examples
 
 - **[examples]** Converted the remaining Gradle-based example projects (`client-v2-apache-arrow`, `demo-service`,
