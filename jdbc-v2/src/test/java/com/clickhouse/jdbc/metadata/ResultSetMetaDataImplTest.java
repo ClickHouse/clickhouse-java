@@ -2,6 +2,7 @@ package com.clickhouse.jdbc.metadata;
 
 import com.clickhouse.jdbc.JdbcIntegrationTest;
 import org.testng.Assert;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.sql.Connection;
@@ -234,6 +235,36 @@ public class ResultSetMetaDataImplTest extends JdbcIntegrationTest {
                 assertEquals(rsmd.getScale(2), 5);
                 assertEquals(rsmd.getScale(3), 5);
             }
+        }
+    }
+
+    @DataProvider(name = "wrappedTypePrecisionAndScale")
+    public static Object[][] wrappedTypePrecisionAndScaleProvider() {
+        return new Object[][] {
+                { "CAST(toDecimal64(1, 4) AS Decimal(18, 4))", 18, 4 },
+                { "CAST(toDecimal64(1, 4) AS SimpleAggregateFunction(any, Decimal(18, 4)))", 18, 4 },
+                { "CAST(toDecimal128(1, 10) AS SimpleAggregateFunction(sum, Decimal(38, 10)))", 38, 10 },
+                { "CAST(NULL AS SimpleAggregateFunction(any, Nullable(Decimal(18, 4))))", 18, 4 },
+                { "CAST(now() AS SimpleAggregateFunction(any, DateTime('Europe/Amsterdam')))", 29, 0 },
+                { "CAST(now64(3, 'Europe/Amsterdam') AS "
+                        + "SimpleAggregateFunction(any, DateTime64(3, 'Europe/Amsterdam')))", 29, 3 },
+                { "CAST('abc' AS SimpleAggregateFunction(any, FixedString(16)))", 16, 0 },
+                { "CAST([toDecimal64(1, 4)] AS "
+                        + "SimpleAggregateFunction(groupArrayArray, Array(Decimal(18, 4))))", 0, 0 },
+                { "toLowCardinality(toDateTime('2024-01-15 12:30:45', 'Europe/Amsterdam'))", 29, 0 },
+                { "sumState(toDecimal64(1, 4))", 0, 0 },
+        };
+    }
+
+    @Test(groups = { "integration" }, dataProvider = "wrappedTypePrecisionAndScale")
+    public void testGetPrecisionAndScaleOfWrappedTypes(String expression, int precision, int scale) throws Exception {
+        try (Connection conn = getJdbcConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT " + expression + " AS v")) {
+            ResultSetMetaData rsmd = rs.getMetaData();
+            String type = rsmd.getColumnTypeName(1);
+            assertEquals(rsmd.getPrecision(1), precision, type);
+            assertEquals(rsmd.getScale(1), scale, type);
         }
     }
 
