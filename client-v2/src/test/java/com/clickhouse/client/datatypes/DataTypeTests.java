@@ -200,30 +200,18 @@ public class DataTypeTests extends BaseIntegrationTest {
     }
 
     @Test(groups = {"integration"})
-    public void testQBitNativeFormatRejected() throws Exception {
+    public void testQBitNativeFormatNestedRejected() throws Exception {
         if (isVersionMatch(QBIT_UNSUPPORTED_VERSIONS)) {
             throw new SkipException("QBit requires ClickHouse 25.10+");
         }
 
-        // In the Native format the server transmits a QBit column using its internal bit-transposed
-        // layout, which is NOT the Array(element_type)-like representation the client decodes for QBit
-        // over RowBinary. Reading QBit via Native must therefore fail loudly with a clear error rather
-        // than silently decoding garbage and misaligning the trailing column that follows it.
+        // A plain top-level QBit column IS decoded from the Native format (see testQBitNativeFormatRead),
+        // but a QBit nested inside another type (here Map(String, QBit)) uses a Native layout this reader
+        // does not decode. Reading it must fail loudly with a clear error rather than silently decoding
+        // garbage and misaligning the columns that follow it.
         QuerySettings settings = new QuerySettings()
                 .setFormat(ClickHouseFormat.Native)
                 .serverSetting("allow_experimental_qbit_type", "1");
-        try (QueryResponse response = client.query(
-                "SELECT CAST([1, 2, 3, 4, 5, 6, 7, 8] AS QBit(Float32, 8)) AS q, 42 AS tail", settings).get()) {
-            ClientException ex = Assert.expectThrows(ClientException.class,
-                    () -> client.newBinaryFormatReader(response));
-            Assert.assertTrue(ex.getMessage().contains("QBit"),
-                    "Expected a clear QBit message, got: " + ex.getMessage());
-            Assert.assertTrue(ex.getMessage().contains("Native"),
-                    "Expected the message to mention the Native format, got: " + ex.getMessage());
-        }
-
-        // The same rejection applies to a QBit nested inside another type (here Map(String, QBit)),
-        // which the server does support and would otherwise be misread column-by-column.
         try (QueryResponse response = client.query(
                 "SELECT CAST(map('a', [1, 2, 3]) AS Map(String, QBit(Float32, 3))) AS m", settings).get()) {
             ClientException ex = Assert.expectThrows(ClientException.class,
@@ -232,6 +220,116 @@ public class DataTypeTests extends BaseIntegrationTest {
                     "Expected a clear QBit message for the nested case, got: " + ex.getMessage());
             Assert.assertTrue(ex.getMessage().contains("Native"),
                     "Expected the message to mention the Native format, got: " + ex.getMessage());
+        }
+    }
+
+    @DataProvider(name = "qbitNativeCases")
+    public static Object[][] qbitNativeCases() {
+        // elementType, ClickHouse array literal, expected vector, isDouble.
+        // Dimensions deliberately span dim<8 (single-byte bit plane), dim not a multiple of 8 with
+        // dim>8 (two-byte plane, partial last byte), and dim a multiple of 8, plus negative and
+        // fractional values, across all three supported element types.
+        return new Object[][] {
+                {"Float32", "[1, -2, 3.5, 4, 5, 6, 7, 8]",
+                        new float[]{1f, -2f, 3.5f, 4f, 5f, 6f, 7f, 8f}, false},
+                {"Float64", "[1, -2, 3.5, 4, 5, 6, 7, 8]",
+                        new double[]{1d, -2d, 3.5d, 4d, 5d, 6d, 7d, 8d}, true},
+                // Integers up to 256 are exactly representable in BFloat16, so these round-trip bit-for-bit.
+                {"BFloat16", "[1, 2, 4, 8, 16, 32, 64, 128]",
+                        new float[]{1f, 2f, 4f, 8f, 16f, 32f, 64f, 128f}, false},
+                {"Float32", "[1, -2, 3.5]", new float[]{1f, -2f, 3.5f}, false},
+                {"Float32", "[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]",
+                        new float[]{1f, 2f, 3f, 4f, 5f, 6f, 7f, 8f, 9f, 10f}, false},
+                {"Float64", "[-1, 2, -3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]",
+                        new double[]{-1d, 2d, -3d, 4d, 5d, 6d, 7d, 8d, 9d, 10d, 11d, 12d, 13d, 14d, 15d, 16d}, true},
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "qbitNativeCases")
+    public void testQBitNativeFormatRead(String elementType, String valueLiteral, Object expectedVector,
+                                         boolean isDouble) throws Exception {
+        if (isVersionMatch(QBIT_UNSUPPORTED_VERSIONS)) {
+            throw new SkipException("QBit requires ClickHouse 25.10+");
+        }
+
+        int dimension = isDouble ? ((double[]) expectedVector).length : ((float[]) expectedVector).length;
+        // rowId ... vec ... tail: the fixed-width columns around the QBit shift (and the assertions
+        // fail) if the bit-plane decode consumes the wrong number of bytes and desynchronizes the block.
+        String sql = "SELECT toInt64(7) AS rowId, CAST(" + valueLiteral + " AS QBit(" + elementType + ", "
+                + dimension + ")) AS vec, toInt32(42) AS tail SETTINGS allow_experimental_qbit_type = 1";
+
+        // Native: the QBit column arrives in the server's internal bit-plane-transposed layout and must
+        // be reconstructed to the same vector as RowBinary.
+        assertSingleQBitRow(sql, ClickHouseFormat.Native, expectedVector, isDouble);
+        // Parity: the same query over a RowBinary format must decode to an equal vector.
+        assertSingleQBitRow(sql, ClickHouseFormat.RowBinaryWithNamesAndTypes, expectedVector, isDouble);
+    }
+
+    private void assertSingleQBitRow(String sql, ClickHouseFormat format, Object expectedVector,
+                                     boolean isDouble) throws Exception {
+        QuerySettings settings = new QuerySettings().setFormat(format);
+        try (QueryResponse response = client.query(sql, settings).get()) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+            Assert.assertNotNull(reader.next());
+            Assert.assertEquals(reader.getLong("rowId"), 7L);
+            if (isDouble) {
+                Assert.assertEquals(reader.getDoubleArray("vec"), (double[]) expectedVector);
+            } else {
+                Assert.assertEquals(reader.getFloatArray("vec"), (float[]) expectedVector);
+            }
+            Assert.assertEquals(reader.getInteger("tail"), 42);
+            Assert.assertFalse(reader.hasNext());
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testQBitNativeFormatMultiRow() throws Exception {
+        if (isVersionMatch(QBIT_UNSUPPORTED_VERSIONS)) {
+            throw new SkipException("QBit requires ClickHouse 25.10+");
+        }
+
+        // In the Native format a QBit column is serialized column-major (each bit plane holds all rows'
+        // bytes contiguously). Reading several rows in one block exercises the per-row slicing across
+        // the shared bit planes; the trailing Int32 guards against desync. Covered for a single-byte
+        // bit plane (Float32, dimension 3) and for a wider element with a two-byte, partially-filled
+        // plane (Float64, dimension 10), so the per-row offset arithmetic is checked for both
+        // bytes-per-plane = 1 and 2.
+        List<Object> f32Rows = Arrays.asList(
+                new float[]{1f, 2f, 3f}, new float[]{4f, 5f, 6f}, new float[]{7f, 8f, 9f});
+        assertMultiRowQBit("SELECT number AS rowId, "
+                + "CAST([number * 3 + 1, number * 3 + 2, number * 3 + 3] AS QBit(Float32, 3)) AS vec, "
+                + "toInt32(42) AS tail FROM numbers(3) ORDER BY rowId "
+                + "SETTINGS allow_experimental_qbit_type = 1", f32Rows, false);
+
+        List<Object> f64Rows = new ArrayList<>();
+        for (int r = 0; r < 3; r++) {
+            double[] row = new double[10];
+            for (int j = 0; j < 10; j++) {
+                row[j] = (j + 1) + r * 10;
+            }
+            f64Rows.add(row);
+        }
+        assertMultiRowQBit("SELECT number AS rowId, "
+                + "CAST(arrayMap(x -> x + number * 10, range(1, 11)) AS QBit(Float64, 10)) AS vec, "
+                + "toInt32(42) AS tail FROM numbers(3) ORDER BY rowId "
+                + "SETTINGS allow_experimental_qbit_type = 1", f64Rows, true);
+    }
+
+    private void assertMultiRowQBit(String sql, List<Object> expectedPerRow, boolean isDouble) throws Exception {
+        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.Native);
+        try (QueryResponse response = client.query(sql, settings).get()) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+            for (int r = 0; r < expectedPerRow.size(); r++) {
+                Assert.assertNotNull(reader.next());
+                Assert.assertEquals(reader.getLong("rowId"), (long) r);
+                if (isDouble) {
+                    Assert.assertEquals(reader.getDoubleArray("vec"), (double[]) expectedPerRow.get(r));
+                } else {
+                    Assert.assertEquals(reader.getFloatArray("vec"), (float[]) expectedPerRow.get(r));
+                }
+                Assert.assertEquals(reader.getInteger("tail"), 42);
+            }
+            Assert.assertFalse(reader.hasNext());
         }
     }
 
@@ -251,6 +349,43 @@ public class DataTypeTests extends BaseIntegrationTest {
         Assert.assertEquals(rows.size(), 1);
         Assert.assertEquals(rows.get(0).getFloatArray("d"), new float[]{1f, 2f, 3f});
         Assert.assertEquals(rows.get(0).getInteger("tail"), 42);
+    }
+
+    @DataProvider(name = "simpleAggregateFunctionInDynamicColumn")
+    public static Object[][] simpleAggregateFunctionInDynamicColumn() {
+        return new Object[][]{
+                {"sum", "UInt64", "42", "42"},
+                {"max", "Int32", "-7", "-7"},
+                {"anyLast", "String", "'abc'", "abc"},
+                {"anyLast", "LowCardinality(String)", "'lc'", "lc"},
+                {"anyLast", "DateTime(\\'UTC\\')", "toDateTime(1700000000)", "2023-11-14T22:13:20Z[UTC]"},
+                {"groupArrayArray", "Array(String)", "['a', 'b']", "[a, b]"},
+                {"anyLast", "Map(String, UInt8)", "map('k', 1)", "{k=1}"},
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "simpleAggregateFunctionInDynamicColumn")
+    public void testSimpleAggregateFunctionInDynamicColumn(String function, String argType, String valueSQL,
+                                                           String expected) throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            throw new SkipException("Dynamic requires ClickHouse 24.8+");
+        }
+
+        // A SimpleAggregateFunction held in a Dynamic column encodes its concrete type on the wire as
+        // 0x2E <function_name> <var_uint number_of_parameters> <var_uint number_of_arguments>
+        // <argument_type_encodings>. All of it must be consumed and the value must then be read as its
+        // argument type, otherwise the following column ("tail") misaligns. The trailing 42 is the
+        // desync guard; "plain" is the same value in a Dynamic column without the wrapper.
+        List<GenericRecord> rows = client.queryAll(
+                "SELECT CAST(CAST(" + valueSQL + ", 'SimpleAggregateFunction(" + function + ", " + argType + ")')"
+                        + " AS Dynamic) AS d, CAST(CAST(" + valueSQL + ", '" + argType + "') AS Dynamic) AS plain,"
+                        + " 42 AS tail SETTINGS allow_experimental_dynamic_type = 1");
+        Assert.assertEquals(rows.size(), 1);
+        GenericRecord row = rows.get(0);
+        Assert.assertEquals(row.getString("d"), expected);
+        Assert.assertEquals(row.getString("d"), row.getString("plain"));
+        Assert.assertEquals(row.getObject("d").getClass(), row.getObject("plain").getClass());
+        Assert.assertEquals(row.getInteger("tail"), 42);
     }
 
     @Test(groups = {"integration"})

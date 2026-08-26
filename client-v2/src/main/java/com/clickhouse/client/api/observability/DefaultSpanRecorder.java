@@ -71,7 +71,12 @@ public class DefaultSpanRecorder implements SpanRecorder {
     }
 
     @Override
-    public void recordSuccess(Span operationSpan, OperationMetrics metrics) {
+    public void recordQuerySuccess(Span operationSpan, OperationMetrics metrics) {
+        // records nothing
+    }
+
+    @Override
+    public void recordInsertSuccess(Span operationSpan, OperationMetrics metrics) {
         // records nothing
     }
 
