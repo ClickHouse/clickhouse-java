@@ -101,6 +101,13 @@
 
 ### Bug Fixes 
 
+- **[jdbc-v2]** Fixed `ResultSetMetaData.getPrecision()` and `getScale()` returning `0` for columns wrapped in
+  `SimpleAggregateFunction(func, T)`. The wrapper is transparent on the read path (values are read as plain `T`), but
+  both accessors described the wrapper itself, which carries no precision or scale — so a
+  `SimpleAggregateFunction(sum, Decimal(18, 4))` column looked like a scale-0 value and
+  `SimpleAggregateFunction(any, DateTime64(3, tz))` looked like second precision. They now describe the nested type.
+  `AggregateFunction` columns are unchanged, since their values are aggregation states rather than values of the
+  nested type. (https://github.com/ClickHouse/clickhouse-java/issues/3042)
 - **[clickhouse-jdbc]** Fixed `Connection#prepareStatement` throwing a `NullPointerException` for an
   `INSERT ... VALUES (...)` statement whose values list the JavaCC parser cannot parse — most commonly one
   containing a heredoc string (`$$...$$`), which the grammar has no token for, but also any other unparsable token
