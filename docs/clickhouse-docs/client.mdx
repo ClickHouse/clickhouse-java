@@ -216,9 +216,9 @@ Configuration is defined during client creation. See `com.clickhouse.client.api.
 | Method | Arguments | Description | Default | Key |
 |--------|-----------|-------------|---------|-----|
 | `setHttpCookiesEnabled(boolean enabled)` | `enabled` - flag to enable/disable | Set if HTTP cookies should be remembered and sent to server back. | - | - |
-| `httpHeader(String key, String value)` | `key` - HTTP header key<br/>`value` - string value | Sets value for a single HTTP header. Previous value is overridden. | `none` | `none` |
-| `httpHeader(String key, Collection values)` | `key` - HTTP header key<br/>`values` - list of string values | Sets values for a single HTTP header. Previous value is overridden. | `none` | `none` |
-| `httpHeaders(Map headers)` | `headers` - map with HTTP headers | Sets multiple HTTP header values at a time. | `none` | `none` |
+| `httpHeader(String key, String value)` | `key` - HTTP header key<br/>`value` - string value | Sets value for a single HTTP header. Previous value is overridden. | `none` | `http_header_*` |
+| `httpHeader(String key, Collection values)` | `key` - HTTP header key<br/>`values` - list of string values | Sets values for a single HTTP header. Previous value is overridden. | `none` | `http_header_*` |
+| `httpHeaders(Map headers)` | `headers` - map with HTTP headers | Sets multiple HTTP header values at a time. | `none` | `http_header_*` |
 | `useHttpFormDataForQuery(boolean enable)` | `enable` - flag to enable/disable | Sets whether query parameters should be sent as HTTP form data in the request body instead of the URL. Works only with server-side compression. If client-level compression is enabled, it will be disabled for query requests with parameters, as each parameter is sent as multipart content. | `false` | `client.http.use_form_request_for_query` |
 
 </Tab>
@@ -324,18 +324,58 @@ Server side settings can be set on the client level once while creation (see `se
 ```
 ⚠️ When options are set via `setOption` method (either the `Client.Builder` or operation settings class) then server settings name should be prefixed with `clickhouse_setting_`. The `com.clickhouse.client.api.ClientConfigProperties#serverSetting()` may be handy in this case.
 
-### Custom HTTP Header
+### Custom HTTP Headers {#custom-http-headers}
 
-Custom HTTP headers can be set for all operations (client level) or a single one (operation level).
+Custom HTTP headers can be set for all operations (client level) or a single one (operation level). Operation settings override client-level headers with the same name.
+
 ```java showLineNumbers
+Map<String, String> userHeaders = new HashMap<>();
+userHeaders.put("X-User-Header1", "value1");
+userHeaders.put("X-User-Header2", "value2");
 
-QuerySettings settings = new QuerySettings()
-    .httpHeader(HttpHeaders.REFERER, clientReferer)
-    .setQueryId(qId);
+Client client = new Client.Builder()
+        .addEndpoint("https://clickhouse-cloud-instance:8443/")
+        .setUsername(user)
+        .setPassword(password)
+        .httpHeader("X-ClickHouse-Quota", "test")
+        .httpHeader("X-Forwarded-For", Arrays.asList("1.2.3.4", "5.6.7.8"))
+        .httpHeaders(userHeaders)
+        .build();
+```
+**Important**: When options are set via `setOption` (on `Client.Builder` or an operation settings class), prefix the header name with `http_header_`. `ClientConfigProperties.httpHeader(String)` builds that key.
+As header name is simple String key it should be in one letter case otherwise duplicate values will result undefined behavior, `ClientConfigProperties.httpHeader(String)` fixes this problem.
 
+```java showLineNumbers
+clientBuilder.setOption(ClientConfigProperties.httpHeader("X-ClickHouse-Quota"), "test");
+// equivalent to:
+clientBuilder.setOption("http_header_X-CLICKHOUSE-QUOTA", "test");
 ```
 
-When options are set via `setOption` method (either the `Client.Builder` or operation settings class) then custom header name should be prefixed with `http_header_`. Method `com.clickhouse.client.api.ClientConfigProperties#httpHeader()` may be handy in this case.
+## ClickHouse Cloud Features {#clickhouse-cloud-features}
+
+Features that apply when connecting to [ClickHouse Cloud](https://clickhouse.com/cloud).
+
+### Replica-aware Routing (CLOUD) {#replica-aware-routing}
+
+ClickHouse Cloud can pin related HTTP requests to the same replica. Send the `X-ClickHouse-Replica-Tag` header so a Cloud proxy routes every request that shares the tag to one replica. Use this for session-scoped objects such as temporary tables, replica-local cache reuse, or read-after-write consistency.
+Read more: https://clickhouse.com/docs/products/cloud/features/infrastructure/replica-aware-routing.
+
+**What to set:** HTTP header `X-ClickHouse-Replica-Tag` (`com.clickhouse.client.api.http.ClickHouseHttpProto.HEADER_REPLICA_TAG`). Use the same tag value for all requests that should stay on one replica.
+
+```java showLineNumbers
+String replicaTag = "my-app-session-1";
+
+try (Client client = new Client.Builder()
+        .addEndpoint("https://your-service.clickhouse.cloud:8443")
+        .setUsername(user)
+        .setPassword(password)
+        .httpHeader(ClickHouseHttpProto.HEADER_REPLICA_TAG, replicaTag)
+        .build()) {
+    client.query("SELECT hostname()").get();
+}
+```
+
+To configure per operation, set the header on `QuerySettings`, `InsertSettings`, or `CommandSettings` instead of the client builder.
 
 ## Common Definitions {#common-definitions}
 
@@ -524,6 +564,9 @@ Configuration options for insert operations.
 | `setInputStreamCopyBufferSize(int size)`     | Copy buffer size. The buffer is used during write operations to copy data from user-provided input stream to an output stream. Default: `8196`. |
 | `serverSetting(String name, String value)`   | Sets individual server settings for an operation.                                                                          |
 | `serverSetting(String name, Collection values)` | Sets individual server settings with multiple values for an operation. Items of the collection should be `String` values.  |
+| `httpHeader(String key, String value)`       | Sets a custom HTTP header for the insert.                                                                                  |
+| `httpHeader(String key, Collection values)`  | Sets a custom HTTP header with multiple values.                                                                            |
+| `httpHeaders(Map headers)`                   | Sets multiple custom HTTP headers.                                                                                         |
 | `setDBRoles(Collection dbRoles)`             | Sets DB roles to be set before executing an operation. Items of the collection should be `String` values.                  |
 | `setOption(String option, Object value)`     | Sets a configuration option in raw format. This isn't a server setting.                                                  |
 
@@ -691,6 +734,9 @@ Configuration options for query operations.
 | `setUseTimeZone(String timeZone)`            | Requests server to use `timeZone` for time conversion. See [session_timezone](/reference/settings/session-settings#session_timezone). |
 | `serverSetting(String name, String value)`   | Sets individual server settings for an operation.                                                                          |
 | `serverSetting(String name, Collection values)` | Sets individual server settings with multiple values for an operation. Items of the collection should be `String` values.  |
+| `httpHeader(String key, String value)`       | Sets a custom HTTP header for the query.                                                                                   |
+| `httpHeader(String key, Collection values)`  | Sets a custom HTTP header with multiple values.                                                                            |
+| `httpHeaders(Map headers)`                   | Sets multiple custom HTTP headers.                                                                                         |
 | `setDBRoles(Collection dbRoles)`             | Sets DB roles to be set before executing an operation. Items of the collection should be `String` values.                  |
 | `setOption(String option, Object value)`     | Sets a configuration option in raw format. This isn't a server setting.                                                  |
 
@@ -1482,21 +1528,50 @@ Java client provides configuration options to set up failover and retry behavior
 | retry                   | `0`     | Maximum number of times retry can happen for a request. Zero or a negative value means no retry. Retry sends a request to the same node and only if the ClickHouse server returns the `NETWORK_ERROR` error code                               |
 | repeat_on_session_lock  | `true`  | Whether to repeat execution when the session is locked until timed out(according to `session_timeout` or `connect_timeout`). The failed request is repeated if the ClickHouse server returns the `SESSION_IS_LOCKED` error code               |
 
-### Adding custom http headers {#v1-adding-custom-http-headers}
+### Adding custom HTTP headers {#v1-adding-custom-http-headers}
 
-Java client support HTTP/S transport layer in case we want to add custom HTTP headers to the request.
-We should use the custom_http_headers property, and the headers need to be `,` separated. The header key/value should be divided using `=`
+The HTTP transport accepts extra request headers through the `custom_http_headers` property (`ClickHouseHttpOption.CUSTOM_HEADERS`). Each header is `Name=Value`. Separate multiple headers with a comma. Escape a comma inside a value as `\,`. An `=` inside a value is kept as part of the value.
 
-## Java Client support {#v1-java-client-support}
+**Single header**
+
+```java
+options.put("custom_http_headers", "X-ClickHouse-Quota=test");
+// or
+options.put(ClickHouseHttpOption.CUSTOM_HEADERS, "X-ClickHouse-Quota=test");
+```
+
+**Multiple headers**
 
 ```java
 options.put("custom_http_headers", "X-ClickHouse-Quota=test, X-ClickHouse-Test=test");
 ```
 
-## JDBC Driver {#v1-jdbc-driver}
+You can also set headers on a request:
 
 ```java
-properties.setProperty("custom_http_headers", "X-ClickHouse-Quota=test, X-ClickHouse-Test=test");
+client.read(server)
+        .option(ClickHouseHttpOption.CUSTOM_HEADERS, "X-ClickHouse-Quota=test, X-ClickHouse-Test=test")
+        .query("SELECT 1")
+        .executeAndWait();
+```
+
+## ClickHouse Cloud Features {#v1-clickhouse-cloud-features}
+
+Features that apply when connecting to [ClickHouse Cloud](https://clickhouse.com/cloud).
+
+### Replica-aware Routing (CLOUD) {#v1-replica-aware-routing}
+
+ClickHouse Cloud can pin related HTTP requests to the same replica. Send the `X-ClickHouse-Replica-Tag` header so a Cloud proxy routes every request that shares the tag to one replica. Use this for session-scoped objects such as temporary tables, replica-local cache reuse, or read-after-write consistency.
+Read more: https://clickhouse.com/docs/products/cloud/features/infrastructure/replica-aware-routing.
+
+**What to set:** HTTP header `X-ClickHouse-Replica-Tag` (`com.clickhouse.client.http.config.ClickHouseHttpOption.HEADER_REPLICA_TAG`) via `custom_http_headers`. Use the same tag value for all requests that should stay on one replica.
+
+```java
+String replicaTag = "my-app-session-1";
+options.put("custom_http_headers", "X-ClickHouse-Replica-Tag=" + replicaTag);
+// or
+options.put(ClickHouseHttpOption.CUSTOM_HEADERS,
+        ClickHouseHttpOption.HEADER_REPLICA_TAG + "=" + replicaTag);
 ```
 
 </View>
