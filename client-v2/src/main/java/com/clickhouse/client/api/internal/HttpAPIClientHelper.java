@@ -233,14 +233,29 @@ public class HttpAPIClientHelper {
         return connConfig.build();
     }
 
+    private static MeteredManagedHttpClientConnectionFactory createConnectionFactory(int networkBufferSize) {
+        // Server may send an unbounded number of X-ClickHouse-Progress headers (one per
+        // progress interval) and headers with long values, so response header count and
+        // line length must stay unlimited (negative value disables the limit).
+        Http1Config http1Config = Http1Config.custom()
+                .setBufferSize(networkBufferSize)
+                .setMaxHeaderCount(-1)
+                .setMaxLineLength(-1)
+                .build();
+        // Parser factory keeps its own config, so the same config is passed to it explicitly.
+        return new MeteredManagedHttpClientConnectionFactory(http1Config, CharCodingConfig.DEFAULT,
+                new DefaultHttpResponseParserFactory(http1Config));
+    }
+
     private HttpClientConnectionManager basicConnectionManager(LayeredConnectionSocketFactory sslConnectionSocketFactory, SocketConfig socketConfig, Map<String, Object> configuration) {
         Lookup<TlsSocketStrategy> tlsSocketStrategyLookup = RegistryBuilder.<TlsSocketStrategy>create()
                 .register(URIScheme.HTTPS.id, (socket, target, port, attachment, context) ->
                         (SSLSocket) sslConnectionSocketFactory.createLayeredSocket(socket, target, port, context))
                 .build();
 
+        int networkBufferSize = ClientConfigProperties.CLIENT_NETWORK_BUFFER_SIZE.getOrDefault(configuration);
         BasicHttpClientConnectionManager connManager = BasicHttpClientConnectionManager.create(
-                null, null, tlsSocketStrategyLookup, null);
+                null, null, tlsSocketStrategyLookup, createConnectionFactory(networkBufferSize));
         connManager.setConnectionConfig(createConnectionConfig(configuration));
         connManager.setSocketConfig(socketConfig);
 
@@ -269,12 +284,7 @@ public class HttpAPIClientHelper {
         ClientConfigProperties.HTTP_MAX_OPEN_CONNECTIONS.applyIfSet(configuration, connMgrBuilder::setMaxConnPerRoute);
 
         int networkBufferSize = ClientConfigProperties.CLIENT_NETWORK_BUFFER_SIZE.getOrDefault(configuration);
-        MeteredManagedHttpClientConnectionFactory connectionFactory = new MeteredManagedHttpClientConnectionFactory(
-                Http1Config.custom()
-                        .setBufferSize(networkBufferSize)
-                        .build(),
-                CharCodingConfig.DEFAULT,
-                DefaultHttpResponseParserFactory.INSTANCE);
+        MeteredManagedHttpClientConnectionFactory connectionFactory = createConnectionFactory(networkBufferSize);
 
         connMgrBuilder.setConnectionFactory(connectionFactory);
         connMgrBuilder.setSSLSocketFactory(sslConnectionSocketFactory);

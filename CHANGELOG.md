@@ -306,6 +306,9 @@
 
 - **[repo]** Upgraded `org.apache.httpcomponents.client5:httpclient5` from `5.4.4` to `5.6.4` in `client-v2` and
   `clickhouse-http-client` to pick up the fixes of the newer 5.x releases, including known vulnerabilities.
+  The new HTTP core version limits an incoming message to 100 headers and to a line length of 8192 bytes by default,
+  which a response of a long query with `send_progress_in_http_headers` exceeds, so both HTTP transports now disable
+  these two limits explicitly and keep the behavior of the previous version.
   (https://github.com/ClickHouse/clickhouse-java/issues/3078)
 
 ### Docs & Examples

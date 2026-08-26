@@ -149,6 +149,29 @@ public class ApacheHttpConnectionImplTest extends ClickHouseHttpClientTest {
     }
 
     @Test(groups = { "integration" })
+    public void testResponseWithManyProgressHeaders() throws Exception {
+        ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
+
+        try (ClickHouseClient client = ClickHouseClient.newInstance()) {
+            // The server sends one X-ClickHouse-Progress header per progress interval, so a
+            // slow query produces many more response headers than the HTTP/1 parser default.
+            ClickHouseRequest<?> req = newRequest(client, server)
+                    .set("send_progress_in_http_headers", 1)
+                    .set("http_headers_progress_interval_ms", 10)
+                    .set("max_block_size", 1)
+                    .set("wait_end_of_query", 1);
+            try (ClickHouseResponse resp = req.query("select number, sleep(0.05) from numbers(150)")
+                    .executeAndWait()) {
+                int count = 0;
+                for (Object ignored : resp.records()) {
+                    count++;
+                }
+                Assert.assertEquals(count, 150);
+            }
+        }
+    }
+
+    @Test(groups = { "integration" })
     @Ignore("Need to disable the option to provide custom socket factory. note: need to remove it")
     public void testCustomOptions() throws Exception {
         Map<String, String> customOptions = new HashMap<>();

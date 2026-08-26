@@ -465,14 +465,25 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
             }
         }
 
+        private static ManagedHttpClientConnectionFactory newConnectionFactory(int networkBufferSize) {
+            // Server may send an unbounded number of X-ClickHouse-Progress headers (one per
+            // progress interval) and headers with long values, so response header count and
+            // line length must stay unlimited (negative value disables the limit).
+            Http1Config http1Config = Http1Config.custom()
+                    .setBufferSize(Math.min(1_000_000, networkBufferSize))
+                    .setMaxHeaderCount(-1)
+                    .setMaxLineLength(-1)
+                    .build();
+            // Parser factory keeps its own config, so the same config is passed to it explicitly.
+            return new ManagedHttpClientConnectionFactory(http1Config, CharCodingConfig.DEFAULT,
+                    new DefaultHttpResponseParserFactory(http1Config));
+        }
+
         public HttpConnectionManager(Registry<ConnectionSocketFactory> socketFactory, ClickHouseConfig config,
                                      PoolConcurrencyPolicy poolConcurrentcyPolicy, PoolReusePolicy poolReusePolicy,
                                      TimeValue ttl, int networkBufferSize) {
             super(socketFactory, poolConcurrentcyPolicy, poolReusePolicy, ttl,
-                    new ManagedHttpClientConnectionFactory(Http1Config.custom()
-                            .setBufferSize(Math.min(1_000_000, networkBufferSize)).build(),
-                            CharCodingConfig.DEFAULT,
-                            DefaultHttpResponseParserFactory.INSTANCE));
+                    newConnectionFactory(networkBufferSize));
             ConnectionConfig connConfig = ConnectionConfig.custom()
                     .setConnectTimeout(Timeout.of(config.getConnectionTimeout(), TimeUnit.MILLISECONDS))
                     .setValidateAfterInactivity(config.getLongOption(ClickHouseHttpOption.AHC_VALIDATE_AFTER_INACTIVITY), TimeUnit.MILLISECONDS)

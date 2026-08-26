@@ -1160,6 +1160,37 @@ public class HttpTransportTests extends BaseIntegrationTest {
     }
 
 
+    @DataProvider(name = "connectionPoolEnabled")
+    public static Object[][] connectionPoolEnabled() {
+        return new Object[][] { { true }, { false } };
+    }
+
+    @Test(groups = { "integration" }, dataProvider = "connectionPoolEnabled")
+    public void testResponseWithManyProgressHeaders(boolean connectionPoolEnabled) throws Exception {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
+        ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
+        try (Client client = new Client.Builder().addEndpoint(server.getBaseUri())
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .enableConnectionPool(connectionPoolEnabled)
+                .build()) {
+
+            // The server sends one X-ClickHouse-Progress header per progress interval, so a
+            // slow query produces many more response headers than the HTTP/1 parser default.
+            QuerySettings settings = new QuerySettings()
+                    .serverSetting("send_progress_in_http_headers", "1")
+                    .serverSetting("http_headers_progress_interval_ms", "10")
+                    .serverSetting("max_block_size", "1");
+
+            List<GenericRecord> records = client.queryAll(
+                    "SELECT number, sleep(0.05) FROM numbers(150)", settings);
+            Assert.assertEquals(records.size(), 150);
+        }
+    }
+
     @Test(groups = { "integration" }, dataProvider = "testUserAgentHasCompleteProductName_dataProvider", dataProviderClass = HttpTransportTests.class)
     public void testUserAgentHasCompleteProductName(String clientName, Pattern userAgentPattern) throws Exception {
         if (isCloud()) {
