@@ -183,6 +183,13 @@
   serialized identically to its underlying type `T`, writing the `Nullable` null-marker byte when the
   underlying type is nullable (e.g. `SimpleAggregateFunction(anyLast, Nullable(String))`), mirroring the
   read path. (https://github.com/ClickHouse/clickhouse-java/issues/2477)
+- **[client-v2]** Fixed the `Dynamic` type tag for a `SimpleAggregateFunction` type being written as a bare
+  `0x2E` byte. The binary type encoding also carries the function name, its parameters and its argument
+  types, so the server read the function name out of the value bytes that followed and failed with
+  `ATTEMPT_TO_READ_AFTER_EOF`. Since the client never infers a `SimpleAggregateFunction` from a Java value
+  and the reader cannot read one back out of a `Dynamic` column, this now fails fast with a clear
+  `ClientException` instead of producing a corrupt `RowBinary` stream (the same treatment `QBit` already
+  gets). (https://github.com/ClickHouse/clickhouse-java/issues/3007)
 - **[client-v2, jdbc-v2]** Fixed several logging-layer defects. In `client-v2`, `HttpAPIClientHelper.shouldRetry`
   threw a `ClassCastException` when a retryable `ServerException` was wrapped as the *cause* of another exception
   (the branch matched on the cause but the cast used the outer exception); the retry decision is now taken from
