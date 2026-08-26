@@ -401,9 +401,22 @@ QUOTED_IDENTIFIER:
     QUOTE_DOUBLE (~([\\"]) | (BACKSLASH .) | (QUOTE_DOUBLE QUOTE_DOUBLE))* QUOTE_DOUBLE
 ;
 
+// heredoc string literal: $$body$$ or $tag$body$tag$
+// The untagged form ends at the first '$$', like the server does it, so its body may contain a
+// single '$'. The tagged form is matched loosely, like the rest of this grammar: the opening and
+// the closing tag are not required to be equal. Must stay before IDENTIFIER: a heredoc that
+// consists of tag characters only (e.g. `$$abc$$`) is also a valid identifier of the same length,
+// and equally long matches are resolved by rule order.
+HEREDOC_LITERAL:
+    DOLLAR DOLLAR .*? DOLLAR DOLLAR
+    | HEREDOC_TAG .*? HEREDOC_TAG
+;
+
+// A '$' is a valid identifier character, so an unterminated tag (e.g. `$foo$bar`) is an
+// identifier rather than a lexer error - that is how the server reads it too.
 IDENTIFIER:
-    (LETTER | UNDERSCORE) (LETTER | UNDERSCORE | DEC_DIGIT)*
-    | DEC_DIGIT+ (LETTER | UNDERSCORE) (LETTER | UNDERSCORE | DEC_DIGIT)*
+    (LETTER | UNDERSCORE | DOLLAR) (LETTER | UNDERSCORE | DOLLAR | DEC_DIGIT)*
+    | DEC_DIGIT+ (LETTER | UNDERSCORE | DOLLAR) (LETTER | UNDERSCORE | DOLLAR | DEC_DIGIT)*
 ;
 FLOATING_LITERAL:
     HEXADECIMAL_LITERAL DOT HEX_DIGIT* (P | E) (PLUS | DASH)? DEC_DIGIT+
@@ -457,6 +470,10 @@ fragment OCT_DIGIT : [0-7];
 fragment DEC_DIGIT : [0-9];
 fragment HEX_DIGIT : [0-9a-fA-F];
 
+// Fragments, not tokens: a '$' on its own is part of an identifier, not a token of its own.
+fragment DOLLAR      : '$';
+fragment HEREDOC_TAG : DOLLAR (LETTER | DEC_DIGIT | UNDERSCORE)+ DOLLAR;
+
 ARROW        : '->';
 ASTERISK     : '*';
 BACKQUOTE    : '`';
@@ -491,5 +508,5 @@ UNDERSCORE   : '_';
 // Comments and whitespace
 
 MULTI_LINE_COMMENT  : '/*' .*? '*/'                            -> skip;
-SINGLE_LINE_COMMENT : ('--' | '#!' | '#') ~('\n' | '\r')* ('\n' | '\r' | EOF) -> skip;
+SINGLE_LINE_COMMENT : ('--' | '//' | '#!' | '#') ~('\n' | '\r')* ('\n' | '\r' | EOF) -> skip;
 WHITESPACE          : [ \u000B\u000C\t\r\n]                    -> skip; // '\n' can be part of multiline single query
