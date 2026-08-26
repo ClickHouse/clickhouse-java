@@ -1195,6 +1195,48 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         }
     }
 
+    @Test(groups = {"integration"}, dataProvider = "sqlParserDP")
+    void testBatchInsertWithValueOfUnsupportedSyntax(String parserName) throws Exception {
+        String table = "test_pstmt_batch_unsupported_syntax";
+        Properties properties = new Properties();
+        properties.setProperty(DriverProperties.SQL_PARSER.getKey(), parserName);
+        properties.setProperty(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF);
+        try (Connection conn = getJdbcConnection(properties)) {
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("DROP TABLE IF EXISTS " + table);
+                stmt.execute("CREATE TABLE " + table + " (v1 Int32, v2 String) Engine MergeTree ORDER BY ()");
+            }
+
+            try (PreparedStatement stmt = conn.prepareStatement(
+                    "INSERT INTO " + table + " (v1, v2) VALUES (?, hex(x'AB'))")) {
+                for (int i = 1; i <= 2; i++) {
+                    stmt.setInt(1, i);
+                    stmt.addBatch();
+                }
+                assertEquals(stmt.executeBatch().length, 2);
+            }
+
+            try (Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery("SELECT v1, v2 FROM " + table + " ORDER BY v1")) {
+                for (int i = 1; i <= 2; i++) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getInt(1), i);
+                    assertEquals(rs.getString(2), "AB");
+                }
+                assertFalse(rs.next());
+            }
+        }
+    }
+
+    @DataProvider(name = "sqlParserDP")
+    public static Object[][] sqlParserDP() {
+        return new Object[][] {
+                { SqlParserFacade.SQLParser.JAVACC.name() },
+                { SqlParserFacade.SQLParser.ANTLR4.name() },
+                { SqlParserFacade.SQLParser.ANTLR4_PARAMS_PARSER.name() },
+        };
+    }
+
     @Test(groups = {"integration"})
     void testWriteUUID() throws Exception {
         String sql = "insert into `test_issue_2327` (`id`, `uuid`) values (?, ?)";

@@ -1,6 +1,7 @@
 package com.clickhouse.jdbc.internal;
 
 
+import com.clickhouse.data.ClickHouseUtils;
 import com.clickhouse.jdbc.internal.parser.javacc.ClickHouseSqlUtils;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
@@ -17,6 +18,7 @@ import java.util.stream.Collectors;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
+import static org.testng.Assert.assertNotEquals;
 import static org.testng.Assert.assertTrue;
 
 public abstract class BaseSqlParserFacadeTest {
@@ -152,6 +154,70 @@ public abstract class BaseSqlParserFacadeTest {
                 { "INSERT INTO `users` (`name`, `last_login`, `password`, `id`) VALUES\n" +
                         " (?, `parseDateTimeBestEffort`(?, ?), ?, 1)\n", 1, false, 4 },
         };
+    }
+
+    @Test(dataProvider = "testValuesListOfUnsupportedSyntaxDP")
+    public void testValuesListOfUnsupportedSyntax(String sql, boolean parseable, int valueGroups, int args) {
+        ParsedPreparedStatement parsed = parser.parsePreparedStatement(sql);
+        assertTrue(parsed.isInsert(), "Should be of insert type");
+
+        int reportedValueGroups = parsed.getAssignValuesGroups();
+        int start = parsed.getAssignValuesListStartPosition();
+        int stop = parsed.getAssignValuesListStopPosition();
+        if (parseable) {
+            assertEquals(reportedValueGroups, valueGroups, "Value groups do not match");
+            assertEquals(parsed.getArgCount(), args, "Args do not match");
+            if (valueGroups == 1) {
+                assertTrue(start > -1 && stop > -1,
+                        "Values list positions should be reported, but got [" + start + ", " + stop + "]");
+            }
+        } else if (valueGroups > 1) {
+            assertNotEquals(reportedValueGroups, 1, "Should not report a single value group");
+        }
+        if (reportedValueGroups != 1 || start < 0 || stop < 0) {
+            return; // the positions are only used to slice the statement of a single value group
+        }
+
+        assertTrue(stop > start && stop < sql.length(), "Values list should stop after it starts and within the "
+                + "statement of " + sql.length() + " characters, but got [" + start + ", " + stop + "]");
+        assertEquals(sql.charAt(start), '(', "Values list should start with an opening parenthesis");
+        assertEquals(stop, indexOfClosingParenthesis(sql, start),
+                "Values list should stop where the value group opened at " + start + " is closed");
+
+        int[] paramPositions = parsed.getParamPositions();
+        for (int i = 0; i < parsed.getArgCount(); i++) {
+            assertTrue(paramPositions[i] > start && paramPositions[i] < stop, "Parameter " + (i + 1)
+                    + " at position " + paramPositions[i] + " should be inside the values list '"
+                    + sql.substring(start, stop + 1) + "'");
+        }
+    }
+
+    @DataProvider
+    public static Object[][] testValuesListOfUnsupportedSyntaxDP() {
+        return new Object[][] {
+                { "INSERT INTO t (a, b) VALUES (?, hex(x'AB'))", false, 1, 1 },
+                { "INSERT INTO t (a, b) VALUES (?, toDate({d '2024-01-01'}))", false, 1, 1 },
+                { "INSERT INTO t (a, b) VALUES (?, hex(x'AB')), (?, hex(x'CD'))", false, 2, 2 },
+                { "INSERT INTO t (a, b) VALUES (?, hex('AB'))", true, 1, 1 },
+                { "INSERT INTO t (a, b) VALUES (?, 'a)b')", true, 1, 1 },
+                { "INSERT INTO t (a, b) VALUES (?, hex('AB')) ;", true, 1, 1 },
+                { "INSERT INTO t (a, b) VALUES (?, ?), (?, ?)", true, 2, 4 },
+        };
+    }
+
+    private static int indexOfClosingParenthesis(String sql, int openingPosition) {
+        int depth = 0;
+        for (int i = openingPosition; i < sql.length(); i++) {
+            char ch = sql.charAt(i);
+            if (ClickHouseUtils.isQuote(ch)) {
+                i = ClickHouseUtils.skipQuotedString(sql, i, sql.length(), ch) - 1;
+            } else if (ch == '(') {
+                depth++;
+            } else if (ch == ')' && --depth == 0) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     @Test
