@@ -6,6 +6,7 @@ import com.clickhouse.client.api.internal.StopWatch;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * OperationStatistics objects hold various stats for complete operations.
@@ -22,25 +23,15 @@ public class OperationMetrics {
     private final OperationType operationType;
 
     /**
-     * Creates metrics of an operation whose kind is not known - their
-     * {@link #getOperationType()} is {@link OperationType#UNKNOWN}. The client always reports the
-     * kind of the operation, so this constructor is only for metrics created by user code.
+     * Creates metrics of an operation of the given kind. Called by the client, which always knows
+     * the kind of the operation it runs.
      *
      * @param clientStatisticsHolder - holder of the client-side statistics of the operation
-     */
-    public OperationMetrics(ClientStatisticsHolder clientStatisticsHolder) {
-        this(clientStatisticsHolder, OperationType.UNKNOWN);
-    }
-
-    /**
-     * Creates metrics of an operation of the given kind.
-     *
-     * @param clientStatisticsHolder - holder of the client-side statistics of the operation
-     * @param operationType - kind of the operation; {@code null} is read as {@link OperationType#UNKNOWN}
+     * @param operationType - kind of the operation
      */
     public OperationMetrics(ClientStatisticsHolder clientStatisticsHolder, OperationType operationType) {
         this.clientStatistics = clientStatisticsHolder;
-        this.operationType = operationType == null ? OperationType.UNKNOWN : operationType;
+        this.operationType = Objects.requireNonNull(operationType, "operationType must not be null");
     }
 
     /**

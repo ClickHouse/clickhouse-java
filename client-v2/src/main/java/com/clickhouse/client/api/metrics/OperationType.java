@@ -18,11 +18,5 @@ public enum OperationType {
     /**
      * Operation the client ran as an insert, through one of the {@code insert} methods.
      */
-    INSERT,
-
-    /**
-     * Kind of the operation is not known. Reported for metrics that were created without one, which
-     * the client itself never does.
-     */
-    UNKNOWN
+    INSERT
 }

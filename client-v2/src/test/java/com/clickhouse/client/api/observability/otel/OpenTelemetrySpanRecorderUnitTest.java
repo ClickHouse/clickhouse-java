@@ -453,14 +453,16 @@ public class OpenTelemetrySpanRecorderUnitTest {
     }
 
     @Test
-    public void testMetricsCreatedWithoutAKindReportUnknown() {
-        // the client always reports the kind; metrics created by user code may not know it
-        Assert.assertEquals(new OperationMetrics(new ClientStatisticsHolder()).getOperationType(),
-                OperationType.UNKNOWN);
-        Assert.assertEquals(new OperationMetrics(new ClientStatisticsHolder(), null).getOperationType(),
-                OperationType.UNKNOWN);
+    public void testMetricsReportTheKindTheyWereCreatedWith() {
         Assert.assertEquals(queryMetrics().getOperationType(), OperationType.QUERY);
         Assert.assertEquals(insertMetrics().getOperationType(), OperationType.INSERT);
+    }
+
+    @Test(expectedExceptions = NullPointerException.class,
+            expectedExceptionsMessageRegExp = "operationType must not be null")
+    public void testMetricsWithoutAKindAreRejected() {
+        // the client always knows the kind of the operation it runs
+        new OperationMetrics(new ClientStatisticsHolder(), null);
     }
 
     private OperationMetrics queryMetrics() {

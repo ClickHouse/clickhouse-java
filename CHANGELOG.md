@@ -2,6 +2,14 @@
 
 [Release Migration Guide](docs/releases/0_11_0.md)
 
+### Breaking Changes
+
+- **[client-v2]** `com.clickhouse.client.api.metrics.OperationMetrics` now has a single constructor,
+  `OperationMetrics(ClientStatisticsHolder, OperationType)`; the constructor without an operation type was removed.
+  Metrics are created by the client, which always knows the kind of the operation it runs, and the constructor takes
+  an internal type (`com.clickhouse.client.api.internal.ClientStatisticsHolder`), so application code is not expected
+  to call it. (https://github.com/ClickHouse/clickhouse-java/issues/2974)
+
 ### New Features
 
 - **[client-v2]** Added an OpenTelemetry implementation of the observability SPI.
