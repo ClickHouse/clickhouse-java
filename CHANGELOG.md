@@ -12,6 +12,8 @@
 
 ### New Features
 
+- **[migration-helpers]** Added `migration-helpers` module containing `ConfigurationMigrationHelper` and `ConfigPropertyCache` to convert configuration properties and connection URLs from v1 (0.7.1) format to v2 (0.9.8+) format (automatically prefixing ClickHouse server settings with `clickhouse_setting_`, custom headers with `http_header_`, and mapping renamed property keys).
+
 - **[client-v2]** Added an OpenTelemetry implementation of the observability SPI.
   `Client.Builder.setSpanRecorder(new OpenTelemetrySpanRecorder(openTelemetry))`
   reports every client operation and every transport request as an OpenTelemetry `CLIENT` span: an operation span is
