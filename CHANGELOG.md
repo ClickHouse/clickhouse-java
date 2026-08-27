@@ -12,6 +12,25 @@
 
 ### New Features
 
+- **[client-v2, jdbc-v2]** Added a Micrometer implementation of the metrics SPI.
+  `Client.Builder.setMetricsRecorder(new MicrometerMetricsRecorder(meterRegistry))` reports the metrics of every client
+  operation to a Micrometer `MeterRegistry`: a timer `db.client.operation.duration` per completed operation, a timer
+  `clickhouse.client.operation.serialization.duration` when the client measured the serialization step, a counter
+  `clickhouse.client.operation.count` per completed operation, and a counter `clickhouse.client.operation.retries` per
+  retried attempt. Previously the client could bind only its connection-pool gauges to Micrometer, so exporting the
+  metrics of the operations themselves was left to the application. Meter names, units, descriptions and tag keys are
+  the standard ones of the SPI - the recorder derives them through `MetricsSupport`, so they are the names of
+  `MetricName` and the keys of `MetricAttribute` and mean the same as for every other recorder. A successful operation
+  carries no `error.type` tag and a failed one does, so the outcomes are separate time series of the same meter and a
+  failure the server reported also carries `db.response.status_code`; a duration the client did not measure is not
+  recorded, so no operation is reported with a made-up duration. The seconds of the SPI are handed to the registry as
+  nanoseconds, because a Micrometer timer keeps its own time unit, so a backend publishes the duration in the unit it
+  expects. The no-argument constructor reports to `Metrics.globalRegistry`, which is what the jdbc-v2
+  `jdbc_metrics_recorder` property needs, so a JDBC connection exports its metrics to Micrometer by naming the class -
+  `jdbc_metrics_recorder=com.clickhouse.client.api.observability.micrometer.MicrometerMetricsRecorder` - without
+  application code. `micrometer-core` stays an optional dependency of `client-v2` and is not shaded into the `all`
+  artifacts, so a client that does not use this recorder needs no Micrometer on the classpath.
+  (https://github.com/ClickHouse/clickhouse-java/issues/2975)
 - **[client-v2, jdbc-v2]** Added a metrics SPI that lets an application export the metrics of client operations to any
   metrics backend. `Client.Builder.setMetricsRecorder(MetricsRecorder)` registers a backend-agnostic recorder from the
   `com.clickhouse.client.api.observability` package, and the jdbc-v2 property `jdbc_metrics_recorder` names the recorder
