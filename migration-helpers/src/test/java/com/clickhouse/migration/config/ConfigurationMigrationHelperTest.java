@@ -32,6 +32,13 @@ public class ConfigurationMigrationHelperTest {
                 {"sslmode", "strict", "ssl_mode", "strict"},
                 {"sslkey", "/path/to/key", "ssl_key", "/path/to/key"},
                 {"proxy_username", "puser", "proxy_user", "puser"},
+                {"alive_timeout", "60000", "http_keep_alive_timeout", "60000"},
+                {"http_keep_alive", "60000", "http_keep_alive_timeout", "60000"},
+                {"version", "23.8", "server_version", "23.8"},
+                {"server_revision", "54460", "server_version", "54460"},
+                {"time_zone", "UTC", "server_time_zone", "UTC"},
+                {"product_name", "my-app", "client_name", "my-app"},
+                {"use_binary_string", "true", "binary_string_support", "true"},
 
                 // Existing v2 prefixed properties should be preserved
                 {"clickhouse_setting_max_execution_time", "60", "clickhouse_setting_max_execution_time", "60"},
@@ -106,14 +113,58 @@ public class ConfigurationMigrationHelperTest {
     }
 
     @Test
+    public void testDeprecatedPropertiesWithoutConversionAreIgnored() {
+        Map<String, String> input = new LinkedHashMap<>();
+        input.put("user", "default");
+        input.put("protocol", "http");
+        input.put("use_compilation", "true");
+        input.put("socket_ip_tos", "0");
+        input.put("http_connection_provider", "custom");
+        input.put("auto_discovery", "true");
+        input.put("buffering", "true");
+        input.put("max_requests", "10");
+        input.put("failover", "2");
+
+        Map<String, String> result = ConfigurationMigrationHelper.convertMap(input);
+
+        Assert.assertEquals(result.size(), 1);
+        Assert.assertEquals(result.get("user"), "default");
+        Assert.assertFalse(result.containsKey("protocol"));
+        Assert.assertFalse(result.containsKey("clickhouse_setting_protocol"));
+        Assert.assertFalse(result.containsKey("use_compilation"));
+        Assert.assertFalse(result.containsKey("buffering"));
+    }
+
+    @Test
+    public void testConvertUrlWithDeprecatedProperties() {
+        String inputUrl = "jdbc:clickhouse://localhost:8123/default?protocol=http&use_compilation=true&connect_timeout=5000";
+        String expectedUrl = "jdbc:clickhouse://localhost:8123/default?connection_timeout=5000";
+
+        String resultUrl = ConfigurationMigrationHelper.convertUrl(inputUrl);
+        Assert.assertEquals(resultUrl, expectedUrl);
+    }
+
+    @Test
     public void testCacheInitializationAndPreload() {
         ConfigPropertyCache cache = ConfigPropertyCache.getInstance();
 
         Assert.assertTrue(cache.isV1KnownProperty("connect_timeout"));
         Assert.assertTrue(cache.isV2KnownProperty("connection_timeout"));
         Assert.assertTrue(cache.isV2KnownProperty("user"));
+        Assert.assertTrue(cache.isDeprecatedProperty("protocol"));
+        Assert.assertTrue(cache.isDeprecatedProperty("use_compilation"));
 
         Assert.assertEquals(cache.getV2MappedKey("connect_timeout"), "connection_timeout");
         Assert.assertEquals(cache.getV2MappedKey("buffer_size"), "client_network_buffer_size");
+    }
+
+    @Test
+    public void testClasspathReflectionHandlesMissingClassesGracefully() {
+        ConfigPropertyCache cache = ConfigPropertyCache.getInstance();
+
+        // Verify cache instance is non-null and functioning even when checking optional classpath classes
+        Assert.assertNotNull(cache, "Cache should initialize without throwing exceptions when checking classpath enums.");
+        Assert.assertNotNull(cache.getV2KnownProperties());
+        Assert.assertNotNull(cache.getV1KnownProperties());
     }
 }

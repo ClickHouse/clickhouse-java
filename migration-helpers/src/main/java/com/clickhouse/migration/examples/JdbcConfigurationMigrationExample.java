@@ -39,7 +39,7 @@ public class JdbcConfigurationMigrationExample {
      * Converts a legacy v1 connection URL (containing query parameters) to v2 format
      * and creates a JDBC connection.
      *
-     * @param v1Url v1 connection URL containing query parameters (e.g. "jdbc:clickhouse://localhost:8123/default?max_threads=8&connect_timeout=5000")
+     * @param v1Url v1 connection URL containing query parameters (e.g. {@code "jdbc:clickhouse://localhost:8123/default?max_threads=8&connect_timeout=5000"})
      * @return active JDBC connection
      * @throws SQLException if a database access error occurs
      */
@@ -82,6 +82,11 @@ public class JdbcConfigurationMigrationExample {
         }
     }
 
+    /**
+     * Main entry point demonstrating configuration migration execution.
+     *
+     * @param args command line arguments
+     */
     public static void main(String[] args) {
         try {
             new JdbcConfigurationMigrationExample().executeQueryWithMigratedConfig();

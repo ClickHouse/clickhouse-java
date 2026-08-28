@@ -14,7 +14,14 @@ public class ConfigurationMigrationHelper {
 
     private static final Logger log = LoggerFactory.getLogger(ConfigurationMigrationHelper.class);
 
+    /**
+     * Prefix used for ClickHouse server settings in v2.
+     */
     public static final String SERVER_SETTING_PREFIX = "clickhouse_setting_";
+
+    /**
+     * Prefix used for custom HTTP headers in v2.
+     */
     public static final String HTTP_HEADER_PREFIX = "http_header_";
 
     /**
@@ -83,14 +90,24 @@ public class ConfigurationMigrationHelper {
 
             // 3. Check for mapped renamed key (e.g. connect_timeout -> connection_timeout)
             String mappedKey = cache.getV2MappedKey(key);
+            boolean isMapped = mappedKey != null && !mappedKey.equalsIgnoreCase(key);
 
-            // 4. If key or mappedKey is a known v2 property, keep as client/driver property
-            if (cache.isV2KnownProperty(mappedKey)) {
+            if (isMapped) {
                 v2Config.put(mappedKey, value);
-            } else if (cache.isV2KnownProperty(key)) {
+                continue;
+            }
+
+            // 4. Check if key is deprecated in v2 without conversion
+            if (cache.isDeprecatedProperty(key)) {
+                log.debug("Property '{}' is deprecated in v2 without conversion and will be ignored.", key);
+                continue;
+            }
+
+            // 5. If key is a known v2 property, keep as client/driver property
+            if (cache.isV2KnownProperty(key)) {
                 v2Config.put(key, value);
             } else {
-                // 5. Unrecognized key: in v1 this was implicitly treated as a ClickHouse server setting.
+                // 6. Unrecognized key: in v1 this was implicitly treated as a ClickHouse server setting.
                 // In v2, it must be explicitly prefixed with clickhouse_setting_
                 String serverSettingKey = SERVER_SETTING_PREFIX + key;
                 v2Config.put(serverSettingKey, value);
@@ -148,6 +165,10 @@ public class ConfigurationMigrationHelper {
 
         Map<String, String> queryParams = parseQueryString(queryString);
         Map<String, String> convertedParams = convertMap(queryParams);
+
+        if (convertedParams.isEmpty()) {
+            return baseUrl;
+        }
 
         StringBuilder sb = new StringBuilder(baseUrl).append('?');
         boolean first = true;
