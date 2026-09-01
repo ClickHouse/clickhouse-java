@@ -9,7 +9,10 @@ import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.clickhouse.data.ClickHouseByteBuffer;
@@ -205,6 +208,61 @@ public class NonBlockingPipedOutputStreamTest {
             Assert.fail("Write should fail");
         } catch (IOException e) {
             Assert.assertTrue(e.getMessage().indexOf("closed") > 0);
+        }
+    }
+
+    @Test(groups = { "unit" })
+    public void testConcurrentClose() throws Exception {
+        final long timeout = 5000L;
+        final AtomicBoolean acceptBuffer = new AtomicBoolean(false);
+        final CountDownLatch firstBufferOffer = new CountDownLatch(1);
+        final AtomicInteger closeCount = new AtomicInteger(0);
+        final CapacityPolicy policy = current -> {
+            firstBufferOffer.countDown();
+            return acceptBuffer.get();
+        };
+        final NonBlockingPipedOutputStream stream = new NonBlockingPipedOutputStream(4, 2, timeout * 4L,
+                policy, (Runnable) closeCount::incrementAndGet);
+        final byte[] expected = new byte[] { (byte) 1, (byte) 2, (byte) 3 };
+        stream.write(expected);
+
+        final ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> firstClose = executor.submit(() -> {
+                stream.close();
+                return null;
+            });
+            Assert.assertTrue(firstBufferOffer.await(timeout, TimeUnit.MILLISECONDS),
+                    "First close did not try to flush the pending buffer");
+
+            Future<?> concurrentClose = executor.submit(() -> {
+                stream.close();
+                return null;
+            });
+            boolean concurrentCloseReturned = true;
+            try {
+                concurrentClose.get(timeout, TimeUnit.MILLISECONDS);
+            } catch (TimeoutException e) {
+                concurrentCloseReturned = false;
+            }
+
+            acceptBuffer.set(true);
+            firstClose.get(timeout, TimeUnit.MILLISECONDS);
+            concurrentClose.get(timeout, TimeUnit.MILLISECONDS);
+
+            Assert.assertTrue(concurrentCloseReturned, "Concurrent close should return without waiting");
+            Assert.assertEquals(closeCount.get(), 1, "Post close action should have been executed exactly once");
+            try (InputStream in = stream.getInputStream()) {
+                byte[] actual = new byte[expected.length];
+                Assert.assertEquals(in.read(actual), expected.length);
+                Assert.assertEquals(actual, expected);
+                Assert.assertEquals(in.read(), -1);
+            }
+        } finally {
+            acceptBuffer.set(true);
+            executor.shutdownNow();
+            Assert.assertTrue(executor.awaitTermination(timeout, TimeUnit.MILLISECONDS),
+                    "Concurrent close executor did not terminate");
         }
     }
 
