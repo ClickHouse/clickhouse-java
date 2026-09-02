@@ -899,6 +899,173 @@ try (QueryResponse response = client.query("SELECT * FROM my_table").get()) {
 }
 ```
 
+## Observability & Monitoring {#v2-o11y}
+
+The ClickHouse Java Client (V2) provides built-in observability features designed around OpenTelemetry semantic conventions and Micrometer metrics. The client enables monitoring operational durations, throughput, retries, server execution statistics, connection pool status, and distributed tracing spans.
+
+For a complete production-style Spring Boot application demonstrating Client V2 configuration, connection pooling, trace context propagation across `@Async` boundaries, and full telemetry integration, see the `examples/demo-spring-service` module in this repository.
+
+### Client Builder Observability API {#v2-o11y-builder-api}
+
+The `Client.Builder` exposes three primary methods to configure observability and metrics collection:
+
+- `setMetricsRecorder(MetricsRecorder recorder)`: Registers a metrics recorder for exporting operational metrics (durations, counts, retries, errors). When not explicitly set, defaults to `DefaultMetricsRecorder.NOOP`.
+- `setSpanRecorder(SpanRecorder recorder)`: Registers a span recorder for distributed tracing (operation spans and transport request spans). When not explicitly set, defaults to `DefaultSpanRecorder.NOOP`.
+- `registerClientMetrics(Object registry, String groupName)`: Binds Apache HttpClient connection pool metrics (such as available and leased connections, pending requests, and connection creation time) to a Micrometer `MeterRegistry`.
+
+**Dependencies Requirement**
+
+The built-in `OpenTelemetrySpanRecorder` and `MicrometerMetricsRecorder` classes are provided as part of the `client-v2` package. However, they require the OpenTelemetry API (`io.opentelemetry:opentelemetry-api`) and Micrometer (`io.micrometer:micrometer-core`) libraries to be present on the application's classpath at runtime. The main client artifact does not bundle these third-party dependencies nor pull them in transitively. Applications using OpenTelemetry tracing or Micrometer metrics must explicitly declare these dependencies in their project build configuration (`pom.xml` or `build.gradle`).
+
+**Builder Configuration Example**
+
+```java
+import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.observability.micrometer.MicrometerMetricsRecorder;
+import com.clickhouse.client.api.observability.otel.OpenTelemetrySpanRecorder;
+
+import io.micrometer.core.instrument.MeterRegistry;
+import io.opentelemetry.api.OpenTelemetry;
+
+public Client createObservedClient(MeterRegistry meterRegistry, OpenTelemetry openTelemetry) {
+    return new Client.Builder()
+        .addEndpoint("http://localhost:8123")
+        .setUsername("default")
+        .setPassword("secret")
+        .setMetricsRecorder(new MicrometerMetricsRecorder(meterRegistry))
+        .setSpanRecorder(new OpenTelemetrySpanRecorder(openTelemetry))
+        .registerClientMetrics(meterRegistry, "clickhouse-client-pool")
+        .build();
+}
+```
+
+**Integration Approaches**
+
+Applications can integrate observability using two primary patterns:
+
+1. **OpenTelemetry Agent & Global Autoconfiguration**:
+   - For applications using the OpenTelemetry Java Agent or global SDK autoconfiguration, instantiate `OpenTelemetrySpanRecorder` and `MicrometerMetricsRecorder` using their default no-argument constructors.
+   - The default constructors automatically bind to `GlobalOpenTelemetry.get()` and Micrometer's `Metrics.globalRegistry`.
+2. **Explicit Client-Level Integration**:
+   - Pass explicitly created `OpenTelemetry`, `Tracer`, or Micrometer `MeterRegistry` instances directly into the recorder constructors.
+   - Ideal when managing multiple isolated clients or multi-tenant services with independent telemetry sinks.
+
+```java
+import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.observability.micrometer.MicrometerMetricsRecorder;
+import com.clickhouse.client.api.observability.otel.OpenTelemetrySpanRecorder;
+
+public Client.Builder configureGlobalTelemetry(Client.Builder builder) {
+    return builder
+        .setMetricsRecorder(new MicrometerMetricsRecorder()) // uses Metrics.globalRegistry
+        .setSpanRecorder(new OpenTelemetrySpanRecorder());    // uses GlobalOpenTelemetry
+}
+```
+
+### Metrics Reported {#v2-o11y-metrics}
+
+#### Operational Metrics
+
+Metrics exported via `MetricsRecorder` follow the OpenTelemetry semantic conventions for database client metrics (`MetricName` and `MetricAttribute`):
+
+| Metric Name | Type / Unit | Description |
+|-------------|-------------|-------------|
+| `db.client.operation.duration` | Timer (`s`) | Duration of a ClickHouse client operation (queries and inserts), recorded for both successful and failed operations. |
+| `clickhouse.client.operation.serialization.duration` | Timer (`s`) | Duration of the serialization step (e.g. POJO serialization during inserts). |
+| `clickhouse.client.operation.count` | Counter (`{operation}`) | Total number of completed client operations, grouped by outcome. |
+| `clickhouse.client.operation.retries` | Counter (`{retry}`) | Number of retried attempts across client operations. |
+
+#### Metric Attributes / Tags
+
+Meters created by `MicrometerMetricsRecorder` carry low-cardinality tags (`MetricAttribute`):
+
+| Attribute Key | Description | Example Values |
+|---------------|-------------|----------------|
+| `db.system.name` | Database system identifier. | `clickhouse` |
+| `db.namespace` | Target database name. | `default`, `analytics` |
+| `db.operation.name` | Operation type. | `query`, `insert` |
+| `db.collection.name` | Target table name (recorded for inserts). | `events` |
+| `db.response.status_code` | ClickHouse server error code on failure. | `60` |
+| `error.type` | Exception class name on failure, or `none` on success. | `com.clickhouse.client.api.ServerException` |
+
+#### Connection Pool Metrics
+
+When calling `registerClientMetrics(meterRegistry, "groupName")`, HTTP connection pool gauges are registered with Micrometer:
+
+- `httpcomponents.httpclient.pool.total.max`: Configured maximum allowed persistent connections.
+- `httpcomponents.httpclient.pool.total.connections` (tagged with `state="available"` or `state="leased"`): Active connections in the pool.
+- `httpcomponents.httpclient.pool.total.pending`: Number of connection requests awaiting a free connection.
+- `httpcomponents.httpclient.pool.route.max.default`: Configured default maximum connections per route.
+- `httpcomponents.httpclient.connect.time`: Running average connection establishment time.
+
+#### Response Metrics API
+
+In addition to metrics recorders, detailed execution statistics are accessible directly on response objects (`QueryResponse`, `InsertResponse`) via `OperationMetrics`:
+
+```java
+import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.metrics.ClientMetrics;
+import com.clickhouse.client.api.metrics.OperationMetrics;
+import com.clickhouse.client.api.metrics.ServerMetrics;
+import com.clickhouse.client.api.query.QueryResponse;
+
+public void inspectResponseMetrics(Client client) throws Exception {
+    try (QueryResponse response = client.query("SELECT * FROM my_table").get()) {
+        OperationMetrics metrics = response.getMetrics();
+        long readRows = metrics.getMetric(ServerMetrics.NUM_ROWS_READ).getLong();
+        long readBytes = metrics.getMetric(ServerMetrics.NUM_BYTES_READ).getLong();
+        long durationMs = metrics.getMetric(ClientMetrics.OP_DURATION).getLong();
+    }
+}
+```
+
+### Spans Reported {#v2-o11y-spans}
+
+Tracing in Client V2 produces two types of spans arranged in a parent-child hierarchy:
+
+1. **Operation Span**: Represents a high-level client operation (`query <database>` or `insert <database>.<table_name>`). Started under the current thread's trace context (`Context.current()`) so that database operations join the caller's active trace span.
+2. **Transport Request Span**: Represents an individual HTTP transport request attempt (`POST`). Created as a child of the corresponding operation span. Each retry attempt creates a new transport request span under the operation span.
+
+#### Span Attributes
+
+Spans are populated with standard OpenTelemetry attributes (`SpanAttribute`):
+
+| Span Attribute Key | Scope / Type | Recorded Moment | Description |
+|--------------------|--------------|-----------------|-------------|
+| `db.system.name` | All operations | Before request start | Always `clickhouse`. |
+| `db.namespace` | All operations | Before request start | Target database name. |
+| `db.query.text` | Query | Before request start | SQL statement text for queries or commands. |
+| `db.collection.name` | Insert | Before request start | Target table name. |
+| `db.operation.name` | Insert | Before request start | Operation type (`insert`, `ping`, `getTableSchema`). |
+| `db.operation.batch.size` | Insert | Before request start | Number of items in insert batch. |
+| `db.query.parameter.<name>` | Query | Before request start | Statement parameter values. |
+| `clickhouse.query_id` | All operations | Before request start, updated on completion | ClickHouse query ID assigned by client or server. |
+| `db.response.returned_rows` | Query | On success completion | Number of rows returned by server. |
+| `clickhouse.response.read_rows` | Query | On success completion | Server rows read from storage. |
+| `clickhouse.response.read_bytes` | Query | On success completion | Server bytes read from storage. |
+| `clickhouse.response.written_rows` | Insert | On success completion | Server rows written to storage. |
+| `clickhouse.response.written_bytes` | Insert | On success completion | Server bytes written to storage. |
+| `server.address` | Transport request | Before attempt | Target server hostname or IP address. |
+| `server.port` | Transport request | Before attempt | Target server port. |
+| `http.request.method` | Transport request | Before attempt | HTTP method (always `POST`). |
+| `http.response.status_code` | Transport request | On response / failure | HTTP status code returned by server (e.g. `200`, `500`). |
+| `db.response.status_code` | All &amp; Transport request | On failure | ClickHouse server error code on failure. |
+| `error.type` | All &amp; Transport request | On failure | Exception class name on error. |
+
+### Developing Custom Recorders {#v2-o11y-custom-recorders}
+
+Applications with custom observability backends can implement custom recorders by extending `DefaultMetricsRecorder` (for metrics) or `DefaultSpanRecorder` (for tracing).
+
+- **`DefaultMetricsRecorder`**: Base implementation of `MetricsRecorder`. Override specific callbacks like `recordQuerySuccess` or `recordQueryFailure`. Use `MetricsSupport.DEFAULT` to derive standard metric names (`MetricName`), units, and attribute maps (`MetricAttribute`).
+- **`DefaultSpanRecorder`**: Base implementation of `SpanRecorder`. Override span creation callbacks like `startQuerySpan`, `startInsertSpan`, or `startRequestSpan`. Use `SpanSupport.DEFAULT` to calculate standard OpenTelemetry span names and attributes (`SpanAttribute`).
+
+For production reference implementations, see the built-in client classes:
+- `com.clickhouse.client.api.observability.otel.OpenTelemetrySpanRecorder` (OpenTelemetry tracing integration)
+- `com.clickhouse.client.api.observability.micrometer.MicrometerMetricsRecorder` (Micrometer metrics integration)
+
+
+
+
 ## Migration Guide {#migration_guide}
 
 Old client (V1) was using `com.clickhouse.client.ClickHouseClient#builder` as start point. The new client (V2) uses similar pattern with `com.clickhouse.client.api.Client.Builder`. Main

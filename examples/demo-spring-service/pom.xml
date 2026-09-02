@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.3.5</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>com.clickhouse.examples</groupId>
+    <artifactId>iot-ingest</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+    <name>iot-ingest</name>
+    <description>Simple IoT signal ingestion service: authenticate signals, store them in ClickHouse, and export OpenTelemetry metrics to ClickHouse.</description>
+
+    <properties>
+        <java.version>17</java.version>
+        <opentelemetry.version>1.43.0</opentelemetry.version>
+        <opentelemetry.javaagent.version>2.30.0</opentelemetry.javaagent.version>
+        <opentelemetry.javaagent.traces.exporter>otlp</opentelemetry.javaagent.traces.exporter>
+        <opentelemetry.javaagent.traces.endpoint>http://localhost:4318/v1/traces</opentelemetry.javaagent.traces.endpoint>
+        <clickhouse-jdbc.version>0.10.0-rc1-SNAPSHOT</clickhouse-jdbc.version>
+        <!-- Spring Boot 3.3 manages 1.19.x, which cannot negotiate with Docker Engine 29. -->
+        <testcontainers.version>1.21.4</testcontainers.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>io.opentelemetry</groupId>
+                <artifactId>opentelemetry-bom</artifactId>
+                <version>${opentelemetry.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <!-- Web layer -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-tracing-bridge-otel</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-otlp</artifactId>
+        </dependency>
+
+        <!-- Signal persistence via Spring Data JPA; JdbcTemplate remains for schema/metric export. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.clickhouse</groupId>
+            <artifactId>clickhouse-jdbc</artifactId>
+            <version>${clickhouse-jdbc.version}</version>
+            <classifier>all</classifier>
+        </dependency>
+        <dependency>
+            <groupId>com.clickhouse</groupId>
+            <artifactId>client-v2</artifactId>
+            <version>${clickhouse-jdbc.version}</version>
+        </dependency>
+
+        <!-- OpenTelemetry SDK, custom ClickHouse metrics, and OTLP export -->
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-sdk</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-sdk-metrics</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-sdk-trace</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-exporter-otlp</artifactId>
+        </dependency>
+        <!-- Attached by spring-boot:run/test-run for ClickHouse client spans; not packaged in the app. -->
+        <dependency>
+            <groupId>io.opentelemetry.javaagent</groupId>
+            <artifactId>opentelemetry-javaagent</artifactId>
+            <version>${opentelemetry.javaagent.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Testcontainers: real ClickHouse for dev-time and integration tests -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>clickhouse</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <agents>
+                        <agent>${settings.localRepository}/io/opentelemetry/javaagent/opentelemetry-javaagent/${opentelemetry.javaagent.version}/opentelemetry-javaagent-${opentelemetry.javaagent.version}.jar</agent>
+                    </agents>
+                    <excludes>
+                        <exclude>
+                            <groupId>io.opentelemetry.javaagent</groupId>
+                            <artifactId>opentelemetry-javaagent</artifactId>
+                        </exclude>
+                    </excludes>
+                    <!--
+                      The agent owns tracing so HTTP and database spans share one context.
+                      The application SDK remains responsible for custom metrics.
+
+                      Client V2 reports its own operation and transport spans, so the agent
+                      modules that would observe the same calls are turned off. ClickHouse is
+                      the only Apache HttpClient user here, so disabling that module does not
+                      hide other outbound requests.
+                    -->
+                    <jvmArguments>
+                        -Dotel.service.name=${project.artifactId}
+                        -Dotel.traces.exporter=${opentelemetry.javaagent.traces.exporter}
+                        -Dotel.metrics.exporter=none
+                        -Dotel.logs.exporter=none
+                        -Dotel.exporter.otlp.protocol=http/protobuf
+                        -Dotel.exporter.otlp.traces.endpoint=${opentelemetry.javaagent.traces.endpoint}
+                        -Dotel.instrumentation.clickhouse-client-v2.enabled=false
+                        -Dotel.instrumentation.apache-httpclient.enabled=false
+                    </jvmArguments>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

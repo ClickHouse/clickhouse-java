@@ -1,0 +1,63 @@
+spring:
+  application:
+    name: iot-ingest
+  datasource:
+    # Used when running against a real/standalone ClickHouse. During local development and
+    # tests these values are overridden by the Testcontainers-managed instance (@ServiceConnection).
+    url: ${CLICKHOUSE_URL:jdbc:clickhouse://localhost:8123/default}
+    username: ${CLICKHOUSE_USER:default}
+    password: ${CLICKHOUSE_PASSWORD:}
+    driver-class-name: com.clickhouse.jdbc.ClickHouseDriver
+    hikari:
+      connection-test-query: SELECT 1
+      maximum-pool-size: 8
+      data-source-properties:
+        # Hibernate calls optional JDBC transaction/LOB methods that ClickHouse does not
+        # implement. The driver safely treats them as no-ops in this compatibility mode.
+        jdbc_ignore_unsupported_values: true
+  jpa:
+    database-platform: com.clickhouse.examples.config.ClickHouseDialect
+    open-in-view: false
+    hibernate:
+      # ClickHouse-specific MergeTree DDL is managed by ClickHouseSchemaInitializer.
+      ddl-auto: none
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+
+server:
+  port: 8080
+
+management:
+  tracing:
+    # The Java agent owns HTTP and database spans so they use one SDK/context.
+    # Application metrics still use the SDK in OpenTelemetryConfig.
+    enabled: false
+  otlp:
+    metrics:
+      export:
+        # Micrometer uses OTLP/HTTP; the existing application SDK uses OTLP/gRPC.
+        enabled: ${OTEL_EXPORTER_OTLP_ENABLED:true}
+        url: ${OTEL_EXPORTER_OTLP_METRICS_ENDPOINT:http://localhost:4318/v1/metrics}
+        step: ${OTEL_METRIC_EXPORT_INTERVAL:15s}
+
+iot:
+  auth:
+    header-name: X-API-Key
+    # Demo keys. Override in real deployments via IOT_AUTH_API_KEYS (comma-separated).
+    api-keys: ${IOT_AUTH_API_KEYS:dev-key-1,dev-key-2}
+  telemetry:
+    # How often aggregated OpenTelemetry metrics are flushed.
+    export-interval: 15s
+    clickhouse-client:
+      # Becomes the "httpclient" tag on Apache HttpClient connection-pool gauges.
+      metrics-group: reconciliation
+    otlp:
+      # The local Grafana LGTM stack accepts OTLP/gRPC on this endpoint.
+      enabled: ${OTEL_EXPORTER_OTLP_ENABLED:true}
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4317}
+
+logging:
+  level:
+    com.clickhouse.examples: DEBUG

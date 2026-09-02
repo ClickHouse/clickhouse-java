@@ -760,6 +760,63 @@ Key JDBC-specific properties (see [`DriverProperties`](../jdbc-v2/src/main/java/
 | `jdbc_cluster_name` | — | Cluster for `KILL QUERY ON CLUSTER` |
 | `jdbc_type_mappings` | — | Custom ClickHouse → Java type overrides |
 | `default_query_settings` | — | Default settings for all queries |
+| `jdbc_metrics_recorder` | — | Custom `MetricsRecorder` implementation class name |
+
+
+## Observability & Monitoring
+
+The ClickHouse JDBC driver (V2) supports metrics and distributed tracing by leveraging the underlying Client V2 engine and standard JDBC application instrumentation. For detailed metric definitions, span attributes, and OpenTelemetry semantic conventions, see the [Java Client Observability Documentation](integration-client.md#observability--monitoring).
+
+### Distributed Tracing & Spans
+
+When executing JDBC statements (`executeQuery`, `executeUpdate`, `executeBatch`), distributed tracing operates across a parent-child span hierarchy:
+
+1. **Outer JDBC / Application Span:** Created automatically by the OpenTelemetry Java Agent or APM instrumentation when intercepting `java.sql` method calls (e.g., `PreparedStatement.executeBatch()`).
+2. **Client V2 Operation Span:** Created by the underlying Client V2 engine under the current active trace context (`Context.current()`). Carries ClickHouse-specific metadata such as `clickhouse.query_id`, statement text (`db.query.text`), and server execution statistics (`clickhouse.response.read_rows`, `clickhouse.response.written_rows`).
+3. **Transport Request Span:** Created per HTTP POST request attempt to the ClickHouse server, recording endpoint details (`server.address`, `server.port`), HTTP status codes (`http.response.status_code`), and retry attempts.
+
+```text
+Application HTTP Request Span
+  └── JDBC Statement Span (e.g., PreparedStatement.executeQuery)
+      └── Client V2 Operation Span (query default)
+          └── Transport Request Span (POST http://localhost:8123)
+```
+
+Because Client V2 inherits `Context.current()`, JDBC database spans automatically join the ambient trace of the surrounding HTTP or messaging context without manual context propagation.
+
+### JDBC Auto-Instrumentation
+
+Standard JDBC operations (`Connection`, `PreparedStatement`, `ResultSet`, `executeBatch`) are automatically tracked by Java application runtime frameworks and APM agents:
+
+- **OpenTelemetry Java Agent:** Automatically intercepts standard JDBC method invocations, creating trace spans for database executions (`SELECT`, `INSERT`, `TRUNCATE`) with `db.system=clickhouse`, statement text, and execution timings.
+- **Spring Boot & Micrometer:** Spring Data JPA repositories and `JdbcTemplate` automatically instrument database calls when Spring Boot's Micrometer Observation or Spring Actuator metrics are active.
+
+### Configuring Driver Metrics Recorders
+
+You can enable Client V2 operational metrics (durations, counts, retries) for JDBC connections using the `jdbc_metrics_recorder` connection property. The driver instantiates the specified class via its public no-argument constructor per connection.
+
+```java
+// Configure via JDBC URL parameter
+String url = "jdbc:clickhouse://localhost:8123/default?jdbc_metrics_recorder=com.clickhouse.client.api.observability.micrometer.MicrometerMetricsRecorder";
+
+// Or set via java.util.Properties
+Properties properties = new Properties();
+properties.setProperty("jdbc_metrics_recorder", "com.clickhouse.client.api.observability.micrometer.MicrometerMetricsRecorder");
+
+try (Connection conn = DriverManager.getConnection(url, properties)) {
+    // JDBC operations report operation metrics to Micrometer's globalRegistry
+}
+```
+
+*Note: `MicrometerMetricsRecorder` is shipped with the driver, but requires `io.micrometer:micrometer-core` to be available on the application's runtime classpath.*
+
+### Spring Boot Demo Reference
+
+For a complete sample demonstrating JDBC driver setup and telemetry in a Spring Boot service, see the `examples/demo-spring-service` module in this repository:
+
+- **JDBC Datasource Setup** (`src/main/resources/application.yml`): Configures `spring.datasource` with `com.clickhouse.jdbc.ClickHouseDriver` and driver properties (`jdbc_ignore_unsupported_values: true`).
+- **Spring Data JPA Integration** (`com.clickhouse.examples.repository.SignalRepository`): Shows repository-based entity persistence over ClickHouse JDBC.
+- **`JdbcTemplate` Utilities** (`com.clickhouse.examples.schema.ClickHouseSchemaInitializer`): Demonstrates executing DDL and exporting metric points using Spring `JdbcTemplate`.
 
 
 ## References
@@ -778,6 +835,7 @@ Key JDBC-specific properties (see [`DriverProperties`](../jdbc-v2/src/main/java/
 
 - [integration-common.md](integration-common.md) — choosing JDBC vs Client
 - [integration-client.md](integration-client.md) — Java Client integration path
+- [integration-ops.md](integration-ops.md) — operations and observability guide
 - [authentication.md](authentication.md) — full authentication and TLS reference
 - [features.md](features.md) — compatibility contract
 - [type_mapping.md](../type_mapping.md) — JDBC type mapping recommendations
