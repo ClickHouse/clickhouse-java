@@ -137,6 +137,11 @@
 
 ### Bug Fixes 
 
+- **[jdbc-v2]** Fixed `DatabaseMetaData#getTables` reporting `TABLE_TYPE = TABLE` for a table with the `BigQuery`
+  engine (present in `system.table_engines` since ClickHouse `26.8`). The engine was missing from the
+  engine-to-table-type mapping, so it fell back to the default `TABLE`, and `getTables(..., types = {"REMOTE TABLE"})`
+  returned no row for such a table. `BigQuery` is now mapped to `REMOTE TABLE`, like the other external-storage
+  engines. (https://github.com/ClickHouse/clickhouse-java/issues/3049)
 - **[jdbc-v2]** Fixed `PreparedStatement.getMetaData()` losing the result-set schema for a statement whose SQL
   contains a comment. The `DESCRIBE` query used to resolve the metadata was built by re-scanning the SQL with a
   regex that knew only quoted tokens, so a `?` inside a `--` / `#` / `/* */` comment was rewritten to `NULL` and
