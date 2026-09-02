@@ -245,6 +245,11 @@
   performs the handshake and runs the post-close action; a concurrent or repeated `close()` returns immediately. A
   `close()` which fails while flushing the remaining data also marks the stream closed and runs the post-close
   action, so the stream cannot stay half-closed. (https://github.com/ClickHouse/clickhouse-java/issues/3055)
+- **[data]** Fixed `NonBlockingPipedOutputStream.close()` not being idempotent under concurrency. Two threads could
+  both flush and mutate the same pending buffer before the reader consumed it, silently replacing the payload with
+  an empty buffer and running the post-close action twice. Exactly one caller now flushes the pending data, enqueues
+  the end-of-stream marker, and runs the post-close action; concurrent or repeated `close()` calls return immediately.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3057)
 - **[jdbc-v2]** Fixed JDBC escape processing rewriting text inside string literals and quoted identifiers. Because
   `PreparedStatement` inlines bound parameters into the statement text, a bound value containing `{fn ` (or `{d '...'}`
   / `{ts '...'}`) was re-read as SQL syntax: the `{fn ` was removed together with the next `}` found anywhere in the
