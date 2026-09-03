@@ -159,10 +159,10 @@ public class DataTypesTestingPOJO {
         boxedFloat = random.nextFloat();
         boxedDouble = random.nextDouble();
 
-        decimal32 = BigDecimal.valueOf(random.nextDouble());
-        decimal64 = BigDecimal.valueOf(random.nextDouble());
-        decimal128 = BigDecimal.valueOf(random.nextDouble());
-        decimal256 = BigDecimal.valueOf(random.nextDouble());
+        decimal32 = new BigDecimal("0.123456789");
+        decimal64 = new BigDecimal("0.123456789012345678");
+        decimal128 = new BigDecimal("0.12345678901234567890123456789012345678");
+        decimal256 = new BigDecimal("0.12345678901234567890123456789012345678901234567890123456789");
 
         bool = random.nextBoolean();
 
