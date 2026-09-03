@@ -137,6 +137,12 @@
 
 ### Bug Fixes 
 
+- **[client-v2]** Fixed the `Native` format reader (`NativeFormatReader`) misreading `Array` columns in multi-row
+  results whose rows have different lengths. Native encodes an array column as cumulative row offsets followed by the
+  flattened elements, but the reader used the first row's offset as the element count for every row — truncating later
+  rows and desyncing the columns that follow the array in the same block. Each row's length is now derived from the
+  difference between consecutive offsets, and empty array rows (`len == 0`) no longer read a phantom element. Results
+  with uniform array lengths were unaffected. (https://github.com/ClickHouse/clickhouse-java/issues/2955)
 - **[jdbc-v2]** Fixed `DatabaseMetaData#getTables` reporting `TABLE_TYPE = TABLE` for a table with the `BigQuery`
   engine (present in `system.table_engines` since ClickHouse `26.8`). The engine was missing from the
   engine-to-table-type mapping, so it fell back to the default `TABLE`, and `getTables(..., types = {"REMOTE TABLE"})`
