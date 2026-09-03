@@ -85,11 +85,11 @@ Authentication by a password requires setting user name password by calling `set
         .build();
 ```
 
-Authentication by an access token requires setting access token by calling `setAccessToken(String)`:
+Authentication by an access token or Bearer token (such as a JWT) requires setting the token by calling `useBearerTokenAuth(String)` (or `setAccessToken(String)` for raw access tokens):
 ```java showLineNumbers
  Client client = new Client.Builder()
         .addEndpoint("https://clickhouse-cloud-instance:8443/")
-        .setAccessToken(userAccessToken)
+        .useBearerTokenAuth(userAccessToken)
         .build();
 ```
 
@@ -376,6 +376,46 @@ try (Client client = new Client.Builder()
 ```
 
 To configure per operation, set the header on `QuerySettings`, `InsertSettings`, or `CommandSettings` instead of the client builder.
+
+### JWT Authentication (CLOUD) {#jwt-authentication}
+
+[JWT Authentication](/concepts/features/security/external-authenticators/jwt) allows authenticating users with JSON Web Tokens (JWTs) in ClickHouse Cloud. Instead of pre-existing database users, ClickHouse dynamically creates **ephemeral users** derived from claims embedded in each token.
+
+#### Initial Configuration
+
+To configure initial JWT authentication on the client, use `useBearerTokenAuth(token)` when building the `Client` instance:
+
+```java showLineNumbers
+import com.clickhouse.client.api.Client;
+
+public Client createJwtClient(String jwtToken) {
+    return new Client.Builder()
+            .addEndpoint("https://your-service.clickhouse.cloud:8443")
+            .useBearerTokenAuth(jwtToken)
+            .build();
+}
+```
+
+<Note>
+`useBearerTokenAuth(token)` automatically prepends the `Bearer ` prefix to the `Authorization` HTTP header.
+</Note>
+
+#### Updating Token at Runtime
+
+Because JWTs are short-lived and ephemeral users exist only for the token's lifetime, new JWT tokens should be set **before** the current token expires so no operations fail.
+
+You can update the bearer token on an existing `Client` instance at runtime without recreating the client:
+
+```java showLineNumbers
+import com.clickhouse.client.api.Client;
+
+public void refreshJwtToken(Client client, String newJwtToken) {
+    // Set the new JWT before the current token expires
+    client.updateBearerToken(newJwtToken);
+}
+```
+
+All subsequent requests on the `Client` instance will use the updated JWT token.
 
 ## Common Definitions {#common-definitions}
 
