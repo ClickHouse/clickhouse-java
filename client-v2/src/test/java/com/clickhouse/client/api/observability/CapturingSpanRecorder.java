@@ -53,8 +53,13 @@ public class CapturingSpanRecorder extends DefaultSpanRecorder {
     }
 
     @Override
-    public void recordSuccess(Span operationSpan, OperationMetrics metrics) {
-        getSpanSupport().recordSuccess(operationSpan, metrics);
+    public void recordQuerySuccess(Span operationSpan, OperationMetrics metrics) {
+        getSpanSupport().recordQuerySuccess(operationSpan, metrics);
+    }
+
+    @Override
+    public void recordInsertSuccess(Span operationSpan, OperationMetrics metrics) {
+        getSpanSupport().recordInsertSuccess(operationSpan, metrics);
     }
 
     @Override

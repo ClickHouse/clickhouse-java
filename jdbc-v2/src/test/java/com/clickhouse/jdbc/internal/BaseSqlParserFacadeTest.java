@@ -12,6 +12,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
 import java.util.stream.Collectors;
@@ -1091,6 +1092,52 @@ public abstract class BaseSqlParserFacadeTest {
                 {"UNDROP TABLE db.tab ON CLUSTER `default`", 0, false},
                 {"UNDROP TABLE db.tab UUID '857d-4a57-9ee0-327da5d60a90' ON CLUSTER `default`", 0, false},
 
+        };
+    }
+
+    @Test(dataProvider = "testBlockCommentNestingDP")
+    public void testBlockCommentNesting(String sql, int[] paramPositions, boolean insert, boolean hasResultSet) {
+        ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
+        Assert.assertFalse(stmt.isHasErrors(), "Statement has errors: " + sql);
+        assertEquals(stmt.getArgCount(), paramPositions.length, "Args do not match for: " + sql);
+        assertEquals(Arrays.copyOf(stmt.getParamPositions(), stmt.getArgCount()), paramPositions,
+                "Parameter positions do not match for: " + sql);
+        assertEquals(stmt.isInsert(), insert, "Insert type does not match for: " + sql);
+        assertEquals(stmt.isHasResultSet(), hasResultSet, "Result set expectation does not match for: " + sql);
+    }
+
+    @DataProvider
+    public static Object[][] testBlockCommentNestingDP() {
+        StringBuilder deeplyNested = new StringBuilder("SELECT ");
+        for (int i = 0; i < 64; i++) {
+            deeplyNested.append("/*");
+        }
+        deeplyNested.append(" x ");
+        for (int i = 0; i < 64; i++) {
+            deeplyNested.append("*/");
+        }
+        deeplyNested.append(" ?");
+
+        return new Object[][]{
+                // nested block comments
+                {"SELECT 1 /* ) /* ) */ ) */, ?", new int[]{28}, false, true},
+                {"SELECT /* a /* b */ c */ ?", new int[]{25}, false, true},
+                {"SELECT /* ? /* ? */ ? */ ?", new int[]{25}, false, true},
+                {"SELECT /* a\n/* b\n*/ c\n*/ ?", new int[]{25}, false, true},
+                {"SELECT /* /* /* x */ */ */ ?", new int[]{27}, false, true},
+                {"SELECT 1 /* ; /* ; */ ; */, ?", new int[]{28}, false, true},
+                {"/* a /* ? */ b */ SELECT ? /* c /* ? */ d */", new int[]{25}, false, true},
+                {"SELECT ? FROM t WHERE a = /* x /* ? */ y */ ? AND b = 1", new int[]{7, 44}, false, true},
+                {deeplyNested.toString(), new int[]{deeplyNested.length() - 1}, false, true},
+                {"INSERT INTO t (a, b) VALUES (1 /* ) /* ) */ ) */, ?)", new int[]{50}, true, false},
+                {"INSERT INTO t /* c1 /* c2 */ c3 */ (a) VALUES (?)", new int[]{47}, true, false},
+
+                // not nested - existing behaviour that must stay unchanged
+                {"SELECT /* plain comment ? */ ?", new int[]{29}, false, true},
+                {"SELECT /**/ ?", new int[]{12}, false, true},
+                {"SELECT 1 /*/ 2 */, ?", new int[]{19}, false, true},
+                {"SELECT '/* not a comment */' AS a, ?", new int[]{35}, false, true},
+                {"INSERT INTO t (a, b) VALUES (1 /* plain */, ?)", new int[]{44}, true, false},
         };
     }
 
