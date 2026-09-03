@@ -227,6 +227,55 @@ Connection conn = Driver.connect("jdbc:ch:https://your-service.clickhouse.cloud:
 // jdbc:ch:https://your-service.clickhouse.cloud:8443?http_header_X-CLICKHOUSE-REPLICA-TAG=my-app-session-1
 ```
 
+### JWT Authentication (CLOUD) {#jwt-authentication}
+
+[JWT Authentication](/concepts/features/security/external-authenticators/jwt) allows authenticating with JSON Web Tokens (JWTs) in ClickHouse Cloud. ClickHouse dynamically creates **ephemeral users** derived from token claims.
+
+#### Initial Configuration
+
+To configure initial JWT authentication in JDBC, pass the `bearer_token` property in connection properties or directly in the JDBC URL:
+
+```java showLineNumbers
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+import java.util.Properties;
+
+public Connection createJwtConnection(String jwtToken) throws SQLException {
+    Properties properties = new Properties();
+    properties.setProperty("bearer_token", jwtToken);
+
+    return DriverManager.getConnection("jdbc:ch:https://your-service.clickhouse.cloud:8443", properties);
+}
+```
+
+URL equivalent:
+```plaintext
+jdbc:ch:https://your-service.clickhouse.cloud:8443?bearer_token=<your_jwt_token>
+```
+
+#### Updating Token at Runtime
+
+Because JWTs have a limited validity period, new JWT tokens should be set **before** the current token expires so no operations fail.
+
+To update the JWT token on an active JDBC connection at runtime, unwrap the connection to access the underlying `com.clickhouse.client.api.Client` instance and call `updateBearerToken`:
+
+```java showLineNumbers
+import com.clickhouse.jdbc.ConnectionImpl;
+import java.sql.Connection;
+import java.sql.SQLException;
+
+public void refreshJwtToken(Connection connection, String newJwtToken) throws SQLException {
+    // Unwrap the connection to get the underlying Client instance
+    ConnectionImpl connImpl = connection.unwrap(ConnectionImpl.class);
+
+    // Set the new JWT before the current token expires
+    connImpl.getClient().updateBearerToken(newJwtToken);
+}
+```
+
+Subsequent statements executed on this JDBC connection will use the updated JWT token.
+
 ## Supported data types {#supported-data-types}
 
 JDBC driver supports the same data formats as the underlying [java client](/integrations/language-clients/java/index#supported-data-types).

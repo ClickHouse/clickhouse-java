@@ -271,9 +271,15 @@ jobs:
         env:
           CLICKHOUSE_CLOUD_HOST: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_HOST_SMT_PROD }}
           CLICKHOUSE_CLOUD_PASSWORD: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_PASSWORD_SMT_PROD }}
-          CLIENT_JWT: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_JWT_DESERT_VM_43 }}
+          JWT_PKEY: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_JWT_DESERT_VM_43 }}
           JWT_TEST_HOST: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_HOST_SMT }}
         run: |
+          python3 -m pip install -r .github/scripts/requirements.txt
+          python3 .github/scripts/generate_jwt.py jwt.token
+          CLIENT_JWT=$(cat jwt.token)
+          rm -f jwt.token
+          echo "::add-mask::$CLIENT_JWT"
+          export CLIENT_JWT
           mvn --batch-mode --no-transfer-progress --projects ${{ matrix.project }} -DclickhouseVersion=${{ matrix.clickhouse }} -Dprotocol=http -Dmaven.javadoc.skip=true verify
       - name: Upload test results
         uses: actions/upload-artifact@v4
