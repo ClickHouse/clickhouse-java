@@ -137,6 +137,13 @@
 
 ### Bug Fixes 
 
+- **[client-v2]** Fixed a `Nullable(T)` column bound to a **primitive** POJO field silently corrupting a row on the
+  POJO read path. The compiled setter went straight to a primitive read method without consuming the `Nullable`
+  null-marker byte, which is on the wire for every value of a nullable column regardless of the value, so the stream
+  stayed shifted by one byte per row and the nullable column and every column after it decoded from the wrong offset
+  without any error being raised. The generated setter now consumes the marker; a value that is actually `NULL` cannot
+  be held by a primitive field and is reported with a `NullValueException`. Boxed POJO fields are unaffected.
+  (https://github.com/ClickHouse/clickhouse-java/issues/2993)
 - **[jdbc-v2]** Fixed `DatabaseMetaData#getTables` reporting `TABLE_TYPE = TABLE` for a table with the `BigQuery`
   engine (present in `system.table_engines` since ClickHouse `26.8`). The engine was missing from the
   engine-to-table-type mapping, so it fell back to the default `TABLE`, and `getTables(..., types = {"REMOTE TABLE"})`

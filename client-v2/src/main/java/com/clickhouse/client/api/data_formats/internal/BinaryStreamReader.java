@@ -2,6 +2,7 @@ package com.clickhouse.client.api.data_formats.internal;
 
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.DataTypeUtils;
+import com.clickhouse.client.api.query.NullValueException;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseEnum;
@@ -1435,6 +1436,26 @@ public class BinaryStreamReader {
         @Override
         public byte[] allocate(int size) {
             return new byte[size];
+        }
+    }
+
+    /**
+     * Consumes the NULL marker that precedes every value of a nullable column when that value is read
+     * into a primitive variable. Does nothing for a column that is not nullable. Primitives cannot hold
+     * NULL, so a NULL value is reported instead of being silently replaced with a default value.
+     *
+     * @param column - column information
+     * @param targetType - name of the primitive type the value is read into
+     * @throws IOException when IO error occurs
+     */
+    public void readNullMarkerForPrimitive(ClickHouseColumn column, String targetType) throws IOException {
+        if (!column.isNullable()) {
+            return;
+        }
+
+        if (readByteOrEOF(input) == 1) {
+            throw new NullValueException("Column " + column.getColumnName()
+                    + " has null value and it cannot be cast to " + targetType);
         }
     }
 

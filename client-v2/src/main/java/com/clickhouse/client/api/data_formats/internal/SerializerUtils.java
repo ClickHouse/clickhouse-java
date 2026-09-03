@@ -53,6 +53,7 @@ import java.util.stream.Collectors;
 import static org.objectweb.asm.Opcodes.ACC_PUBLIC;
 import static org.objectweb.asm.Opcodes.ALOAD;
 import static org.objectweb.asm.Opcodes.CHECKCAST;
+import static org.objectweb.asm.Opcodes.DUP;
 import static org.objectweb.asm.Opcodes.INVOKESPECIAL;
 import static org.objectweb.asm.Opcodes.INVOKESTATIC;
 import static org.objectweb.asm.Opcodes.INVOKEVIRTUAL;
@@ -1190,6 +1191,7 @@ public class SerializerUtils {
      * @see SerializerUtils#longToOpcode(Class)
      * @see SerializerUtils#floatToOpcode(Class)
      * @see SerializerUtils#doubleToOpcode(Class)
+     * @see BinaryStreamReader#readNullMarkerForPrimitive(ClickHouseColumn, String)
      * @see BinaryStreamReader#readValue(ClickHouseColumn, Class)
      * @see BinaryStreamReader#readByte()
      * @see BinaryStreamReader#readUnsignedByte()
@@ -1248,9 +1250,11 @@ public class SerializerUtils {
             mv.visitVarInsn(ALOAD, 2); // load reader
 
             if (targetType.isPrimitive() && BinaryStreamReader.isReadToPrimitive(column.getDataType())) {
+                nullMarkerReaderForPrimitive(mv, targetType);
                 binaryReaderMethodForType(mv,
                         targetPrimitiveType, column.getDataType());
             } else if (targetType.isPrimitive() && column.getDataType() == ClickHouseDataType.UInt64) {
+                nullMarkerReaderForPrimitive(mv, targetType);
                 unsignedLongReaderMethodForType(mv, targetPrimitiveType);
             } else {
                 mv.visitVarInsn(ALOAD, 3); // column
@@ -1312,6 +1316,28 @@ public class SerializerUtils {
         } catch (Exception e) {
             throw new ClientException("Failed to compile setter for " + setterMethod.getName(), e);
         }
+    }
+
+    /**
+     * Emits a call to {@link BinaryStreamReader#readNullMarkerForPrimitive(ClickHouseColumn, String)}. Values of a
+     * nullable column are prefixed with a NULL marker on the wire regardless of the value itself, so a reader that goes
+     * directly to a primitive read method has to consume that marker - otherwise the stream stays shifted by one byte
+     * for the rest of the row. Nullability is decided by the callee from the column being read, not at compile time,
+     * because the column of the result being read may differ from the one the setter was compiled for.
+     *
+     * @param mv - visitor of the method being generated
+     * @param targetType - primitive type the value is read into
+     */
+    private static void nullMarkerReaderForPrimitive(MethodVisitor mv, Class<?> targetType) {
+        mv.visitInsn(DUP); // reader
+        mv.visitVarInsn(ALOAD, 3); // column
+        mv.visitLdcInsn(targetType.getName());
+        mv.visitMethodInsn(INVOKEVIRTUAL,
+                Type.getInternalName(BinaryStreamReader.class),
+                "readNullMarkerForPrimitive",
+                Type.getMethodDescriptor(Type.VOID_TYPE,
+                        Type.getType(ClickHouseColumn.class), Type.getType(String.class)),
+                false);
     }
 
     /**

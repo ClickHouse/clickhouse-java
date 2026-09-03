@@ -13,6 +13,7 @@ import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.GenericRecord;
+import com.clickhouse.client.api.query.NullValueException;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.sql.SQLUtils;
@@ -2583,6 +2584,26 @@ public class DataTypeTests extends BaseIntegrationTest {
     @Data
     @AllArgsConstructor
     @NoArgsConstructor
+    public static class DTOForNullablePrimitivesTests {
+        private int rowId;
+        private byte int8;
+        private short uint8;
+        private short int16;
+        private int uint16;
+        private int int32;
+        private long uint32;
+        private long int64;
+        private float float32;
+        private double float64;
+        private boolean bool;
+        private byte enum8;
+        private short enum16;
+        private long trailing;
+    }
+
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
     public static class DTOForUInt64PrimitiveTests {
         private int rowId;
         private byte asByte;
@@ -2594,6 +2615,124 @@ public class DataTypeTests extends BaseIntegrationTest {
         private boolean asBoolean;
         private char asChar;
         private long trailing;
+    }
+
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class DTOForNullablePrimitiveBFloat16Tests {
+        private int rowId;
+        private float bFloat16;
+        private long trailing;
+    }
+
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class DTOForNullPrimitiveTests {
+        private int rowId;
+        private long int64;
+        private long trailing;
+    }
+
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class DTOForNullBoxedTests {
+        private int rowId;
+        private Long int64;
+        private long trailing;
+    }
+
+    private static final String NULLABLE_PRIMITIVES_SQL =
+            "SELECT toInt32(number) AS rowId" +
+                    ", toNullable(toInt8(-128)) AS int8" +
+                    ", toNullable(toUInt8(255)) AS uint8" +
+                    ", toNullable(toInt16(-32768)) AS int16" +
+                    ", toNullable(toUInt16(65535)) AS uint16" +
+                    ", toNullable(toInt32(-2147483648)) AS int32" +
+                    ", toNullable(toUInt32(4294967295)) AS uint32" +
+                    ", toNullable(toInt64(-9223372036854775808)) AS int64" +
+                    ", toNullable(toFloat32(1.5)) AS float32" +
+                    ", toNullable(toFloat64(2.25)) AS float64" +
+                    ", toNullable(true) AS bool" +
+                    ", toNullable(CAST('b', 'Enum8(''a'' = 1, ''b'' = 2)')) AS enum8" +
+                    ", toNullable(CAST('y', 'Enum16(''x'' = 1000, ''y'' = 2000)')) AS enum16" +
+                    ", toInt64(777) AS trailing FROM numbers(3)";
+
+    private static final String NULL_VALUE_SQL =
+            "SELECT toInt32(1) AS rowId, CAST(NULL, 'Nullable(Int64)') AS int64, toInt64(777) AS trailing";
+
+    @Test(groups = {"integration"})
+    public void testReadNullableColumnsIntoPrimitivePojoFields() {
+        TableSchema schema = client.getTableSchemaFromQuery(NULLABLE_PRIMITIVES_SQL);
+        client.register(DTOForNullablePrimitivesTests.class, schema);
+
+        List<DTOForNullablePrimitivesTests> rows =
+                client.queryAll(NULLABLE_PRIMITIVES_SQL, DTOForNullablePrimitivesTests.class, schema);
+
+        List<DTOForNullablePrimitivesTests> expected = new ArrayList<>();
+        for (int rowId = 0; rowId < 3; rowId++) {
+            expected.add(new DTOForNullablePrimitivesTests(rowId, Byte.MIN_VALUE, (short) 255, Short.MIN_VALUE, 65535,
+                    Integer.MIN_VALUE, 4294967295L, Long.MIN_VALUE, 1.5f, 2.25d, true, (byte) 2, (short) 2000, 777L));
+        }
+        Assert.assertEquals(rows, expected);
+    }
+
+    @Test(groups = {"integration"})
+    public void testReadNullableBFloat16IntoPrimitivePojoField() {
+        if (isVersionMatch(BFLOAT16_UNSUPPORTED_VERSIONS)) {
+            throw new SkipException("BFloat16 requires ClickHouse 24.11+");
+        }
+
+        final String sql = "SELECT toInt32(1) AS rowId, CAST(1.5, 'Nullable(BFloat16)') AS bFloat16"
+                + ", toInt64(777) AS trailing";
+        TableSchema schema = client.getTableSchemaFromQuery(sql);
+        client.register(DTOForNullablePrimitiveBFloat16Tests.class, schema);
+
+        Assert.assertEquals(client.queryAll(sql, DTOForNullablePrimitiveBFloat16Tests.class, schema),
+                Collections.singletonList(new DTOForNullablePrimitiveBFloat16Tests(1, 1.5f, 777L)));
+    }
+
+    @Test(groups = {"integration"})
+    public void testReadNonNullableColumnIntoPrimitivePojoFieldRegisteredAsNullable() throws Exception {
+        final String table = "test_nullable_primitive_pojo_field";
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        client.execute(tableDefinition(table, "rowId Int32", "int64 Nullable(Int64)", "trailing Int64")).get();
+        client.execute("INSERT INTO " + table + " VALUES (1, -9223372036854775808, 777)").get();
+
+        TableSchema schema = client.getTableSchema(table);
+        client.register(DTOForNullPrimitiveTests.class, schema);
+
+        List<DTOForNullPrimitiveTests> rows = client.queryAll(
+                "SELECT rowId, assumeNotNull(int64) AS int64, trailing FROM " + table,
+                DTOForNullPrimitiveTests.class, schema);
+
+        Assert.assertEquals(rows, Collections.singletonList(new DTOForNullPrimitiveTests(1, Long.MIN_VALUE, 777L)));
+    }
+
+    @Test(groups = {"integration"})
+    public void testReadNullValueIntoPrimitivePojoField() {
+        TableSchema schema = client.getTableSchemaFromQuery(NULL_VALUE_SQL);
+        client.register(DTOForNullPrimitiveTests.class, schema);
+
+        ClientException exception = Assert.expectThrows(ClientException.class,
+                () -> client.queryAll(NULL_VALUE_SQL, DTOForNullPrimitiveTests.class, schema));
+        Throwable cause = exception.getCause();
+        while (cause != null && !(cause instanceof NullValueException)) {
+            cause = cause.getCause();
+        }
+        Assert.assertNotNull(cause, "NullValueException is not in the cause chain of " + exception);
+        Assert.assertEquals(cause.getMessage(), "Column int64 has null value and it cannot be cast to long");
+    }
+
+    @Test(groups = {"integration"})
+    public void testReadNullValueIntoBoxedPojoField() {
+        TableSchema schema = client.getTableSchemaFromQuery(NULL_VALUE_SQL);
+        client.register(DTOForNullBoxedTests.class, schema);
+
+        Assert.assertEquals(client.queryAll(NULL_VALUE_SQL, DTOForNullBoxedTests.class, schema),
+                Collections.singletonList(new DTOForNullBoxedTests(1, null, 777L)));
     }
 
     @Data
