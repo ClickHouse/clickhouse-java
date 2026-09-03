@@ -240,12 +240,27 @@ public class ResultSetMetaDataImpl implements java.sql.ResultSetMetaData, JdbcV2
 
     @Override
     public int getPrecision(int column) throws SQLException {
-        return getColumn(column).getPrecision();
+        return valueColumn(getColumn(column)).getPrecision();
     }
 
     @Override
     public int getScale(int column) throws SQLException {
-        return getColumn(column).getScale();
+        return valueColumn(getColumn(column)).getScale();
+    }
+
+    /**
+     * Returns the column describing the values a caller actually reads. {@code SimpleAggregateFunction(func, T)}
+     * stores and returns plain {@code T} values, so precision and scale are declared by the nested column - the
+     * wrapper itself carries none. {@code AggregateFunction} is not transparent (its values are aggregation states)
+     * and is therefore returned as is.
+     */
+    private static ClickHouseColumn valueColumn(ClickHouseColumn column) {
+        ClickHouseColumn current = column;
+        while (current.getDataType() == ClickHouseDataType.SimpleAggregateFunction
+                && !current.getNestedColumns().isEmpty()) {
+            current = current.getNestedColumns().get(0);
+        }
+        return current;
     }
 
     @Override
