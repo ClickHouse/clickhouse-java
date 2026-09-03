@@ -150,6 +150,10 @@ public final class ParsedPreparedStatement {
         this.hasErrors = hasErrors;
     }
 
+    void resetParameters() {
+        argCount = 0;
+    }
+
     void appendParameter(int startIndex) {
         argCount++;
         if (argCount > paramPositions.length) {

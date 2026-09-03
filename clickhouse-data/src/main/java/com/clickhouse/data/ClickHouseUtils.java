@@ -1150,7 +1150,7 @@ public final class ClickHouseUtils {
      */
     public static int skipSingleLineComment(String args, int startIndex, int len) {
         int index = args.indexOf('\n', startIndex);
-        return index > startIndex ? index + 1 : len;
+        return index >= startIndex ? index + 1 : len;
     }
 
     /**
