@@ -383,7 +383,8 @@ To configure per operation, set the header on `QuerySettings`, `InsertSettings`,
 
 #### Initial Configuration
 
-To configure initial JWT authentication on the client, use `useBearerTokenAuth(token)` when building the `Client` instance:
+To configure initial JWT authentication on the client, use `useBearerTokenAuth(token)` (to add `Bearer_` prefix.
+(see [HTTP iterface docs](/concepts/features/security/external-authenticators/jwt#http-interface) ) when building the `Client` instance:
 
 ```java showLineNumbers
 import com.clickhouse.client.api.Client;
