@@ -655,6 +655,15 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     }
 
     /**
+     * Checks if external tables are defined.
+     *
+     * @return true if there is at least one external table; false otherwise
+     */
+    public boolean hasExternal() {
+        return !externalTables.isEmpty();
+    }
+
+    /**
      * Gets data format used for communication between server and client.
      *
      * @return data format used for communication between server and client
