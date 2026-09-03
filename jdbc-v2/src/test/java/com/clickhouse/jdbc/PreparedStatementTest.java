@@ -879,6 +879,61 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         }
     }
 
+    @Test(groups = { "integration" }, dataProvider = "insertWithRewrittenValuesListDP")
+    void testInsertWithRewrittenValuesList(String valuesList) throws Exception {
+        final String table = "test_insert_rewritten_values_list";
+        try (Connection conn = getJdbcConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("DROP TABLE IF EXISTS " + table);
+                stmt.execute("CREATE TABLE " + table + " (s String, n Int32) Engine MergeTree ORDER BY ()");
+            }
+            try (PreparedStatement stmt = conn.prepareStatement(
+                    "INSERT INTO " + table + " (s, n) VALUES " + valuesList)) {
+                assertEquals(stmt.getParameterMetaData().getParameterCount(), 1);
+                stmt.setInt(1, 42);
+                stmt.addBatch();
+            }
+        }
+    }
+
+    @DataProvider(name = "insertWithRewrittenValuesListDP")
+    public static Object[][] insertWithRewrittenValuesListDP() {
+        return new Object[][] {
+                { "(toDateTime({ts '2024-01-01 00:00:00'}), ?)" },
+                { "(toTime({t '10:20:30'}), ?)" },
+                { "(toInt32({d:Int32}), ?)" },
+        };
+    }
+
+    @Test(groups = { "integration" })
+    void testBatchInsertWithRewrittenValuesList() throws Exception {
+        final String table = "test_batch_insert_rewritten_values_list";
+        try (Connection conn = getJdbcConnection(Map.of(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF))) {
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("DROP TABLE IF EXISTS " + table);
+                stmt.execute("CREATE TABLE " + table + " (s DateTime, n Int32) Engine MergeTree ORDER BY ()");
+            }
+            try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO " + table
+                    + " (s, n) VALUES (toDateTime({ts '2024-01-01 00:00:00'}), ?)")) {
+                stmt.setInt(1, 42);
+                stmt.addBatch();
+                stmt.setInt(1, 43);
+                stmt.addBatch();
+                assertEquals(stmt.executeBatch().length, 2);
+                stmt.clearBatch();
+            }
+
+            try (Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery("SELECT n FROM " + table + " ORDER BY n")) {
+                assertTrue(rs.next());
+                assertEquals(rs.getInt(1), 42);
+                assertTrue(rs.next());
+                assertEquals(rs.getInt(1), 43);
+                assertFalse(rs.next());
+            }
+        }
+    }
+
     @Test(groups = { "integration" })
     void testStatementSplit() throws Exception {
         try (Connection conn = getJdbcConnection()) {

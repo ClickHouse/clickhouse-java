@@ -157,6 +157,34 @@ public abstract class BaseSqlParserFacadeTest {
         };
     }
 
+    @Test(dataProvider = "testValuesListPositionsDP")
+    public void testValuesListPositions(String sql, boolean positionsExpected) {
+        ParsedPreparedStatement parsed = parser.parsePreparedStatement(sql);
+        assertTrue(parsed.isInsert(), "Should be of insert type");
+
+        int start = parsed.getAssignValuesListStartPosition();
+        int stop = parsed.getAssignValuesListStopPosition();
+        if (parsed.getAssignValuesGroups() == 1 && start > -1 && stop > -1) {
+            assertTrue(stop > start, "Values list should stop after it starts, but got [" + start + ", " + stop + "]");
+            assertTrue(stop < sql.length(), "Values list should stop within the statement, but got " + stop
+                    + " for a statement of " + sql.length() + " characters");
+            assertEquals(sql.charAt(start), '(', "Values list should start with an opening parenthesis");
+            assertEquals(sql.charAt(stop), ')', "Values list should end with a closing parenthesis");
+
+            int[] paramPositions = parsed.getParamPositions();
+            for (int i = 0; i < parsed.getArgCount(); i++) {
+                assertTrue(paramPositions[i] > start && paramPositions[i] < stop, "Parameter " + (i + 1)
+                        + " at position " + paramPositions[i] + " should be inside the values list '"
+                        + sql.substring(start, stop + 1) + "'");
+            }
+        }
+
+        if (javaCcBackend) {
+            assertEquals(start > -1 && stop > -1, positionsExpected,
+                    "Values list positions should " + (positionsExpected ? "" : "not ") + "be reported");
+        }
+    }
+
     @Test(dataProvider = "testValuesListOfUnsupportedSyntaxDP")
     public void testValuesListOfUnsupportedSyntax(String sql, boolean parseable, int valueGroups, int args) {
         ParsedPreparedStatement parsed = parser.parsePreparedStatement(sql);
@@ -191,6 +219,31 @@ public abstract class BaseSqlParserFacadeTest {
                     + " at position " + paramPositions[i] + " should be inside the values list '"
                     + sql.substring(start, stop + 1) + "'");
         }
+    }
+
+    @DataProvider
+    public static Object[][] testValuesListPositionsDP() {
+        return new Object[][] {
+                { "INSERT INTO t (a, b) VALUES (1, ?)", true },
+                { "INSERT INTO t (a, b) VALUES (1, ?);", true },
+                { "INSERT INTO t (a, b) VALUES ('a)b', ?)", true },
+                { "INSERT INTO t (a, b) VALUES (1 /* ) */, ?)", true },
+                { "INSERT INTO t (a, b) VALUES (1 -- )\n, ?)", true },
+                { "INSERT INTO t (a, b) VALUES (1 // )\n, ?)", true },
+                { "INSERT INTO t (a, b) VALUES (1 # )\n, ?)", true },
+                { "INSERT INTO t (a, b) VALUES (1 #! )\n, ?)", true },
+                { "INSERT INTO t (a, b) VALUES (1 --\n, ?)", true },
+                { "INSERT INTO t (a, b) VALUES (1 /* ( */, ?)", true },
+                { "INSERT INTO t (a, b) VALUES (1 /* ? */, ?)", true },
+                { "INSERT INTO t (a, b) VALUES (1, ? /* ) */)", true },
+                { "INSERT INTO t (a, b) VALUES (toDate({d '2024-01-01'}), ?)", true },
+                { "INSERT INTO t (a, b) VALUES (toDateTime({ts '2024-01-01 00:00:00'}) /* ) */, ?)", false },
+                { "INSERT INTO t (a, b) VALUES (toDateTime({ts '2024-01-01 00:00:00'}), ?)", false },
+                { "INSERT INTO t (a, b) VALUES (toTime({t '10:20:30'}), ?)", false },
+                { "INSERT INTO t (a, b) VALUES (toInt32({d:Int32}), ?)", false },
+                { "INSERT INTO t (a, b) VALUES (?, toDate({d  '2024-01-01'}))", false },
+                { "INSERT INTO t (a, b) VALUES (?, toString({tt 'temp'}))", false },
+        };
     }
 
     @DataProvider

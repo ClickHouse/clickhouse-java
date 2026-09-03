@@ -137,6 +137,16 @@
 
 ### Bug Fixes 
 
+- **[jdbc-v2]** Fixed `Connection#prepareStatement` and `PreparedStatement#addBatch` throwing
+  `StringIndexOutOfBoundsException` for an `INSERT ... VALUES (...)` statement containing a JDBC escape sequence
+  (`{d '...'}`, `{ts '...'}`, ...) or a ClickHouse query parameter whose name starts with `d`/`t` (e.g. `{d:Int32}`).
+  The default `JAVACC` parser records the values list positions as offsets into the SQL it rebuilds from the token
+  stream, where such sequences are rewritten or dropped, while the driver slices the original SQL with them — so the
+  slice was taken at the wrong offsets or past the end of the statement. The positions are now checked against the
+  original SQL and discarded when they do not address its values list, in which case the driver falls back to its
+  generic parameter substitution path. Such a statement is now prepared without error; the escape sequence itself is
+  still sent to the server unchanged. The `ANTLR4` parser backends were not affected.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3017)
 - **[jdbc-v2]** Fixed `DatabaseMetaData#getTables` reporting `TABLE_TYPE = TABLE` for a table with the `BigQuery`
   engine (present in `system.table_engines` since ClickHouse `26.8`). The engine was missing from the
   engine-to-table-type mapping, so it fell back to the default `TABLE`, and `getTables(..., types = {"REMOTE TABLE"})`
