@@ -139,6 +139,76 @@ public class WriterStatementImplTest extends JdbcIntegrationTest {
         }
     }
 
+    @DataProvider(name = "insertTargetFunctionForms")
+    Object[][] insertTargetFunctionForms() {
+        return new Object[][]{
+                {"JAVACC", "INSERT INTO FUNCTION null('id UInt32') VALUES (?)"},
+                {"JAVACC", "INSERT INTO TABLE FUNCTION null('id UInt32') VALUES (?)"},
+                {"ANTLR4", "INSERT INTO FUNCTION null('id UInt32') VALUES (?)"},
+                {"ANTLR4", "INSERT INTO TABLE FUNCTION null('id UInt32') VALUES (?)"},
+                {"ANTLR4_PARAMS_PARSER", "INSERT INTO FUNCTION null('id UInt32') VALUES (?)"},
+                {"ANTLR4_PARAMS_PARSER", "INSERT INTO TABLE FUNCTION null('id UInt32') VALUES (?)"},
+        };
+    }
+
+    /**
+     * An INSERT whose target is a table function has no plain table to fetch a schema for, so it must stay
+     * on the regular SQL path instead of being routed to the RowBinary writer, which would look the
+     * function name up as a table and fail with UNKNOWN_TABLE.
+     */
+    @Test(groups = {"integration"}, dataProvider = "insertTargetFunctionForms")
+    public void testInsertIntoTableFunctionUsesSqlPath(String parser, String sql) throws SQLException {
+        Properties properties = new Properties();
+        properties.setProperty(DriverProperties.BETA_ROW_BINARY_WRITER.getKey(), "true");
+        properties.setProperty(DriverProperties.SQL_PARSER.getKey(), parser);
+        properties.setProperty(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF);
+        try (Connection connection = getJdbcConnection(properties);
+             PreparedStatement ps = connection.prepareStatement(sql)) {
+            Assert.assertFalse(ps instanceof WriterStatementImpl,
+                    "INSERT into a table function must not use the RowBinary writer: " + sql);
+            ps.setInt(1, 42);
+            Assert.assertEquals(ps.executeUpdate(), 1);
+        }
+    }
+
+    @DataProvider(name = "insertTargetPlainTableForms")
+    Object[][] insertTargetPlainTableForms() {
+        return new Object[][]{
+                {"JAVACC", "INSERT INTO %s VALUES (?)"},
+                {"JAVACC", "INSERT INTO TABLE %s VALUES (?)"},
+                {"ANTLR4", "INSERT INTO %s VALUES (?)"},
+                {"ANTLR4", "INSERT INTO TABLE %s VALUES (?)"},
+                {"ANTLR4_PARAMS_PARSER", "INSERT INTO %s VALUES (?)"},
+                {"ANTLR4_PARAMS_PARSER", "INSERT INTO TABLE %s VALUES (?)"},
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "insertTargetPlainTableForms")
+    public void testInsertIntoPlainTableStillUsesWriter(String parser, String sqlTemplate) throws SQLException {
+        String table = "bt_writer_plain_table";
+        Properties properties = new Properties();
+        properties.setProperty(DriverProperties.BETA_ROW_BINARY_WRITER.getKey(), "true");
+        properties.setProperty(DriverProperties.SQL_PARSER.getKey(), parser);
+        properties.setProperty(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF);
+        try (Connection connection = getJdbcConnection(properties)) {
+            try (Statement stmt = connection.createStatement()) {
+                stmt.execute("DROP TABLE IF EXISTS " + table);
+                stmt.execute("CREATE TABLE " + table + " (id Int32) Engine MergeTree ORDER BY ()");
+            }
+
+            try (PreparedStatement ps = connection.prepareStatement(String.format(sqlTemplate, table))) {
+                Assert.assertTrue(ps instanceof WriterStatementImpl,
+                        "INSERT into a plain table must keep using the RowBinary writer: " + sqlTemplate);
+                ps.setInt(1, 42);
+                Assert.assertEquals(ps.executeUpdate(), 1);
+            } finally {
+                try (Statement stmt = connection.createStatement()) {
+                    stmt.execute("DROP TABLE IF EXISTS " + table);
+                }
+            }
+        }
+    }
+
     @DataProvider(name = "antlr4ParserBackends")
     Object[][] antlr4ParserBackends() {
         return new Object[][]{

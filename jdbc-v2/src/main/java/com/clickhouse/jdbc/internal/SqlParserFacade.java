@@ -365,6 +365,12 @@ public abstract class SqlParserFacade {
 
             @Override
             public void enterInsertStmt(ClickHouseParser.InsertStmtContext ctx) {
+                if (ctx.tableFunctionExpr() != null) {
+                    // INSERT INTO [TABLE] FUNCTION f(...) has no plain table to write into, so the
+                    // parsed target must not be treated as a table name.
+                    parsedStatement.setUseFunction(true);
+                }
+
                 ClickHouseParser.TableIdentifierContext tableId = ctx.tableIdentifier();
                 if (tableId != null) {
                     extractAndSetDatabaseAndTable(tableId);

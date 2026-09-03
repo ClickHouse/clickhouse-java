@@ -265,6 +265,7 @@ TOKEN_MGR_DECLS: {
         compressLevel = null;
         format = null;
         file = null;
+        funcUsed = false;
         parameters.clear();
         positions.clear();
         settings.clear();
@@ -588,9 +589,12 @@ void grantStmt(): {} { // not interested
 void insertStmt(): {} {
     <INSERT> <INTO>
     (
-        LOOKAHEAD({ getToken(1).kind == FUNCTION
+        LOOKAHEAD({ getToken(1).kind == TABLE && getToken(2).kind == FUNCTION
+            && !tokenIn(3, VALUES, FORMAT, SETTINGS, SELECT, WITH, INFILE)
+            && getToken(4).kind == LPAREN }) <TABLE> <FUNCTION> functionExpr() { token_source.funcUsed = true; }
+        | LOOKAHEAD({ getToken(1).kind == FUNCTION
             && !tokenIn(2, VALUES, FORMAT, SETTINGS, SELECT, WITH, INFILE)
-            && getToken(3).kind == LPAREN }) <FUNCTION> functionExpr()
+            && getToken(3).kind == LPAREN }) <FUNCTION> functionExpr() { token_source.funcUsed = true; }
         | (
             LOOKAHEAD({ getToken(1).kind == TABLE
                 && !tokenIn(2, VALUES, FORMAT, SETTINGS, SELECT, WITH, LPAREN) }) <TABLE>
