@@ -22,7 +22,7 @@ def generate_jwt_token(
     audience="ci-test-service",
     issuer="mydomain.com",
     subject="ci-test",
-    expiration_seconds=300,  # Valid for 5 minutes by default
+    expiration_seconds=600,  # Valid for 10 minutes by default
     output_file=None,
 ):
     """Generate a signed JWT token valid for a few minutes using the private key."""

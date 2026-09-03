@@ -262,19 +262,15 @@ jobs:
           echo "Generated database name: $RANDOM_DB"
       - name: Create Temporary Database
         env:
-          CLICKHOUSE_CLOUD_HOST: ${{ secrets.CLICKHOUSE_CLOUD_HOST }}
-          CLICKHOUSE_CLOUD_PASSWORD: ${{ secrets.CLICKHOUSE_CLOUD_PASSWORD }}
-          # CLICKHOUSE_CLOUD_HOST: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_HOST_SMT_PROD }}
-          # CLICKHOUSE_CLOUD_PASSWORD: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_PASSWORD_SMT_PROD }}
+          CLICKHOUSE_CLOUD_HOST: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_HOST_SMT_PROD }}
+          CLICKHOUSE_CLOUD_PASSWORD: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_PASSWORD_SMT_PROD }}
         run: |
           echo "Creating database: \`$TEST_DB_NAME\`"
           curl --fail-with-body -s -u "default:$CLICKHOUSE_CLOUD_PASSWORD" "https://$CLICKHOUSE_CLOUD_HOST:8443" --data-binary "CREATE DATABASE IF NOT EXISTS $TEST_DB_NAME"
       - name: Test http client
         env:
-          # CLICKHOUSE_CLOUD_HOST: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_HOST_SMT_PROD }}
-          # CLICKHOUSE_CLOUD_PASSWORD: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_PASSWORD_SMT_PROD }}
-          CLICKHOUSE_CLOUD_HOST: ${{ secrets.CLICKHOUSE_CLOUD_HOST }}
-          CLICKHOUSE_CLOUD_PASSWORD: ${{ secrets.CLICKHOUSE_CLOUD_PASSWORD }}
+          CLICKHOUSE_CLOUD_HOST: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_HOST_SMT_PROD }}
+          CLICKHOUSE_CLOUD_PASSWORD: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_PASSWORD_SMT_PROD }}
           JWT_PKEY: ${{ secrets.JWT_PKEY }}
         run: |
           python3 -m pip install -r .github/scripts/requirements.txt
@@ -294,10 +290,8 @@ jobs:
       - name: Cleanup Database Unconditionally
         if: always() # CRITICAL: This ensures the step runs regardless of previous success/failure
         env:
-          CLICKHOUSE_CLOUD_HOST: ${{ secrets.CLICKHOUSE_CLOUD_HOST }}
-          CLICKHOUSE_CLOUD_PASSWORD: ${{ secrets.CLICKHOUSE_CLOUD_PASSWORD }}
-          # CLICKHOUSE_CLOUD_HOST: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_HOST_SMT_PROD }}
-          # CLICKHOUSE_CLOUD_PASSWORD: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_PASSWORD_SMT_PROD }}
+          CLICKHOUSE_CLOUD_HOST: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_HOST_SMT_PROD }}
+          CLICKHOUSE_CLOUD_PASSWORD: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_PASSWORD_SMT_PROD }}
         run: |
           # Verify we actually generated a DB name to avoid dropping something accidentally 
           if [ -n "$TEST_DB_NAME" ]; then
