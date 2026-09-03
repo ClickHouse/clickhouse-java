@@ -137,6 +137,13 @@
 
 ### Bug Fixes 
 
+- **[jdbc-v2]** Fixed `Connection#prepareStatement` throwing a `NullPointerException` for an
+  `INSERT ... VALUES (...)` statement whose values list the default JavaCC parser cannot parse — most commonly one
+  containing a heredoc string (`$$...$$`), which the grammar has no token for, but also any other unparsable token
+  inside the list. The parser's error recovery left the values list's start position recorded without its matching end
+  position, which was then unboxed unguarded. Both positions are now dropped together, so the driver falls back to its
+  generic parameter-substitution path and such statements are prepared and executed successfully. The `ANTLR4`
+  parser backends were not affected. (https://github.com/ClickHouse/clickhouse-java/issues/3013)
 - **[jdbc-v2]** Fixed `DatabaseMetaData#getTables` reporting `TABLE_TYPE = TABLE` for a table with the `BigQuery`
   engine (present in `system.table_engines` since ClickHouse `26.8`). The engine was missing from the
   engine-to-table-type mapping, so it fell back to the default `TABLE`, and `getTables(..., types = {"REMOTE TABLE"})`

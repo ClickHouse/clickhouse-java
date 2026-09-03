@@ -622,6 +622,10 @@ void dataClause(): {} {
             <FORMAT> <IDENTIFIER> { token_source.format = token.image; } )? (anyExprList())?
     } catch (ParseException e) {
         // FIXME introduce a lexical state in next release with consideration of delimiter from the context
+        // The values list was abandoned mid-way, so its start/end positions can only be recorded partially.
+        // Drop both so consumers either get a complete pair or none at all.
+        token_source.removePosition(ClickHouseSqlStatement.KEYWORD_VALUES_START);
+        token_source.removePosition(ClickHouseSqlStatement.KEYWORD_VALUES_END);
         Token nextToken;
         do {
             nextToken = getNextToken();
