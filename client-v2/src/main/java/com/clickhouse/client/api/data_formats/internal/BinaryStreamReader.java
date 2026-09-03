@@ -5,6 +5,7 @@ import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseEnum;
+import com.clickhouse.data.ClickHouseUtils;
 import com.clickhouse.data.value.ClickHouseBitmap;
 import org.slf4j.Logger;
 import org.slf4j.helpers.NOPLogger;
@@ -1540,7 +1541,9 @@ public class BinaryStreamReader {
             case Decimal256: {
                 int precision = readByte();
                 int scale = readByte();
-                return ClickHouseColumn.of("v", ClickHouseDataType.binTag2Type.get(tag), false, precision, scale);
+                // Rendered the way the server renders a decimal type, so that a parent type encoding
+                // (array, tuple, map, ...) can append it and keep the precision and the scale.
+                return ClickHouseColumn.of("v", "Decimal(" + precision + ", " + scale + ")");
             }
             case Dynamic: {
                 int maxTypes = readVarInt(input);
@@ -1552,16 +1555,24 @@ public class BinaryStreamReader {
                 int constants = readVarInt(input);
                 int[] values = new int[constants];
                 String[] names = new String[constants];
-                ClickHouseDataType enumType = constants > 127 ? ClickHouseDataType.Enum16 : ClickHouseDataType.Enum8;
+                // The width of the constant values is defined by the type tag, not by their number:
+                // Enum8 encodes them as Int8 and Enum16 as Int16.
+                ClickHouseDataType enumType = type == ClickHouseDataType.Enum16 ?
+                        ClickHouseDataType.Enum16 : ClickHouseDataType.Enum8;
+                StringBuilder enumDef = new StringBuilder(SB_INIT_SIZE);
+                enumDef.append(enumType.name()).append('(');
                 for (int i = 0; i < constants; i++) {
                     names[i] = readString(input);
-                    if (enumType == ClickHouseDataType.Enum8) {
-                        values[i] = readUnsignedByte();
-                    } else {
-                        values[i] = readUnsignedShortLE();
+                    values[i] = enumType == ClickHouseDataType.Enum8 ? readByte() : readShortLE();
+                    if (i > 0) {
+                        enumDef.append(", ");
                     }
+                    enumDef.append('\'').append(ClickHouseUtils.escape(names[i], '\'')).append("' = ").append(values[i]);
                 }
-                return new ClickHouseColumn(enumType, "v", enumType.name(), false, false, Collections.emptyList(), Collections.emptyList(),
+                enumDef.append(')');
+                // The constants are a part of the type: a parent type encoding appends this type name,
+                // so it has to carry them to keep the names of the values readable.
+                return new ClickHouseColumn(enumType, "v", enumDef.toString(), false, false, Collections.emptyList(), Collections.emptyList(),
                         new ClickHouseEnum(names, values));
             }
             case FixedString: {
@@ -1624,8 +1635,10 @@ public class BinaryStreamReader {
                 StringBuilder nested = new StringBuilder(SB_INIT_SIZE);
                 nested.append("Nested(");
                 for (int i = 0; i < size; i++) {
-                    String name = readString(input);
-                    nested.append(name).append(',');
+                    // Nested is encoded as a named tuple: every element name is followed by the
+                    // type encoding of that element, which has to be consumed here as well.
+                    nested.append(readString(input)).append(' ');
+                    nested.append(readDynamicData().getOriginalTypeName()).append(',');
                 }
                 nested.setLength(nested.length() - 1);
                 nested.append(')');
@@ -1680,7 +1693,7 @@ public class BinaryStreamReader {
                 }
                 variant.setLength(variant.length() - 1);
                 variant.append(")");
-                return  ClickHouseColumn.of("v", "Variant(" + variant + ")");
+                return  ClickHouseColumn.of("v", variant.toString());
             }
             case AggregateFunction:
                 throw new ClientException("Aggregate functions are not supported yet");

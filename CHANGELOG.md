@@ -137,6 +137,14 @@
 
 ### Bug Fixes 
 
+- **[client-v2]** Fixed reading a `Variant`, `Nested`, `Decimal` or `Enum` value held in a `Dynamic` column. The
+  concrete type rebuilt from the binary type encoding did not match what the server encoded: `Variant` was wrapped
+  twice (so the discriminator selected the wrong element), `Nested` read only the element names and left the element
+  type encodings in the stream, and `Decimal`/`Enum` lost their precision and scale / their constants whenever the
+  value sat inside another type, so a decimal read back unscaled (`1.2500` as `12500`) and every enum value read back
+  as `<unknown>`. The constant width of an enum is now taken from the type tag rather than from the number of
+  constants, which also fixes reading an `Enum16` with fewer than 128 constants and negative `Enum8` constants.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3003)
 - **[jdbc-v2]** Fixed `DatabaseMetaData#getTables` reporting `TABLE_TYPE = TABLE` for a table with the `BigQuery`
   engine (present in `system.table_engines` since ClickHouse `26.8`). The engine was missing from the
   engine-to-table-type mapping, so it fell back to the default `TABLE`, and `getTables(..., types = {"REMOTE TABLE"})`

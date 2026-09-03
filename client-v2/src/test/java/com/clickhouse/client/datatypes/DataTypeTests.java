@@ -1456,6 +1456,106 @@ public class DataTypeTests extends BaseIntegrationTest {
         Assert.assertEquals(records.get(0).getInteger("num"), 10);
     }
 
+    @DataProvider(name = "dynamicParametrizedElementTypes")
+    public Object[][] dynamicParametrizedElementTypes() {
+        return new Object[][]{
+                {"Decimal32(2)", "[1.25]", new String[]{"1.25"}},
+                {"Decimal64(4)", "[1.25, -3.5]", new String[]{"1.2500", "-3.5000"}},
+                {"Decimal(10, 2)", "[12345678.91]", new String[]{"12345678.91"}},
+                {"Decimal128(6)", "[0.000001]", new String[]{"0.000001"}},
+                {"Decimal256(20)", "[1.5]", new String[]{"1.50000000000000000000"}},
+                {"Enum8('a' = 1, 'b' = 2)", "['b']", new String[]{"b"}},
+                {"Enum8('a' = -1, 'b' = 2)", "['a']", new String[]{"a"}},
+                {"Enum8('a,b' = 1, 'c\\'d' = 2)", "['a,b', 'c\\'d']", new String[]{"a,b", "c'd"}},
+                {"Enum16('a' = 1000, 'b' = 2000)", "['b']", new String[]{"b"}},
+                {"Enum16('a' = -1000, 'b' = 2000)", "['a']", new String[]{"a"}},
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "dynamicParametrizedElementTypes")
+    public void testDynamicWithParametrizedElementType(String elementType, String values, String[] expected) throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
+        List<GenericRecord> records = client.queryAll("SELECT " + values + "::Array(" + elementType + ")::Dynamic AS v, 42::Int32 AS num");
+        Object[] items = records.get(0).getObjectArray("v");
+        Assert.assertEquals(items.length, expected.length);
+        for (int i = 0; i < expected.length; i++) {
+            Assert.assertEquals(String.valueOf(items[i]), expected[i]);
+        }
+        Assert.assertEquals(records.get(0).getInteger("num"), 42);
+    }
+
+    @Test(groups = {"integration"})
+    public void testDynamicWithEnum8WithMoreThan127Constants() throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
+        StringBuilder enumType = new StringBuilder("Enum8(");
+        for (int i = 0; i < 130; i++) {
+            if (i > 0) {
+                enumType.append(", ");
+            }
+            enumType.append('\'').append("c").append(i).append("' = ").append(i - 128);
+        }
+        enumType.append(')');
+
+        List<GenericRecord> records = client.queryAll("SELECT ['c0', 'c129']::Array(" + enumType + ")::Dynamic AS v, 42::Int32 AS num");
+        Object[] items = records.get(0).getObjectArray("v");
+        Assert.assertEquals(items.length, 2);
+        Assert.assertEquals(items[0].toString(), "c0");
+        Assert.assertEquals(items[1].toString(), "c129");
+        Assert.assertEquals(records.get(0).getInteger("num"), 42);
+    }
+
+    @Test(groups = {"integration"})
+    public void testDynamicWithParametrizedTypesInsideMapAndTuple() throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
+        List<GenericRecord> records = client.queryAll("SELECT " +
+                "map('k', 1.25::Decimal64(4))::Map(String, Decimal64(4))::Dynamic AS m, " +
+                "(1.25::Decimal64(4), 'b'::Enum8('a' = 1, 'b' = 2))::Tuple(d Decimal64(4), e Enum8('a' = 1, 'b' = 2))::Dynamic AS t, " +
+                "42::Int32 AS num");
+        GenericRecord row = records.get(0);
+        Assert.assertEquals(String.valueOf(((Map<?, ?>) row.getObject("m")).get("k")), "1.2500");
+        Object[] tuple = (Object[]) row.getObject("t");
+        Assert.assertEquals(String.valueOf(tuple[0]), "1.2500");
+        Assert.assertEquals(String.valueOf(tuple[1]), "b");
+        Assert.assertEquals(row.getInteger("num"), 42);
+    }
+
+    @Test(groups = {"integration"})
+    public void testDynamicWithVariantElement() throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
+        // The variant elements are declared in an order that differs from the order the server encodes
+        // them in, so a wrongly rebuilt variant maps a discriminator to the wrong element.
+        List<GenericRecord> records = client.queryAll("SELECT [1, 'a']::Array(Variant(String, Int32))::Dynamic AS v, 42::Int32 AS num");
+        Assert.assertEquals(records.get(0).getObjectArray("v"), new Object[]{1, "a"});
+        Assert.assertEquals(records.get(0).getInteger("num"), 42);
+    }
+
+    @Test(groups = {"integration"})
+    public void testDynamicWithNestedElement() throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
+        List<GenericRecord> records = client.queryAll("SELECT [(1, 'x', 1.25), (2, 'y', -3.5)]" +
+                "::Nested(a Int32, b String, c Decimal64(4))::Dynamic AS v, 42::Int32 AS num");
+        Object[] items = records.get(0).getObjectArray("v");
+        Assert.assertEquals(items.length, 2);
+        Assert.assertEquals((Object[]) items[0], new Object[]{1, "x", new BigDecimal("1.2500")});
+        Assert.assertEquals((Object[]) items[1], new Object[]{2, "y", new BigDecimal("-3.5000")});
+        Assert.assertEquals(records.get(0).getInteger("num"), 42);
+    }
+
     @Test(groups = {"integration"})
     public void testDynamicWithFixedString() throws Exception {
         if (isVersionMatch("(,24.8]")) {
