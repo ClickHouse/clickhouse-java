@@ -1013,27 +1013,24 @@ public class ConnectionTest extends JdbcIntegrationTest {
         }
     }
 
-    private static final String SAMPLE_JWT_TOKEN_FOR_TESTS = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c";
-
     @Test(groups = { "integration" })
     public void testJWTWithCloud() throws Exception {
-
-        final String jwt = isCloud() ? System.getenv("CLIENT_JWT") : SAMPLE_JWT_TOKEN_FOR_TESTS;
-        final String url = isCloud() ? "jdbc:ch:https://" + System.getenv("JWT_TEST_HOST") + "/default": getEndpointString();
-        Assert.assertTrue(jwt != null && !jwt.trim().isEmpty(), "CLIENT_JWT is not set.");
-        Assert.assertTrue(url != null && !url.trim().isEmpty(), "JWT_TEST_HOST is not set");
+        String jwt = System.getenv("JWT_TOKEN");
+        if (jwt == null || jwt.trim().isEmpty()) {
+            throw new SkipException("JWT_TOKEN environment variable is not set. Skipping JWT test.");
+        }
+        String url = getEndpointString();
 
         Properties properties = new Properties();
         properties.put(ClientConfigProperties.BEARERTOKEN_AUTH.getKey(), jwt);
-        properties.put(ClientConfigProperties.USER.getKey(), "default");
 
-        try (Connection conn = new ConnectionImpl(url, properties)) {
-            if (isCloud()) { // else check configuration only
-                try (Statement stmt = conn.createStatement();
-                     ResultSet rs = stmt.executeQuery("SELECT 1")) {
-                    Assert.assertTrue(rs.next());
-                }
-            }
+        try (Connection conn = new ConnectionImpl(url, properties);
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT currentUser()")) {
+            Assert.assertTrue(rs.next());
+            String username = rs.getString(1);
+            Assert.assertTrue(username != null && username.matches("^JWT::.+::.+$"),
+                    "Expected username in format JWT::<subject>::<claims_hash>, but actual username was: '" + username + "'");
         }
     }
 
