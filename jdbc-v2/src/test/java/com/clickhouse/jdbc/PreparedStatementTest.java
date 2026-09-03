@@ -936,6 +936,33 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         }
     }
 
+    @Test(groups = { "integration" }, dataProvider = "commentsAndHeredocsDP")
+    void testPlaceholdersWithCommentsAndHeredocs(String sql, String expected) throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                stmt.setString(1, "42");
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getString(1), expected);
+                    assertFalse(rs.next());
+                }
+            }
+        }
+    }
+
+    @DataProvider(name = "commentsAndHeredocsDP")
+    public static Object[][] commentsAndHeredocsDP() {
+        return new Object[][] {
+                {"SELECT ? AS v // ?", "42"},
+                {"SELECT ? AS v // ?\nUNION ALL SELECT NULL WHERE 0", "42"},
+                {"SELECT //\n? AS v", "42"},
+                {"SELECT --\n? AS v", "42"},
+                {"SELECT concat($$?$$, ?) AS v", "?42"},
+                {"SELECT concat($tag$ ? $tag$, ?) AS v", " ? 42"},
+                {"SELECT ? AS a$x$, 1 AS b$x$", "42"},
+        };
+    }
+
     @Test(groups = {"integration"})
     void testClearParameters() throws Exception {
         final String sql = "insert into `test_issue_2299` (`id`, `name`, `age`) values (?, ?, ?)";

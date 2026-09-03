@@ -137,6 +137,12 @@
 
 ### Bug Fixes 
 
+- **[jdbc-v2]** Fixed a `?` inside a `//` line comment or inside a heredoc (dollar quoted string, e.g. `$$...$$` or
+  `$tag$...$tag$`) being counted as a `PreparedStatement` parameter. Such a statement expected a value the application
+  could not supply, so `executeQuery()` failed with `Parameter at position 'N' is not set` for a query the server
+  executes fine. The placeholder scan now skips both token kinds, like the server lexer does; a `$` that does not open a
+  heredoc is still treated as an ordinary character (it is a valid identifier character).
+  (https://github.com/ClickHouse/clickhouse-java/issues/3009)
 - **[jdbc-v2]** Fixed `DatabaseMetaData#getTables` reporting `TABLE_TYPE = TABLE` for a table with the `BigQuery`
   engine (present in `system.table_engines` since ClickHouse `26.8`). The engine was missing from the
   engine-to-table-type mapping, so it fell back to the default `TABLE`, and `getTables(..., types = {"REMOTE TABLE"})`
