@@ -1,6 +1,7 @@
 package com.clickhouse.jdbc.parser;
 
 import org.testng.Assert;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import static org.testng.Assert.assertEquals;
@@ -860,6 +861,50 @@ public class ClickHouseSqlParserFacadeTest {
             Assert.assertEquals(stmt.getStatementType(), StatementType.SET);
             Assert.assertNotNull(stmts[0].getSettings().get("_ROLES"));
         }
+    }
+
+    @Test(groups = "unit", dataProvider = "unparsableValuesListProvider")
+    public void testInsertWithUnparsableValuesList(String sql) {
+        ClickHouseSqlStatement s = parse(sql)[0];
+        assertEquals(s.getStatementType(), StatementType.INSERT);
+
+        Integer start = s.getPositions().get(ClickHouseSqlStatement.KEYWORD_VALUES_START);
+        Integer end = s.getPositions().get(ClickHouseSqlStatement.KEYWORD_VALUES_END);
+        assertEquals(start == null, end == null,
+                "Values list start and end positions should be both set or both unset");
+        if (start != null) {
+            Assert.assertTrue(end > start, "Values list should end after it starts");
+            assertEquals(sql.charAt(start), '(');
+            assertEquals(sql.charAt(end), ')');
+        }
+    }
+
+    @DataProvider(name = "unparsableValuesListProvider")
+    private static Object[][] getUnparsableValuesLists() {
+        return new Object[][] {
+                { "INSERT INTO t VALUES ($$a@b$$, ?)" },
+                { "INSERT INTO t VALUES ($$a@b$$, ?);" },
+                { "INSERT INTO t VALUES ($$?$$, ?)" },
+                { "INSERT INTO t VALUES (?, )" },
+                { "INSERT INTO t VALUES (@@, ?)" },
+                { "INSERT INTO t VALUES (1, ?), (@@, ?)" },
+        };
+    }
+
+    @Test(groups = "unit", dataProvider = "parsableValuesListProvider")
+    public void testInsertWithParsableValuesList(String sql, int start, int end) {
+        ClickHouseSqlStatement s = parse(sql)[0];
+        assertEquals(s.getPositions().get(ClickHouseSqlStatement.KEYWORD_VALUES_START), Integer.valueOf(start));
+        assertEquals(s.getPositions().get(ClickHouseSqlStatement.KEYWORD_VALUES_END), Integer.valueOf(end));
+    }
+
+    @DataProvider(name = "parsableValuesListProvider")
+    private static Object[][] getParsableValuesLists() {
+        return new Object[][] {
+                { "INSERT INTO t VALUES (?, ?)", 21, 26 },
+                { "INSERT INTO t (a, b) VALUES (1, ?)", 28, 33 },
+                { "INSERT INTO t VALUES ('a@b', ?)", 21, 30 },
+        };
     }
 
     // known issue

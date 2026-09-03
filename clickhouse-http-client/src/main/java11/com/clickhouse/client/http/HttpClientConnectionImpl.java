@@ -48,6 +48,7 @@ import java.util.Map;
 import java.util.TimeZone;
 import java.util.UUID;
 import java.util.Map.Entry;
+import java.util.LinkedHashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -277,16 +278,20 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
         HttpRequest.Builder reqBuilder = HttpRequest.newBuilder()
                 .uri(URI.create(ClickHouseChecker.isNullOrEmpty(url) ? this.url : url))
                 .timeout(Duration.ofMillis(c.getSocketTimeout()));
+        headers = mergeHeaders(headers);
         byte[] boundary = null;
         if (tables != null && !tables.isEmpty()) {
             String uuid = rm.createUniqueId();
             reqBuilder.setHeader("content-type", "multipart/form-data; boundary=" + uuid);
             boundary = uuid.getBytes(StandardCharsets.US_ASCII);
+            if (headers != null && !headers.isEmpty()) {
+                headers = new LinkedHashMap<>(headers);
+                headers.remove("content-encoding");
+            }
         } else {
             reqBuilder.setHeader("content-type", "text/plain; charset=UTF-8");
         }
 
-        headers = mergeHeaders(headers);
         if (headers != null && !headers.isEmpty()) {
             for (Entry<String, String> header : headers.entrySet()) {
                 reqBuilder.setHeader(header.getKey(), header.getValue());

@@ -12,6 +12,42 @@
 
 ### New Features
 
+- **[client-v2, jdbc-v2]** Added a Micrometer implementation of the metrics SPI.
+  `Client.Builder.setMetricsRecorder(new MicrometerMetricsRecorder(meterRegistry))` reports the metrics of every client
+  operation to a Micrometer `MeterRegistry`: a timer `db.client.operation.duration` per completed operation, a timer
+  `clickhouse.client.operation.serialization.duration` when the client measured the serialization step, a counter
+  `clickhouse.client.operation.count` per completed operation, and a counter `clickhouse.client.operation.retries` per
+  retried attempt. Previously the client could bind only its connection-pool gauges to Micrometer, so exporting the
+  metrics of the operations themselves was left to the application. Meter names, units, descriptions and tag keys are
+  the standard ones of the SPI - the recorder derives them through `MetricsSupport`, so they are the names of
+  `MetricName` and the keys of `MetricAttribute` and mean the same as for every other recorder. A successful operation
+  carries no `error.type` tag and a failed one does, so the outcomes are separate time series of the same meter and a
+  failure the server reported also carries `db.response.status_code`; a duration the client did not measure is not
+  recorded, so no operation is reported with a made-up duration. The seconds of the SPI are handed to the registry as
+  nanoseconds, because a Micrometer timer keeps its own time unit, so a backend publishes the duration in the unit it
+  expects. The no-argument constructor reports to `Metrics.globalRegistry`, which is what the jdbc-v2
+  `jdbc_metrics_recorder` property needs, so a JDBC connection exports its metrics to Micrometer by naming the class -
+  `jdbc_metrics_recorder=com.clickhouse.client.api.observability.micrometer.MicrometerMetricsRecorder` - without
+  application code. `micrometer-core` stays an optional dependency of `client-v2` and is not shaded into the `all`
+  artifacts, so a client that does not use this recorder needs no Micrometer on the classpath.
+  (https://github.com/ClickHouse/clickhouse-java/issues/2975)
+- **[client-v2, jdbc-v2]** Added a metrics SPI that lets an application export the metrics of client operations to any
+  metrics backend. `Client.Builder.setMetricsRecorder(MetricsRecorder)` registers a backend-agnostic recorder from the
+  `com.clickhouse.client.api.observability` package, and the jdbc-v2 property `jdbc_metrics_recorder` names the recorder
+  class a connection registers with its own client. Previously the client collected operation metrics but only returned
+  them to the caller, so exporting them was left to the application. Each completed operation reports exactly one
+  success or one failure event, and each retried attempt reports a retry event, which gives the operation duration, the
+  serialization duration, the number of operations by outcome and the number of retries. The SPI follows the pattern of
+  the span SPI: an implementation extends the `DefaultMetricsRecorder` base class and overrides only what it cares
+  about, so it keeps working when the client starts reporting an event it does not know about, and the reusable
+  `MetricsSupport` class derives the standard values from the same structures, so its logic is opt-in and overridable.
+  Metric names, units and attribute keys follow the OpenTelemetry semantic conventions for database clients where a
+  convention exists and are placed under `clickhouse.` where it does not; they are defined by the `MetricName` and
+  `MetricAttribute` enums, durations are reported in seconds, and a duration the client did not measure is reported as
+  `MetricsSupport.DURATION_UNKNOWN` instead of a made-up value. The metric attributes are deliberately a smaller set
+  than the span attributes, because an attribute of a metric becomes a time series: the statement text, the query id and
+  the statement parameters stay on spans. Nothing is recorded and no metrics-related work is done when no recorder is
+  registered. (https://github.com/ClickHouse/clickhouse-java/issues/2975)
 - **[client-v2]** Added an OpenTelemetry implementation of the observability SPI.
   `Client.Builder.setSpanRecorder(new OpenTelemetrySpanRecorder(openTelemetry))`
   reports every client operation and every transport request as an OpenTelemetry `CLIENT` span: an operation span is
@@ -75,8 +111,13 @@
   binary type encoding is read back to the concrete `QBit(...)` type). In the
   JDBC driver (`jdbc-v2`) `QBit` maps to `java.sql.Types.ARRAY` and is returned as a `java.sql.Array` from
   `getObject`/`getArray`. Previously `QBit` was an unimplemented type constant and reading or writing such a column
-  failed. Reading `QBit` through the `Native` output format is not supported — the server transmits it there using a
-  different internal layout — and fails fast with a clear error; use a `RowBinary` format instead.
+  failed. A plain top-level `QBit` column with a `Float32`, `Float64`, or `BFloat16` element type is also read through
+  the `Native` output format: there the server transmits it using its internal bit-plane-transposed
+  `Tuple(FixedString(...))` layout, and the client reverses that transposition to reconstruct the same
+  `float[]`/`double[]` vector as `RowBinary`. A `QBit` that is strided (`QBit(element_type, dimension, stride)`),
+  wrapped in `Nullable`/`LowCardinality`, nested inside another type (e.g. `Array`/`Tuple`/`Map(String, QBit(...))`),
+  or carrying any other element type is not yet decoded over `Native` and fails fast with a clear error directing you
+  to a `RowBinary` format such as `RowBinaryWithNamesAndTypes`.
   (https://github.com/ClickHouse/clickhouse-java/issues/2610)
 - **[client-v2, jdbc-v2]** Added TLS cipher suite selection. `Client.Builder.setSSLCipherSuites(String...)` (client-v2)
   and the comma-separated `ssl_cipher_suites` connection property (client-v2 and jdbc-v2) restrict the cipher suites
@@ -106,6 +147,54 @@
   generic parameter substitution path. Such a statement is now prepared without error; the escape sequence itself is
   still sent to the server unchanged. The `ANTLR4` parser backends were not affected.
   (https://github.com/ClickHouse/clickhouse-java/issues/3017)
+- **[jdbc-v2]** Fixed `DatabaseMetaData#getTables` reporting `TABLE_TYPE = TABLE` for a table with the `BigQuery`
+  engine (present in `system.table_engines` since ClickHouse `26.8`). The engine was missing from the
+  engine-to-table-type mapping, so it fell back to the default `TABLE`, and `getTables(..., types = {"REMOTE TABLE"})`
+  returned no row for such a table. `BigQuery` is now mapped to `REMOTE TABLE`, like the other external-storage
+  engines. (https://github.com/ClickHouse/clickhouse-java/issues/3049)
+- **[jdbc-v2]** Fixed `PreparedStatement.getMetaData()` losing the result-set schema for a statement whose SQL
+  contains a comment. The `DESCRIBE` query used to resolve the metadata was built by re-scanning the SQL with a
+  regex that knew only quoted tokens, so a `?` inside a `--` / `#` / `/* */` comment was rewritten to `NULL` and
+  an odd `'` inside a comment mis-paired the quote alternative, leaving a real placeholder unreplaced — the
+  `DESCRIBE` then failed and the driver silently returned untyped metadata. The metadata query is now built from
+  the placeholder positions the statement parser already computed, so it always matches the SQL that a
+  parameterized execution produces. (https://github.com/ClickHouse/clickhouse-java/issues/3011)
+- **[client-v2]** Fixed reading a `UInt64` column into a **primitive** POJO field (e.g. `long`) always failing with
+  `ClassCastException: BinaryStreamReader cannot be cast to java.math.BigInteger`. The compiled setter for that
+  combination never emitted a read call, so it cast the reader itself instead of a value and consumed nothing from the
+  stream, which made every primitive field bound to a `UInt64` column unusable. The value is now read and converted to
+  the target primitive with the matching `Number` accessor, which narrows a value that does not fit the same way a Java
+  narrowing conversion does (a `long` holds every `UInt64` value bit-for-bit and can be read back with
+  `Long.toUnsignedString(long)`; a `boolean` is `true` for any non-zero value). Boxed fields (`BigInteger`, `Long`) are
+  unaffected. (https://github.com/ClickHouse/clickhouse-java/issues/2996)
+- **[jdbc-v2]** Fixed `ResultSetMetaData.getPrecision()` and `getScale()` returning `0` for columns wrapped in
+  `SimpleAggregateFunction(func, T)`. The wrapper is transparent on the read path (values are read as plain `T`), but
+  both accessors described the wrapper itself, which carries no precision or scale — so a
+  `SimpleAggregateFunction(sum, Decimal(18, 4))` column looked like a scale-0 value and
+  `SimpleAggregateFunction(any, DateTime64(3, tz))` looked like second precision. They now describe the nested type.
+  `AggregateFunction` columns are unchanged, since their values are aggregation states rather than values of the
+  nested type. (https://github.com/ClickHouse/clickhouse-java/issues/3042)
+- **[clickhouse-jdbc]** Fixed `Connection#prepareStatement` throwing a `NullPointerException` for an
+  `INSERT ... VALUES (...)` statement whose values list the JavaCC parser cannot parse — most commonly one
+  containing a heredoc string (`$$...$$`), which the grammar has no token for, but also any other unparsable token
+  inside the list. The parser's error recovery left the values list's start position recorded without its matching end
+  position, which was then unboxed unguarded. Both positions are now dropped together, so the driver falls back to its
+  generic parameter-substitution path instead of failing, and a statement such as
+  `insert into t values ($$a@b$$, ?)` is prepared and executed successfully.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3033)
+- **[jdbc-v2]** Fixed the ANTLR4 lexer not nesting `/* */` block comments. ClickHouse (and the JavaCC parser backend)
+  raise the nesting level on an inner `/*` and close the comment only at the matching `*/`, while the ANTLR4 lexer ended
+  the comment at the first `*/` and lexed the rest of it as SQL. With the `ANTLR4` / `ANTLR4_PARAMS_PARSER` backends this
+  made statements the server accepts (e.g. `SELECT 1 /* ) /* ) */ ) */, 2`) report syntax errors, and made
+  `ANTLR4_PARAMS_PARSER` count a `?` inside the nested part of a comment as a bind parameter. Comments that do not nest
+  are unaffected; an unterminated block comment is now skipped to the end of the statement instead of being lexed as
+  stray tokens. (https://github.com/ClickHouse/clickhouse-java/issues/3021)
+- **[client-v2]** Fixed reading a `SimpleAggregateFunction(func, T)` value held in a `Dynamic` column. The binary type
+  encoding of such a value (`0x2E <function_name> <parameters> <arguments> <argument_type_encodings>`) was not consumed
+  at all, so the read failed with `IndexOutOfBoundsException`, and the unconsumed encoding bytes would otherwise have
+  been interpreted as row data and desynchronized the rest of the `RowBinary` stream. The concrete type is now
+  reconstructed from the encoding and the value is read as its argument type `T`, so it reads exactly like the same
+  value in a plain `SimpleAggregateFunction` column. (https://github.com/ClickHouse/clickhouse-java/issues/3005)
 - **[jdbc-v2]** Fixed `PreparedStatement#executeBatch` sending a syntactically broken `INSERT` when an `ANTLR4` parser
   backend is selected (`jdbc_sql_parser=ANTLR4` / `ANTLR4_PARAMS_PARSER`) and the values list contains a value
   expression the bundled grammar cannot parse - a JDBC escape sequence (`{d '...'}`), or valid ClickHouse syntax the
@@ -193,6 +282,13 @@
   serialized identically to its underlying type `T`, writing the `Nullable` null-marker byte when the
   underlying type is nullable (e.g. `SimpleAggregateFunction(anyLast, Nullable(String))`), mirroring the
   read path. (https://github.com/ClickHouse/clickhouse-java/issues/2477)
+- **[client-v2]** Fixed the `Dynamic` type tag for a `SimpleAggregateFunction` type being written as a bare
+  `0x2E` byte. The binary type encoding also carries the function name, its parameters and its argument
+  types, so the server read the function name out of the value bytes that followed and failed with
+  `ATTEMPT_TO_READ_AFTER_EOF`. Since the client never infers a `SimpleAggregateFunction` from a Java value
+  and the reader cannot read one back out of a `Dynamic` column, this now fails fast with a clear
+  `ClientException` instead of producing a corrupt `RowBinary` stream (the same treatment `QBit` already
+  gets). (https://github.com/ClickHouse/clickhouse-java/issues/3007)
 - **[client-v2, jdbc-v2]** Fixed several logging-layer defects. In `client-v2`, `HttpAPIClientHelper.shouldRetry`
   threw a `ClassCastException` when a retryable `ServerException` was wrapped as the *cause* of another exception
   (the branch matched on the cause but the cast used the outer exception); the retry decision is now taken from
@@ -271,6 +367,12 @@
   canonical `Nested` sub-column wire form `` `directory`.`id` ``. The SQL parser now unescapes each
   backtick-quoted `INSERT` column-name component before the by-name server-schema lookup, matching how the
   table and database identifiers are already handled. (https://github.com/ClickHouse/clickhouse-java/issues/2896)
+
+### Updated Dependencies
+
+- **[repo]** Upgraded `org.apache.httpcomponents.client5:httpclient5` from `5.4.4` to `5.6.4` in `client-v2` and
+  `clickhouse-http-client` to pick up the fixes of the newer 5.x releases, including known vulnerabilities.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3078)
 
 ### Docs & Examples
 
