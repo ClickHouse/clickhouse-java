@@ -73,7 +73,7 @@
         <dependency>
             <groupId>io.micrometer</groupId>
             <artifactId>micrometer-core</artifactId>
-            <version>1.14.3</version>
+            <version>${micrometer.version}</version>
             <optional>true</optional>
             <scope>compile</scope>
         </dependency>
@@ -94,6 +94,14 @@
         </dependency>
 
         <!-- Test Dependencies -->
+        <!-- Test-only: a registry with the naming and label rules of a real backend, so the meters of
+             the Micrometer recorder are asserted against them and not only against a simple registry. -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+            <version>${micrometer.version}</version>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>io.opentelemetry</groupId>
             <artifactId>opentelemetry-sdk</artifactId>

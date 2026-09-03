@@ -12,6 +12,42 @@
 
 ### New Features
 
+- **[client-v2, jdbc-v2]** Added a Micrometer implementation of the metrics SPI.
+  `Client.Builder.setMetricsRecorder(new MicrometerMetricsRecorder(meterRegistry))` reports the metrics of every client
+  operation to a Micrometer `MeterRegistry`: a timer `db.client.operation.duration` per completed operation, a timer
+  `clickhouse.client.operation.serialization.duration` when the client measured the serialization step, a counter
+  `clickhouse.client.operation.count` per completed operation, and a counter `clickhouse.client.operation.retries` per
+  retried attempt. Previously the client could bind only its connection-pool gauges to Micrometer, so exporting the
+  metrics of the operations themselves was left to the application. Meter names, units, descriptions and tag keys are
+  the standard ones of the SPI - the recorder derives them through `MetricsSupport`, so they are the names of
+  `MetricName` and the keys of `MetricAttribute` and mean the same as for every other recorder. A successful operation
+  carries no `error.type` tag and a failed one does, so the outcomes are separate time series of the same meter and a
+  failure the server reported also carries `db.response.status_code`; a duration the client did not measure is not
+  recorded, so no operation is reported with a made-up duration. The seconds of the SPI are handed to the registry as
+  nanoseconds, because a Micrometer timer keeps its own time unit, so a backend publishes the duration in the unit it
+  expects. The no-argument constructor reports to `Metrics.globalRegistry`, which is what the jdbc-v2
+  `jdbc_metrics_recorder` property needs, so a JDBC connection exports its metrics to Micrometer by naming the class -
+  `jdbc_metrics_recorder=com.clickhouse.client.api.observability.micrometer.MicrometerMetricsRecorder` - without
+  application code. `micrometer-core` stays an optional dependency of `client-v2` and is not shaded into the `all`
+  artifacts, so a client that does not use this recorder needs no Micrometer on the classpath.
+  (https://github.com/ClickHouse/clickhouse-java/issues/2975)
+- **[client-v2, jdbc-v2]** Added a metrics SPI that lets an application export the metrics of client operations to any
+  metrics backend. `Client.Builder.setMetricsRecorder(MetricsRecorder)` registers a backend-agnostic recorder from the
+  `com.clickhouse.client.api.observability` package, and the jdbc-v2 property `jdbc_metrics_recorder` names the recorder
+  class a connection registers with its own client. Previously the client collected operation metrics but only returned
+  them to the caller, so exporting them was left to the application. Each completed operation reports exactly one
+  success or one failure event, and each retried attempt reports a retry event, which gives the operation duration, the
+  serialization duration, the number of operations by outcome and the number of retries. The SPI follows the pattern of
+  the span SPI: an implementation extends the `DefaultMetricsRecorder` base class and overrides only what it cares
+  about, so it keeps working when the client starts reporting an event it does not know about, and the reusable
+  `MetricsSupport` class derives the standard values from the same structures, so its logic is opt-in and overridable.
+  Metric names, units and attribute keys follow the OpenTelemetry semantic conventions for database clients where a
+  convention exists and are placed under `clickhouse.` where it does not; they are defined by the `MetricName` and
+  `MetricAttribute` enums, durations are reported in seconds, and a duration the client did not measure is reported as
+  `MetricsSupport.DURATION_UNKNOWN` instead of a made-up value. The metric attributes are deliberately a smaller set
+  than the span attributes, because an attribute of a metric becomes a time series: the statement text, the query id and
+  the statement parameters stay on spans. Nothing is recorded and no metrics-related work is done when no recorder is
+  registered. (https://github.com/ClickHouse/clickhouse-java/issues/2975)
 - **[client-v2]** Added an OpenTelemetry implementation of the observability SPI.
   `Client.Builder.setSpanRecorder(new OpenTelemetrySpanRecorder(openTelemetry))`
   reports every client operation and every transport request as an OpenTelemetry `CLIENT` span: an operation span is
@@ -108,6 +144,11 @@
   without any error being raised. The generated setter now consumes the marker; a value that is actually `NULL` cannot
   be held by a primitive field and is reported with a `NullValueException`. Boxed POJO fields are unaffected.
   (https://github.com/ClickHouse/clickhouse-java/issues/2993)
+- **[jdbc-v2]** Fixed `DatabaseMetaData#getTables` reporting `TABLE_TYPE = TABLE` for a table with the `BigQuery`
+  engine (present in `system.table_engines` since ClickHouse `26.8`). The engine was missing from the
+  engine-to-table-type mapping, so it fell back to the default `TABLE`, and `getTables(..., types = {"REMOTE TABLE"})`
+  returned no row for such a table. `BigQuery` is now mapped to `REMOTE TABLE`, like the other external-storage
+  engines. (https://github.com/ClickHouse/clickhouse-java/issues/3049)
 - **[jdbc-v2]** Fixed `PreparedStatement.getMetaData()` losing the result-set schema for a statement whose SQL
   contains a comment. The `DESCRIBE` query used to resolve the metadata was built by re-scanning the SQL with a
   regex that knew only quoted tokens, so a `?` inside a `--` / `#` / `/* */` comment was rewritten to `NULL` and
