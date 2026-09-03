@@ -8,6 +8,7 @@ import com.clickhouse.client.api.ServerException;
 import java.net.MalformedURLException;
 import java.sql.SQLDataException;
 import java.sql.SQLException;
+import java.sql.SQLTimeoutException;
 
 /**
  * Helper class for building {@link SQLException}.
@@ -15,6 +16,7 @@ import java.sql.SQLException;
 public final class ExceptionUtils {
     public static final String SQL_STATE_CLIENT_ERROR = "HY000";
     public static final String SQL_STATE_OPERATION_CANCELLED = "HY008";
+    public static final String SQL_STATE_TIMEOUT = "HYT00";
     public static final String SQL_STATE_CONNECTION_EXCEPTION = "08000";
     public static final String SQL_STATE_SQL_ERROR = "07000";
     public static final String SQL_STATE_NO_DATA = "02000";
@@ -26,6 +28,8 @@ public final class ExceptionUtils {
     // Used only when method is called on wrong object type (for example, PreparedStatement.addBatch(String))
     public static final String SQL_STATE_WRONG_OBJECT_TYPE = "42809";
     public static final String SQL_STATE_TYPE_MISMATCH = "2200G";
+
+    private static final int CLICKHOUSE_TIMEOUT_EXCEEDED = 159;
 
     private ExceptionUtils() {}//Private constructor
 
@@ -55,6 +59,12 @@ public final class ExceptionUtils {
 
         if (cause instanceof SQLException) {
             return (SQLException) cause;
+        }
+
+        ServerException serverException = findServerException(cause);
+        if (serverException != null && serverException.getCode() == CLICKHOUSE_TIMEOUT_EXCEEDED) {
+            String timeoutMessage = message == null ? serverException.getMessage() : message;
+            return new SQLTimeoutException(timeoutMessage, SQL_STATE_TIMEOUT, serverException.getCode(), cause);
         } else if (cause instanceof ClientMisconfigurationException) {
             return new SQLException(exceptionMessage, SQL_STATE_CLIENT_ERROR, cause);
         } else if (cause instanceof ConnectionInitiationException) {
@@ -68,6 +78,18 @@ public final class ExceptionUtils {
         }
 
         return new SQLException(exceptionMessage, SQL_STATE_CLIENT_ERROR, cause);//Default
+    }
+
+    private static ServerException findServerException(Throwable throwable) {
+        for (Throwable cause = throwable; cause != null; cause = cause.getCause()) {
+            if (cause instanceof ServerException) {
+                return (ServerException) cause;
+            }
+            if (cause.getCause() == cause) {
+                break;
+            }
+        }
+        return null;
     }
 
     public static Throwable getRootCause(Throwable throwable) {

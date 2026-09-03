@@ -28,6 +28,12 @@ public class ClickHouseHttpProto {
     public static final String HEADER_EXCEPTION_CODE = "X-ClickHouse-Exception-Code";
 
     /**
+     * Response only header containing the tag used to identify exception frames in a successful response body.
+     * Cannot be used in request.
+     */
+    public static final String HEADER_EXCEPTION_TAG = "X-ClickHouse-Exception-Tag";
+
+    /**
      * Response only header to indicate a query progress.
      * Cannot be used in request.
      */

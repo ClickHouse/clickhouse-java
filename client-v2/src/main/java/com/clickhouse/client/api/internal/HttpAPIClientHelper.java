@@ -693,7 +693,11 @@ public class HttpAPIClientHelper {
         @Override
         public InputStream createDataInputStream() {
             try {
-                return delegate.getEntity().getContent();
+                InputStream input = delegate.getEntity().getContent();
+                Header exceptionTag = delegate.getFirstHeader(ClickHouseHttpProto.HEADER_EXCEPTION_TAG);
+                return exceptionTag == null || exceptionTag.getValue().isEmpty()
+                        ? input
+                        : new HttpExceptionInputStream(input, exceptionTag.getValue(), delegate.getCode(), getQueryId());
             } catch (Exception e) {
                 throw new ClientException("Failed to construct input stream", e);
             }
@@ -1055,7 +1059,8 @@ public class HttpAPIClientHelper {
             ClickHouseHttpProto.HEADER_DB_USER,
             ClickHouseHttpProto.HEADER_TIMEZONE,
             ClickHouseHttpProto.HEADER_FORMAT,
-            ClickHouseHttpProto.HEADER_PROGRESS
+            ClickHouseHttpProto.HEADER_PROGRESS,
+            ClickHouseHttpProto.HEADER_EXCEPTION_TAG
     ));
 
     /**
