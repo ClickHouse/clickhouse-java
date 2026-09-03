@@ -5,6 +5,7 @@ import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseEnum;
+import com.clickhouse.data.ClickHouseUtils;
 import com.clickhouse.data.value.ClickHouseBitmap;
 import org.slf4j.Logger;
 import org.slf4j.helpers.NOPLogger;
@@ -1487,6 +1488,36 @@ public class BinaryStreamReader {
         }
     }
 
+    /**
+     * Appends an identifier (a JSON path or a tuple element name) read from a binary type encoding to a
+     * type name that is parsed back by {@link ClickHouseColumn}. A name that cannot be read back as a bare
+     * identifier - because it contains a space, a separator, a bracket or a quote - is back-quoted with
+     * inner back-quotes and backslashes escaped, the same way the server renders such names. A name that
+     * needs no quoting is appended as is.
+     */
+    private static StringBuilder appendIdentifier(StringBuilder builder, String identifier) {
+        if (identifierRequiresQuoting(identifier)) {
+            return builder.append('`').append(ClickHouseUtils.escape(identifier, '`')).append('`');
+        }
+        return builder.append(identifier);
+    }
+
+    private static boolean identifierRequiresQuoting(String identifier) {
+        if (identifier.isEmpty()) {
+            return true;
+        }
+        for (int i = 0; i < identifier.length(); i++) {
+            char ch = identifier.charAt(i);
+            // JSON paths are dot separated, so a dot is a part of a bare path
+            boolean bare = ch == '.' || ch == '_' || (ch >= '0' && ch <= '9')
+                    || (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z');
+            if (!bare) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private ClickHouseColumn readDynamicData() throws IOException {
         byte tag = readByte();
 
@@ -1506,8 +1537,7 @@ public class BinaryStreamReader {
                 final boolean readName = tag == ClickHouseDataType.TUPLE_WITH_NAMES_BIN_TAG;
                 for (int i = 0; i < size; i++) {
                     if (readName) {
-                        String name = readString(input);
-                        typeNameBuilder.append(name).append(' ');
+                        appendIdentifier(typeNameBuilder, readString(input)).append(' ');
                     }
                     ClickHouseColumn column = readDynamicData();
                     typeNameBuilder.append(column.getOriginalTypeName()).append(',');
@@ -1594,17 +1624,19 @@ public class BinaryStreamReader {
                 StringBuilder typeDef = new StringBuilder(SB_INIT_SIZE);
                 typeDef.append("JSON(max_dynamic_paths=").append(maxDynamicPaths).append(",max_dynamic_types=").append(maxDynamicTypes).append(",");
                 for (int i = 0; i < numberOfTypedPaths; i++) {
-                    typeDef.append(readString(input)).append(' '); // path
+                    appendIdentifier(typeDef, readString(input)).append(' '); // path
                     ClickHouseColumn column = readDynamicData();
                     typeDef.append(column.getOriginalTypeName()).append(',');
                 }
                 int numberOfSkipPaths = readVarInt(input);
                 for (int i = 0; i < numberOfSkipPaths; i++) {
-                    typeDef.append(readString(input)).append(',');
+                    typeDef.append(ClickHouseColumn.JSON_SKIP_MARKER).append(' ');
+                    appendIdentifier(typeDef, readString(input)).append(',');
                 }
                 int numberOfPathRegexp = readVarInt(input);
                 for (int i = 0; i < numberOfPathRegexp; i++) {
-                    typeDef.append(readString(input)).append(',');
+                    typeDef.append(ClickHouseColumn.JSON_SKIP_MARKER).append(" REGEXP '")
+                            .append(ClickHouseUtils.escape(readString(input), '\'')).append("',");
                 }
                 typeDef.setLength(typeDef.length() - 1);
                 typeDef.append(')');
