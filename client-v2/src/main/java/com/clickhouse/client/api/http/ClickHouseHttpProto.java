@@ -53,6 +53,11 @@ public class ClickHouseHttpProto {
     public static final String HEADER_SSL_CERT_AUTH = "x-clickhouse-ssl-certificate-auth";
 
     /**
+     * Replica tag used by a proxy to route a request to a specific replica.
+     */
+    public static final String HEADER_REPLICA_TAG = "X-ClickHouse-Replica-Tag";
+
+    /**
      * Query parameter to specify the query ID.
      */
     public static final String QPARAM_QUERY_ID = "query_id";

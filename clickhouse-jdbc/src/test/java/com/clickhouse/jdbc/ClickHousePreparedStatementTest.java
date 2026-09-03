@@ -666,6 +666,27 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
+    public void testInsertWithHeredocValue() throws SQLException {
+        try (ClickHouseConnection conn = newConnection(new Properties());
+                ClickHouseStatement s = conn.createStatement()) {
+            s.execute("drop table if exists test_insert_heredoc;"
+                    + "CREATE TABLE test_insert_heredoc(s String, n Int32) ENGINE = MergeTree() ORDER BY n");
+            try (PreparedStatement ps = conn
+                    .prepareStatement("insert into test_insert_heredoc values ($$a@b$$, ?)")) {
+                ps.setInt(1, 42);
+                Assert.assertEquals(ps.executeUpdate(), 1);
+            }
+
+            try (ResultSet rs = s.executeQuery("select s, n from test_insert_heredoc")) {
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getString(1), "a@b");
+                Assert.assertEquals(rs.getInt(2), 42);
+                Assert.assertFalse(rs.next());
+            }
+        }
+    }
+
+    @Test(groups = "integration")
     public void testInsertQueryDateTime64() throws SQLException {
         try (ClickHouseConnection conn = newConnection(new Properties());
                 ClickHouseStatement s = conn.createStatement();) {
