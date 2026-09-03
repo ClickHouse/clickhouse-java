@@ -207,7 +207,7 @@ jobs:
 
   test-with-cloud:
     runs-on: ubuntu-latest
-    needs: test-jdbc-driver
+    needs: compile
     strategy:
       matrix:
         # most recent LTS releases as well as latest stable builds
