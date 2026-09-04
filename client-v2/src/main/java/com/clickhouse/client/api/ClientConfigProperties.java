@@ -347,9 +347,13 @@ public enum ClientConfigProperties {
         }
 
         if (valueType.isEnum()) {
+            String configValue = value.trim();
+            if (configValue.isEmpty()) {
+                return null;
+            }
             Object[] constants = valueType.getEnumConstants();
             for (Object constant : constants) {
-                if (constant.toString().equalsIgnoreCase(value.trim())) {
+                if (constant.toString().equalsIgnoreCase(configValue)) {
                     return constant;
                 }
             }

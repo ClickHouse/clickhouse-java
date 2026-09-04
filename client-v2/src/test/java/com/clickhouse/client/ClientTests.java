@@ -368,7 +368,7 @@ public class ClientTests extends BaseIntegrationTest {
                 .queryFormat(ClickHouseFormat.CSV.name())
                 .build()) {
             Map<String, String> config = client.getConfiguration();
-            Assert.assertEquals(config.size(), 38); // to check everything is set. Increment when new added.
+            Assert.assertEquals(config.size(), 39); // to check everything is set. Increment when new added.
             Assert.assertEquals(config.get(ClientConfigProperties.DATABASE.getKey()), "mydb");
             Assert.assertEquals(config.get(ClientConfigProperties.MAX_EXECUTION_TIME.getKey()), "10");
             Assert.assertEquals(config.get(ClientConfigProperties.COMPRESSION_LZ4_UNCOMPRESSED_BUF_SIZE.getKey()), "300000");
