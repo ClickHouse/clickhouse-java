@@ -2337,12 +2337,35 @@ public class QueryTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testSettingsNotChanged() throws Exception{
-        final QuerySettings settings = Mockito.spy(new QuerySettings());
-        try (QueryResponse response = client.query("select 1 FORMAT JSONEachRow", settings).get()) {
+        final QuerySettings settings = Mockito.spy(new QuerySettings().setFormat(ClickHouseFormat.JSONEachRow));
+        try (QueryResponse response = client.query("select 1", settings).get()) {
             Mockito.verify(settings, Mockito.times(1)).getAllSettings();
             Mockito.verifyNoMoreInteractions(settings);
-            Assert.assertNull(settings.getFormat());
+            Assert.assertEquals(settings.getFormat(), ClickHouseFormat.JSONEachRow);
             Assert.assertEquals(response.getFormat(), ClickHouseFormat.JSONEachRow);
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testFormatSelectionPrecedence() throws Exception {
+        // 1. Explicit QuerySettings format overrides client default
+        QuerySettings settingsFormat = new QuerySettings().setFormat(ClickHouseFormat.JSONEachRow);
+        try (QueryResponse response = client.query("SELECT 1 AS num", settingsFormat).get()) {
+            Assert.assertEquals(response.getFormat(), ClickHouseFormat.JSONEachRow);
+        }
+
+        // 2. Default client format is RowBinaryWithNamesAndTypes
+        try (QueryResponse response = client.query("SELECT 1 AS num").get()) {
+            Assert.assertEquals(response.getFormat(), ClickHouseFormat.RowBinaryWithNamesAndTypes);
+        }
+
+        // 3. Client configured with format set to null allows query SQL FORMAT clause to take effect
+        try (Client nullFormatClient = newClient()
+                .setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), null)
+                .build()) {
+            try (QueryResponse response = nullFormatClient.query("SELECT 1 AS num FORMAT JSONEachRow").get()) {
+                Assert.assertEquals(response.getFormat(), ClickHouseFormat.JSONEachRow);
+            }
         }
     }
 

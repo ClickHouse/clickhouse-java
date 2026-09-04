@@ -7,6 +7,7 @@ import com.clickhouse.client.api.data_formats.JacksonJsonParserFactory;
 import com.clickhouse.client.api.data_formats.JsonParserFactory;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.query.GenericRecord;
+import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseVersion;
 import com.clickhouse.jdbc.internal.SqlParserFacade;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -862,8 +863,17 @@ public class StatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = {"integration"})
-    public void testTextFormatInResponse() throws Exception {
-        try (Connection conn = getJdbcConnection();
+    public void testUnsupportedFormat() throws Exception {
+        Properties config1 = new Properties();
+        config1.setProperty(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), "");
+        try (Connection conn = getJdbcConnection(config1);
+             Statement stmt = conn.createStatement()) {
+            Assert.expectThrows(SQLException.class, () -> stmt.executeQuery("SELECT 1 FORMAT JSON"));
+        }
+
+        Properties config2 = new Properties();
+        config2.setProperty(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), ClickHouseFormat.CSV.name());
+        try (Connection conn = getJdbcConnection(config2);
              Statement stmt = conn.createStatement()) {
             Assert.expectThrows(SQLException.class, () -> stmt.executeQuery("SELECT 1 FORMAT JSON"));
         }
@@ -873,6 +883,24 @@ public class StatementTest extends JdbcIntegrationTest {
     public void testJSONEachRowFormat(Class<JsonParserFactory> parserFactory) throws Exception {
         Properties properties = new Properties();
         properties.setProperty(DriverProperties.JSON_PARSER_FACTORY.getKey(), parserFactory.getName());
+        properties.setProperty(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), "JSONEachRow");
+        try (Connection conn = getJdbcConnection(properties)) {
+            try (Statement stmt = conn.createStatement()) {
+                try (ResultSet rs = stmt.executeQuery("SELECT 1 AS num, 'test' AS str")) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getInt("num"), 1);
+                    assertEquals(rs.getString("str"), "test");
+                    assertFalse(rs.next());
+                }
+            }
+        }
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "testJSONEachRowFormatDP")
+    public void testJSONEachRowFormatWithSqlClause(Class<JsonParserFactory> parserFactory) throws Exception {
+        Properties properties = new Properties();
+        properties.setProperty(DriverProperties.JSON_PARSER_FACTORY.getKey(), parserFactory.getName());
+        properties.setProperty(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), "");
         try (Connection conn = getJdbcConnection(properties)) {
             try (Statement stmt = conn.createStatement()) {
                 try (ResultSet rs = stmt.executeQuery("SELECT 1 AS num, 'test' AS str FORMAT JSONEachRow")) {
@@ -887,10 +915,12 @@ public class StatementTest extends JdbcIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testJSONEachRowFormatRequiresParserFactory() throws Exception {
-        try (Connection conn = getJdbcConnection();
+        Properties properties = new Properties();
+        properties.setProperty(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), "JSONEachRow");
+        try (Connection conn = getJdbcConnection(properties);
              Statement stmt = conn.createStatement()) {
             try {
-                stmt.executeQuery("SELECT 1 AS num FORMAT JSONEachRow");
+                stmt.executeQuery("SELECT 1 AS num");
                 fail("Expected SQLException");
             } catch (SQLException e) {
                 assertTrue(e.getMessage().contains(DriverProperties.JSON_PARSER_FACTORY.getKey()),

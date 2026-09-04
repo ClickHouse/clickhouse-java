@@ -402,17 +402,66 @@ public boolean checkConnectionHealth(Connection conn, int timeoutSeconds) throws
 
 ## Step 4 — Formats under the hood
 
-**Goal:** understand that JDBC hides format selection, so you can decide up front whether JDBC's fixed contract is sufficient.
+**Goal:** understand how JDBC handles format selection internally and how to configure custom formats like `JSONEachRow`.
 
-JDBC does **not** expose format selection. The driver picks formats internally by operation type:
+JDBC uses the client's format selection mechanism under the hood. By default, the driver sends `X-ClickHouse-Format: RowBinaryWithNamesAndTypes` for query execution:
 
 | Operation | Internal format | Notes |
 |-----------|-----------------|-------|
-| Query (`executeQuery`) | Binary row format from server | Converted to JDBC `ResultSet` rows |
+| Query (`executeQuery`) | `RowBinaryWithNamesAndTypes` | Converted to JDBC `ResultSet` rows |
 | Simple INSERT via `Statement` | SQL text | `INSERT INTO t VALUES (...)` |
 | `PreparedStatement` INSERT | SQL text or RowBinary | RowBinary when `beta.row_binary_for_simple_insert=true` |
 | Writer statement INSERT | RowBinary | Streaming binary writer |
 | Batch INSERT | Multi-row SQL rewrite or RowBinary | Depends on statement shape |
+
+### Format Selection and SQL `FORMAT` Clauses
+
+The response format can be configured using the `format` connection property (`ClientConfigProperties.INPUT_OUTPUT_FORMAT` or `"format"`).
+
+**Important for ClickHouse 26.8+:**
+- On ClickHouse 26.8+, the request format header sent by the driver (`X-ClickHouse-Format`) takes priority over a `FORMAT` clause written in the SQL query string.
+- By default, the driver sends `format=RowBinaryWithNamesAndTypes`.
+- To use a SQL `FORMAT` clause (such as `SELECT ... FORMAT JSONEachRow`) with ClickHouse 26.8+, set `format=JSONEachRow` in connection properties or set `format=` (to `""` empty string) so the default binary format header is omitted and ClickHouse honors the query's `FORMAT` clause.
+
+### Usage of `JSONEachRow` in JDBC
+
+JDBC V2 supports streaming `JSONEachRow` responses as standard `ResultSet` instances. This feature is opt-in and requires configuring a `JsonParserFactory`.
+
+1. **Configure Driver Properties:**
+   Set `jdbc_json_parser_factory` (`DriverProperties.JSON_PARSER_FACTORY`) to the fully-qualified class name of a `JsonParserFactory` implementation (such as `JacksonJsonParserFactory` or `GsonJsonParserFactory`).
+   Set `format` (`ClientConfigProperties.INPUT_OUTPUT_FORMAT`) to `"JSONEachRow"` (or set `format=` when including `FORMAT JSONEachRow` in the query).
+
+```java
+import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.data_formats.JacksonJsonParserFactory;
+import com.clickhouse.jdbc.DriverProperties;
+
+public Properties createJsonEachRowProperties() {
+    Properties props = new Properties();
+    props.setProperty(DriverProperties.JSON_PARSER_FACTORY.getKey(), JacksonJsonParserFactory.class.getName());
+    props.setProperty(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), "JSONEachRow");
+    return props;
+}
+```
+
+2. **Execute Query and Process ResultSet:**
+
+```java
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.Statement;
+
+public void readJsonEachRowResultSet(Connection conn) throws Exception {
+    try (Statement stmt = conn.createStatement();
+         ResultSet rs = stmt.executeQuery("SELECT id, name, payload FROM events ORDER BY id")) {
+        while (rs.next()) {
+            int id = rs.getInt("id");
+            String name = rs.getString("name");
+            Object payload = rs.getObject("payload"); // returns parser-native List/Map
+        }
+    }
+}
+```
 
 ### When JDBC's format contract is not enough
 
@@ -421,7 +470,7 @@ JDBC does **not** expose format selection. The driver picks formats internally b
 | Simple CRUD / reporting | Standard JDBC — sufficient | — |
 | Bulk ingest (millions of rows) | Batch `PreparedStatement` + RowBinary beta | Java Client stream insert |
 | Complex type handling | `getObject()` with type map | Java Client POJO/binary readers |
-| Export to a file format | Not supported via JDBC | Java Client with format selection |
+| Export to a file format | `format` property / JSONEachRow | Java Client with format selection |
 | BI tool integration | JDBC is the right choice | — |
 
 ### Hybrid usage: dropping down to the Java Client
@@ -452,7 +501,7 @@ This hybrid approach allows you to use standard JDBC for simple CRUD and metadat
 ### Common Pitfalls
 
 <common-pitfalls>
-- **No format selection API** — you cannot request `Native`, `Parquet`, or `JSONEachRow` through standard JDBC.
+- **Format selection scope** — format selection can be configured via connection properties (`format=JSONEachRow` or setting `jdbc_json_parser_factory`), but standard JDBC `ResultSet` requires compatible row formats (`RowBinaryWithNamesAndTypes` or `JSONEachRow`). Other wire formats like `Native` or `Parquet` require dropping down to the Java Client.
 - **Row-oriented output only** — no column-oriented or parallel block consumption.
 - **Type mapping layer** may lose precision or structure for complex types.
 - **Text INSERT overhead** — default SQL-based inserts are slower than binary streaming. Use the [Java Client](integration-client.md) for maximum throughput.

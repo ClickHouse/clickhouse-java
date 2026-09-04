@@ -935,7 +935,9 @@ public class ConnectionTest extends JdbcIntegrationTest {
     @Test(groups = { "integration" })
     public void testRawJSONQueryThroughUnderlyingClient() throws Exception {
         ObjectMapper mapper = new ObjectMapper();
-        try (Connection conn = getJdbcConnection();
+        Properties config = new Properties();
+        config.setProperty(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), "");
+        try (Connection conn = getJdbcConnection(config);
              QueryResponse response = conn.unwrap(ConnectionImpl.class).getClient()
                      .query("SELECT 1 AS x FORMAT JSON")
                      .get()) {

@@ -125,7 +125,7 @@ public enum ClientConfigProperties {
 
     RETRY_ON_FAILURE("retry", Integer.class, "3"),
 
-    INPUT_OUTPUT_FORMAT("format", ClickHouseFormat.class),
+    INPUT_OUTPUT_FORMAT("format", ClickHouseFormat.class, ClickHouseFormat.RowBinaryWithNamesAndTypes.name()),
 
     MAX_THREADS_PER_CLIENT("max_threads_per_client", Integer.class, "0"),
 
@@ -347,9 +347,13 @@ public enum ClientConfigProperties {
         }
 
         if (valueType.isEnum()) {
+            String configValue = value.trim();
+            if (configValue.isEmpty()) {
+                return null;
+            }
             Object[] constants = valueType.getEnumConstants();
             for (Object constant : constants) {
-                if (constant.toString().equals(value)) {
+                if (constant.toString().equalsIgnoreCase(configValue)) {
                     return constant;
                 }
             }
@@ -395,7 +399,9 @@ public enum ClientConfigProperties {
                     default:
                         parsedValue = config.parseValue(value);
                 }
-                parsedConfig.put(config.getKey(), parsedValue);
+                if (parsedValue != null) {
+                    parsedConfig.put(config.getKey(), parsedValue);
+                }
             }
         }
 

@@ -297,8 +297,9 @@ public class ResultSetImplTest extends JdbcIntegrationTest {
     public void testJsonEachRowGetObjectReturnsParserNativeArray() throws SQLException {
         Properties properties = new Properties();
         properties.setProperty(DriverProperties.JSON_PARSER_FACTORY.getKey(), JacksonJsonParserFactory.class.getName());
+        properties.setProperty(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), "JSONEachRow");
         try (Connection conn = getJdbcConnection(properties); Statement stmt = conn.createStatement()) {
-            try (ResultSet rs = stmt.executeQuery("SELECT [1, 2, 3] AS arr FORMAT JSONEachRow")) {
+            try (ResultSet rs = stmt.executeQuery("SELECT [1, 2, 3] AS arr")) {
                 Assert.assertTrue(rs.next());
                 Object value = rs.getObject("arr");
                 Assert.assertTrue(value instanceof List, "Expected parser-native List but got " + value.getClass());
