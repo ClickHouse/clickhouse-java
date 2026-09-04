@@ -1907,10 +1907,7 @@ public class Client implements AutoCloseable {
             settings = new QuerySettings();
         }
         final QuerySettings requestSettings = new QuerySettings(buildRequestSettings(settings.getAllSettings()));
-
-        if (requestSettings.getFormat() == null) {
-            requestSettings.setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
-        }
+        
         applyFormatSpecificSettings(requestSettings);
         ClientStatisticsHolder clientStats = new ClientStatisticsHolder();
         // Origin of the duration of a failed operation. Taken where the client starts OP_DURATION, which is

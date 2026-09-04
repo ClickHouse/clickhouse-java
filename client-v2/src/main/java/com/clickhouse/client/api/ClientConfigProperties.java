@@ -125,7 +125,7 @@ public enum ClientConfigProperties {
 
     RETRY_ON_FAILURE("retry", Integer.class, "3"),
 
-    INPUT_OUTPUT_FORMAT("format", ClickHouseFormat.class),
+    INPUT_OUTPUT_FORMAT("format", ClickHouseFormat.class, ClickHouseFormat.RowBinaryWithNamesAndTypes.name()),
 
     MAX_THREADS_PER_CLIENT("max_threads_per_client", Integer.class, "0"),
 
