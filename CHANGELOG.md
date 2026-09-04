@@ -137,6 +137,9 @@
 
 ### Bug Fixes 
 
+- **[jdbc-v2]** Fixes issue with `FORMAT` in query unable to override format set by client when used with ClickHouse 26.8+ 
+  Default format is `RowBinaryWithNamesAndTypes` as before but set on client level and can be set to `null` to rely on 
+  query `FORMAT` clause. (https://github.com/ClickHouse/clickhouse-java/issues/3086)
 - **[jdbc-v2]** Fixed `DatabaseMetaData#getTables` reporting `TABLE_TYPE = TABLE` for a table with the `BigQuery`
   engine (present in `system.table_engines` since ClickHouse `26.8`). The engine was missing from the
   engine-to-table-type mapping, so it fell back to the default `TABLE`, and `getTables(..., types = {"REMOTE TABLE"})`
