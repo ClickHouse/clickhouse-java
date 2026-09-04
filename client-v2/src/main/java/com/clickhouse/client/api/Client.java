@@ -59,6 +59,7 @@ import org.apache.hc.core5.concurrent.DefaultThreadFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -89,8 +90,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-
-import javax.net.ssl.SSLContext;
 
 /**
  * <p>Client is the starting point for all interactions with ClickHouse. </p>
@@ -1301,6 +1300,17 @@ public class Client implements AutoCloseable {
             return this;
         }
 
+        /**
+         * Sets default format used when no format is specified in {@code QuerySettings}.
+         *
+         * @param format - valid ClickHouse format
+         * @return this instance of builder
+         */
+        public Builder queryFormat(String format) {
+            this.setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), ClickHouseFormat.valueOf(format).name());
+            return this;
+        }
+
         public Client build() {
             // check if endpoint are empty. so can not initiate client
             if (this.endpoints.isEmpty()) {
@@ -1907,7 +1917,7 @@ public class Client implements AutoCloseable {
             settings = new QuerySettings();
         }
         final QuerySettings requestSettings = new QuerySettings(buildRequestSettings(settings.getAllSettings()));
-        
+
         applyFormatSpecificSettings(requestSettings);
         ClientStatisticsHolder clientStats = new ClientStatisticsHolder();
         // Origin of the duration of a failed operation. Taken where the client starts OP_DURATION, which is

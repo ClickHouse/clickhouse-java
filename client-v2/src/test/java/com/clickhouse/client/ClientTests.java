@@ -333,7 +333,7 @@ public class ClientTests extends BaseIntegrationTest {
                     Assert.assertEquals(config.get(p.getKey()), p.getDefaultValue(), "Default value doesn't match");
                 }
             }
-            Assert.assertEquals(config.size(), 37); // to check everything is set. Increment when new added.
+            Assert.assertEquals(config.size(), 38); // to check everything is set. Increment when new added.
         }
 
         try (Client client = new Client.Builder()
@@ -365,6 +365,7 @@ public class ClientTests extends BaseIntegrationTest {
                 .setSocketRcvbuf(100000)
                 .setSocketSndbuf(100000)
                 .binaryStringSupport(true)
+                .queryFormat(ClickHouseFormat.CSV.name())
                 .build()) {
             Map<String, String> config = client.getConfiguration();
             Assert.assertEquals(config.size(), 38); // to check everything is set. Increment when new added.
@@ -393,7 +394,7 @@ public class ClientTests extends BaseIntegrationTest {
             Assert.assertEquals(config.get(ClientConfigProperties.SOCKET_SNDBUF_OPT.getKey()), "100000");
             Assert.assertEquals(config.get(ClientConfigProperties.SSL_MODE.getKey()), "STRICT");
             Assert.assertEquals(config.get(ClientConfigProperties.BINARY_STRING_SUPPORT.getKey()), "true");
-
+            Assert.assertEquals(config.get(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey()), "CSV");
         }
     }
 
@@ -437,7 +438,7 @@ public class ClientTests extends BaseIntegrationTest {
                     Assert.assertEquals(config.get(p.getKey()), p.getDefaultValue(), "Default value doesn't match");
                 }
             }
-            Assert.assertEquals(config.size(), 37); // to check everything is set. Increment when new added.
+            Assert.assertEquals(config.size(), 38); // to check everything is set. Increment when new added.
         }
     }
 

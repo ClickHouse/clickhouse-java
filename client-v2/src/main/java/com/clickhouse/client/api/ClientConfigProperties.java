@@ -349,7 +349,7 @@ public enum ClientConfigProperties {
         if (valueType.isEnum()) {
             Object[] constants = valueType.getEnumConstants();
             for (Object constant : constants) {
-                if (constant.toString().equals(value)) {
+                if (constant.toString().equalsIgnoreCase(value.trim())) {
                     return constant;
                 }
             }
@@ -395,7 +395,9 @@ public enum ClientConfigProperties {
                     default:
                         parsedValue = config.parseValue(value);
                 }
-                parsedConfig.put(config.getKey(), parsedValue);
+                if (parsedValue != null) {
+                    parsedConfig.put(config.getKey(), parsedValue);
+                }
             }
         }
 

@@ -492,6 +492,40 @@ Consider these trade-offs:
 
 Always pick the format that minimizes unnecessary transcoding in your application layer.
 
+### Format Selection
+
+The client provides transparent access to the response stream from ClickHouse. You can request any supported ClickHouse format in your request and read data via the `InputStream` from the `QueryResponse` object.
+
+A response format can be specified in several ways:
+- **`QuerySettings#setFormat(ClickHouseFormat format)`**: Sets the format header (`X-ClickHouse-Format`) for a specific query request.
+- **`FORMAT` clause in SQL**: Appending `FORMAT <FormatName>` directly in the SQL query string.
+- **Client default setting**: The client sets a default `format` option (`ClientConfigProperties.INPUT_OUTPUT_FORMAT`, defaulting to `RowBinaryWithNamesAndTypes`) at the client level.
+- **Server setting**: ClickHouse server session setting (`default_format`).
+
+**Precedence and Version Differences:**
+
+- **Client < 0.11.0 & ClickHouse < 26.8:** The `FORMAT` clause in the query string takes priority over the request format header.
+- **Client >= 0.11.0 & ClickHouse >= 26.8:** The request format header (`X-ClickHouse-Format`) takes priority over the `FORMAT` clause in the query string.
+- **Client 0.11.0+:** Default `format` is set at the client level rather than at the operation level. This allows existing code to work without changes, while new code can use a SQL `FORMAT` clause by setting `format` on the client or in `QuerySettings` to `null`.
+
+**Inspecting Server Response Format:**
+
+Use `QueryResponse#getFormat()` to inspect the format of the response data stream (resolved from the server `X-ClickHouse-Format` response header):
+
+```java
+import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.query.QueryResponse;
+import com.clickhouse.client.api.query.QuerySettings;
+import com.clickhouse.data.ClickHouseFormat;
+
+public ClickHouseFormat inspectQueryFormat(Client client, String sql) throws Exception {
+    QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.JSONEachRow);
+    try (QueryResponse response = client.query(sql, settings).get()) {
+        return response.getFormat();
+    }
+}
+```
+
 ## Step 6 — Read operations & tuning
 
 **Goal:** read results efficiently and configure the operation-level settings for heavy analytical reads.
