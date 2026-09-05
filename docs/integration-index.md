@@ -1,6 +1,6 @@
 # ClickHouse Java Integration
 
-## Summary
+## Abstract
 
 This document is the starting point for integrating ClickHouse into a Java application. It explains when to use the **Java Client** (`com.clickhouse:client-v2`) versus the **JDBC Driver** (`com.clickhouse:clickhouse-jdbc`), and points you to the detailed integration guides for each path.
 
@@ -13,6 +13,42 @@ This document is the starting point for integrating ClickHouse into a Java appli
 Reference information should be fetched from official documentation for [Java Client](https://clickhouse.com/docs/integrations/language-clients/java/client) or [JDBC Driver](https://clickhouse.com/docs/integrations/language-clients/java/jdbc). 
 
 This set of documents can be used to one's code over time. Keep checking your implementation at least per release as we going to add more information and provide migration guidance.  
+
+## Important Information
+
+### Releases
+
+We are trying to follow [semantic versioning](https://semver.org/). Here we need to differentiate versions before `1.0.0` and after:
+- In a version like `0.y.z`, `y` is incremented for significant or breaking changes. `z` is incremented when the code is patched for a few bugs, or the change is minor, like adding a new format enum constant.
+- In a version like `x.y.z`, `x` is incremented for API changes or a significant redesign. `y` is incremented for significant changes, and `z` for simple patches.
+
+Before `1.0.0`, breaking changes may happen to make the final API better and to fix design issues. In most cases we avoid them by using feature flags or providing a separate implementation for new behavior.
+
+There are special Release Candidate releases. They have the suffix `-rcX`, where `X` is the serial number for such a release within a larger one. We will talk about them in [Version Upgrade](#version-upgrade).
+
+### Version Upgrade
+
+ClickHouse is a very fast-developing project: many new features, extensions, and improvements with each release. Thus, keeping the client up to date is a very important job.
+
+Why is it so important?
+- Fix security issues, if any.
+- Support your users with new features.
+- Adopt new database behavior so your users can work with the latest ClickHouse version.
+- Fix critical issues that block normal work.
+
+When the version lag is significant, it is almost impossible to upgrade quickly to the latest version. In the case of an emergency fix, it multiplies the problems.
+It is fine to skip a few patch versions if there is an established upgrade process every few months. However, skipping a single minor version (the middle digit, where significant changes happen) will cause problems. They are usually found only after something is broken.
+
+Minor versions may have many changes, and some of them need a preview from your side. In this case, we release an `-rc` version and let you know. This version is **only** for preview and not for production use. The preview lasts for a few weeks to let everyone send their feedback. If changes are needed, we will release a new `-rc` and repeat the cycle.
+
+We also recommend using a rolling upgrade so that only a limited set of users get the new version. It minimizes the blast radius.
+
+**Version Upgrade Summary**
+- Establish a regular check for a new client version
+- Plan upgrades several times per year
+- Upgrade to the new minor version as soon as possible
+- `-rc` releases are only for preview. Provide your feedback in a timely manner
+- Roll out the new version to a limited set of users
 
 ---
 
@@ -40,7 +76,7 @@ Both components communicate with ClickHouse over HTTP(S). The JDBC driver is not
 
 - Client: [examples/client-v2](../examples/client-v2)
 - JDBC: [examples/jdbc](../examples/jdbc)
-- Spring demo: [examples/demo-service](../examples/demo-service)
+- Spring demo: [examples/demo-spring-service](../examples/demo-spring-service)
 
 ---
 
