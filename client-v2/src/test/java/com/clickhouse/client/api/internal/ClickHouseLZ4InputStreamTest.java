@@ -3,6 +3,7 @@ package com.clickhouse.client.api.internal;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.data.ClickHouseCityHash;
 import com.github.luben.zstd.Zstd;
+import com.github.luben.zstd.ZstdException;
 import net.jpountz.lz4.LZ4Factory;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
@@ -18,6 +19,18 @@ import java.util.Arrays;
 public class ClickHouseLZ4InputStreamTest {
 
     private static final int BUFFER_SIZE = 8192;
+
+    private static final int CHECKSUM_LENGTH = 16;
+
+    private static final int BLOCK_HEADER_LENGTH = 9;
+
+    private static final int METHOD_OFFSET = CHECKSUM_LENGTH;
+
+    private static final int COMPRESSED_SIZE_OFFSET = CHECKSUM_LENGTH + 1;
+
+    private static final int UNCOMPRESSED_SIZE_OFFSET = CHECKSUM_LENGTH + 5;
+
+    private static final int DATA_OFFSET = CHECKSUM_LENGTH + BLOCK_HEADER_LENGTH;
 
     @Test(groups = {"unit"}, dataProvider = "compressionMethodProvider")
     public void testReadsBlockOfEveryCompressionMethod(byte method) throws IOException {
@@ -56,22 +69,57 @@ public class ClickHouseLZ4InputStreamTest {
         Assert.assertEquals(readFully(stream.toByteArray(), BUFFER_SIZE), expected);
     }
 
-    @Test(groups = {"unit"})
-    public void testRejectsUnknownCompressionMethod() {
-        byte[] frame = frame(ClickHouseLZ4InputStream.MAGIC_ZSTD, payload());
-        frame[16] = (byte) 0x42;
-
+    @Test(groups = {"unit"}, dataProvider = "corruptedFrameProvider")
+    public void testRejectsCorruptedFrame(byte[] frame, String expectedMessage, Class<?> expectedCause) {
         ClientException e = Assert.expectThrows(ClientException.class, () -> readFully(frame, BUFFER_SIZE));
-        Assert.assertTrue(e.getMessage().contains("Invalid compression method byte"), e.getMessage());
+        Assert.assertTrue(e.getMessage().contains(expectedMessage), e.getMessage());
+        if (expectedCause == null) {
+            Assert.assertNull(e.getCause());
+        } else {
+            Assert.assertTrue(expectedCause.isInstance(e.getCause()), String.valueOf(e.getCause()));
+        }
     }
 
-    @Test(groups = {"unit"})
-    public void testRejectsBlockOfImpossibleSize() {
-        byte[] frame = frame(ClickHouseLZ4InputStream.MAGIC_ZSTD, payload());
-        ClickHouseLZ4InputStream.setInt32(frame, 17, 4);
+    @DataProvider(name = "corruptedFrameProvider")
+    public Object[][] corruptedFrameProvider() {
+        byte[] payload = payload();
 
-        ClientException e = Assert.expectThrows(ClientException.class, () -> readFully(frame, BUFFER_SIZE));
-        Assert.assertTrue(e.getMessage().contains("Corrupted stream"), e.getMessage());
+        byte[] unknownMethod = frame(ClickHouseLZ4InputStream.MAGIC_ZSTD, payload);
+        unknownMethod[METHOD_OFFSET] = (byte) 0x42;
+
+        byte[] impossibleCompressedSize = frame(ClickHouseLZ4InputStream.MAGIC_ZSTD, payload);
+        ClickHouseLZ4InputStream.setInt32(impossibleCompressedSize, COMPRESSED_SIZE_OFFSET, 4);
+
+        byte[] negativeUncompressedSize = frame(ClickHouseLZ4InputStream.MAGIC_ZSTD, payload);
+        ClickHouseLZ4InputStream.setInt32(negativeUncompressedSize, UNCOMPRESSED_SIZE_OFFSET, -1);
+
+        byte[] corruptedPayload = frame(ClickHouseLZ4InputStream.MAGIC_ZSTD, payload);
+        corruptedPayload[corruptedPayload.length - 1] ^= 0xFF;
+
+        // the ZSTD frame of the block loses its magic, so the codec itself rejects the data
+        byte[] undecompressibleZstdBlock = frame(ClickHouseLZ4InputStream.MAGIC_ZSTD, payload);
+        Arrays.fill(undecompressibleZstdBlock, DATA_OFFSET, DATA_OFFSET + 4, (byte) 0);
+        reseal(undecompressibleZstdBlock);
+
+        byte[] shortZstdBlock = frame(ClickHouseLZ4InputStream.MAGIC_ZSTD, payload);
+        ClickHouseLZ4InputStream.setInt32(shortZstdBlock, UNCOMPRESSED_SIZE_OFFSET, payload.length + 8);
+        reseal(shortZstdBlock);
+
+        byte[] shortUncompressedBlock = frame(ClickHouseLZ4InputStream.MAGIC_NONE, payload);
+        ClickHouseLZ4InputStream.setInt32(shortUncompressedBlock, UNCOMPRESSED_SIZE_OFFSET, payload.length - 1);
+        reseal(shortUncompressedBlock);
+
+        return new Object[][]{
+                {unknownMethod, "Invalid compression method byte", null},
+                {impossibleCompressedSize, "block declares 4 compressed", null},
+                {negativeUncompressedSize, "-1 uncompressed bytes", null},
+                {corruptedPayload, "checksum mismatch", null},
+                {undecompressibleZstdBlock, "Failed to decompress ZSTD block", ZstdException.class},
+                {shortZstdBlock, "decompressed " + payload.length + " bytes while "
+                        + (payload.length + 8) + " were expected", null},
+                {shortUncompressedBlock, "uncompressed block holds " + payload.length + " bytes while "
+                        + (payload.length - 1) + " were expected", null},
+        };
     }
 
     @Test(groups = {"unit"})
@@ -85,15 +133,6 @@ public class ClickHouseLZ4InputStreamTest {
             Assert.assertEquals(in.getHeaderBuffer(),
                     Arrays.copyOf(body, ClickHouseLZ4InputStream.HEADER_LENGTH));
         }
-    }
-
-    @Test(groups = {"unit"})
-    public void testRejectsCorruptedBlock() {
-        byte[] frame = frame(ClickHouseLZ4InputStream.MAGIC_ZSTD, payload());
-        frame[frame.length - 1] ^= 0xFF;
-
-        ClientException e = Assert.expectThrows(ClientException.class, () -> readFully(frame, BUFFER_SIZE));
-        Assert.assertTrue(e.getMessage().contains("checksum mismatch"), e.getMessage());
     }
 
     private static byte[] payload() {
@@ -141,18 +180,28 @@ public class ClickHouseLZ4InputStreamTest {
                 break;
         }
 
-        byte[] block = new byte[9 + compressed.length];
+        byte[] block = new byte[BLOCK_HEADER_LENGTH + compressed.length];
         block[0] = method;
         ClickHouseLZ4InputStream.setInt32(block, 1, block.length);
         ClickHouseLZ4InputStream.setInt32(block, 5, data.length);
-        System.arraycopy(compressed, 0, block, 9, compressed.length);
+        System.arraycopy(compressed, 0, block, BLOCK_HEADER_LENGTH, compressed.length);
 
-        long[] checksum = ClickHouseCityHash.cityHash128(block, 0, block.length);
-        byte[] frame = new byte[16 + block.length];
+        byte[] frame = new byte[CHECKSUM_LENGTH + block.length];
+        System.arraycopy(block, 0, frame, CHECKSUM_LENGTH, block.length);
+        reseal(frame);
+        return frame;
+    }
+
+    /**
+     * Recomputes the checksum of a frame, so a block mutated after {@link #frame(byte, byte[])}
+     * still passes the checksum and reaches the decompression of the reader. The checksum covers
+     * the compressed size the header declares, which is what the reader hashes.
+     */
+    private static void reseal(byte[] frame) {
+        long[] checksum = ClickHouseCityHash.cityHash128(frame, CHECKSUM_LENGTH,
+                ClickHouseLZ4InputStream.getInt32(frame, COMPRESSED_SIZE_OFFSET));
         setInt64(frame, 0, checksum[0]);
         setInt64(frame, 8, checksum[1]);
-        System.arraycopy(block, 0, frame, 16, block.length);
-        return frame;
     }
 
     private static void setInt64(byte[] bytes, int offset, long value) {

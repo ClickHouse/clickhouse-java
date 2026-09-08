@@ -5,6 +5,7 @@ import com.clickhouse.data.ClickHouseByteUtils;
 import com.clickhouse.data.ClickHouseCityHash;
 import com.clickhouse.data.ClickHouseUtils;
 import com.github.luben.zstd.Zstd;
+import com.github.luben.zstd.ZstdException;
 import net.jpountz.lz4.LZ4FastDecompressor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -129,7 +130,7 @@ public class ClickHouseLZ4InputStream extends InputStream {
         int offset = 9;
         if (compressedSizeWithHeader < offset || uncompressedSize < 0) {
             throw new ClientException(ClickHouseUtils.format(
-                    "Corrupted stream: block declares {0} compressed and {1} uncompressed bytes",
+                    "Corrupted stream: block declares %s compressed and %s uncompressed bytes",
                     compressedSizeWithHeader, uncompressedSize));
         }
 
@@ -178,24 +179,23 @@ public class ClickHouseLZ4InputStream extends InputStream {
                 try {
                     decompressedSize = Zstd.decompressByteArray(buffer.array(), buffer.arrayOffset(),
                             uncompressedSize, block, offset, compressedSize);
+                } catch (ZstdException e) {
+                    throw new ClientException("Failed to decompress ZSTD block: " + e.getMessage(), e);
                 } catch (LinkageError e) {
                     // the server picks the codec of the response, so ZSTD cannot be avoided by configuration
                     throw new ClientException("Server compressed the response with ZSTD but the native library of "
                             + "zstd-jni is not available on this platform", e);
                 }
-                if (Zstd.isError(decompressedSize)) {
-                    throw new ClientException("Failed to decompress ZSTD block: "
-                            + Zstd.getErrorName(decompressedSize));
-                } else if (decompressedSize != uncompressedSize) {
+                if (decompressedSize != uncompressedSize) {
                     throw new ClientException(ClickHouseUtils.format(
-                            "Corrupted stream: decompressed {0} bytes while {1} were expected",
+                            "Corrupted stream: decompressed %s bytes while %s were expected",
                             decompressedSize, uncompressedSize));
                 }
                 break;
             default: // MAGIC_NONE
                 if (compressedSize != uncompressedSize) {
                     throw new ClientException(ClickHouseUtils.format(
-                            "Corrupted stream: uncompressed block holds {0} bytes while {1} were expected",
+                            "Corrupted stream: uncompressed block holds %s bytes while %s were expected",
                             compressedSize, uncompressedSize));
                 }
                 System.arraycopy(block, offset, buffer.array(), buffer.arrayOffset(), uncompressedSize);
