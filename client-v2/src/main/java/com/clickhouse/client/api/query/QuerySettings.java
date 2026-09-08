@@ -4,6 +4,7 @@ package com.clickhouse.client.api.query;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.Session;
+import com.clickhouse.client.api.enums.CompressionAlgorithm;
 import com.clickhouse.client.api.internal.CommonSettings;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.internal.ValidationUtils;
@@ -241,6 +242,19 @@ public class QuerySettings {
      * @return same instance of the builder
      * @see Client.Builder#httpHeaders(Map)
      */
+    /**
+     * Algorithm of a compressed response body of this operation. The algorithm is requested with the HTTP
+     * content coding of the operation, so a compressed body always uses the algorithm set here.
+     * {@link CompressionAlgorithm#NONE} disables compression. Defaults to the algorithm of the client.
+     *
+     * @param algorithm - algorithm of a compressed body
+     * @return same instance of the settings
+     */
+    public QuerySettings compressionAlgorithm(CompressionAlgorithm algorithm) {
+        settings.setOption(ClientConfigProperties.COMPRESSION_ALGORITHM.getKey(), algorithm);
+        return this;
+    }
+
     public QuerySettings httpHeader(String key, String value) {
         settings.httpHeader(key, value);
         return this;

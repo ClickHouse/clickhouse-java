@@ -663,8 +663,8 @@ public class Client implements AutoCloseable {
          * never one the server picks on its own. {@link CompressionAlgorithm#NONE} disables compression.
          * Default is {@link CompressionAlgorithm#LZ4}.
          * <p>
-         * {@link CompressionAlgorithm#ZSTD} needs {@code com.github.luben:zstd-jni} on the classpath - the
-         * dependency is {@code provided}, so an application that selects the algorithm has to declare it.
+         * {@link CompressionAlgorithm#ZSTD} needs {@code com.github.luben:zstd-jni} on the classpath, which the
+         * client does not bring: an application that selects the algorithm declares the dependency itself.
          * <p>
          * A request body follows this algorithm only together with {@link #useHttpCompression(boolean)};
          * the ClickHouse framing of a request compressed without it is always LZ4.

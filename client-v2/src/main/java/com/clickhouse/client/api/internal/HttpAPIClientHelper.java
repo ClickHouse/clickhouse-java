@@ -163,7 +163,14 @@ public class HttpAPIClientHelper {
         boolean usingServerCompression = ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getOrDefault(configuration);
         boolean useHttpCompression = ClientConfigProperties.USE_HTTP_COMPRESSION.getOrDefault(configuration);
 
-        LOG.debug("client compression: {}, server compression: {}, http compression: {}", usingClientCompression, usingServerCompression, useHttpCompression);
+        CompressionAlgorithm algorithm = compressionAlgorithm(configuration);
+        LOG.debug("client compression: {}, server compression: {}, http compression: {}, algorithm: {}",
+                usingClientCompression, usingServerCompression, useHttpCompression, algorithm);
+        if (usingClientCompression && !useHttpCompression
+                && !(algorithm == CompressionAlgorithm.LZ4 || algorithm == CompressionAlgorithm.NONE)) {
+            LOG.warn("Request compression uses LZ4 instead of {}: the ClickHouse framing of a request is LZ4 " +
+                    "unless http compression is used", algorithm);
+        }
 
         defaultRetryCauses = new HashSet<>(ClientConfigProperties.CLIENT_RETRY_ON_FAILURE.getOrDefault(configuration));
         if (defaultRetryCauses.contains(ClientFaultCause.None)) {
@@ -774,9 +781,7 @@ public class HttpAPIClientHelper {
                 spanRecorder.recordHttpStatus(requestSpan, httpResponse.getCode());
             }
 
-            httpResponse.setEntity(wrapResponseEntity(httpResponse.getEntity(),
-                    httpResponse.getCode(),
-                    requestConfig));
+            httpResponse.setEntity(wrapResponseEntity(httpResponse.getEntity()));
 
             if (httpResponse.containsHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE)) {
                 throw readError(req, httpResponse);
@@ -925,7 +930,7 @@ public class HttpAPIClientHelper {
         boolean serverCompression = ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getOrDefault(requestConfig);
         boolean useHttpCompression = ClientConfigProperties.USE_HTTP_COMPRESSION.getOrDefault(requestConfig);
         boolean appCompressedData = ClientConfigProperties.APP_COMPRESSED_DATA.getOrDefault(requestConfig);
-        CompressionAlgorithm algorithm = ClientConfigProperties.COMPRESSION_ALGORITHM.getOrDefault(requestConfig);
+        CompressionAlgorithm algorithm = compressionAlgorithm(requestConfig);
 
         if (algorithm != CompressionAlgorithm.NONE) {
             if (serverCompression) {
@@ -974,7 +979,7 @@ public class HttpAPIClientHelper {
         boolean serverCompression = ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getOrDefault(requestConfig);
         boolean useHttpCompression = ClientConfigProperties.USE_HTTP_COMPRESSION.getOrDefault(requestConfig);
 
-        CompressionAlgorithm algorithm = ClientConfigProperties.COMPRESSION_ALGORITHM.getOrDefault(requestConfig);
+        CompressionAlgorithm algorithm = compressionAlgorithm(requestConfig);
 
         if (algorithm != CompressionAlgorithm.NONE) {
             if (useHttpCompression) {
@@ -1017,12 +1022,26 @@ public class HttpAPIClientHelper {
         }
     }
 
+    /**
+     * Algorithm of a compressed body of the operation. An operation may set the option to the name of an
+     * algorithm instead of a constant, because a per-operation option is not parsed when it is set.
+     */
+    private static CompressionAlgorithm compressionAlgorithm(Map<String, Object> requestConfig) {
+        Object value = requestConfig.get(ClientConfigProperties.COMPRESSION_ALGORITHM.getKey());
+        if (value == null) {
+            return ClientConfigProperties.COMPRESSION_ALGORITHM.getDefObjVal();
+        }
+        return value instanceof CompressionAlgorithm
+                ? (CompressionAlgorithm) value
+                : CompressionAlgorithm.fromValue(String.valueOf(value));
+    }
+
     private HttpEntity wrapRequestEntity(HttpEntity httpEntity, Map<String, Object> requestConfig) {
 
         boolean clientCompression = ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getOrDefault(requestConfig);
         boolean useHttpCompression = ClientConfigProperties.USE_HTTP_COMPRESSION.getOrDefault(requestConfig);
         boolean appCompressedData = ClientConfigProperties.APP_COMPRESSED_DATA.getOrDefault(requestConfig);
-        CompressionAlgorithm algorithm = ClientConfigProperties.COMPRESSION_ALGORITHM.getOrDefault(requestConfig);
+        CompressionAlgorithm algorithm = compressionAlgorithm(requestConfig);
 
         if (httpEntity.getContentEncoding() != null && !appCompressedData) {
             // http header is set and data is not compressed
@@ -1036,7 +1055,7 @@ public class HttpAPIClientHelper {
         }
     }
 
-    private HttpEntity wrapResponseEntity(HttpEntity httpEntity, int httpStatus, Map<String, Object> requestConfig) {
+    private HttpEntity wrapResponseEntity(HttpEntity httpEntity) {
         if (httpEntity.getContentEncoding() != null) {
             // the algorithm of a compressed response is the one the request asked for
             return new CompressedEntity(httpEntity, true, CompressorStreamFactory.getSingleton());

@@ -9,8 +9,8 @@ package com.clickhouse.client.api.enums;
  *
  * <ul>
  *     <li>{@link #LZ4} - default. Needs {@code org.lz4:lz4-java}, which the client depends on.</li>
- *     <li>{@link #ZSTD} - needs {@code com.github.luben:zstd-jni} on the classpath. The dependency is
- *     {@code provided}, so an application that selects this algorithm has to declare it.</li>
+ *     <li>{@link #ZSTD} - needs {@code com.github.luben:zstd-jni} on the classpath, which the client does not
+ *     bring: an application that selects this algorithm declares the dependency itself.</li>
  *     <li>{@link #GZIP} - supported by the JDK, so it needs no additional dependency.</li>
  *     <li>{@link #NONE} - no compression, whatever {@code compress}/{@code decompress} are set to.</li>
  * </ul>

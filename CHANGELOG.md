@@ -11,7 +11,9 @@
   now requested with the content coding of the new `client.compression_algorithm` property
   (`Client.Builder#compressionAlgorithm`), which defaults to `LZ4` and keeps the algorithm of a compressed body the
   same on every server version. Set the property to `ZSTD`, `GZIP` or `NONE` to select another algorithm; `ZSTD`
-  needs `com.github.luben:zstd-jni` on the classpath, which stays a `provided` dependency. A client that reads a
+  needs `com.github.luben:zstd-jni` on the classpath, which the client does not bring - the dependency of
+  `clickhouse-jdbc` stays `provided`, so packaging is unchanged and an application that selects `ZSTD` declares the
+  dependency itself. A client that reads a
   compressed response now also sends `enable_http_compression=1`, which a user profile that forbids setting changes
   (`readonly = 1`) rejects - such a profile has to use `readonly = 2` or `client.compression_algorithm = NONE`.
   (https://github.com/ClickHouse/clickhouse-java/issues/3105)
