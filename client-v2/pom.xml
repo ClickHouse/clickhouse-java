@@ -58,6 +58,13 @@
             <version>${lz4.version}</version>
         </dependency>
 
+        <!-- Required to read compressed responses: the server picks the codec of the
+             compress=1 framing and uses ZSTD by default since ClickHouse 26.9. -->
+        <dependency>
+            <groupId>com.github.luben</groupId>
+            <artifactId>zstd-jni</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-compress</artifactId>
@@ -186,12 +193,6 @@
             <groupId>org.mockito</groupId>
             <artifactId>mockito-core</artifactId>
             <version>5.19.0</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.github.luben</groupId>
-            <artifactId>zstd-jni</artifactId>
-            <version>1.5.7-6</version>
             <scope>test</scope>
         </dependency>
         <dependency>

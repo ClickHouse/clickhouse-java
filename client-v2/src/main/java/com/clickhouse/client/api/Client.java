@@ -695,6 +695,8 @@ public class Client implements AutoCloseable {
         /**
          * Disable native compression. If set to true then native compression will be disabled.
          * If from some reason the native compressor is not working then it can be disabled.
+         * Applies to LZ4 only: a response the server compressed with ZSTD is always read with the
+         * native library of zstd-jni, because the server picks the codec of the response.
          * @param disable
          * @return
          */

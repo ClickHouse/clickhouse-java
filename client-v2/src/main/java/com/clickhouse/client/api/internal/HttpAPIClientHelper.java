@@ -447,7 +447,7 @@ public class HttpAPIClientHelper {
                 }
                 break;
             } catch (ClientException e) {
-                // Invalid LZ4 Magic
+                // response body is not the framed output of the compress=1 interface
                 if (body instanceof ClickHouseLZ4InputStream) {
                     ClickHouseLZ4InputStream stream = (ClickHouseLZ4InputStream) body;
                     body = stream.getInputStream();
@@ -478,7 +478,7 @@ public class HttpAPIClientHelper {
             try {
                 rBytes = body.read(buffer);
             } catch (ClientException e) {
-                // Invalid LZ4 Magic
+                // response body is not the framed output of the compress=1 interface
                 if (body instanceof ClickHouseLZ4InputStream) {
                     ClickHouseLZ4InputStream stream = (ClickHouseLZ4InputStream) body;
                     body = stream.getInputStream();

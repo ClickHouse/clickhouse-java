@@ -137,6 +137,14 @@
 
 ### Bug Fixes 
 
+- **[client-v2]** Fixed every compressed read failing with `Invalid LZ4 magic byte: '-112'` against ClickHouse `26.9`
+  and later. The server picks the codec of the `compress=1` framing and now uses `ZSTD(3)` by default, while the
+  response reader asserted the LZ4 method byte of every block, so any query answered with a compressed body died
+  before the first row was parsed and no setting could restore the old codec. The reader now takes the codec from the
+  block header, which is what makes the framing self-describing, and decompresses LZ4, ZSTD and uncompressed blocks —
+  including a body that mixes them. A block of an unknown codec is still rejected, so a response that is not framed at
+  all is reported as before. `zstd-jni` became a required dependency of `client-v2` and is shaded into the `all`
+  artifacts. (https://github.com/ClickHouse/clickhouse-java/issues/3105)
 - **[jdbc-v2]** Fixed `DatabaseMetaData#getTables` reporting `TABLE_TYPE = TABLE` for a table with the `BigQuery`
   engine (present in `system.table_engines` since ClickHouse `26.8`). The engine was missing from the
   engine-to-table-type mapping, so it fell back to the default `TABLE`, and `getTables(..., types = {"REMOTE TABLE"})`

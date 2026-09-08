@@ -4,6 +4,7 @@ import com.clickhouse.client.api.ClientException;
 import com.clickhouse.data.ClickHouseByteUtils;
 import com.clickhouse.data.ClickHouseCityHash;
 import com.clickhouse.data.ClickHouseUtils;
+import com.github.luben.zstd.Zstd;
 import net.jpountz.lz4.LZ4FastDecompressor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,6 +14,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 
+/**
+ * Reads the framed output of the ClickHouse HTTP {@code compress=1} interface. Each block is
+ * self-describing: its header carries the compression method the server used, so the codec is
+ * detected per block instead of being assumed. LZ4, ZSTD and uncompressed blocks are supported.
+ */
 public class ClickHouseLZ4InputStream extends InputStream {
 
     private static Logger LOG = LoggerFactory.getLogger(ClickHouseLZ4InputStream.class);
@@ -27,7 +33,7 @@ public class ClickHouseLZ4InputStream extends InputStream {
 
     public ClickHouseLZ4InputStream(InputStream in, LZ4FastDecompressor decompressor, int bufferSize) {
         super();
-        LOG.debug("Using LZ4 decompressor with buffer size {}", bufferSize);
+        LOG.debug("Reading compressed response with buffer size {}", bufferSize);
         this.decompressor = decompressor;
         this.in = in;
         this.buffer = ByteBuffer.allocate(bufferSize);
@@ -66,6 +72,8 @@ public class ClickHouseLZ4InputStream extends InputStream {
 
 
     static final byte MAGIC = (byte) 0x82;
+    static final byte MAGIC_ZSTD = (byte) 0x90;
+    static final byte MAGIC_NONE = (byte) 0x02;
     static final int HEADER_LENGTH = 25;
 
     final byte[] headerBuff = new byte[HEADER_LENGTH];
@@ -107,9 +115,10 @@ public class ClickHouseLZ4InputStream extends InputStream {
             return -1;
         }
 
-        if (headerBuff[16] != MAGIC) {
-            // 1 byte - 0x82 (shows this is LZ4)
-            throw new ClientException("Invalid LZ4 magic byte: '" + headerBuff[16] + "'");
+        // 1 byte - compression method (0x82 LZ4, 0x90 ZSTD, 0x02 uncompressed)
+        final byte method = headerBuff[16];
+        if (method != MAGIC && method != MAGIC_ZSTD && method != MAGIC_NONE) {
+            throw new ClientException("Invalid compression method byte: '" + method + "'");
         }
 
         // 4 bytes - size of the compressed data including 9 bytes of the header
@@ -118,8 +127,14 @@ public class ClickHouseLZ4InputStream extends InputStream {
         int uncompressedSize = getInt32(headerBuff, 21);
 
         int offset = 9;
+        if (compressedSizeWithHeader < offset || uncompressedSize < 0) {
+            throw new ClientException(ClickHouseUtils.format(
+                    "Corrupted stream: block declares {0} compressed and {1} uncompressed bytes",
+                    compressedSizeWithHeader, uncompressedSize));
+        }
+
         final byte[] block =  new byte[compressedSizeWithHeader];
-        block[0] = MAGIC;
+        block[0] = method;
         setInt32(block, 1, compressedSizeWithHeader);
         setInt32(block, 5, uncompressedSize);
         // compressed data: compressed_size - 9 bytes
@@ -138,10 +153,54 @@ public class ClickHouseLZ4InputStream extends InputStream {
         if (buffer.capacity() < uncompressedSize) {
             buffer = ByteBuffer.allocate(uncompressedSize);
         }
-        decompressor.decompress(ByteBuffer.wrap(block), offset,  buffer, 0, uncompressedSize);
+        decompress(method, block, offset, remaining, uncompressedSize);
         buffer.position(0);
         buffer.limit(uncompressedSize);
         return uncompressedSize;
+    }
+
+    /**
+     * Decompresses a single block into {@link #buffer} with the codec the block header declares.
+     *
+     * @param method compression method byte of the block
+     * @param block block, including its 9 bytes of header
+     * @param offset offset of the compressed data in the block
+     * @param compressedSize size of the compressed data
+     * @param uncompressedSize size of the data after decompression
+     */
+    private void decompress(byte method, byte[] block, int offset, int compressedSize, int uncompressedSize) {
+        switch (method) {
+            case MAGIC:
+                decompressor.decompress(ByteBuffer.wrap(block), offset, buffer, 0, uncompressedSize);
+                break;
+            case MAGIC_ZSTD:
+                long decompressedSize;
+                try {
+                    decompressedSize = Zstd.decompressByteArray(buffer.array(), buffer.arrayOffset(),
+                            uncompressedSize, block, offset, compressedSize);
+                } catch (LinkageError e) {
+                    // the server picks the codec of the response, so ZSTD cannot be avoided by configuration
+                    throw new ClientException("Server compressed the response with ZSTD but the native library of "
+                            + "zstd-jni is not available on this platform", e);
+                }
+                if (Zstd.isError(decompressedSize)) {
+                    throw new ClientException("Failed to decompress ZSTD block: "
+                            + Zstd.getErrorName(decompressedSize));
+                } else if (decompressedSize != uncompressedSize) {
+                    throw new ClientException(ClickHouseUtils.format(
+                            "Corrupted stream: decompressed {0} bytes while {1} were expected",
+                            decompressedSize, uncompressedSize));
+                }
+                break;
+            default: // MAGIC_NONE
+                if (compressedSize != uncompressedSize) {
+                    throw new ClientException(ClickHouseUtils.format(
+                            "Corrupted stream: uncompressed block holds {0} bytes while {1} were expected",
+                            compressedSize, uncompressedSize));
+                }
+                System.arraycopy(block, offset, buffer.array(), buffer.arrayOffset(), uncompressedSize);
+                break;
+        }
     }
 
     /**
