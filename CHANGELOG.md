@@ -137,6 +137,9 @@
 
 ### Bug Fixes 
 
+- **[jdbc-v2]** Fixed `SQLException#getSQLState()` returning the generic data-exception state `22000`
+  when ClickHouse reports an unknown table. The driver now returns `42S02` (base table or view not found) while
+  preserving the ClickHouse error code and original exception. (https://github.com/ClickHouse/clickhouse-java/issues/3104)
 - **[jdbc-v2]** Fixed `DatabaseMetaData#getTables` reporting `TABLE_TYPE = TABLE` for a table with the `BigQuery`
   engine (present in `system.table_engines` since ClickHouse `26.8`). The engine was missing from the
   engine-to-table-type mapping, so it fell back to the default `TABLE`, and `getTables(..., types = {"REMOTE TABLE"})`
