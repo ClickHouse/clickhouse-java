@@ -234,15 +234,6 @@ public class QuerySettings {
     }
 
     /**
-     * Defines list of headers that should be sent with current request. The Client will use a header value
-     * defined in {@code headers} instead of any other.
-     *
-     * @param key   - header name.
-     * @param value - header value.
-     * @return same instance of the builder
-     * @see Client.Builder#httpHeaders(Map)
-     */
-    /**
      * Algorithm of a compressed response body of this operation. The algorithm is requested with the HTTP
      * content coding of the operation, so a compressed body always uses the algorithm set here.
      * {@link CompressionAlgorithm#NONE} disables compression. Defaults to the algorithm of the client.
@@ -255,6 +246,15 @@ public class QuerySettings {
         return this;
     }
 
+    /**
+     * Defines list of headers that should be sent with current request. The Client will use a header value
+     * defined in {@code headers} instead of any other.
+     *
+     * @param key   - header name.
+     * @param value - header value.
+     * @return same instance of the builder
+     * @see Client.Builder#httpHeaders(Map)
+     */
     public QuerySettings httpHeader(String key, String value) {
         settings.httpHeader(key, value);
         return this;

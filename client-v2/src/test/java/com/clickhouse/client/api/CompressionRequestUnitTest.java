@@ -2,7 +2,9 @@ package com.clickhouse.client.api;
 
 import com.clickhouse.client.api.enums.CompressionAlgorithm;
 import com.clickhouse.client.api.enums.Protocol;
+import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.query.QuerySettings;
+import com.clickhouse.data.ClickHouseFormat;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.client.WireMock;
 import com.github.tomakehurst.wiremock.common.ConsoleNotifier;
@@ -15,7 +17,10 @@ import org.testng.annotations.BeforeClass;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.function.UnaryOperator;
 
 public class CompressionRequestUnitTest {
 
@@ -95,16 +100,51 @@ public class CompressionRequestUnitTest {
         Assert.assertEquals(header(request, "Content-Encoding"), "gzip");
     }
 
-    private LoggedRequest runQuery(java.util.function.UnaryOperator<Client.Builder> configure,
+    @Test(groups = {"unit"})
+    public void testRequestFramingStaysLz4WithoutHttpCompression() {
+        LoggedRequest request = runQuery(builder -> builder
+                .compressionAlgorithm(CompressionAlgorithm.GZIP)
+                .compressClientRequest(true)
+                .useHttpCompression(false), null);
+
+        // the ClickHouse framing of a request is LZ4, so the algorithm applies to the response only
+        Assert.assertNull(header(request, "Content-Encoding"));
+        Assert.assertEquals(header(request, "Accept-Encoding"), "gzip");
+        Assert.assertTrue(request.queryParameter("enable_http_compression").isPresent(),
+                "the response is compressed with the requested content coding");
+        Assert.assertFalse(request.queryParameter("compress").isPresent(),
+                "compress=1 must not be requested");
+        Assert.assertTrue(request.queryParameter("decompress").isPresent(),
+                "a request compressed without http compression keeps the ClickHouse framing");
+    }
+
+    @Test(groups = {"unit"})
+    public void testInsertOperationOverridesClientAlgorithm() {
+        server.resetRequests();
+        try (Client client = newBuilder()
+                .compressionAlgorithm(CompressionAlgorithm.LZ4)
+                .compressClientRequest(true)
+                .useHttpCompression(true)
+                .build()) {
+            try {
+                client.insert("some_table",
+                        new ByteArrayInputStream("1\n".getBytes(StandardCharsets.UTF_8)),
+                        ClickHouseFormat.TSV,
+                        new InsertSettings().compressionAlgorithm(CompressionAlgorithm.GZIP)).get();
+            } catch (Exception e) {
+                // the stub answers an empty body, so only the request itself is of interest here
+            }
+        }
+
+        LoggedRequest request = lastRequest();
+        Assert.assertEquals(header(request, "Content-Encoding"), "gzip");
+        Assert.assertEquals(header(request, "Accept-Encoding"), "gzip");
+    }
+
+    private LoggedRequest runQuery(UnaryOperator<Client.Builder> configure,
                                    QuerySettings settings) {
         server.resetRequests();
-        Client.Builder builder = new Client.Builder()
-                .addEndpoint(Protocol.HTTP, "localhost", server.port(), false)
-                .setUsername("default")
-                .setPassword("")
-                .retryOnFailures();
-
-        try (Client client = configure.apply(builder).build()) {
+        try (Client client = configure.apply(newBuilder()).build()) {
             try {
                 if (settings == null) {
                     client.query("SELECT 1").get();
@@ -116,6 +156,18 @@ public class CompressionRequestUnitTest {
             }
         }
 
+        return lastRequest();
+    }
+
+    private Client.Builder newBuilder() {
+        return new Client.Builder()
+                .addEndpoint(Protocol.HTTP, "localhost", server.port(), false)
+                .setUsername("default")
+                .setPassword("")
+                .retryOnFailures();
+    }
+
+    private LoggedRequest lastRequest() {
         List<LoggedRequest> requests = server.findAll(WireMock.postRequestedFor(WireMock.anyUrl()));
         Assert.assertEquals(requests.size(), 1, "expected exactly one request");
         return requests.get(0);
