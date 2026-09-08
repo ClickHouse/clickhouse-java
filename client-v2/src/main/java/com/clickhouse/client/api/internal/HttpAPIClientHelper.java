@@ -11,6 +11,7 @@ import com.clickhouse.client.api.ConnectionReuseStrategy;
 import com.clickhouse.client.api.DataTransferException;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.TransportException;
+import com.clickhouse.client.api.enums.CompressionAlgorithm;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.enums.SSLMode;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
@@ -123,7 +124,6 @@ public class HttpAPIClientHelper {
 
     private static final int ERROR_BODY_BUFFER_SIZE = 1024; // Error messages are usually small
 
-    private final String DEFAULT_HTTP_COMPRESSION_ALGO = "lz4";
 
     private static final Pattern PATTERN_HEADER_VALUE_ASCII = Pattern.compile(
         "\\p{Graph}+(?:[ ]\\p{Graph}+)*");
@@ -447,7 +447,7 @@ public class HttpAPIClientHelper {
                 }
                 break;
             } catch (ClientException e) {
-                // response body is not the framed output of the compress=1 interface
+                // Invalid LZ4 Magic
                 if (body instanceof ClickHouseLZ4InputStream) {
                     ClickHouseLZ4InputStream stream = (ClickHouseLZ4InputStream) body;
                     body = stream.getInputStream();
@@ -478,7 +478,7 @@ public class HttpAPIClientHelper {
             try {
                 rBytes = body.read(buffer);
             } catch (ClientException e) {
-                // response body is not the framed output of the compress=1 interface
+                // Invalid LZ4 Magic
                 if (body instanceof ClickHouseLZ4InputStream) {
                     ClickHouseLZ4InputStream stream = (ClickHouseLZ4InputStream) body;
                     body = stream.getInputStream();
@@ -925,14 +925,17 @@ public class HttpAPIClientHelper {
         boolean serverCompression = ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getOrDefault(requestConfig);
         boolean useHttpCompression = ClientConfigProperties.USE_HTTP_COMPRESSION.getOrDefault(requestConfig);
         boolean appCompressedData = ClientConfigProperties.APP_COMPRESSED_DATA.getOrDefault(requestConfig);
+        CompressionAlgorithm algorithm = ClientConfigProperties.COMPRESSION_ALGORITHM.getOrDefault(requestConfig);
 
-        if (useHttpCompression) {
+        if (algorithm != CompressionAlgorithm.NONE) {
             if (serverCompression) {
-                setHeader(req, HttpHeaders.ACCEPT_ENCODING, DEFAULT_HTTP_COMPRESSION_ALGO);
+                // the codec of a compressed response is the one requested here: the server picks its own
+                // default codec for the compress=1 framing and does not let a client select it
+                setHeader(req, HttpHeaders.ACCEPT_ENCODING, algorithm.getHttpContentCoding());
             }
 
-            if (clientCompression && !appCompressedData) {
-                setHeader(req, HttpHeaders.CONTENT_ENCODING, DEFAULT_HTTP_COMPRESSION_ALGO);
+            if (useHttpCompression && clientCompression && !appCompressedData) {
+                setHeader(req, HttpHeaders.CONTENT_ENCODING, algorithm.getHttpContentCoding());
             }
         }
 
@@ -971,17 +974,24 @@ public class HttpAPIClientHelper {
         boolean serverCompression = ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getOrDefault(requestConfig);
         boolean useHttpCompression = ClientConfigProperties.USE_HTTP_COMPRESSION.getOrDefault(requestConfig);
 
-        if (useHttpCompression) {
-            // enable_http_compression make server react on http header
-            // for client side compression Content-Encoding should be set
-            // for server side compression Accept-Encoding should be set
-            consumer.accept(ClickHouseHttpProto.QPARAM_ENABLE_HTTP_COMPRESSION, "1");
-        } else {
-            if (serverCompression) {
-                consumer.accept(ClickHouseHttpProto.QPARAM_COMPRESS, "1");
-            }
-            if (clientCompression) {
-                consumer.accept(ClickHouseHttpProto.QPARAM_DECOMPRESS, "1");
+        CompressionAlgorithm algorithm = ClientConfigProperties.COMPRESSION_ALGORITHM.getOrDefault(requestConfig);
+
+        if (algorithm != CompressionAlgorithm.NONE) {
+            if (useHttpCompression) {
+                // enable_http_compression make server react on http header
+                // for client side compression Content-Encoding should be set
+                // for server side compression Accept-Encoding should be set
+                consumer.accept(ClickHouseHttpProto.QPARAM_ENABLE_HTTP_COMPRESSION, "1");
+            } else {
+                if (serverCompression) {
+                    // the response is requested with Accept-Encoding, which the server honours only for
+                    // an http-compressed response; the compress=1 framing would be compressed with the
+                    // codec of the server instead of the requested one
+                    consumer.accept(ClickHouseHttpProto.QPARAM_ENABLE_HTTP_COMPRESSION, "1");
+                }
+                if (clientCompression) {
+                    consumer.accept(ClickHouseHttpProto.QPARAM_DECOMPRESS, "1");
+                }
             }
         }
 
@@ -1012,11 +1022,12 @@ public class HttpAPIClientHelper {
         boolean clientCompression = ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getOrDefault(requestConfig);
         boolean useHttpCompression = ClientConfigProperties.USE_HTTP_COMPRESSION.getOrDefault(requestConfig);
         boolean appCompressedData = ClientConfigProperties.APP_COMPRESSED_DATA.getOrDefault(requestConfig);
+        CompressionAlgorithm algorithm = ClientConfigProperties.COMPRESSION_ALGORITHM.getOrDefault(requestConfig);
 
         if (httpEntity.getContentEncoding() != null && !appCompressedData) {
             // http header is set and data is not compressed
             return new CompressedEntity(httpEntity, false, CompressorStreamFactory.getSingleton());
-        } else if (clientCompression && !appCompressedData) {
+        } else if (clientCompression && !appCompressedData && algorithm != CompressionAlgorithm.NONE) {
             int buffSize = ClientConfigProperties.COMPRESSION_LZ4_UNCOMPRESSED_BUF_SIZE.getOrDefault(requestConfig);
             return new LZ4Entity(httpEntity, useHttpCompression, false, true,
                     buffSize, false, lz4Factory);
@@ -1026,20 +1037,13 @@ public class HttpAPIClientHelper {
     }
 
     private HttpEntity wrapResponseEntity(HttpEntity httpEntity, int httpStatus, Map<String, Object> requestConfig) {
-        boolean serverCompression = ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getOrDefault(requestConfig);
-        boolean useHttpCompression = ClientConfigProperties.USE_HTTP_COMPRESSION.getOrDefault(requestConfig);
-
         if (httpEntity.getContentEncoding() != null) {
-            // http compressed response
+            // the algorithm of a compressed response is the one the request asked for
             return new CompressedEntity(httpEntity, true, CompressorStreamFactory.getSingleton());
         }
 
-        // data compression
-        if (serverCompression && !(httpStatus == HttpStatus.SC_FORBIDDEN || httpStatus == HttpStatus.SC_UNAUTHORIZED)) {
-            int buffSize = ClientConfigProperties.COMPRESSION_LZ4_UNCOMPRESSED_BUF_SIZE.getOrDefault(requestConfig);
-            return new LZ4Entity(httpEntity, useHttpCompression, true, false, buffSize, true, lz4Factory);
-        }
-
+        // a response without a content coding is not compressed: the server answers an unsupported
+        // Accept-Encoding, and a request that asks for no compression, with a plain body
         return httpEntity;
     }
 

@@ -2,6 +2,7 @@ package com.clickhouse.client.api;
 
 import com.clickhouse.client.api.data_formats.ClickHouseFormatReader;
 import com.clickhouse.client.api.data_formats.internal.AbstractBinaryFormatReader;
+import com.clickhouse.client.api.enums.CompressionAlgorithm;
 import com.clickhouse.client.api.enums.SSLMode;
 import com.clickhouse.client.api.internal.ClickHouseLZ4OutputStream;
 import com.clickhouse.data.ClickHouseDataType;
@@ -243,6 +244,26 @@ public enum ClientConfigProperties {
                     .filter(s -> s != null && !s.trim().isEmpty())
                     .map(String::trim)
                     .collect(Collectors.toList());
+        }
+    },
+
+    /**
+     * Algorithm of a compressed request or response body. The algorithm is requested with the HTTP
+     * content-coding of the operation ({@code Accept-Encoding} for a response, {@code Content-Encoding}
+     * for a request), so a compressed body always uses the algorithm the client asked for and never one
+     * the server picks on its own. {@link CompressionAlgorithm#NONE} disables compression of both
+     * directions.
+     * <p>
+     * The name of an algorithm and its content-coding token are both accepted, in any case.
+     * <p>
+     * Appended at the end of the enum on purpose: adding a constant in the middle would shift the ordinal
+     * of every following constant (see {@code docs/changes_checklist.md}).
+     */
+    COMPRESSION_ALGORITHM("client.compression_algorithm", CompressionAlgorithm.class,
+            CompressionAlgorithm.LZ4.name()) {
+        @Override
+        public Object parseValue(String value) {
+            return value == null ? null : CompressionAlgorithm.fromValue(value);
         }
     },
     ;

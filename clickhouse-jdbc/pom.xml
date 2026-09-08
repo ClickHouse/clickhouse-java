@@ -58,11 +58,10 @@
             <artifactId>lz4-java</artifactId>
             <version>${lz4.version}</version>
         </dependency>
-        <!-- Not provided: client-v2 needs it to read compressed responses, so the
-             shaded artifacts have to carry it. -->
         <dependency>
             <groupId>com.github.luben</groupId>
             <artifactId>zstd-jni</artifactId>
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>

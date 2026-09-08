@@ -4,6 +4,18 @@
 
 ### Breaking Changes
 
+- **[client-v2] The algorithm of a compressed response is now requested with `Accept-Encoding` and is no longer the
+  one the server picks.** A response was requested with the `compress=1` framing, whose codec the server chooses on
+  its own: ClickHouse `26.9` changed that codec from `LZ4` to `ZSTD(3)`, the framed output follows the built-in
+  default and no setting overrides it, so the client could not keep reading a response it asked for. A response is
+  now requested with the content coding of the new `client.compression_algorithm` property
+  (`Client.Builder#compressionAlgorithm`), which defaults to `LZ4` and keeps the algorithm of a compressed body the
+  same on every server version. Set the property to `ZSTD`, `GZIP` or `NONE` to select another algorithm; `ZSTD`
+  needs `com.github.luben:zstd-jni` on the classpath, which stays a `provided` dependency. A client that reads a
+  compressed response now also sends `enable_http_compression=1`, which a user profile that forbids setting changes
+  (`readonly = 1`) rejects - such a profile has to use `readonly = 2` or `client.compression_algorithm = NONE`.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3105)
+
 - **[client-v2]** `com.clickhouse.client.api.metrics.OperationMetrics` now has a single constructor,
   `OperationMetrics(ClientStatisticsHolder, OperationType)`; the constructor without an operation type was removed.
   Metrics are created by the client, which always knows the kind of the operation it runs, and the constructor takes
@@ -138,13 +150,12 @@
 ### Bug Fixes 
 
 - **[client-v2]** Fixed every compressed read failing with `Invalid LZ4 magic byte: '-112'` against ClickHouse `26.9`
-  and later. The server picks the codec of the `compress=1` framing and now uses `ZSTD(3)` by default, while the
-  response reader asserted the LZ4 method byte of every block, so any query answered with a compressed body died
-  before the first row was parsed and no setting could restore the old codec. The reader now takes the codec from the
-  block header, which is what makes the framing self-describing, and decompresses LZ4, ZSTD and uncompressed blocks —
-  including a body that mixes them. A block of an unknown codec is still rejected, so a response that is not framed at
-  all is reported as before. `zstd-jni` became a required dependency of `client-v2` and is shaded into the `all`
-  artifacts. (https://github.com/ClickHouse/clickhouse-java/issues/3105)
+  and later. The server chooses the codec of the `compress=1` framing the client requested and switched that codec to
+  `ZSTD(3)`, while the response reader asserted the LZ4 method byte of every block, so any query answered with a
+  compressed body died before the first row was parsed. The algorithm of a response is now requested with
+  `Accept-Encoding`, so the client reads the algorithm it asked for; see the breaking-changes entry above.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3105)
+
 - **[jdbc-v2]** Fixed `DatabaseMetaData#getTables` reporting `TABLE_TYPE = TABLE` for a table with the `BigQuery`
   engine (present in `system.table_engines` since ClickHouse `26.8`). The engine was missing from the
   engine-to-table-type mapping, so it fell back to the default `TABLE`, and `getTables(..., types = {"REMOTE TABLE"})`
