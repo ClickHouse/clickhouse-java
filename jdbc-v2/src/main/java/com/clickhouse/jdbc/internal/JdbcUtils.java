@@ -94,6 +94,7 @@ public class JdbcUtils {
         map.put(ClickHouseDataType.LineString, JDBCType.ARRAY);
         map.put(ClickHouseDataType.MultiPolygon, JDBCType.ARRAY);
         map.put(ClickHouseDataType.MultiLineString, JDBCType.ARRAY);
+        map.put(ClickHouseDataType.MultiPoint, JDBCType.ARRAY);
         map.put(ClickHouseDataType.Geometry, JDBCType.ARRAY);
         map.put(ClickHouseDataType.Tuple, JDBCType.OTHER);
         map.put(ClickHouseDataType.Nothing, JDBCType.OTHER);
@@ -193,6 +194,7 @@ public class JdbcUtils {
                         map.put(e.getKey(), double[].class);
                         break;
                     case LineString:
+                    case MultiPoint:
                     case Ring:
                         map.put(e.getKey(), double[][].class);
                         break;

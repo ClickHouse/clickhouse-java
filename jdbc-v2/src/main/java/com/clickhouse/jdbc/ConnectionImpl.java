@@ -4,6 +4,7 @@ import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.data_formats.JsonParserFactory;
 import com.clickhouse.client.api.metadata.TableSchema;
+import com.clickhouse.client.api.observability.MetricsRecorder;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseColumn;
@@ -104,9 +105,14 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
                 }
             }
 
-            this.client = this.config.applyClientProperties(new Client.Builder())
-                    .setClientName(clientName)
-                    .build();
+            Client.Builder clientBuilder = this.config.applyClientProperties(new Client.Builder())
+                    .setClientName(clientName);
+            final String metricsRecorderName = config.getDriverProperty(DriverProperties.METRICS_RECORDER.getKey(), null);
+            if (metricsRecorderName != null) {
+                clientBuilder.setMetricsRecorder(instantiateUserClass(metricsRecorderName, MetricsRecorder.class,
+                        DriverProperties.METRICS_RECORDER.getKey()));
+            }
+            this.client = clientBuilder.build();
             String serverTimezone = this.client.getServerTimeZone();
             if (serverTimezone == null) {
                 // we cannot operate without timezone
@@ -125,7 +131,9 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
             this.typeMap = ImmutableMap.<String, Class<?>>builder().putAll(this.config.getTypeMap()).buildKeepingLast();
 
             final String jsonParserFactoryName = config.getDriverProperty(DriverProperties.JSON_PARSER_FACTORY.getKey(), null);
-            this.jsonParserFactory = jsonParserFactoryName == null ? null : instantiateJsonParserFactory(jsonParserFactoryName);
+            this.jsonParserFactory = jsonParserFactoryName == null ? null
+                    : instantiateUserClass(jsonParserFactoryName, JsonParserFactory.class,
+                            DriverProperties.JSON_PARSER_FACTORY.getKey());
         } catch (SQLException e) {
             throw e;
         } catch (Exception e) {
@@ -133,21 +141,26 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
         }
     }
 
-    private JsonParserFactory instantiateJsonParserFactory(String className) throws SQLException {
+    /**
+     * Creates the instance of a class a connection property names - a JSON parser factory, a metrics
+     * recorder. The class is expected to have a public no-argument constructor, so every property that
+     * names one reports the same failures in the same way.
+     */
+    private <T> T instantiateUserClass(String className, Class<T> type, String propertyKey) throws SQLException {
         if (className == null || className.trim().isEmpty()) {
-            throw new SQLException("Value of '" + DriverProperties.JSON_PARSER_FACTORY.getKey() +
-                    "' is empty string but should be a FQN of factory class.");
+            throw new SQLException("Value of '" + propertyKey + "' is empty string but should be a FQN of a class " +
+                    "implementing " + type.getName() + ".");
         }
         try {
-            Class<?> factoryClass = loadFactoryClass(className);
-            if (!JsonParserFactory.class.isAssignableFrom(factoryClass)) {
-                throw new SQLException("Class '" + className + "' should implement " + JsonParserFactory.class.getName());
+            Class<?> userClass = loadUserClass(className);
+            if (!type.isAssignableFrom(userClass)) {
+                throw new SQLException("Class '" + className + "' should implement " + type.getName());
             }
 
-            return (JsonParserFactory) factoryClass.getDeclaredConstructor().newInstance();
+            return type.cast(userClass.getDeclaredConstructor().newInstance());
         } catch (ClassNotFoundException e) {
-            throw new SQLException("Class '" + className + "' (implementing JsonParserFactory ) not found. Check " +
-                    DriverProperties.JSON_PARSER_FACTORY.getKey() + " property", e);
+            throw new SQLException("Class '" + className + "' (implementing " + type.getName() + ") not found. Check " +
+                    propertyKey + " property", e);
         } catch (InvocationTargetException | InstantiationException | IllegalAccessException |
                  NoSuchMethodException e) {
             throw new SQLException("Failed to instantiate '" + className + "'. Check class implementation.", e);
@@ -155,12 +168,12 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     }
 
     /**
-     * Resolves a user-supplied factory class name. JDBC drivers are commonly deployed in a
+     * Resolves a user-supplied class name. JDBC drivers are commonly deployed in a
      * parent class loader (e.g. servlet container {@code lib/}) while caller-supplied classes
      * live in the application class loader, so the thread context class loader is tried first
      * and the driver's own class loader is used as a fallback.
      */
-    private Class<?> loadFactoryClass(String className) throws ClassNotFoundException {
+    private Class<?> loadUserClass(String className) throws ClassNotFoundException {
         ClassNotFoundException firstFailure = null;
         ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
         if (contextClassLoader != null) {

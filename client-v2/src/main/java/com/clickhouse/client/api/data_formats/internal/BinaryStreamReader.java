@@ -244,6 +244,8 @@ public class BinaryStreamReader {
                     return (T) readGeoRing();
                 case LineString:
                     return (T) readGeoRing();
+                case MultiPoint:
+                    return (T) readGeoRing();
                 case JSON: // experimental https://clickhouse.com/docs/en/sql-reference/data-types/newjson
                     if (jsonAsString) {
                         return (T) readString(input);
@@ -770,6 +772,11 @@ public class BinaryStreamReader {
     }
 
     public ArrayValue readArrayItem(ClickHouseColumn itemTypeColumn, int len) throws IOException {
+        if (len == 0) {
+            // Nothing to read for an empty array; typing it via resolveArrayItemClass avoids the
+            // primitive branch below reading a phantom element and indexing a zero-length array.
+            return new ArrayValue(resolveArrayItemClass(itemTypeColumn), 0);
+        }
         ArrayValue array;
         if (itemTypeColumn.isNullable()) {
             Class<?> itemClass = resolveArrayItemClass(itemTypeColumn);

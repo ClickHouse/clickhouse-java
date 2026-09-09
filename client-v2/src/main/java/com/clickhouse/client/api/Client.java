@@ -31,7 +31,9 @@ import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.metrics.ClientMetrics;
 import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.client.api.metrics.OperationType;
+import com.clickhouse.client.api.observability.DefaultMetricsRecorder;
 import com.clickhouse.client.api.observability.DefaultSpanRecorder;
+import com.clickhouse.client.api.observability.MetricsRecorder;
 import com.clickhouse.client.api.observability.Span;
 import com.clickhouse.client.api.observability.SpanRecorder;
 import com.clickhouse.client.api.query.GenericRecord;
@@ -167,10 +169,18 @@ public class Client implements AutoCloseable {
      */
     private final SpanRecorder spanRecorder;
 
+    /**
+     * Recorder registered by an application; called once for every operation the client completes,
+     * with everything the client knows about it. Never {@code null} - it is
+     * {@link DefaultMetricsRecorder#NOOP} when observability is not configured, so no null check is
+     * needed on the operation paths.
+     */
+    private final MetricsRecorder metricsRecorder;
+
     private Client(Collection<Endpoint> endpoints, Map<String,String> configuration,
                    ExecutorService sharedOperationExecutor, ColumnToMethodMatchingStrategy columnToMethodMatchingStrategy,
                    Object metricsRegistry, Supplier<String> queryIdGenerator, CredentialsManager cManager,
-                   SSLContext sslContext, SpanRecorder spanRecorder) {
+                   SSLContext sslContext, SpanRecorder spanRecorder, MetricsRecorder metricsRecorder) {
         Map<String, Object> parsedConfiguration = new ConcurrentHashMap<>(ClientConfigProperties.parseConfigMap(configuration));
         if (sslContext != null) {
             parsedConfiguration.put(ClientConfigProperties.SSL_CONTEXT.getKey(), sslContext);
@@ -178,6 +188,8 @@ public class Client implements AutoCloseable {
         this.credentialsManager = cManager;
         this.spanRecorder = Objects.requireNonNull(spanRecorder,
                 "spanRecorder is required; use DefaultSpanRecorder.NOOP to record nothing");
+        this.metricsRecorder = Objects.requireNonNull(metricsRecorder,
+                "metricsRecorder is required; use DefaultMetricsRecorder.NOOP to record nothing");
         this.session = Session.extractFrom(parsedConfiguration);
         this.configuration = new ConcurrentHashMap<>(parsedConfiguration);
         this.readOnlyConfig = Collections.unmodifiableMap(configuration);
@@ -299,6 +311,7 @@ public class Client implements AutoCloseable {
         private Supplier<String> queryIdGenerator;
         private SSLContext sslContext = null;
         private SpanRecorder spanRecorder = DefaultSpanRecorder.NOOP;
+        private MetricsRecorder metricsRecorder = DefaultMetricsRecorder.NOOP;
 
         // Trust/key material options that feed a context the client would otherwise build; none of them
         // may be combined with an application-supplied SSLContext (see build()).
@@ -1267,6 +1280,27 @@ public class Client implements AutoCloseable {
             return this;
         }
 
+        /**
+         * <p>Registers a {@link MetricsRecorder} that receives the metrics of client operations, so
+         * an application can export them to any metrics backend. Each completed operation (query,
+         * command, insert, ping, table-schema lookup) reports one success or one failure event, and
+         * every retried attempt reports a retry event.</p>
+         *
+         * <p>When no recorder is set nothing is recorded and no metrics-related work is done. The
+         * default is {@link DefaultMetricsRecorder#NOOP}, so registering that recorder is how an
+         * application asks for nothing to be recorded; {@code null} is rejected because it is a
+         * configuration error rather than a way to disable recording.</p>
+         *
+         * @param metricsRecorder - recorder to notify; must not be {@code null}
+         * @return same instance of the builder
+         * @throws NullPointerException when {@code metricsRecorder} is {@code null}
+         */
+        public Builder setMetricsRecorder(MetricsRecorder metricsRecorder) {
+            this.metricsRecorder = Objects.requireNonNull(metricsRecorder,
+                    "metricsRecorder is required; use DefaultMetricsRecorder.NOOP to record nothing");
+            return this;
+        }
+
         public Client build() {
             // check if endpoint are empty. so can not initiate client
             if (this.endpoints.isEmpty()) {
@@ -1354,7 +1388,7 @@ public class Client implements AutoCloseable {
 
             return new Client(this.endpoints, this.configuration, this.sharedOperationExecutor,
                 this.columnToMethodMatchingStrategy, this.metricRegistry, this.queryIdGenerator, cManager,
-                this.sslContext, this.spanRecorder);
+                this.sslContext, this.spanRecorder, this.metricsRecorder);
         }
     }
 
@@ -1463,6 +1497,9 @@ public class Client implements AutoCloseable {
 
         String operationId = registerOperationMetrics();
         requestSettings.setOperationId(operationId);
+        // Origin of the duration of a failed operation. Taken where the client starts OP_DURATION, which is
+        // the duration reported for a successful operation, so that both outcomes measure the same work.
+        final long operationStartNanos = System.nanoTime();
         globalClientStats.get(operationId).start(ClientMetrics.OP_DURATION);
         globalClientStats.get(operationId).start(ClientMetrics.OP_SERIALIZATION);
 
@@ -1537,12 +1574,14 @@ public class Client implements AutoCloseable {
                                 requestSettings.getQueryId(), OperationType.INSERT);
 
                         spanRecorder.recordInsertSuccess(operationSpan, metrics);
+                        metricsRecorder.recordInsertSuccess(requestSettings, tableName, metrics);
                         return new InsertResponse(transportResponse, metrics);
                     } catch (Exception e) {
                         String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
                         lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
                         if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings()) && requestIsNotCancelled(queryId)) {
                             if (i < maxAttempts) {
+                                metricsRecorder.recordInsertRetry(requestSettings, tableName, lastException);
                                 selectedEndpoint = logRetryAndSelectNextNode("Insert", i, maxAttempts, requestSettings.getQueryId(), selectedEndpoint, e);
                             } else {
                                 nodeSelector.getNextAliveNode(selectedEndpoint);
@@ -1557,7 +1596,11 @@ public class Client implements AutoCloseable {
                 LOG.warn(errMsg);
                 throw (lastException == null ? new ClientException(errMsg) : lastException);
             } catch (RuntimeException | Error e) {
+                // Taken before any recorder runs, like the duration of a successful operation, which the
+                // client stops in completeOperation.
+                final Duration failureDuration = durationSince(operationStartNanos);
                 spanRecorder.recordFailure(operationSpan, e);
+                metricsRecorder.recordInsertFailure(requestSettings, tableName, failureDuration, e);
                 throw e;
             } finally {
                 // The request of the last attempt stays registered until the operation is over, so a cancellation
@@ -1700,6 +1743,9 @@ public class Client implements AutoCloseable {
         if (clientStats == null) {
             clientStats = new ClientStatisticsHolder();
         }
+        // Origin of the duration of a failed operation. Taken where the client starts OP_DURATION, which is
+        // the duration reported for a successful operation, so that both outcomes measure the same work.
+        final long operationStartNanos = System.nanoTime();
         clientStats.start(ClientMetrics.OP_DURATION);
         final ClientStatisticsHolder finalClientStats = clientStats;
 
@@ -1754,12 +1800,14 @@ public class Client implements AutoCloseable {
                         OperationMetrics metrics = completeOperation(transportResponse, finalClientStats,
                                 requestSettings.getQueryId(), OperationType.INSERT);
                         spanRecorder.recordInsertSuccess(operationSpan, metrics);
+                        metricsRecorder.recordInsertSuccess(requestSettings, tableName, metrics);
                         return new InsertResponse(transportResponse, metrics);
                     } catch (Exception e) {
                         String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
                         lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
                         if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings()) && requestIsNotCancelled(requestSettings.getQueryId())) {
                             if (i < maxAttempts) {
+                                metricsRecorder.recordInsertRetry(requestSettings, tableName, lastException);
                                 selectedEndpoint = logRetryAndSelectNextNode("Insert (stream)", i, maxAttempts, requestSettings.getQueryId(), selectedEndpoint, e);
                             } else {
                                 nodeSelector.getNextAliveNode(selectedEndpoint);
@@ -1782,7 +1830,11 @@ public class Client implements AutoCloseable {
                 LOG.warn(errMsg);
                 throw (lastException == null ? new ClientException(errMsg) : lastException);
             } catch (RuntimeException | Error e) {
+                // Taken before any recorder runs, like the duration of a successful operation, which the
+                // client stops in completeOperation.
+                final Duration failureDuration = durationSince(operationStartNanos);
                 spanRecorder.recordFailure(operationSpan, e);
+                metricsRecorder.recordInsertFailure(requestSettings, tableName, failureDuration, e);
                 throw e;
             } finally {
                 // The request of the last attempt stays registered until the operation is over, so a cancellation
@@ -1861,6 +1913,9 @@ public class Client implements AutoCloseable {
         }
         applyFormatSpecificSettings(requestSettings);
         ClientStatisticsHolder clientStats = new ClientStatisticsHolder();
+        // Origin of the duration of a failed operation. Taken where the client starts OP_DURATION, which is
+        // the duration reported for a successful operation, so that both outcomes measure the same work.
+        final long operationStartNanos = System.nanoTime();
         clientStats.start(ClientMetrics.OP_DURATION);
 
         if (queryParams != null) {
@@ -1906,6 +1961,7 @@ public class Client implements AutoCloseable {
                             }
 
                             spanRecorder.recordQuerySuccess(operationSpan, metrics);
+                            metricsRecorder.recordQuerySuccess(requestSettings, metrics);
                             return new QueryResponse(transportResp, responseFormat, requestSettings, metrics);
 
                         } catch (Exception e) {
@@ -1914,6 +1970,7 @@ public class Client implements AutoCloseable {
                             lastException = httpClientHelper.wrapException(msg, e, requestSettings.getQueryId());
                             if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings()) && requestIsNotCancelled(requestSettings.getQueryId())) {
                                 if (i < maxAttempts) {
+                                    metricsRecorder.recordQueryRetry(requestSettings, lastException);
                                     selectedEndpoint = logRetryAndSelectNextNode("Query", i, maxAttempts, requestSettings.getQueryId(), selectedEndpoint, e);
                                 } else {
                                     nodeSelector.getNextAliveNode(selectedEndpoint);
@@ -1928,7 +1985,11 @@ public class Client implements AutoCloseable {
                     LOG.warn(errMsg);
                     throw (lastException == null ? new ClientException(errMsg) : lastException);
                 } catch (RuntimeException | Error e) {
+                    // Taken before any recorder runs, like the duration of a successful operation, which the
+                    // client stops in completeOperation.
+                    final Duration failureDuration = durationSince(operationStartNanos);
                     spanRecorder.recordFailure(operationSpan, e);
+                    metricsRecorder.recordQueryFailure(requestSettings, failureDuration, e);
                     throw e;
                 } finally {
                     // unregister transport request once we are done

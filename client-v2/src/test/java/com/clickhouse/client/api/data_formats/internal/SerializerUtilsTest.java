@@ -4,6 +4,7 @@ import com.clickhouse.client.api.ClientException;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.value.ClickHouseGeoPolygonValue;
+import com.clickhouse.data.value.ClickHouseGeoRingValue;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
@@ -127,7 +128,25 @@ public class SerializerUtilsTest {
     public void testDynamicTypeTagUsesCustomEncodingForGeoTypes() throws Exception {
         assertCustomGeoTypeTag("LineString");
         assertCustomGeoTypeTag("MultiLineString");
+        assertCustomGeoTypeTag("MultiPoint");
         assertCustomGeoTypeTag("Geometry");
+    }
+
+    @Test
+    public void testMultiPointRoundTrip() throws Exception {
+        ClickHouseColumn multiPoint = ClickHouseColumn.of("v", "MultiPoint");
+        double[][] points = new double[][] {{1D, 2D}, {3D, 4D}, {5D, 6D}};
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        SerializerUtils.serializeData(out, ClickHouseGeoRingValue.of(points), multiPoint);
+
+        // Identical wire representation to Ring: a var-uint point count followed by two Float64 per point.
+        ByteArrayOutputStream ring = new ByteArrayOutputStream();
+        SerializerUtils.serializeData(ring, ClickHouseGeoRingValue.of(points), ClickHouseColumn.of("v", "Ring"));
+        Assert.assertEquals(out.toByteArray(), ring.toByteArray());
+
+        Object value = newReader(out.toByteArray()).readValue(multiPoint);
+        Assert.assertTrue(Arrays.deepEquals((double[][]) value, points));
     }
 
     @Test

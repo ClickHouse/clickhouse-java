@@ -11,7 +11,6 @@ import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseProxyType;
 import com.clickhouse.client.config.ClickHouseSslMode;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
-import com.clickhouse.config.ClickHouseOption;
 import com.clickhouse.data.ClickHouseChecker;
 import com.clickhouse.data.ClickHouseExternalTable;
 import com.clickhouse.data.ClickHouseFormat;
@@ -70,11 +69,11 @@ import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.net.ConnectException;
 import java.net.HttpURLConnection;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TimeZone;
@@ -205,8 +204,6 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
     }
 
     private void setHeaders(HttpRequest request, Map<String, String> headers) {
-        headers = mergeHeaders(headers);
-
         if (headers != null && !headers.isEmpty()) {
             for (Map.Entry<String, String> header : headers.entrySet()) {
                 request.setHeader(header.getKey(), header.getValue());
@@ -277,17 +274,22 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
             List<ClickHouseExternalTable> tables, ClickHouseOutputStream output, String url,
             Map<String, String> headers, Runnable postCloseAction) throws IOException {
         HttpPost post = new HttpPost(url == null ? this.url : url);
-        setHeaders(post, headers);
+        Map<String, String> mergedHeaders = mergeHeaders(headers);
         byte[] boundary = null;
         String contentType = "text/plain; charset=UTF-8";
         if (tables != null && !tables.isEmpty()) {
             String uuid = rm.createUniqueId();
             contentType = "multipart/form-data; boundary=".concat(uuid);
             boundary = uuid.getBytes(StandardCharsets.US_ASCII);
+            if (mergedHeaders != null && !mergedHeaders.isEmpty()) {
+                mergedHeaders = new LinkedHashMap<>(mergedHeaders);
+                mergedHeaders.remove("content-encoding");
+            }
         }
+        setHeaders(post, mergedHeaders);
         post.setHeader("Content-Type", contentType);
 
-        String contentEncoding = headers == null ? null : headers.getOrDefault("content-encoding", null);
+        String contentEncoding = mergedHeaders == null ? null : mergedHeaders.getOrDefault("content-encoding", null);
         ClickHouseHttpEntity postBody = new ClickHouseHttpEntity(config, contentType, contentEncoding, boundary,
                 sql, data, tables);
         post.setEntity(postBody);

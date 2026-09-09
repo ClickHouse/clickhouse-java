@@ -14,6 +14,55 @@
 
 - **[migration-helpers]** Added `migration-helpers` module containing `ConfigurationMigrationHelper` and `ConfigPropertyCache` to convert configuration properties and connection URLs from v1 (0.7.1) format to v2 (0.9.8+) format (automatically prefixing ClickHouse server settings with `clickhouse_setting_`, custom headers with `http_header_`, and mapping renamed property keys).
 
+- **[client-v2, jdbc-v2]** Added support for the `MultiPoint` geo data type (ClickHouse `26.8+`). Previously the type was
+  unknown to the client, so reading or writing a `MultiPoint` column failed with `Unknown data type: MultiPoint`, and a
+  `MultiPoint` value inside a `Geometry` column failed with an out-of-range variant discriminator. `MultiPoint` is
+  `Array(Point)` on the wire, exactly like `Ring` and `LineString`, so it is read and written as `double[][]` through
+  generic records, binary readers, POJO binding, and SQL parameter formatting, and is read from `Dynamic` columns. In the
+  JDBC driver (`jdbc-v2`) `MultiPoint` maps
+  to `java.sql.Types.ARRAY`, is returned as `double[][]` from `getObject` and as a `java.sql.Array` from `getArray`, and is
+  reported by `ResultSetMetaData` and `DatabaseMetaData`. ClickHouse `26.8` also adds `MultiPoint` to the `Geometry`
+  variant; the server appends it after the existing six variants instead of ordering it by type name, so the client now
+  keeps that order and decodes a `MultiPoint` held in a `Geometry` column. Because `MultiPoint` shares its Java
+  representation (`double[][]`) with `Ring` and `LineString`, it is not selectable through the shape-based `Geometry`
+  write path — a 2D value keeps resolving to `Ring` as before, and writing `MultiPoint` requires a concrete `MultiPoint`
+  column. (https://github.com/ClickHouse/clickhouse-java/issues/3048)
+- **[client-v2, jdbc-v2]** Added a Micrometer implementation of the metrics SPI.
+  `Client.Builder.setMetricsRecorder(new MicrometerMetricsRecorder(meterRegistry))` reports the metrics of every client
+  operation to a Micrometer `MeterRegistry`: a timer `db.client.operation.duration` per completed operation, a timer
+  `clickhouse.client.operation.serialization.duration` when the client measured the serialization step, a counter
+  `clickhouse.client.operation.count` per completed operation, and a counter `clickhouse.client.operation.retries` per
+  retried attempt. Previously the client could bind only its connection-pool gauges to Micrometer, so exporting the
+  metrics of the operations themselves was left to the application. Meter names, units, descriptions and tag keys are
+  the standard ones of the SPI - the recorder derives them through `MetricsSupport`, so they are the names of
+  `MetricName` and the keys of `MetricAttribute` and mean the same as for every other recorder. A successful operation
+  carries no `error.type` tag and a failed one does, so the outcomes are separate time series of the same meter and a
+  failure the server reported also carries `db.response.status_code`; a duration the client did not measure is not
+  recorded, so no operation is reported with a made-up duration. The seconds of the SPI are handed to the registry as
+  nanoseconds, because a Micrometer timer keeps its own time unit, so a backend publishes the duration in the unit it
+  expects. The no-argument constructor reports to `Metrics.globalRegistry`, which is what the jdbc-v2
+  `jdbc_metrics_recorder` property needs, so a JDBC connection exports its metrics to Micrometer by naming the class -
+  `jdbc_metrics_recorder=com.clickhouse.client.api.observability.micrometer.MicrometerMetricsRecorder` - without
+  application code. `micrometer-core` stays an optional dependency of `client-v2` and is not shaded into the `all`
+  artifacts, so a client that does not use this recorder needs no Micrometer on the classpath.
+  (https://github.com/ClickHouse/clickhouse-java/issues/2975)
+- **[client-v2, jdbc-v2]** Added a metrics SPI that lets an application export the metrics of client operations to any
+  metrics backend. `Client.Builder.setMetricsRecorder(MetricsRecorder)` registers a backend-agnostic recorder from the
+  `com.clickhouse.client.api.observability` package, and the jdbc-v2 property `jdbc_metrics_recorder` names the recorder
+  class a connection registers with its own client. Previously the client collected operation metrics but only returned
+  them to the caller, so exporting them was left to the application. Each completed operation reports exactly one
+  success or one failure event, and each retried attempt reports a retry event, which gives the operation duration, the
+  serialization duration, the number of operations by outcome and the number of retries. The SPI follows the pattern of
+  the span SPI: an implementation extends the `DefaultMetricsRecorder` base class and overrides only what it cares
+  about, so it keeps working when the client starts reporting an event it does not know about, and the reusable
+  `MetricsSupport` class derives the standard values from the same structures, so its logic is opt-in and overridable.
+  Metric names, units and attribute keys follow the OpenTelemetry semantic conventions for database clients where a
+  convention exists and are placed under `clickhouse.` where it does not; they are defined by the `MetricName` and
+  `MetricAttribute` enums, durations are reported in seconds, and a duration the client did not measure is reported as
+  `MetricsSupport.DURATION_UNKNOWN` instead of a made-up value. The metric attributes are deliberately a smaller set
+  than the span attributes, because an attribute of a metric becomes a time series: the statement text, the query id and
+  the statement parameters stay on spans. Nothing is recorded and no metrics-related work is done when no recorder is
+  registered. (https://github.com/ClickHouse/clickhouse-java/issues/2975)
 - **[client-v2]** Added an OpenTelemetry implementation of the observability SPI.
   `Client.Builder.setSpanRecorder(new OpenTelemetrySpanRecorder(openTelemetry))`
   reports every client operation and every transport request as an OpenTelemetry `CLIENT` span: an operation span is
@@ -103,6 +152,22 @@
 
 ### Bug Fixes 
 
+- **[client-v2]** Fixed the `Native` format reader (`NativeFormatReader`) misreading `Array` columns in multi-row
+  results whose rows have different lengths. Native encodes an array column as cumulative row offsets followed by the
+  flattened elements, but the reader used the first row's offset as the element count for every row — truncating later
+  rows and desyncing the columns that follow the array in the same block. Each row's length is now derived from the
+  difference between consecutive offsets, and empty array rows (`len == 0`) no longer read a phantom element. Results
+  with uniform array lengths were unaffected. (https://github.com/ClickHouse/clickhouse-java/issues/2955)
+- **[jdbc-v2]** Fixed `SQLException#getSQLState()` returning the generic data-exception state `22000`
+  when ClickHouse reports an unknown table. The driver now returns `42S02` (base table or view not found) while
+  preserving the ClickHouse error code and original exception. (https://github.com/ClickHouse/clickhouse-java/issues/3104)
+- **[client-v2]** Fixed truncated LZ4 stream errors reporting literal `{0}` and `{1}` placeholders instead of the
+  number of bytes read and expected. (https://github.com/ClickHouse/clickhouse-java/issues/3108)
+- **[jdbc-v2]** Fixed `DatabaseMetaData#getTables` reporting `TABLE_TYPE = TABLE` for a table with the `BigQuery`
+  engine (present in `system.table_engines` since ClickHouse `26.8`). The engine was missing from the
+  engine-to-table-type mapping, so it fell back to the default `TABLE`, and `getTables(..., types = {"REMOTE TABLE"})`
+  returned no row for such a table. `BigQuery` is now mapped to `REMOTE TABLE`, like the other external-storage
+  engines. (https://github.com/ClickHouse/clickhouse-java/issues/3049)
 - **[jdbc-v2]** Fixed `PreparedStatement.getMetaData()` losing the result-set schema for a statement whose SQL
   contains a comment. The `DESCRIBE` query used to resolve the metadata was built by re-scanning the SQL with a
   regex that knew only quoted tokens, so a `?` inside a `--` / `#` / `/* */` comment was rewritten to `NULL` and
@@ -282,6 +347,15 @@
   NPE instead of a clear error. It now throws `IllegalArgumentException` naming the column, consistent with
   the existing `IllegalArgumentException` for other unsupported enum values. Nullable enum columns are
   unaffected. (https://github.com/ClickHouse/clickhouse-java/issues/2931)
+- **[client-v2]** Fixed silent data corruption when serializing a Java `null` into a non-nullable
+  `Array(...)` column via `RowBinaryFormatWriter`. `RowBinaryFormatSerializer.writeValuePreamble`
+  special-cased `Array`, emitting a stray marker byte on top of the array length; the server read the
+  extra byte as a phantom extra row (single-column inserts) or as a column shift that failed the insert
+  with `CANNOT_READ_ALL_DATA` (multi-column inserts). A non-nullable `Array` cannot represent a `null`,
+  so it now throws `IllegalArgumentException` naming the column — consistent with every other non-nullable
+  type — in both the `RowBinary` and `RowBinaryWithDefaults` paths. Empty arrays (`[]`) still serialize
+  correctly, and `Dynamic` columns, which can hold a `null` as the implicit `Nothing` type, are
+  unaffected. (https://github.com/ClickHouse/clickhouse-java/issues/2938)
 - **[client-v2]** Fixed POJO insert error classification so transport write failures such as java.net.SocketException:
   Broken pipe (Write failed) are now surfaced as transfer/network errors instead of being wrapped as
   DataSerializationException. This only changes the exception type reported for request-body transport failures during

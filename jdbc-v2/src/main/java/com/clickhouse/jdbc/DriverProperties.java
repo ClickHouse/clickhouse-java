@@ -153,6 +153,13 @@ public enum DriverProperties {
      */
     JSON_PARSER_FACTORY("jdbc_json_parser_factory", null),
 
+    /**
+     * Defines which {@link com.clickhouse.client.api.observability.MetricsRecorder} implementation the connection
+     * should report the metrics of its operations to. Value is the fully-qualified class name of a recorder that has
+     * a public no-argument constructor; each connection creates its own instance. When not set, nothing is recorded.
+     */
+    METRICS_RECORDER("jdbc_metrics_recorder", null),
+
     ;
 
 

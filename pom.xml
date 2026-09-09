@@ -92,6 +92,7 @@
         <fastutil.version>8.5.12</fastutil.version>
         <gson.version>2.10.1</gson.version>
         <jctools.version>4.0.1</jctools.version>
+        <micrometer.version>1.14.3</micrometer.version>
         <opencensus.version>0.31.1</opencensus.version>
         <opentelemetry.version>1.51.0</opentelemetry.version>
         <protobuf.version>3.23.4</protobuf.version>
@@ -109,7 +110,7 @@
         <testng.version>7.5.1</testng.version>
         <wiremock.version>3.13.0</wiremock.version>
 
-        <mariadb-driver.version>3.1.4</mariadb-driver.version>
+        <mariadb-driver.version>3.3.5</mariadb-driver.version>
         <mysql-driver.version>8.1.0</mysql-driver.version>
         <postgresql-driver.version>42.7.12</postgresql-driver.version>
 
