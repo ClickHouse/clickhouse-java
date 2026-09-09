@@ -145,6 +145,8 @@
   additionally the JavaCC grammar no longer mis-parses `INSERT INTO TABLE FUNCTION f(...)` by consuming
   `FUNCTION` as the table name. Inserts into a plain table are unaffected and still use the `RowBinary`
   writer. (https://github.com/ClickHouse/clickhouse-java/issues/3015)
+- **[client-v2]** Fixed truncated LZ4 stream errors reporting literal `{0}` and `{1}` placeholders instead of the
+  number of bytes read and expected. (https://github.com/ClickHouse/clickhouse-java/issues/3108)
 - **[jdbc-v2]** Fixed `DatabaseMetaData#getTables` reporting `TABLE_TYPE = TABLE` for a table with the `BigQuery`
   engine (present in `system.table_engines` since ClickHouse `26.8`). The engine was missing from the
   engine-to-table-type mapping, so it fell back to the default `TABLE`, and `getTables(..., types = {"REMOTE TABLE"})`
