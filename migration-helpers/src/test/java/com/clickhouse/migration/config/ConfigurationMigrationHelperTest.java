@@ -1,5 +1,6 @@
 package com.clickhouse.migration.config;
 
+import com.clickhouse.client.api.ClientConfigProperties;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
@@ -33,7 +34,8 @@ public class ConfigurationMigrationHelperTest {
                 {"sslkey", "/path/to/key", "ssl_key", "/path/to/key"},
                 {"proxy_username", "puser", "proxy_user", "puser"},
                 {"alive_timeout", "60000", "http_keep_alive_timeout", "60000"},
-                {"http_keep_alive", "60000", "http_keep_alive_timeout", "60000"},
+                {"http_keep_alive", "false", "http_keep_alive_timeout", "0"},
+                {"http_keep_alive", "0", "http_keep_alive_timeout", "0"},
                 {"version", "23.8", "server_version", "23.8"},
                 {"server_revision", "54460", "server_version", "54460"},
                 {"time_zone", "UTC", "server_time_zone", "UTC"},
@@ -72,6 +74,59 @@ public class ConfigurationMigrationHelperTest {
         Assert.assertEquals(result.get("clickhouse_setting_join_use_nulls"), "1");
         Assert.assertEquals(result.get("http_header_X-Trace-Id"), "123");
         Assert.assertEquals(result.get("http_header_X-App-Name"), "demo");
+    }
+
+    @DataProvider(name = "escapedCompositeSettingsData")
+    public Object[][] provideEscapedCompositeSettingsData() {
+        return new Object[][]{
+                {
+                        "custom_settings",
+                        "format_csv_delimiter=\\,, max_threads=4",
+                        "clickhouse_setting_format_csv_delimiter",
+                        ",",
+                        "clickhouse_setting_max_threads",
+                        "4"
+                },
+                {
+                        "custom_settings",
+                        "setting_with_eq=val\\=123, max_threads=4",
+                        "clickhouse_setting_setting_with_eq",
+                        "val=123",
+                        "clickhouse_setting_max_threads",
+                        "4"
+                },
+                {
+                        "custom_http_headers",
+                        "X-Header-1=val1\\,val2, X-Header-2=a\\=b",
+                        "http_header_X-Header-1",
+                        "val1,val2",
+                        "http_header_X-Header-2",
+                        "a=b"
+                },
+                {
+                        "custom_settings",
+                        "complex_setting=a\\,b\\=c\\,d",
+                        "clickhouse_setting_complex_setting",
+                        "a,b=c,d",
+                        null,
+                        null
+                }
+        };
+    }
+
+    @Test(dataProvider = "escapedCompositeSettingsData")
+    public void testConvertEscapedCustomSettingsAndHeaders(String propertyKey, String rawValue,
+                                                            String expectedKey1, String expectedValue1,
+                                                            String expectedKey2, String expectedValue2) {
+        Map<String, String> input = new LinkedHashMap<>();
+        input.put(propertyKey, rawValue);
+
+        Map<String, String> result = ConfigurationMigrationHelper.convertMap(input);
+
+        Assert.assertEquals(result.get(expectedKey1), expectedValue1);
+        if (expectedKey2 != null) {
+            Assert.assertEquals(result.get(expectedKey2), expectedValue2);
+        }
     }
 
     @Test
@@ -149,6 +204,10 @@ public class ConfigurationMigrationHelperTest {
         ConfigPropertyCache cache = ConfigPropertyCache.getInstance();
 
         Assert.assertTrue(cache.isV1KnownProperty("connect_timeout"));
+        Assert.assertTrue(cache.isV1KnownProperty("autoCommit"));
+        Assert.assertTrue(cache.isV1KnownProperty("createDatabaseIfNotExist"));
+        Assert.assertTrue(cache.isV1KnownProperty("continueBatchOnError"));
+        Assert.assertTrue(cache.isV1KnownProperty("jdbcCompliant"));
         Assert.assertTrue(cache.isV2KnownProperty("connection_timeout"));
         Assert.assertTrue(cache.isV2KnownProperty("user"));
         Assert.assertTrue(cache.isDeprecatedProperty("protocol"));
@@ -156,6 +215,35 @@ public class ConfigurationMigrationHelperTest {
 
         Assert.assertEquals(cache.getV2MappedKey("connect_timeout"), "connection_timeout");
         Assert.assertEquals(cache.getV2MappedKey("buffer_size"), "client_network_buffer_size");
+    }
+
+    @Test
+    public void testHttpKeepAliveTrueDoesNotSetTimeoutOrCauseParseException() {
+        Map<String, String> input = new LinkedHashMap<>();
+        input.put("http_keep_alive", "true");
+        input.put("alive_timeout", "60000");
+
+        Map<String, String> result = ConfigurationMigrationHelper.convertMap(input);
+
+        Assert.assertEquals(result.get("http_keep_alive_timeout"), "60000");
+        Assert.assertFalse(result.containsKey("http_keep_alive"));
+
+        // Verify parsing converted map in v2 ClientConfigProperties does not fail with NumberFormatException
+        Map<String, Object> parsed = ClientConfigProperties.parseConfigMap(result);
+        Assert.assertEquals(parsed.get("http_keep_alive_timeout"), 60000L);
+    }
+
+    @Test
+    public void testHttpKeepAliveFalseSetsTimeoutToZero() {
+        Map<String, String> input = new LinkedHashMap<>();
+        input.put("http_keep_alive", "false");
+
+        Map<String, String> result = ConfigurationMigrationHelper.convertMap(input);
+
+        Assert.assertEquals(result.get("http_keep_alive_timeout"), "0");
+
+        Map<String, Object> parsed = ClientConfigProperties.parseConfigMap(result);
+        Assert.assertEquals(parsed.get("http_keep_alive_timeout"), 0L);
     }
 
     @Test

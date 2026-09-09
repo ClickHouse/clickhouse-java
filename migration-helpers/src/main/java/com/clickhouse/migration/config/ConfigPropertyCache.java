@@ -149,7 +149,17 @@ public class ConfigPropertyCache {
             Class<?> clazz = Class.forName("com.clickhouse.jdbc.JdbcConfig", false, getClass().getClassLoader());
             Method getDriverPropertiesMethod = clazz.getMethod("getDriverProperties");
             Object driverProps = getDriverPropertiesMethod.invoke(null);
-            if (driverProps != null && driverProps.getClass().isArray()) {
+            if (driverProps instanceof Iterable) {
+                for (Object info : (Iterable<?>) driverProps) {
+                    if (info != null) {
+                        Field nameField = info.getClass().getField("name");
+                        Object nameObj = nameField.get(info);
+                        if (nameObj != null) {
+                            v1Props.add(nameObj.toString());
+                        }
+                    }
+                }
+            } else if (driverProps != null && driverProps.getClass().isArray()) {
                 int length = Array.getLength(driverProps);
                 for (int i = 0; i < length; i++) {
                     Object info = Array.get(driverProps, i);

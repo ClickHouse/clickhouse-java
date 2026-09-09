@@ -1,5 +1,6 @@
 package com.clickhouse.migration.config;
 
+import com.clickhouse.client.api.ClientConfigProperties;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Properties;
@@ -85,6 +86,16 @@ public class ConfigurationMigrationHelper {
             // Handle legacy composite header properties: custom_http_headers, custom_headers
             if ("custom_http_headers".equalsIgnoreCase(key) || "custom_headers".equalsIgnoreCase(key)) {
                 parseAndAddKeyValuePairs(value, HTTP_HEADER_PREFIX, v2Config);
+                continue;
+            }
+
+            // Handle legacy boolean keep-alive property:
+            // false or 0 disables keep-alive in v2 (http_keep_alive_timeout = 0)
+            // true or 1 keeps default keep-alive in v2 (does not set http_keep_alive_timeout to boolean string)
+            if ("http_keep_alive".equalsIgnoreCase(key)) {
+                if ("false".equalsIgnoreCase(value) || "0".equals(value)) {
+                    v2Config.put("http_keep_alive_timeout", "0");
+                }
                 continue;
             }
 
@@ -198,22 +209,15 @@ public class ConfigurationMigrationHelper {
         if (valueStr == null || valueStr.trim().isEmpty()) {
             return;
         }
-        String[] pairs = valueStr.split(",");
-        for (String pair : pairs) {
-            String trimmed = pair.trim();
-            if (trimmed.isEmpty()) {
-                continue;
-            }
-            int eqIndex = trimmed.indexOf('=');
-            if (eqIndex > 0) {
-                String k = trimmed.substring(0, eqIndex).trim();
-                String v = trimmed.substring(eqIndex + 1).trim();
-                if (!k.isEmpty()) {
-                    if (!k.toLowerCase().startsWith(prefix)) {
-                        k = prefix + k;
-                    }
-                    targetMap.put(k, v);
+        Map<String, String> pairs = ClientConfigProperties.toKeyValuePairs(valueStr);
+        for (Map.Entry<String, String> entry : pairs.entrySet()) {
+            String k = entry.getKey();
+            String v = entry.getValue();
+            if (k != null && !k.isEmpty()) {
+                if (!k.toLowerCase().startsWith(prefix)) {
+                    k = prefix + k;
                 }
+                targetMap.put(k, v);
             }
         }
     }

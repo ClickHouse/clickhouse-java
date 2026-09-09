@@ -66,7 +66,12 @@ jobs:
           for d in $(ls -d `pwd`/examples/*/); do \
             if [ -e $d/pom.xml ]; then cd $d && mvn  --batch-mode --no-transfer-progress clean compile; fi;
           done
-      - name: Save clickhouse-jdbc-all for tests 
+      - name: Compile miscellaneous
+        run: |
+          cd migration-helpers
+          mvn  --batch-mode --no-transfer-progress clean compile
+          cd ..
+      - name: Save clickhouse-jdbc-all for tests
         uses: actions/upload-artifact@v4
         with:
           name: clickhouse-jdbc-archive

@@ -1,6 +1,7 @@
 ## 0.11.0-rc1 
 
 [Release Migration Guide](docs/releases/0_11_0.md)
+[Migration Helpers](migration-helpers) - small code helpers to convert old configuration to a new one.
 
 ### Breaking Changes
 

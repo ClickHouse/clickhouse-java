@@ -48,7 +48,8 @@
 - `ahc_validate_after_inactivity` - is deprecated. Can be ignored. Validation made automatically.
 - `ahc_retry_on_failure` - is deprecated. Two new properties `retry` (for number of retries) and `client_retry_on_failures` (to configure when to retry. Possible values: `NoHttpResponse`, `ConnectTimeout`, `ConnectionRequestTimeout`, `ServerRetryable`)
 
-- `alive_timeout` and `http_keep_alive` - are deprecated and joined into `http_keep_alive_timeout`.
+- `alive_timeout` - maps to `http_keep_alive_timeout`.
+- `http_keep_alive` - is deprecated (setting to false or 0 sets `http_keep_alive_timeout=0` to disable keep-alive).
 
 
 ## Client Operation Side
