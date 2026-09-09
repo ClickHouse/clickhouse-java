@@ -569,6 +569,15 @@ public abstract class BaseSqlParserFacadeTest {
                 {"SELECT ? AS a$b, ? AS c$d, 3", 2},
                 {"SELECT ? AS a$x$, ? AS b$x$", 2},
                 {"SELECT 1 AS a$x$, ?", 1},
+                // a dollar sign is an identifier character too, so a pair of them inside a name does not
+                // open a heredoc, even when the same character sequence occurs again later
+                {"SELECT ? AS a$$b$, ? AS x$$b$", 2},
+                {"SELECT a$$b$, ?, x$$b$ FROM t", 1},
+                {"SELECT ? AS a$$b$$c, ? AS x$$b$$c", 2},
+                {"SELECT ? AS a$$b$", 1},
+                // an identifier ending with a dollar sign does not swallow the heredoc that follows it
+                {"SELECT 1 AS a$$b$, $$?$$ AS v, ?", 1},
+                {"SELECT 1 AS a$$b$,$$?$$ AS v, ?", 1},
                 {"SELECT $$ ? AS v, ?", 2},
                 // already supported comment styles keep working
                 {"SELECT 1 -- ?", 0},

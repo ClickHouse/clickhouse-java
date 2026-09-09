@@ -960,6 +960,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                 {"SELECT concat($$?$$, ?) AS v", "?42"},
                 {"SELECT concat($tag$ ? $tag$, ?) AS v", " ? 42"},
                 {"SELECT ? AS a$x$, 1 AS b$x$", "42"},
+                {"SELECT ? AS a$$b$, 1 AS x$$b$", "42"},
         };
     }
 

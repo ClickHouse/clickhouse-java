@@ -527,6 +527,8 @@ public abstract class SqlParserFacade {
                 }
             } else if (ch == ';') {
                 continue;
+            } else if (isWordChar(ch)) {
+                i = skipIdentifier(originalQuery, i, len) - 1;
             } else if (i + 1 < len) {
                 char nextCh = originalQuery.charAt(i + 1);
                 if ((ch == '-' && nextCh == ch) || (ch == '/' && nextCh == ch) || (ch == '#')) {
@@ -557,11 +559,30 @@ public abstract class SqlParserFacade {
     }
 
     /**
+     * Skips an identifier, which the server reads as a run of word characters and dollar signs (e.g.
+     * {@code a$b}, {@code a$x$} or {@code a$$b$}). A dollar sign inside such a run continues the
+     * identifier and never opens a heredoc, so the whole run must be consumed before the scan looks
+     * for a heredoc again.
+     *
+     * @param query      non-null string to scan
+     * @param startIndex index of the first character of the identifier
+     * @param len        end index, usually length of the given string
+     * @return index next to the last character of the identifier
+     */
+    private static int skipIdentifier(String query, int startIndex, int len) {
+        int index = startIndex + 1;
+        while (index < len && (isWordChar(query.charAt(index)) || query.charAt(index) == '$')) {
+            index++;
+        }
+        return index;
+    }
+
+    /**
      * Skips a heredoc (dollar quoted string) like {@code $$...$$} or {@code $tag$...$tag$}, where the tag
      * may only contain word characters. When there is no heredoc at {@code startIndex} the dollar sign is
-     * treated as an ordinary character, because it is also a valid identifier character: a dollar sign that
-     * follows a word character continues an identifier (e.g. {@code a$b} or {@code a$x$}) instead of opening
-     * a heredoc, and a dollar sign without a matching closing tag does not open one either.
+     * treated as an ordinary character: a dollar sign without a matching closing tag does not open a
+     * heredoc. A dollar sign that belongs to an identifier never reaches this method, because
+     * {@link #skipIdentifier(String, int, int)} consumes the identifier first.
      *
      * @param query      non-null string to scan
      * @param startIndex index of the dollar sign that may open a heredoc
@@ -569,10 +590,6 @@ public abstract class SqlParserFacade {
      * @return index next to the closing tag, or {@code startIndex + 1} when there is no heredoc
      */
     private static int skipHeredoc(String query, int startIndex, int len) {
-        if (startIndex > 0 && isWordChar(query.charAt(startIndex - 1))) {
-            return startIndex + 1;
-        }
-
         int tagEndIndex = query.indexOf('$', startIndex + 1);
         if (tagEndIndex < 0 || tagEndIndex >= len) {
             return startIndex + 1;
