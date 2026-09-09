@@ -158,6 +158,8 @@
   `Accept-Encoding`, so the client reads the algorithm it asked for; see the breaking-changes entry above.
   (https://github.com/ClickHouse/clickhouse-java/issues/3105)
 
+- **[client-v2]** Fixed truncated LZ4 stream errors reporting literal `{0}` and `{1}` placeholders instead of the
+  number of bytes read and expected. (https://github.com/ClickHouse/clickhouse-java/issues/3108)
 - **[jdbc-v2]** Fixed `DatabaseMetaData#getTables` reporting `TABLE_TYPE = TABLE` for a table with the `BigQuery`
   engine (present in `system.table_engines` since ClickHouse `26.8`). The engine was missing from the
   engine-to-table-type mapping, so it fell back to the default `TABLE`, and `getTables(..., types = {"REMOTE TABLE"})`
