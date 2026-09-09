@@ -169,6 +169,10 @@ public abstract class BaseSqlParserFacadeTest {
             assertTrue(stop > start, "Values list should stop after it starts");
             assertEquals(sql.charAt(start), '(', "Values list should start with an opening parenthesis");
             assertEquals(sql.charAt(stop), ')', "Values list should end with a closing parenthesis");
+        } else {
+            assertNotEquals(parsed.getAssignValuesGroups(), 1, "A values list of unknown extent should not be "
+                    + "reported as a single complete group: consumers of a single group, like the RowBinary "
+                    + "writer, take only the bound parameters and drop the literals of the list");
         }
     }
 
@@ -181,6 +185,7 @@ public abstract class BaseSqlParserFacadeTest {
                 { "INSERT INTO t VALUES (?, )" },
                 { "INSERT INTO t VALUES (@@, ?)" },
                 { "INSERT INTO t VALUES (1, ?), (@@, ?)" },
+                { "INSERT INTO t VALUES (?, 'a' 'b')" },
         };
     }
 
