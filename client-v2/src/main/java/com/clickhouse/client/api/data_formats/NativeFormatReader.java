@@ -107,13 +107,19 @@ public class NativeFormatReader extends AbstractBinaryFormatReader {
                         + "(e.g. Array/Tuple/Map), is not decoded. Use a RowBinary format "
                         + "(e.g. RowBinaryWithNamesAndTypes) to read such QBit values");
             } else if (column.isArray()) {
+                // Native encodes an Array column as nRows cumulative offsets followed by the
+                // flattened elements; each row's element count is the delta between consecutive
+                // offsets, not the first offset.
                 values = new ArrayList<>(nRows);
-                int[] sizes = new int[nRows];
+                long[] offsets = new long[nRows];
                 for (int j = 0; j < nRows; j++) {
-                    sizes[j] = Math.toIntExact(binaryStreamReader.readLongLE());
+                    offsets[j] = binaryStreamReader.readLongLE();
                 }
+                long prevOffset = 0;
                 for (int j = 0; j < nRows; j++) {
-                    values.add(binaryStreamReader.readArrayItem(column.getNestedColumns().get(0), sizes[0]));
+                    int len = Math.toIntExact(offsets[j] - prevOffset);
+                    values.add(binaryStreamReader.readArrayItem(column.getNestedColumns().get(0), len));
+                    prevOffset = offsets[j];
                 }
             } else {
                 values = new ArrayList<>(nRows);
