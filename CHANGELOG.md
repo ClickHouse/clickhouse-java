@@ -137,6 +137,9 @@
 
 ### Bug Fixes 
 
+- **[jdbc-v2]** Fixed `SQLException#getSQLState()` returning the generic data-exception state `22000`
+  when ClickHouse reports an unknown table. The driver now returns `42S02` (base table or view not found) while
+  preserving the ClickHouse error code and original exception. (https://github.com/ClickHouse/clickhouse-java/issues/3104)
 - **[client-v2]** Fixed truncated LZ4 stream errors reporting literal `{0}` and `{1}` placeholders instead of the
   number of bytes read and expected. (https://github.com/ClickHouse/clickhouse-java/issues/3108)
 - **[jdbc-v2]** Fixed `DatabaseMetaData#getTables` reporting `TABLE_TYPE = TABLE` for a table with the `BigQuery`
