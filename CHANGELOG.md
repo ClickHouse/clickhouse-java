@@ -157,6 +157,12 @@
   position, which was then unboxed unguarded. Both positions are now dropped together, so the driver falls back to its
   generic parameter-substitution path and such statements are prepared and executed successfully. The `ANTLR4`
   parser backends were not affected. (https://github.com/ClickHouse/clickhouse-java/issues/3013)
+- **[client-v2]** Fixed the `Native` format reader (`NativeFormatReader`) misreading `Array` columns in multi-row
+  results whose rows have different lengths. Native encodes an array column as cumulative row offsets followed by the
+  flattened elements, but the reader used the first row's offset as the element count for every row — truncating later
+  rows and desyncing the columns that follow the array in the same block. Each row's length is now derived from the
+  difference between consecutive offsets, and empty array rows (`len == 0`) no longer read a phantom element. Results
+  with uniform array lengths were unaffected. (https://github.com/ClickHouse/clickhouse-java/issues/2955)
 - **[jdbc-v2]** Fixed `SQLException#getSQLState()` returning the generic data-exception state `22000`
   when ClickHouse reports an unknown table. The driver now returns `42S02` (base table or view not found) while
   preserving the ClickHouse error code and original exception. (https://github.com/ClickHouse/clickhouse-java/issues/3104)
@@ -346,6 +352,15 @@
   NPE instead of a clear error. It now throws `IllegalArgumentException` naming the column, consistent with
   the existing `IllegalArgumentException` for other unsupported enum values. Nullable enum columns are
   unaffected. (https://github.com/ClickHouse/clickhouse-java/issues/2931)
+- **[client-v2]** Fixed silent data corruption when serializing a Java `null` into a non-nullable
+  `Array(...)` column via `RowBinaryFormatWriter`. `RowBinaryFormatSerializer.writeValuePreamble`
+  special-cased `Array`, emitting a stray marker byte on top of the array length; the server read the
+  extra byte as a phantom extra row (single-column inserts) or as a column shift that failed the insert
+  with `CANNOT_READ_ALL_DATA` (multi-column inserts). A non-nullable `Array` cannot represent a `null`,
+  so it now throws `IllegalArgumentException` naming the column — consistent with every other non-nullable
+  type — in both the `RowBinary` and `RowBinaryWithDefaults` paths. Empty arrays (`[]`) still serialize
+  correctly, and `Dynamic` columns, which can hold a `null` as the implicit `Nothing` type, are
+  unaffected. (https://github.com/ClickHouse/clickhouse-java/issues/2938)
 - **[client-v2]** Fixed POJO insert error classification so transport write failures such as java.net.SocketException:
   Broken pipe (Write failed) are now surfaced as transfer/network errors instead of being wrapped as
   DataSerializationException. This only changes the exception type reported for request-body transport failures during
