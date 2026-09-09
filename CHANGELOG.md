@@ -1,6 +1,7 @@
 ## 0.11.0-rc1 
 
 [Release Migration Guide](docs/releases/0_11_0.md)
+[Migration Helpers](migration-helpers) - small code helpers to convert old configuration to a new one.
 
 ### Breaking Changes
 
@@ -11,6 +12,8 @@
   to call it. (https://github.com/ClickHouse/clickhouse-java/issues/2974)
 
 ### New Features
+
+- **[migration-helpers]** Added `migration-helpers` module containing `ConfigurationMigrationHelper` and `ConfigPropertyCache` to convert configuration properties and connection URLs from v1 (0.7.1) format to v2 (0.9.8+) format (automatically prefixing ClickHouse server settings with `clickhouse_setting_`, custom headers with `http_header_`, and mapping renamed property keys).
 
 - **[client-v2, jdbc-v2]** Added support for the `MultiPoint` geo data type (ClickHouse `26.8+`). Previously the type was
   unknown to the client, so reading or writing a `MultiPoint` column failed with `Unknown data type: MultiPoint`, and a
@@ -157,6 +160,21 @@
   position, which was then unboxed unguarded. Both positions are now dropped together, so the driver falls back to its
   generic parameter-substitution path and such statements are prepared and executed successfully. The `ANTLR4`
   parser backends were not affected. (https://github.com/ClickHouse/clickhouse-java/issues/3013)
+- **[client-v2]** Fixed reading a `Variant`, `Nested`, `Decimal` or `Enum` value held in a `Dynamic` column. The
+  concrete type rebuilt from the binary type encoding did not match what the server encoded: `Variant` was wrapped
+  twice (so the discriminator selected the wrong element), `Nested` read only the element names and left the element
+  type encodings in the stream, and `Decimal`/`Enum` lost their precision and scale / their constants whenever the
+  value sat inside another type, so a decimal read back unscaled (`1.2500` as `12500`) and every enum value read back
+  as `<unknown>`. The constant width of an enum is now taken from the type tag rather than from the number of
+  constants, which also fixes reading an `Enum16` with fewer than 128 constants and negative `Enum8` constants.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3003)
+- **[client-v2]** Fixed a `Nullable(T)` column bound to a **primitive** POJO field silently corrupting a row on the
+  POJO read path. The compiled setter went straight to a primitive read method without consuming the `Nullable`
+  null-marker byte, which is on the wire for every value of a nullable column regardless of the value, so the stream
+  stayed shifted by one byte per row and the nullable column and every column after it decoded from the wrong offset
+  without any error being raised. The generated setter now consumes the marker; a value that is actually `NULL` cannot
+  be held by a primitive field and is reported with a `NullValueException`. Boxed POJO fields are unaffected.
+  (https://github.com/ClickHouse/clickhouse-java/issues/2993)
 - **[client-v2]** Fixed the `Native` format reader (`NativeFormatReader`) misreading `Array` columns in multi-row
   results whose rows have different lengths. Native encodes an array column as cumulative row offsets followed by the
   flattened elements, but the reader used the first row's offset as the element count for every row — truncating later
