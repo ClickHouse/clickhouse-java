@@ -104,6 +104,7 @@ public class SerializerUtils {
                 break;
             case Ring:
             case LineString:
+            case MultiPoint:
                 value = value instanceof ClickHouseGeoRingValue ? ((ClickHouseGeoRingValue)value).getValue() : value;
                 serializeArrayData(stream, value, GEO_RING_ARRAY);
                 break;
@@ -389,6 +390,7 @@ public class SerializerUtils {
                 case Point:
                 case LineString:
                 case MultiLineString:
+                case MultiPoint:
                 case Polygon:
                 case Ring:
                 case MultiPolygon:

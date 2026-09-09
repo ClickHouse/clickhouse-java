@@ -146,6 +146,7 @@ public class ResultSetMetaDataImpl implements java.sql.ResultSetMetaData, JdbcV2
             case Polygon:
             case MultiPolygon:
             case MultiLineString:
+            case MultiPoint:
             case Geometry:
                 return null; // read as is
             default:
