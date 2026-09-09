@@ -73,7 +73,7 @@ public class ConfigurationMigrationHelper {
 
             // 1. If key already starts with clickhouse_setting_ or http_header_, preserve it as is.
             if (key.toLowerCase().startsWith(SERVER_SETTING_PREFIX) || key.toLowerCase().startsWith(HTTP_HEADER_PREFIX)) {
-                v2Config.put(key, value);
+                v2Config.put(key, normalizePropertyValue(key, value));
                 continue;
             }
 
@@ -104,7 +104,7 @@ public class ConfigurationMigrationHelper {
             boolean isMapped = mappedKey != null && !mappedKey.equalsIgnoreCase(key);
 
             if (isMapped) {
-                v2Config.put(mappedKey, value);
+                v2Config.put(mappedKey, normalizePropertyValue(mappedKey, value));
                 continue;
             }
 
@@ -114,14 +114,18 @@ public class ConfigurationMigrationHelper {
                 continue;
             }
 
-            // 5. If key is a known v2 property, keep as client/driver property
+            // 5. If key is a known v2 property, keep as client/driver property using its canonical name
             if (cache.isV2KnownProperty(key)) {
-                v2Config.put(key, value);
+                String v2Key = cache.getV2CanonicalKey(key);
+                if (v2Key == null) {
+                    v2Key = key.toLowerCase();
+                }
+                v2Config.put(v2Key, normalizePropertyValue(v2Key, value));
             } else {
                 // 6. Unrecognized key: in v1 this was implicitly treated as a ClickHouse server setting.
                 // In v2, it must be explicitly prefixed with clickhouse_setting_
                 String serverSettingKey = SERVER_SETTING_PREFIX + key;
-                v2Config.put(serverSettingKey, value);
+                v2Config.put(serverSettingKey, normalizePropertyValue(serverSettingKey, value));
             }
         }
 
@@ -217,9 +221,21 @@ public class ConfigurationMigrationHelper {
                 if (!k.toLowerCase().startsWith(prefix)) {
                     k = prefix + k;
                 }
-                targetMap.put(k, v);
+                targetMap.put(k, normalizePropertyValue(k, v));
             }
         }
+    }
+
+    private static String normalizePropertyValue(String key, String value) {
+        if (value == null) {
+            return null;
+        }
+        if ("ssl_mode".equalsIgnoreCase(key) || "sslmode".equalsIgnoreCase(key)) {
+            if ("none".equalsIgnoreCase(value)) {
+                return "TRUST";
+            }
+        }
+        return value;
     }
 
     private static Map<String, String> parseQueryString(String queryString) {

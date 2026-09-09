@@ -33,6 +33,7 @@ public class ConfigPropertyCache {
     private final Set<String> v2KnownProperties;
     private final Set<String> v1DeprecatedProperties;
     private final Map<String, String> v1ToV2Mappings;
+    private final Map<String, String> v2CanonicalKeys;
 
     /**
      * Gets the singleton instance of {@link ConfigPropertyCache}.
@@ -48,26 +49,28 @@ public class ConfigPropertyCache {
         Set<String> v2Props = new HashSet<>();
         Set<String> deprecatedProps = new HashSet<>();
         Map<String, String> mappings = new HashMap<>();
+        Map<String, String> v2Canonical = new HashMap<>();
 
         // 1. Load properties from resource files
-        loadPropertiesResource(V1_KNOWN_RESOURCE, v1Props, null);
-        loadPropertiesResource(V2_KNOWN_RESOURCE, v2Props, null);
-        loadPropertiesResource(V1_DEPRECATED_RESOURCE, deprecatedProps, null);
-        loadPropertiesResource(MAPPINGS_RESOURCE, null, mappings);
+        loadPropertiesResource(V1_KNOWN_RESOURCE, v1Props, null, null);
+        loadPropertiesResource(V2_KNOWN_RESOURCE, v2Props, null, v2Canonical);
+        loadPropertiesResource(V1_DEPRECATED_RESOURCE, deprecatedProps, null, null);
+        loadPropertiesResource(MAPPINGS_RESOURCE, null, mappings, null);
 
         // 2. Pre-load / enrich with runtime enum keys from v1 and v2 if present on classpath
-        enrichWithRuntimeEnums(v1Props, v2Props);
+        enrichWithRuntimeEnums(v1Props, v2Props, v2Canonical);
 
         this.v1KnownProperties = Collections.unmodifiableSet(v1Props);
         this.v2KnownProperties = Collections.unmodifiableSet(v2Props);
         this.v1DeprecatedProperties = Collections.unmodifiableSet(deprecatedProps);
         this.v1ToV2Mappings = Collections.unmodifiableMap(mappings);
+        this.v2CanonicalKeys = Collections.unmodifiableMap(v2Canonical);
 
         log.debug("Pre-loaded {} v1 properties, {} v2 properties, {} deprecated properties, {} mappings into cache.",
                 v1KnownProperties.size(), v2KnownProperties.size(), v1DeprecatedProperties.size(), v1ToV2Mappings.size());
     }
 
-    private void loadPropertiesResource(String resourcePath, Set<String> targetSet, Map<String, String> targetMap) {
+    private void loadPropertiesResource(String resourcePath, Set<String> targetSet, Map<String, String> targetMap, Map<String, String> canonicalMap) {
         try (InputStream in = getClass().getResourceAsStream(resourcePath)) {
             if (in != null) {
                 Properties props = new Properties();
@@ -75,11 +78,18 @@ public class ConfigPropertyCache {
                     props.load(reader);
                 }
                 for (String key : props.stringPropertyNames()) {
+                    String trimmedKey = key.trim();
+                    String val = props.getProperty(key).trim();
                     if (targetSet != null) {
-                        targetSet.add(key.trim());
+                        addKeyToSet(targetSet, trimmedKey);
                     }
                     if (targetMap != null) {
-                        targetMap.put(key.trim(), props.getProperty(key).trim());
+                        targetMap.put(trimmedKey, val);
+                        targetMap.put(trimmedKey.toLowerCase(), val);
+                    }
+                    if (canonicalMap != null) {
+                        canonicalMap.putIfAbsent(trimmedKey, trimmedKey);
+                        canonicalMap.putIfAbsent(trimmedKey.toLowerCase(), trimmedKey);
                     }
                 }
             } else {
@@ -90,25 +100,25 @@ public class ConfigPropertyCache {
         }
     }
 
-    private void enrichWithRuntimeEnums(Set<String> v1Props, Set<String> v2Props) {
+    private void enrichWithRuntimeEnums(Set<String> v1Props, Set<String> v2Props, Map<String, String> v2Canonical) {
         // v2 ClientConfigProperties and ClientConfigurationProperties
-        loadEnumKeysFromClasspath("com.clickhouse.client.api.ClientConfigProperties", v2Props);
-        loadEnumKeysFromClasspath("com.clickhouse.client.api.ClientConfigurationProperties", v2Props);
+        loadEnumKeysFromClasspath("com.clickhouse.client.api.ClientConfigProperties", v2Props, v2Canonical);
+        loadEnumKeysFromClasspath("com.clickhouse.client.api.ClientConfigurationProperties", v2Props, v2Canonical);
 
         // v2 DriverProperties
-        loadEnumKeysFromClasspath("com.clickhouse.jdbc.DriverProperties", v2Props);
+        loadEnumKeysFromClasspath("com.clickhouse.jdbc.DriverProperties", v2Props, v2Canonical);
 
         // v1 ClickHouseClientOption
-        loadEnumKeysFromClasspath("com.clickhouse.client.config.ClickHouseClientOption", v1Props);
+        loadEnumKeysFromClasspath("com.clickhouse.client.config.ClickHouseClientOption", v1Props, null);
 
         // v1 ClickHouseHttpOption
-        loadEnumKeysFromClasspath("com.clickhouse.client.http.config.ClickHouseHttpOption", v1Props);
+        loadEnumKeysFromClasspath("com.clickhouse.client.http.config.ClickHouseHttpOption", v1Props, null);
 
         // v1 JdbcConfig
         loadJdbcConfigFromClasspath(v1Props);
     }
 
-    private void loadEnumKeysFromClasspath(String className, Set<String> targetSet) {
+    private void loadEnumKeysFromClasspath(String className, Set<String> targetSet, Map<String, String> canonicalMap) {
         try {
             Class<?> clazz = Class.forName(className, false, getClass().getClassLoader());
             if (clazz.isEnum()) {
@@ -123,17 +133,22 @@ public class ConfigPropertyCache {
 
                     for (Object obj : constants) {
                         if (obj != null) {
+                            String keyStr = null;
                             if (getKeyMethod != null) {
                                 try {
                                     Object keyObj = getKeyMethod.invoke(obj);
                                     if (keyObj != null) {
-                                        targetSet.add(keyObj.toString());
+                                        keyStr = keyObj.toString();
                                     }
                                 } catch (Exception e) {
-                                    targetSet.add(obj.toString());
+                                    keyStr = obj.toString();
                                 }
                             } else {
-                                targetSet.add(obj.toString());
+                                keyStr = obj.toString();
+                            }
+
+                            if (keyStr != null) {
+                                addKeyToSetAndCanonicalMap(targetSet, canonicalMap, keyStr);
                             }
                         }
                     }
@@ -155,7 +170,7 @@ public class ConfigPropertyCache {
                         Field nameField = info.getClass().getField("name");
                         Object nameObj = nameField.get(info);
                         if (nameObj != null) {
-                            v1Props.add(nameObj.toString());
+                            addKeyToSet(v1Props, nameObj.toString());
                         }
                     }
                 }
@@ -167,13 +182,37 @@ public class ConfigPropertyCache {
                         Field nameField = info.getClass().getField("name");
                         Object nameObj = nameField.get(info);
                         if (nameObj != null) {
-                            v1Props.add(nameObj.toString());
+                            addKeyToSet(v1Props, nameObj.toString());
                         }
                     }
                 }
             }
         } catch (Throwable t) {
             log.debug("Could not inspect JdbcConfig properties: {}", t.getMessage());
+        }
+    }
+
+    private void addKeyToSet(Set<String> targetSet, String key) {
+        if (key != null) {
+            String trimmed = key.trim();
+            if (!trimmed.isEmpty()) {
+                targetSet.add(trimmed);
+                targetSet.add(trimmed.toLowerCase());
+            }
+        }
+    }
+
+    private void addKeyToSetAndCanonicalMap(Set<String> targetSet, Map<String, String> canonicalMap, String key) {
+        if (key != null) {
+            String trimmed = key.trim();
+            if (!trimmed.isEmpty()) {
+                targetSet.add(trimmed);
+                targetSet.add(trimmed.toLowerCase());
+                if (canonicalMap != null) {
+                    canonicalMap.putIfAbsent(trimmed, trimmed);
+                    canonicalMap.putIfAbsent(trimmed.toLowerCase(), trimmed);
+                }
+            }
         }
     }
 
@@ -184,7 +223,7 @@ public class ConfigPropertyCache {
      * @return true if key is known in v1
      */
     public boolean isV1KnownProperty(String key) {
-        return key != null && v1KnownProperties.contains(key);
+        return key != null && (v1KnownProperties.contains(key) || v1KnownProperties.contains(key.toLowerCase()));
     }
 
     /**
@@ -194,7 +233,7 @@ public class ConfigPropertyCache {
      * @return true if key is known in v2
      */
     public boolean isV2KnownProperty(String key) {
-        return key != null && v2KnownProperties.contains(key);
+        return key != null && (v2KnownProperties.contains(key) || v2KnownProperties.contains(key.toLowerCase()));
     }
 
     /**
@@ -217,7 +256,28 @@ public class ConfigPropertyCache {
         if (v1Key == null) {
             return null;
         }
-        return v1ToV2Mappings.getOrDefault(v1Key, v1Key);
+        String mapped = v1ToV2Mappings.get(v1Key);
+        if (mapped == null) {
+            mapped = v1ToV2Mappings.get(v1Key.toLowerCase());
+        }
+        return mapped != null ? mapped : v1Key;
+    }
+
+    /**
+     * Gets the canonical v2 property key for a known v2 key.
+     *
+     * @param key property name in v2 format
+     * @return canonical v2 key name, or null if key is not known in v2
+     */
+    public String getV2CanonicalKey(String key) {
+        if (key == null) {
+            return null;
+        }
+        String canonical = v2CanonicalKeys.get(key);
+        if (canonical == null) {
+            canonical = v2CanonicalKeys.get(key.toLowerCase());
+        }
+        return canonical;
     }
 
     /**
