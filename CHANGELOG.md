@@ -174,6 +174,22 @@
   `Accept-Encoding`, so the client reads the algorithm it asked for; see the breaking-changes entry above.
   (https://github.com/ClickHouse/clickhouse-java/issues/3105)
 
+- **[jdbc-v2]** Fixed `Connection#prepareStatement` throwing a `NullPointerException` for an
+  `INSERT ... VALUES (...)` statement whose values list the default JavaCC parser cannot parse — most commonly one
+  containing a heredoc string (`$$...$$`), which the grammar has no token for, but also any other unparsable token
+  inside the list. The parser's error recovery left the values list's start position recorded without its matching end
+  position, which was then unboxed unguarded. Both positions are now dropped together, so the driver falls back to its
+  generic parameter-substitution path and such statements are prepared and executed successfully. The `ANTLR4`
+  parser backends were not affected. (https://github.com/ClickHouse/clickhouse-java/issues/3013)
+- **[client-v2]** Fixed reading a `JSON` or named `Tuple` value nested in a `Dynamic` column when a typed path or
+  element name requires quoting (it contains a space, a comma or a bracket). Names read from the binary type encoding
+  were appended to the reconstructed type name unquoted, so e.g. ``JSON(`a b` Int64)`` inside a `Dynamic` column
+  produced a malformed type name and the whole query failed with `IllegalArgumentException: Unknown data type: b Int64`.
+  Such names are now back-quoted (with inner back-quotes escaped) exactly as the server renders them, and `JSON` skip
+  paths and path regexps are emitted with their `SKIP` / `SKIP REGEXP` markers. Names that need no quoting are
+  rendered as before. Top-level `JSON` columns and `JSON` nested in `Map`/`Tuple`/`Array` were
+  not affected — their type comes from the `RowBinaryWithNamesAndTypes` header, which the server already quotes.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3001)
 - **[client-v2]** Fixed reading a `Variant`, `Nested`, `Decimal` or `Enum` value held in a `Dynamic` column. The
   concrete type rebuilt from the binary type encoding did not match what the server encoded: `Variant` was wrapped
   twice (so the discriminator selected the wrong element), `Nested` read only the element names and left the element
