@@ -83,7 +83,7 @@ public class ClickHouseLZ4InputStream extends InputStream {
                 if (n == 0) {
                     return false;
                 }
-                throw new IOException(ClickHouseUtils.format("Incomplete read: {0} of {1}", n, len));
+                throw new IOException(ClickHouseUtils.format("Incomplete read: %s of %s", n, len));
             }
             n += count;
         }
