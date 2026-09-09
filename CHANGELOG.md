@@ -1,6 +1,7 @@
 ## 0.11.0-rc1 
 
 [Release Migration Guide](docs/releases/0_11_0.md)
+[Migration Helpers](migration-helpers) - small code helpers to convert old configuration to a new one.
 
 ### Breaking Changes
 
@@ -11,6 +12,8 @@
   to call it. (https://github.com/ClickHouse/clickhouse-java/issues/2974)
 
 ### New Features
+
+- **[migration-helpers]** Added `migration-helpers` module containing `ConfigurationMigrationHelper` and `ConfigPropertyCache` to convert configuration properties and connection URLs from v1 (0.7.1) format to v2 (0.9.8+) format (automatically prefixing ClickHouse server settings with `clickhouse_setting_`, custom headers with `http_header_`, and mapping renamed property keys).
 
 - **[client-v2, jdbc-v2]** Added support for the `MultiPoint` geo data type (ClickHouse `26.8+`). Previously the type was
   unknown to the client, so reading or writing a `MultiPoint` column failed with `Unknown data type: MultiPoint`, and a
