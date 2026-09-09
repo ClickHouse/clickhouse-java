@@ -150,6 +150,13 @@
 
 ### Bug Fixes 
 
+- **[client-v2]** Fixed a `Nullable(T)` column bound to a **primitive** POJO field silently corrupting a row on the
+  POJO read path. The compiled setter went straight to a primitive read method without consuming the `Nullable`
+  null-marker byte, which is on the wire for every value of a nullable column regardless of the value, so the stream
+  stayed shifted by one byte per row and the nullable column and every column after it decoded from the wrong offset
+  without any error being raised. The generated setter now consumes the marker; a value that is actually `NULL` cannot
+  be held by a primitive field and is reported with a `NullValueException`. Boxed POJO fields are unaffected.
+  (https://github.com/ClickHouse/clickhouse-java/issues/2993)
 - **[client-v2]** Fixed the `Native` format reader (`NativeFormatReader`) misreading `Array` columns in multi-row
   results whose rows have different lengths. Native encodes an array column as cumulative row offsets followed by the
   flattened elements, but the reader used the first row's offset as the element count for every row — truncating later
