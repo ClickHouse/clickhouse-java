@@ -153,6 +153,13 @@
 
 ### Bug Fixes 
 
+- **[jdbc-v2]** Fixed `Connection#prepareStatement` throwing a `NullPointerException` for an
+  `INSERT ... VALUES (...)` statement whose values list the default JavaCC parser cannot parse — most commonly one
+  containing a heredoc string (`$$...$$`), which the grammar has no token for, but also any other unparsable token
+  inside the list. The parser's error recovery left the values list's start position recorded without its matching end
+  position, which was then unboxed unguarded. Both positions are now dropped together, so the driver falls back to its
+  generic parameter-substitution path and such statements are prepared and executed successfully. The `ANTLR4`
+  parser backends were not affected. (https://github.com/ClickHouse/clickhouse-java/issues/3013)
 - **[client-v2]** Fixed reading a `JSON` or named `Tuple` value nested in a `Dynamic` column when a typed path or
   element name requires quoting (it contains a space, a comma or a bracket). Names read from the binary type encoding
   were appended to the reconstructed type name unquoted, so e.g. ``JSON(`a b` Int64)`` inside a `Dynamic` column
