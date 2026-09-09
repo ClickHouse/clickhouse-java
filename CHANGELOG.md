@@ -12,6 +12,19 @@
 
 ### New Features
 
+- **[client-v2, jdbc-v2]** Added support for the `MultiPoint` geo data type (ClickHouse `26.8+`). Previously the type was
+  unknown to the client, so reading or writing a `MultiPoint` column failed with `Unknown data type: MultiPoint`, and a
+  `MultiPoint` value inside a `Geometry` column failed with an out-of-range variant discriminator. `MultiPoint` is
+  `Array(Point)` on the wire, exactly like `Ring` and `LineString`, so it is read and written as `double[][]` through
+  generic records, binary readers, POJO binding, and SQL parameter formatting, and is read from `Dynamic` columns. In the
+  JDBC driver (`jdbc-v2`) `MultiPoint` maps
+  to `java.sql.Types.ARRAY`, is returned as `double[][]` from `getObject` and as a `java.sql.Array` from `getArray`, and is
+  reported by `ResultSetMetaData` and `DatabaseMetaData`. ClickHouse `26.8` also adds `MultiPoint` to the `Geometry`
+  variant; the server appends it after the existing six variants instead of ordering it by type name, so the client now
+  keeps that order and decodes a `MultiPoint` held in a `Geometry` column. Because `MultiPoint` shares its Java
+  representation (`double[][]`) with `Ring` and `LineString`, it is not selectable through the shape-based `Geometry`
+  write path — a 2D value keeps resolving to `Ring` as before, and writing `MultiPoint` requires a concrete `MultiPoint`
+  column. (https://github.com/ClickHouse/clickhouse-java/issues/3048)
 - **[client-v2, jdbc-v2]** Added a Micrometer implementation of the metrics SPI.
   `Client.Builder.setMetricsRecorder(new MicrometerMetricsRecorder(meterRegistry))` reports the metrics of every client
   operation to a Micrometer `MeterRegistry`: a timer `db.client.operation.duration` per completed operation, a timer
@@ -145,6 +158,9 @@
   as `<unknown>`. The constant width of an enum is now taken from the type tag rather than from the number of
   constants, which also fixes reading an `Enum16` with fewer than 128 constants and negative `Enum8` constants.
   (https://github.com/ClickHouse/clickhouse-java/issues/3003)
+- **[jdbc-v2]** Fixed `SQLException#getSQLState()` returning the generic data-exception state `22000`
+  when ClickHouse reports an unknown table. The driver now returns `42S02` (base table or view not found) while
+  preserving the ClickHouse error code and original exception. (https://github.com/ClickHouse/clickhouse-java/issues/3104)
 - **[client-v2]** Fixed truncated LZ4 stream errors reporting literal `{0}` and `{1}` placeholders instead of the
   number of bytes read and expected. (https://github.com/ClickHouse/clickhouse-java/issues/3108)
 - **[jdbc-v2]** Fixed `DatabaseMetaData#getTables` reporting `TABLE_TYPE = TABLE` for a table with the `BigQuery`
@@ -331,6 +347,15 @@
   NPE instead of a clear error. It now throws `IllegalArgumentException` naming the column, consistent with
   the existing `IllegalArgumentException` for other unsupported enum values. Nullable enum columns are
   unaffected. (https://github.com/ClickHouse/clickhouse-java/issues/2931)
+- **[client-v2]** Fixed silent data corruption when serializing a Java `null` into a non-nullable
+  `Array(...)` column via `RowBinaryFormatWriter`. `RowBinaryFormatSerializer.writeValuePreamble`
+  special-cased `Array`, emitting a stray marker byte on top of the array length; the server read the
+  extra byte as a phantom extra row (single-column inserts) or as a column shift that failed the insert
+  with `CANNOT_READ_ALL_DATA` (multi-column inserts). A non-nullable `Array` cannot represent a `null`,
+  so it now throws `IllegalArgumentException` naming the column — consistent with every other non-nullable
+  type — in both the `RowBinary` and `RowBinaryWithDefaults` paths. Empty arrays (`[]`) still serialize
+  correctly, and `Dynamic` columns, which can hold a `null` as the implicit `Nothing` type, are
+  unaffected. (https://github.com/ClickHouse/clickhouse-java/issues/2938)
 - **[client-v2]** Fixed POJO insert error classification so transport write failures such as java.net.SocketException:
   Broken pipe (Write failed) are now surfaced as transfer/network errors instead of being wrapped as
   DataSerializationException. This only changes the exception type reported for request-body transport failures during
