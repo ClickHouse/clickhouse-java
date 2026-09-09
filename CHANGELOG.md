@@ -159,6 +159,15 @@
   executes fine. The placeholder scan now skips both token kinds, like the server lexer does; a `$` that does not open a
   heredoc is still treated as an ordinary character (it is a valid identifier character).
   (https://github.com/ClickHouse/clickhouse-java/issues/3009)
+- **[client-v2]** Fixed reading a `JSON` or named `Tuple` value nested in a `Dynamic` column when a typed path or
+  element name requires quoting (it contains a space, a comma or a bracket). Names read from the binary type encoding
+  were appended to the reconstructed type name unquoted, so e.g. ``JSON(`a b` Int64)`` inside a `Dynamic` column
+  produced a malformed type name and the whole query failed with `IllegalArgumentException: Unknown data type: b Int64`.
+  Such names are now back-quoted (with inner back-quotes escaped) exactly as the server renders them, and `JSON` skip
+  paths and path regexps are emitted with their `SKIP` / `SKIP REGEXP` markers. Names that need no quoting are
+  rendered as before. Top-level `JSON` columns and `JSON` nested in `Map`/`Tuple`/`Array` were
+  not affected — their type comes from the `RowBinaryWithNamesAndTypes` header, which the server already quotes.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3001)
 - **[client-v2]** Fixed reading a `Variant`, `Nested`, `Decimal` or `Enum` value held in a `Dynamic` column. The
   concrete type rebuilt from the binary type encoding did not match what the server encoded: `Variant` was wrapped
   twice (so the discriminator selected the wrong element), `Nested` read only the element names and left the element
