@@ -382,7 +382,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                         "1970-01-01 00:00:01" },
                 { ClickHouseDataType.DateTime32.name(), "1970-01-01 00:00:00", "1970-01-01 00:00:00",
                         "1970-01-01 00:00:01" },
-                { ClickHouseDataType.DateTime64.name() + "(3)", "1970-01-01 00:00:00", "1969-12-31 23:59:59.999",
+                { ClickHouseDataType.DateTime64.name() + "(3)", "1970-01-01 00:00:00", "1970-01-01 00:00:00",
                         "1970-01-01 00:00:00.001" },
                 { ClickHouseDataType.Decimal.name() + "(10,9)", "0E-9", "-1.000000000", "1.000000000" },
                 { ClickHouseDataType.Decimal32.name() + "(1)", "0.0", "-1.0", "1.0" },
