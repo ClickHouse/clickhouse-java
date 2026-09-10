@@ -159,6 +159,14 @@
   executes fine. The placeholder scan now skips both token kinds, like the server lexer does; a `$` that does not open a
   heredoc is still treated as an ordinary character (it is a valid identifier character).
   (https://github.com/ClickHouse/clickhouse-java/issues/3009)
+- **[jdbc-v2]** Fixed `INSERT INTO [TABLE] FUNCTION f(...) VALUES (?)` failing with
+  `Code: 60 ... does not exist. (UNKNOWN_TABLE)` when the `beta.row_binary_for_simple_insert` feature was
+  enabled. Neither SQL parser reported a table-function insert target as a function, so the statement was
+  routed to the `RowBinary` writer, which looked the function name (or a placeholder such as `unknown`) up as
+  a table. Both parsers now report such a statement as using a function, so it stays on the regular SQL path;
+  additionally the JavaCC grammar no longer mis-parses `INSERT INTO TABLE FUNCTION f(...)` by consuming
+  `FUNCTION` as the table name. Inserts into a plain table are unaffected and still use the `RowBinary`
+  writer. (https://github.com/ClickHouse/clickhouse-java/issues/3015)
 - **[jdbc-v2]** Fixed `Connection#prepareStatement` throwing a `NullPointerException` for an
   `INSERT ... VALUES (...)` statement whose values list the default JavaCC parser cannot parse — most commonly one
   containing a heredoc string (`$$...$$`), which the grammar has no token for, but also any other unparsable token
@@ -309,6 +317,11 @@
   performs the handshake and runs the post-close action; a concurrent or repeated `close()` returns immediately. A
   `close()` which fails while flushing the remaining data also marks the stream closed and runs the post-close
   action, so the stream cannot stay half-closed. (https://github.com/ClickHouse/clickhouse-java/issues/3055)
+- **[data]** Fixed `NonBlockingPipedOutputStream.close()` not being idempotent under concurrency. Two threads could
+  both flush and mutate the same pending buffer before the reader consumed it, silently replacing the payload with
+  an empty buffer and running the post-close action twice. Exactly one caller now flushes the pending data, enqueues
+  the end-of-stream marker, and runs the post-close action; concurrent or repeated `close()` calls return immediately.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3057)
 - **[jdbc-v2]** Fixed JDBC escape processing rewriting text inside string literals and quoted identifiers. Because
   `PreparedStatement` inlines bound parameters into the statement text, a bound value containing `{fn ` (or `{d '...'}`
   / `{ts '...'}`) was re-read as SQL syntax: the `{fn ` was removed together with the next `}` found anywhere in the
