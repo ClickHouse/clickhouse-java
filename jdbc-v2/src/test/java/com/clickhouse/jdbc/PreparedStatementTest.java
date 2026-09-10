@@ -880,6 +880,29 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = { "integration" })
+    void testInsertWithHeredocValue() throws Exception {
+        final String table = "test_insert_heredoc";
+        try (Connection conn = getJdbcConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("DROP TABLE IF EXISTS " + table);
+                stmt.execute("CREATE TABLE " + table + " (s String, n Int32) Engine MergeTree ORDER BY ()");
+            }
+            try (PreparedStatement stmt = conn.prepareStatement(
+                    "INSERT INTO " + table + " (s, n) VALUES ($$a@b$$, ?)")) {
+                stmt.setInt(1, 42);
+                assertEquals(stmt.executeUpdate(), 1);
+            }
+            try (Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery("SELECT s, n FROM " + table)) {
+                assertTrue(rs.next());
+                assertEquals(rs.getString(1), "a@b");
+                assertEquals(rs.getInt(2), 42);
+                assertFalse(rs.next());
+            }
+        }
+    }
+
+    @Test(groups = { "integration" })
     void testStatementSplit() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
@@ -934,6 +957,34 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
             }
 
         }
+    }
+
+    @Test(groups = { "integration" }, dataProvider = "commentsAndHeredocsDP")
+    void testPlaceholdersWithCommentsAndHeredocs(String sql, String expected) throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                stmt.setString(1, "42");
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getString(1), expected);
+                    assertFalse(rs.next());
+                }
+            }
+        }
+    }
+
+    @DataProvider(name = "commentsAndHeredocsDP")
+    public static Object[][] commentsAndHeredocsDP() {
+        return new Object[][] {
+                {"SELECT ? AS v // ?", "42"},
+                {"SELECT ? AS v // ?\nUNION ALL SELECT NULL WHERE 0", "42"},
+                {"SELECT //\n? AS v", "42"},
+                {"SELECT --\n? AS v", "42"},
+                {"SELECT concat($$?$$, ?) AS v", "?42"},
+                {"SELECT concat($tag$ ? $tag$, ?) AS v", " ? 42"},
+                {"SELECT ? AS a$x$, 1 AS b$x$", "42"},
+                {"SELECT ? AS a$$b$, 1 AS x$$b$", "42"},
+        };
     }
 
     @Test(groups = {"integration"})
