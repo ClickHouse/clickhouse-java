@@ -158,6 +158,21 @@
   keywords `IDLE TIMEOUT` and `RECENT SAMPLES`) to the list of keywords allowed in identifier positions. The server
   accepts all of them as a column or table alias, so a query using one of them as an identifier must parse.
   (https://github.com/ClickHouse/clickhouse-java/issues/3113)
+- **[client-v2]** Fixed a query with statement parameters sent in the request body
+  (`client.http.use_form_request_for_query=true`) failing with `LZ4 decompression failed ... (LZ4_DECODER_FAILED)`
+  when client request compression and HTTP compression were both enabled. The multipart body is always sent
+  uncompressed, but the request still declared `Content-Encoding: lz4`; ClickHouse `26.8+` honours that header for
+  multipart requests and tried to decompress a plain body. The header is now omitted for multipart requests, like
+  the `decompress` query parameter already was. Response compression (`Accept-Encoding`,
+  `enable_http_compression`) is unchanged. (https://github.com/ClickHouse/clickhouse-java/issues/3075)
+- **[client-v1]** Fixed the `DateTime64` case of `testReadWriteSimpleTypes` failing against ClickHouse 26.8. From 26.8
+  an unquoted number written to a `DateTime64` column in the `Values`/`Quoted` and `JSON` paths is a Unix timestamp in
+  seconds instead of the raw scaled value - the server setting `input_format_read_datetime_number_as_raw_value`
+  changed its default from `1` to `0` - so the `insert into ... values(1)` of the test stored `1970-01-01 00:00:01`
+  instead of the expected `1970-01-01 00:00:00.001`. The test now writes a quoted date-time literal for `DateTime64`,
+  as it already does for `FixedString` and `UUID`, so the written value means the same on every server version and the
+  sub-second round-trip stays covered. No client code is affected: both clients quote a date-time value in a text
+  statement or send it in `RowBinary`. (https://github.com/ClickHouse/clickhouse-java/issues/3114)
 - **[jdbc-v2, client-v2]** Fixes issue with `FORMAT` in query unable to override format set by client when used with
   ClickHouse 26.8+. Default format is `RowBinaryWithNamesAndTypes` set at client level. For JDBC, recommend using
   `format=JSONEachRow` to query JSON. Setting `format=` (empty or `null`) omits the format request header so explicit
