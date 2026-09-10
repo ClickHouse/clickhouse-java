@@ -31,13 +31,19 @@ There are special Release Candidate releases. They have the suffix `-rcX`, where
 ClickHouse is a very fast-developing project: many new features, extensions, and improvements with each release. Thus, keeping the client up to date is a very important job.
 
 Why is it so important?
-- Fix security issues, if any.
-- Support your users with new features.
 - Adopt new database behavior so your users can work with the latest ClickHouse version.
 - Fix critical issues that block normal work.
+- Fix security issues, if any.
+- Support your users with new features.
 
-When the version lag is significant, it is almost impossible to upgrade quickly to the latest version. In the case of an emergency fix, it multiplies the problems.
-It is fine to skip a few patch versions if there is an established upgrade process every few months. However, skipping a single minor version (the middle digit, where significant changes happen) will cause problems. They are usually found only after something is broken.
+When the version lag is significant, it is almost impossible to upgrade quickly to the latest version. In the case of an
+emergency fix, it multiplies the problems. It is fine to skip a few patch versions if there is an established upgrade
+process every few months. However, skipping a single minor version (the middle digit, where significant changes happen)
+will cause problems. They are usually found only after something is broken.
+
+We highlight breaking and significant changes in release notes. See also release specific migration guides in `docs/releases/` in this repo.
+Migration guide for V1-to-V2 is in main documentation separetly for [Client](https://clickhouse.com/docs/integrations/language-clients/java/client#migration_guide) 
+and [JDBC](https://clickhouse.com/docs/integrations/language-clients/java/jdbc#migration-guide). 
 
 Minor versions may have many changes, and some of them need a preview from your side. In this case, we release an `-rc` version and let you know. This version is **only** for preview and not for production use. The preview lasts for a few weeks to let everyone send their feedback. If changes are needed, we will release a new `-rc` and repeat the cycle.
 
