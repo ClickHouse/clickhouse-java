@@ -872,10 +872,16 @@ public class HttpAPIClientHelper {
     private void addHeaders(HttpPost req, Map<String, Object> requestConfig) {
         setHeader(req, HttpHeaders.CONTENT_TYPE, CONTENT_TYPE.getMimeType());
         if (requestConfig.containsKey(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey())) {
-            setHeader(
-                req,
-                ClickHouseHttpProto.HEADER_FORMAT,
-                    ((ClickHouseFormat) requestConfig.get(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey())).name());
+            Object formatObj = requestConfig.get(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey());
+            if (formatObj != null) {
+                String formatStr = formatObj instanceof String ? formatObj.toString() : ((ClickHouseFormat)formatObj).name();
+                if (ClientUtils.isNotBlank(formatStr)) {
+                    setHeader(
+                        req,
+                        ClickHouseHttpProto.HEADER_FORMAT,
+                        formatStr);
+                }
+            }
         }
         if (requestConfig.containsKey(ClientConfigProperties.QUERY_ID.getKey())) {
             setHeader(

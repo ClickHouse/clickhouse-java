@@ -82,6 +82,12 @@ public class QueryResponse implements AutoCloseable {
         }
     }
 
+    /**
+     * Returns format of the date stream accessible via {@link #getInputStream()}
+     * This format is set from server response header `X-ClickHouse-Format`.
+     *
+     * @return ClickHouseFormat - format matching server response format.
+     */
     public ClickHouseFormat getFormat() {
         return format;
     }
