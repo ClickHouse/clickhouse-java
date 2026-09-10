@@ -124,7 +124,87 @@ public abstract class SqlParserFacade {
 
             stmt.setUseFunction(parsedStmt.isFuncUsed());
             parseParameters(sql, stmt);
+            discardValuesListPositionsNotMatchingOriginalSql(sql, stmt);
             return stmt;
+        }
+
+        /**
+         * The token manager records keyword positions as offsets into the SQL it rebuilds from the token stream, which
+         * is not always identical to the SQL it was given: semicolons are dropped and JDBC escape sequences are
+         * rewritten. Consumers of the values list positions slice the original SQL, so when the two have drifted apart
+         * the positions address the wrong characters or point past the end of the string. Discard them in that case to
+         * let the generic parameter substitution path handle the statement.
+         */
+        private void discardValuesListPositionsNotMatchingOriginalSql(String sql, ParsedPreparedStatement stmt) {
+            int startPosition = stmt.getAssignValuesListStartPosition();
+            int stopPosition = stmt.getAssignValuesListStopPosition();
+            if (startPosition < 0 || stopPosition < 0) {
+                return;
+            }
+
+            boolean matches = stopPosition > startPosition && stopPosition < sql.length()
+                    && sql.charAt(startPosition) == '(' && closesParenthesizedGroup(sql, startPosition, stopPosition);
+            if (matches) {
+                int[] paramPositions = stmt.getParamPositions();
+                for (int i = 0; i < stmt.getArgCount(); i++) {
+                    if (paramPositions[i] < startPosition || paramPositions[i] > stopPosition) {
+                        matches = false;
+                        break;
+                    }
+                }
+            }
+
+            if (!matches) {
+                LOG.debug("Values list positions [{}, {}] do not match the original SQL", startPosition, stopPosition);
+                stmt.setAssignValuesListStartPosition(-1);
+                stmt.setAssignValuesListStopPosition(-1);
+            }
+        }
+
+        /**
+         * Tells whether the parenthesis opened at {@code startPosition} is closed exactly at {@code stopPosition},
+         * ignoring parentheses inside quoted text and inside comments. The comment forms recognized here are the ones
+         * the token manager treats as comments as well: {@code --}, {@code //}, {@code #} (thus also {@code #!}) up to
+         * the end of the line, and nestable {@code /* ... *}{@code /} blocks.
+         */
+        private boolean closesParenthesizedGroup(String sql, int startPosition, int stopPosition) {
+            int len = sql.length();
+            int depth = 0;
+            int i = startPosition;
+            try {
+                while (i <= stopPosition) {
+                    char ch = sql.charAt(i);
+                    int afterSkipped; // index right after quoted text or a comment, -1 when neither starts here
+                    if (ClickHouseUtils.isQuote(ch)) {
+                        afterSkipped = ClickHouseUtils.skipQuotedString(sql, i, len, ch);
+                    } else if (ch == '#' || (i + 1 < len && sql.charAt(i + 1) == ch && (ch == '-' || ch == '/'))) {
+                        // search from the last character of the comment opener: it is never a line separator, and
+                        // skipSingleLineComment() only reports one found strictly after the index it is given
+                        afterSkipped = ClickHouseUtils.skipSingleLineComment(sql, ch == '#' ? i : i + 1, len);
+                    } else if (ch == '/' && i + 1 < len && sql.charAt(i + 1) == '*') {
+                        afterSkipped = ClickHouseUtils.skipMultiLineComment(sql, i + 2, len);
+                    } else {
+                        afterSkipped = -1;
+                    }
+
+                    if (afterSkipped < 0) {
+                        if (ch == '(') {
+                            depth++;
+                        } else if (ch == ')' && --depth == 0) {
+                            return i == stopPosition;
+                        }
+                        i++;
+                    } else {
+                        if (afterSkipped - 1 > stopPosition) { // quoted text or comment reaching past the values list
+                            return false;
+                        }
+                        i = afterSkipped;
+                    }
+                }
+            } catch (IllegalArgumentException e) { // unterminated quoted text or comment
+                return false;
+            }
+            return false;
         }
 
         private List<String> processRoles(Map<String, String> settings) {
