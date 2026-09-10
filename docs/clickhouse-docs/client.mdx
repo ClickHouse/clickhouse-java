@@ -585,6 +585,22 @@ This object should be closed as soon as possible to release a connection because
 
 ## Query API {#query-api}
 
+**Format Selection**
+
+Client provides transparent access to the response stream from server. User is free to choose any ClickHouse format in request and read data via `InputStream`
+from `QueryResponse` object. 
+Format can be requested via: 
+- `QuerySettings#setFormat()` this will set format header in a request. 
+- In `FORMAT` clause in query itself. 
+- Server settings `default_format` (/reference/settings/session-settings/default#default_format)
+
+There are differences in behavior depending on ClickHouse and Client version: 
+- Client &lt; `0.11.0` &amp; ClickHouse &lt; `26.8` - `FORMAT` clause has priority over request format header.
+- Client &gt; `0.11.0` &amp; ClickHouse &gt; `26.8` - request header has priority over `FORMAT` clause.
+    - Client sets header when no format is specified in `QuerySettings` - this doesn't allow to override format in query. 
+- Client starting `0.11.0` - sets default `format` value on client level and not on operation level. This allows existig code 
+work without changes and new code to use `FORMAT` clause by settings `format` on client to `null`.
+
 ### query(String sqlQuery) {#querystring-sqlquery}
 
 Sends `sqlQuery` as is. Response format is set by query settings. `QueryResponse` will hold a reference to the response stream that should be consumed by a reader for the supportig format.

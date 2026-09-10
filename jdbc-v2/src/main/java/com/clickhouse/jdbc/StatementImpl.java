@@ -309,7 +309,8 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             }
 
             ClickHouseFormatReader reader;
-            if (response.getFormat() == ClickHouseFormat.JSONEachRow) {
+            ClickHouseFormat format = response.getFormat();
+            if (format == ClickHouseFormat.JSONEachRow) {
                 if (connection.getJsonParserFactory() == null) {
                     throw new SQLException("Response is in JSONEachRow format, but " +
                             DriverProperties.JSON_PARSER_FACTORY.getKey() + " is not configured. Set " +
@@ -317,10 +318,12 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
                             ExceptionUtils.SQL_STATE_CLIENT_ERROR);
                 }
                 reader = new JSONEachRowFormatReader(connection.getJsonParserFactory().createJsonParser(response.getInputStream()));
-            } else if (!response.getFormat().isText()) {
+            } else if (format != null && !format.isText()) {
                 reader = connection.getClient().newBinaryFormatReader(response);
             } else {
-                throw new SQLException("Only RowBinaryWithNameAndTypes and JSONEachRow are supported for output format. Please check your query.",
+                String formatStr = format != null ? format.name() : "unknown";
+                throw new SQLException("Only RowBinaryWithNameAndTypes and JSONEachRow are supported for output format, but received format '"
+                        + formatStr + "'. Please check your query or 'format' property configuration.",
                         ExceptionUtils.SQL_STATE_CLIENT_ERROR);
             }
 

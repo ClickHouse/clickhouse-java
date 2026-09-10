@@ -100,8 +100,9 @@ public abstract class SqlParserFacade {
             stmt.setAssignValuesGroups(parsedStmt.getValueGroups());
 
             Integer startIndex = parsedStmt.getPositions().get(ClickHouseSqlStatement.KEYWORD_VALUES_START);
-            if (startIndex != null) {
-                int endIndex = parsedStmt.getPositions().get(ClickHouseSqlStatement.KEYWORD_VALUES_END);
+            Integer endIndexValue = parsedStmt.getPositions().get(ClickHouseSqlStatement.KEYWORD_VALUES_END);
+            if (startIndex != null && endIndexValue != null) {
+                int endIndex = endIndexValue;
                 stmt.setAssignValuesListStartPosition(startIndex);
                 stmt.setAssignValuesListStopPosition(endIndex);
                 String query = parsedStmt.getSQL();
@@ -123,7 +124,87 @@ public abstract class SqlParserFacade {
 
             stmt.setUseFunction(parsedStmt.isFuncUsed());
             parseParameters(sql, stmt);
+            discardValuesListPositionsNotMatchingOriginalSql(sql, stmt);
             return stmt;
+        }
+
+        /**
+         * The token manager records keyword positions as offsets into the SQL it rebuilds from the token stream, which
+         * is not always identical to the SQL it was given: semicolons are dropped and JDBC escape sequences are
+         * rewritten. Consumers of the values list positions slice the original SQL, so when the two have drifted apart
+         * the positions address the wrong characters or point past the end of the string. Discard them in that case to
+         * let the generic parameter substitution path handle the statement.
+         */
+        private void discardValuesListPositionsNotMatchingOriginalSql(String sql, ParsedPreparedStatement stmt) {
+            int startPosition = stmt.getAssignValuesListStartPosition();
+            int stopPosition = stmt.getAssignValuesListStopPosition();
+            if (startPosition < 0 || stopPosition < 0) {
+                return;
+            }
+
+            boolean matches = stopPosition > startPosition && stopPosition < sql.length()
+                    && sql.charAt(startPosition) == '(' && closesParenthesizedGroup(sql, startPosition, stopPosition);
+            if (matches) {
+                int[] paramPositions = stmt.getParamPositions();
+                for (int i = 0; i < stmt.getArgCount(); i++) {
+                    if (paramPositions[i] < startPosition || paramPositions[i] > stopPosition) {
+                        matches = false;
+                        break;
+                    }
+                }
+            }
+
+            if (!matches) {
+                LOG.debug("Values list positions [{}, {}] do not match the original SQL", startPosition, stopPosition);
+                stmt.setAssignValuesListStartPosition(-1);
+                stmt.setAssignValuesListStopPosition(-1);
+            }
+        }
+
+        /**
+         * Tells whether the parenthesis opened at {@code startPosition} is closed exactly at {@code stopPosition},
+         * ignoring parentheses inside quoted text and inside comments. The comment forms recognized here are the ones
+         * the token manager treats as comments as well: {@code --}, {@code //}, {@code #} (thus also {@code #!}) up to
+         * the end of the line, and nestable {@code /* ... *}{@code /} blocks.
+         */
+        private boolean closesParenthesizedGroup(String sql, int startPosition, int stopPosition) {
+            int len = sql.length();
+            int depth = 0;
+            int i = startPosition;
+            try {
+                while (i <= stopPosition) {
+                    char ch = sql.charAt(i);
+                    int afterSkipped; // index right after quoted text or a comment, -1 when neither starts here
+                    if (ClickHouseUtils.isQuote(ch)) {
+                        afterSkipped = ClickHouseUtils.skipQuotedString(sql, i, len, ch);
+                    } else if (ch == '#' || (i + 1 < len && sql.charAt(i + 1) == ch && (ch == '-' || ch == '/'))) {
+                        // search from the last character of the comment opener: it is never a line separator, and
+                        // skipSingleLineComment() only reports one found strictly after the index it is given
+                        afterSkipped = ClickHouseUtils.skipSingleLineComment(sql, ch == '#' ? i : i + 1, len);
+                    } else if (ch == '/' && i + 1 < len && sql.charAt(i + 1) == '*') {
+                        afterSkipped = ClickHouseUtils.skipMultiLineComment(sql, i + 2, len);
+                    } else {
+                        afterSkipped = -1;
+                    }
+
+                    if (afterSkipped < 0) {
+                        if (ch == '(') {
+                            depth++;
+                        } else if (ch == ')' && --depth == 0) {
+                            return i == stopPosition;
+                        }
+                        i++;
+                    } else {
+                        if (afterSkipped - 1 > stopPosition) { // quoted text or comment reaching past the values list
+                            return false;
+                        }
+                        i = afterSkipped;
+                    }
+                }
+            } catch (IllegalArgumentException e) { // unterminated quoted text or comment
+                return false;
+            }
+            return false;
         }
 
         private List<String> processRoles(Map<String, String> settings) {
@@ -365,6 +446,12 @@ public abstract class SqlParserFacade {
 
             @Override
             public void enterInsertStmt(ClickHouseParser.InsertStmtContext ctx) {
+                if (ctx.tableFunctionExpr() != null) {
+                    // INSERT INTO [TABLE] FUNCTION f(...) has no plain table to write into, so the
+                    // parsed target must not be treated as a table name.
+                    parsedStatement.setUseFunction(true);
+                }
+
                 ClickHouseParser.TableIdentifierContext tableId = ctx.tableIdentifier();
                 if (tableId != null) {
                     extractAndSetDatabaseAndTable(tableId);
@@ -527,15 +614,90 @@ public abstract class SqlParserFacade {
                 }
             } else if (ch == ';') {
                 continue;
+            } else if (isWordChar(ch)) {
+                i = skipIdentifier(originalQuery, i, len) - 1;
             } else if (i + 1 < len) {
                 char nextCh = originalQuery.charAt(i + 1);
-                if ((ch == '-' && nextCh == ch) || (ch == '#')) {
-                    i = ClickHouseUtils.skipSingleLineComment(originalQuery, i + 2, len) - 1;
+                if ((ch == '-' && nextCh == ch) || (ch == '/' && nextCh == ch) || (ch == '#')) {
+                    i = skipLineComment(originalQuery, i + 1, len) - 1;
                 } else if (ch == '/' && nextCh == '*') {
                     i = ClickHouseUtils.skipMultiLineComment(originalQuery, i + 2, len) - 1;
+                } else if (ch == '$') {
+                    i = skipHeredoc(originalQuery, i, len) - 1;
                 }
             }
         }
+    }
+
+    /**
+     * Skips a line comment ({@code --}, {@code //}, {@code #} or {@code #!}) up to and including the
+     * terminating newline. An empty comment is terminated by the newline that directly follows the comment
+     * marker, so scanning must continue on the next line instead of stopping at the end of the query.
+     *
+     * @param query      non-null string to scan
+     * @param startIndex index of the second character of the comment marker, which is never a newline for
+     *                   {@code --} and {@code //}, and is the first comment character for {@code #}
+     * @param len        end index, usually length of the given string
+     * @return index of the start of the next line, or {@code len} when the comment is not terminated
+     */
+    private static int skipLineComment(String query, int startIndex, int len) {
+        int index = query.indexOf('\n', startIndex);
+        return index < 0 || index >= len ? len : index + 1;
+    }
+
+    /**
+     * Skips an identifier, which the server reads as a run of word characters and dollar signs (e.g.
+     * {@code a$b}, {@code a$x$} or {@code a$$b$}). A dollar sign inside such a run continues the
+     * identifier and never opens a heredoc, so the whole run must be consumed before the scan looks
+     * for a heredoc again.
+     *
+     * @param query      non-null string to scan
+     * @param startIndex index of the first character of the identifier
+     * @param len        end index, usually length of the given string
+     * @return index next to the last character of the identifier
+     */
+    private static int skipIdentifier(String query, int startIndex, int len) {
+        int index = startIndex + 1;
+        while (index < len && (isWordChar(query.charAt(index)) || query.charAt(index) == '$')) {
+            index++;
+        }
+        return index;
+    }
+
+    /**
+     * Skips a heredoc (dollar quoted string) like {@code $$...$$} or {@code $tag$...$tag$}, where the tag
+     * may only contain word characters. When there is no heredoc at {@code startIndex} the dollar sign is
+     * treated as an ordinary character: a dollar sign without a matching closing tag does not open a
+     * heredoc. A dollar sign that belongs to an identifier never reaches this method, because
+     * {@link #skipIdentifier(String, int, int)} consumes the identifier first.
+     *
+     * @param query      non-null string to scan
+     * @param startIndex index of the dollar sign that may open a heredoc
+     * @param len        end index, usually length of the given string
+     * @return index next to the closing tag, or {@code startIndex + 1} when there is no heredoc
+     */
+    private static int skipHeredoc(String query, int startIndex, int len) {
+        int tagEndIndex = query.indexOf('$', startIndex + 1);
+        if (tagEndIndex < 0 || tagEndIndex >= len) {
+            return startIndex + 1;
+        }
+
+        for (int i = startIndex + 1; i < tagEndIndex; i++) {
+            if (!isWordChar(query.charAt(i))) {
+                return startIndex + 1;
+            }
+        }
+
+        String tag = query.substring(startIndex, tagEndIndex + 1);
+        int closingTagIndex = query.indexOf(tag, tagEndIndex + 1);
+        if (closingTagIndex < 0 || closingTagIndex + tag.length() > len) {
+            return startIndex + 1;
+        }
+        return closingTagIndex + tag.length();
+    }
+
+    private static boolean isWordChar(char ch) {
+        return ch == '_' || (ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z');
     }
 
 
