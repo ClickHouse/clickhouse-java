@@ -874,8 +874,8 @@ public class HttpAPIClientHelper {
         if (requestConfig.containsKey(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey())) {
             Object formatObj = requestConfig.get(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey());
             if (formatObj != null) {
-                String formatStr = formatObj instanceof ClickHouseFormat ? ((ClickHouseFormat) formatObj).name() : formatObj.toString();
-                if (!formatStr.trim().isEmpty()) {
+                String formatStr = formatObj instanceof String ? formatObj.toString() : ((ClickHouseFormat)formatObj).name();
+                if (ClientUtils.isNotBlank(formatStr)) {
                     setHeader(
                         req,
                         ClickHouseHttpProto.HEADER_FORMAT,

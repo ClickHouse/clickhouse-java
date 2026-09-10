@@ -1314,16 +1314,15 @@ public class Client implements AutoCloseable {
          * @return this instance of builder
          */
         public Builder queryFormat(String format) {
-            if (format == null || format.trim().isEmpty()) {
+            if (ClientUtils.isBlank(format)) {
                 this.setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), null);
                 return this;
             }
-            String trimmed = format.trim();
             try {
-                ClickHouseFormat chFormat = ClickHouseFormat.fromString(trimmed);
+                ClickHouseFormat chFormat = ClickHouseFormat.fromString(format);
                 this.setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), chFormat.name());
             } catch (IllegalArgumentException e) {
-                this.setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), trimmed);
+                this.setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), format.trim());
             }
             return this;
         }
