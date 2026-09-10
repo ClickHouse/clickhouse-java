@@ -2,9 +2,11 @@ package com.clickhouse.client.api.data_formats.internal;
 
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.DataTypeUtils;
+import com.clickhouse.client.api.query.NullValueException;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseEnum;
+import com.clickhouse.data.ClickHouseUtils;
 import com.clickhouse.data.value.ClickHouseBitmap;
 import org.slf4j.Logger;
 import org.slf4j.helpers.NOPLogger;
@@ -244,6 +246,8 @@ public class BinaryStreamReader {
                     return (T) readGeoRing();
                 case LineString:
                     return (T) readGeoRing();
+                case MultiPoint:
+                    return (T) readGeoRing();
                 case JSON: // experimental https://clickhouse.com/docs/en/sql-reference/data-types/newjson
                     if (jsonAsString) {
                         return (T) readString(input);
@@ -263,7 +267,7 @@ public class BinaryStreamReader {
                 case Nothing:
                     return null;
                 case SimpleAggregateFunction:
-                    return (T) readValue(column.getNestedColumns().get(0), typeHint, false);
+                    return (T) readValue(actualColumn.getNestedColumns().get(0), typeHint, false);
                 case AggregateFunction:
                     return (T) readBitmap( actualColumn);
                 case Variant:
@@ -663,6 +667,87 @@ public class BinaryStreamReader {
     }
 
     /**
+     * Reads a plain, non-strided {@code QBit(Float32|Float64|BFloat16, dimension)} column from the
+     * Native format, reversing the server's bit-plane transpose into one vector per row. Values match
+     * the RowBinary path ({@link #readQBit}), so a {@code QBit} round-trips equally through either
+     * format. See {@code docs/qbit-encoding.md} for the wire layout and the transpose math.
+     *
+     * @param column QBit column information (element type in the nested column, dimension in precision)
+     * @param nRows  number of rows in the current block
+     * @return one materialized vector per row, in row order
+     * @throws IOException when an IO error occurs
+     */
+    public List<Object> readQBitNative(ClickHouseColumn column, int nRows) throws IOException {
+        ClickHouseDataType elementType = column.getNestedColumns().get(0).getDataType();
+        final boolean isDouble = elementType == ClickHouseDataType.Float64;
+        final boolean isBFloat16 = elementType == ClickHouseDataType.BFloat16;
+        if (!isDouble && !isBFloat16 && elementType != ClickHouseDataType.Float32) {
+            throw new ClientException("QBit Native decoding supports only Float32, Float64 and BFloat16 "
+                    + "element types, got: " + elementType);
+        }
+
+        final int elementBits = elementType.getByteLength() * 8; // 16 (BFloat16), 32 (Float32), 64 (Float64)
+        final int dimension = column.getPrecision();
+        final int bytesPerPlane = (dimension + 7) / 8;
+        final int totalBits = bytesPerPlane * 8;
+
+        // Planes are column-major: each holds nRows * bytesPerPlane bytes (docs/qbit-encoding.md).
+        // Size it in a long and guard against int overflow, since both factors come off the wire.
+        final long planeBytesLong = (long) nRows * bytesPerPlane;
+        if (planeBytesLong > Integer.MAX_VALUE) {
+            throw new ClientException("QBit Native block too large to decode: " + nRows + " rows x "
+                    + bytesPerPlane + " bytes per bit plane exceeds the maximum array size ("
+                    + Integer.MAX_VALUE + ")");
+        }
+        final int planeBytes = (int) planeBytesLong;
+        byte[][] planes = new byte[elementBits][];
+        for (int p = 0; p < elementBits; p++) {
+            planes[p] = readNBytes(input, planeBytes);
+        }
+
+        // Per-element byte offset and bit mask within a plane row (docs/qbit-encoding.md).
+        int[] elementByte = new int[dimension];
+        int[] elementMask = new int[dimension];
+        for (int j = 0; j < dimension; j++) {
+            int bitIndex = (totalBits - 1) - (j ^ 7);
+            elementByte[j] = bitIndex >> 3;
+            elementMask[j] = 1 << (bitIndex & 7);
+        }
+
+        List<Object> values = new ArrayList<>(nRows);
+        for (int r = 0; r < nRows; r++) {
+            final int rowBase = r * bytesPerPlane;
+            long[] bits = new long[dimension];
+            for (int p = 0; p < elementBits; p++) {
+                final byte[] plane = planes[p];
+                final long planeBit = 1L << (elementBits - 1 - p);
+                for (int j = 0; j < dimension; j++) {
+                    if ((plane[rowBase + elementByte[j]] & elementMask[j]) != 0) {
+                        bits[j] |= planeBit;
+                    }
+                }
+            }
+
+            ArrayValue vector;
+            if (isDouble) {
+                vector = new ArrayValue(double.class, dimension);
+                for (int j = 0; j < dimension; j++) {
+                    vector.set(j, Double.longBitsToDouble(bits[j]));
+                }
+            } else {
+                vector = new ArrayValue(float.class, dimension);
+                for (int j = 0; j < dimension; j++) {
+                    // BFloat16 carries the high 16 bits of a Float32; widen it the same way readBFloat16LE does.
+                    int intBits = isBFloat16 ? ((int) bits[j] << 16) : (int) bits[j];
+                    vector.set(j, Float.intBitsToFloat(intBits));
+                }
+            }
+            values.add(convertArray(vector, arrayDefaultTypeHint));
+        }
+        return values;
+    }
+
+    /**
      * Reads a array into an ArrayValue object.
      * @param column - column information
      * @return array value
@@ -689,6 +774,11 @@ public class BinaryStreamReader {
     }
 
     public ArrayValue readArrayItem(ClickHouseColumn itemTypeColumn, int len) throws IOException {
+        if (len == 0) {
+            // Nothing to read for an empty array; typing it via resolveArrayItemClass avoids the
+            // primitive branch below reading a phantom element and indexing a zero-length array.
+            return new ArrayValue(resolveArrayItemClass(itemTypeColumn), 0);
+        }
         ArrayValue array;
         if (itemTypeColumn.isNullable()) {
             Class<?> itemClass = resolveArrayItemClass(itemTypeColumn);
@@ -1357,6 +1447,26 @@ public class BinaryStreamReader {
         }
     }
 
+    /**
+     * Consumes the NULL marker that precedes every value of a nullable column when that value is read
+     * into a primitive variable. Does nothing for a column that is not nullable. Primitives cannot hold
+     * NULL, so a NULL value is reported instead of being silently replaced with a default value.
+     *
+     * @param column - column information
+     * @param targetType - name of the primitive type the value is read into
+     * @throws IOException when IO error occurs
+     */
+    public void readNullMarkerForPrimitive(ClickHouseColumn column, String targetType) throws IOException {
+        if (!column.isNullable()) {
+            return;
+        }
+
+        if (readByteOrEOF(input) == 1) {
+            throw new NullValueException("Column " + column.getColumnName()
+                    + " has null value and it cannot be cast to " + targetType);
+        }
+    }
+
     public static boolean isReadToPrimitive(ClickHouseDataType dataType) {
         switch (dataType) {
             case Int8:
@@ -1406,6 +1516,36 @@ public class BinaryStreamReader {
         }
     }
 
+    /**
+     * Appends an identifier (a JSON path or a tuple element name) read from a binary type encoding to a
+     * type name that is parsed back by {@link ClickHouseColumn}. A name that cannot be read back as a bare
+     * identifier - because it contains a space, a separator, a bracket or a quote - is back-quoted with
+     * inner back-quotes and backslashes escaped, the same way the server renders such names. A name that
+     * needs no quoting is appended as is.
+     */
+    private static StringBuilder appendIdentifier(StringBuilder builder, String identifier) {
+        if (identifierRequiresQuoting(identifier)) {
+            return builder.append('`').append(ClickHouseUtils.escape(identifier, '`')).append('`');
+        }
+        return builder.append(identifier);
+    }
+
+    private static boolean identifierRequiresQuoting(String identifier) {
+        if (identifier.isEmpty()) {
+            return true;
+        }
+        for (int i = 0; i < identifier.length(); i++) {
+            char ch = identifier.charAt(i);
+            // JSON paths are dot separated, so a dot is a part of a bare path
+            boolean bare = ch == '.' || ch == '_' || (ch >= '0' && ch <= '9')
+                    || (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z');
+            if (!bare) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private ClickHouseColumn readDynamicData() throws IOException {
         byte tag = readByte();
 
@@ -1425,8 +1565,7 @@ public class BinaryStreamReader {
                 final boolean readName = tag == ClickHouseDataType.TUPLE_WITH_NAMES_BIN_TAG;
                 for (int i = 0; i < size; i++) {
                     if (readName) {
-                        String name = readString(input);
-                        typeNameBuilder.append(name).append(' ');
+                        appendIdentifier(typeNameBuilder, readString(input)).append(' ');
                     }
                     ClickHouseColumn column = readDynamicData();
                     typeNameBuilder.append(column.getOriginalTypeName()).append(',');
@@ -1459,7 +1598,9 @@ public class BinaryStreamReader {
             case Decimal256: {
                 int precision = readByte();
                 int scale = readByte();
-                return ClickHouseColumn.of("v", ClickHouseDataType.binTag2Type.get(tag), false, precision, scale);
+                // Rendered the way the server renders a decimal type, so that a parent type encoding
+                // (array, tuple, map, ...) can append it and keep the precision and the scale.
+                return ClickHouseColumn.of("v", "Decimal(" + precision + ", " + scale + ")");
             }
             case Dynamic: {
                 int maxTypes = readVarInt(input);
@@ -1471,16 +1612,24 @@ public class BinaryStreamReader {
                 int constants = readVarInt(input);
                 int[] values = new int[constants];
                 String[] names = new String[constants];
-                ClickHouseDataType enumType = constants > 127 ? ClickHouseDataType.Enum16 : ClickHouseDataType.Enum8;
+                // The width of the constant values is defined by the type tag, not by their number:
+                // Enum8 encodes them as Int8 and Enum16 as Int16.
+                ClickHouseDataType enumType = type == ClickHouseDataType.Enum16 ?
+                        ClickHouseDataType.Enum16 : ClickHouseDataType.Enum8;
+                StringBuilder enumDef = new StringBuilder(SB_INIT_SIZE);
+                enumDef.append(enumType.name()).append('(');
                 for (int i = 0; i < constants; i++) {
                     names[i] = readString(input);
-                    if (enumType == ClickHouseDataType.Enum8) {
-                        values[i] = readUnsignedByte();
-                    } else {
-                        values[i] = readUnsignedShortLE();
+                    values[i] = enumType == ClickHouseDataType.Enum8 ? readByte() : readShortLE();
+                    if (i > 0) {
+                        enumDef.append(", ");
                     }
+                    enumDef.append('\'').append(ClickHouseUtils.escape(names[i], '\'')).append("' = ").append(values[i]);
                 }
-                return new ClickHouseColumn(enumType, "v", enumType.name(), false, false, Collections.emptyList(), Collections.emptyList(),
+                enumDef.append(')');
+                // The constants are a part of the type: a parent type encoding appends this type name,
+                // so it has to carry them to keep the names of the values readable.
+                return new ClickHouseColumn(enumType, "v", enumDef.toString(), false, false, Collections.emptyList(), Collections.emptyList(),
                         new ClickHouseEnum(names, values));
             }
             case FixedString: {
@@ -1513,17 +1662,19 @@ public class BinaryStreamReader {
                 StringBuilder typeDef = new StringBuilder(SB_INIT_SIZE);
                 typeDef.append("JSON(max_dynamic_paths=").append(maxDynamicPaths).append(",max_dynamic_types=").append(maxDynamicTypes).append(",");
                 for (int i = 0; i < numberOfTypedPaths; i++) {
-                    typeDef.append(readString(input)).append(' '); // path
+                    appendIdentifier(typeDef, readString(input)).append(' '); // path
                     ClickHouseColumn column = readDynamicData();
                     typeDef.append(column.getOriginalTypeName()).append(',');
                 }
                 int numberOfSkipPaths = readVarInt(input);
                 for (int i = 0; i < numberOfSkipPaths; i++) {
-                    typeDef.append(readString(input)).append(',');
+                    typeDef.append(ClickHouseColumn.JSON_SKIP_MARKER).append(' ');
+                    appendIdentifier(typeDef, readString(input)).append(',');
                 }
                 int numberOfPathRegexp = readVarInt(input);
                 for (int i = 0; i < numberOfPathRegexp; i++) {
-                    typeDef.append(readString(input)).append(',');
+                    typeDef.append(ClickHouseColumn.JSON_SKIP_MARKER).append(" REGEXP '")
+                            .append(ClickHouseUtils.escape(readString(input), '\'')).append("',");
                 }
                 typeDef.setLength(typeDef.length() - 1);
                 typeDef.append(')');
@@ -1543,8 +1694,10 @@ public class BinaryStreamReader {
                 StringBuilder nested = new StringBuilder(SB_INIT_SIZE);
                 nested.append("Nested(");
                 for (int i = 0; i < size; i++) {
-                    String name = readString(input);
-                    nested.append(name).append(',');
+                    // Nested is encoded as a named tuple: every element name is followed by the
+                    // type encoding of that element, which has to be consumed here as well.
+                    nested.append(readString(input)).append(' ');
+                    nested.append(readDynamicData().getOriginalTypeName()).append(',');
                 }
                 nested.setLength(nested.length() - 1);
                 nested.append(')');
@@ -1562,6 +1715,29 @@ public class BinaryStreamReader {
                 int dimension = readVarInt(input);
                 return ClickHouseColumn.of("v", "QBit(" + elementColumn.getOriginalTypeName() + ", " + dimension + ")");
             }
+            case SimpleAggregateFunction: {
+                // 0x2E <function_name> <var_uint number_of_parameters><parameters>
+                //      <var_uint number_of_arguments><argument_type_encodings>
+                // The whole encoding MUST be consumed so a SimpleAggregateFunction nested in a
+                // Dynamic/Variant/JSON column does not desynchronize the stream.
+                String functionName = readString(input);
+                int numberOfParameters = readVarInt(input);
+                if (numberOfParameters > 0) {
+                    // Every function accepted by SimpleAggregateFunction is parameterless, so the
+                    // binary encoding of a parameter (a Field) never appears here. Fail loudly
+                    // instead of silently leaving the parameters in the stream.
+                    throw new ClientException("Parameterized SimpleAggregateFunction is not supported: "
+                            + functionName);
+                }
+                int numberOfArguments = readVarInt(input);
+                StringBuilder typeName = new StringBuilder(SB_INIT_SIZE);
+                typeName.append("SimpleAggregateFunction(").append(functionName);
+                for (int i = 0; i < numberOfArguments; i++) {
+                    typeName.append(", ").append(readDynamicData().getOriginalTypeName());
+                }
+                typeName.append(')');
+                return ClickHouseColumn.of("v", typeName.toString());
+            }
             case Time64: {
                 byte precision = readByte();
                 return ClickHouseColumn.of("v", "Time64(" + precision + ")");
@@ -1576,7 +1752,7 @@ public class BinaryStreamReader {
                 }
                 variant.setLength(variant.length() - 1);
                 variant.append(")");
-                return  ClickHouseColumn.of("v", "Variant(" + variant + ")");
+                return  ClickHouseColumn.of("v", variant.toString());
             }
             case AggregateFunction:
                 throw new ClientException("Aggregate functions are not supported yet");

@@ -121,6 +121,14 @@
             <version>${lombok.version}</version>
             <scope>test</scope>
         </dependency>
+        <!-- Test-only: micrometer-core is an optional dependency of client-v2, so it reaches this
+             module only where a test uses the Micrometer metrics recorder. -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-core</artifactId>
+            <version>${micrometer.version}</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>

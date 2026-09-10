@@ -156,23 +156,67 @@ public class SpanSupport {
     }
 
     /**
-     * Records the outcome of a successfully completed operation.
+     * Records the outcome of a successfully completed read operation - what the server read and what
+     * it returned.
      *
      * @param span - span of the operation
      * @param metrics - metrics of the completed operation, may be {@code null}
      */
-    public void recordSuccess(Span span, OperationMetrics metrics) {
+    public void recordQuerySuccess(Span span, OperationMetrics metrics) {
         if (metrics == null) {
             return;
         }
 
+        recordQueryId(span, metrics);
+        recordServerMetric(span, metrics, ServerMetrics.RESULT_ROWS, SpanAttribute.DB_RESPONSE_RETURNED_ROWS);
+        recordServerMetric(span, metrics, ServerMetrics.NUM_ROWS_READ, SpanAttribute.CLICKHOUSE_RESPONSE_READ_ROWS);
+        recordServerMetric(span, metrics, ServerMetrics.NUM_BYTES_READ, SpanAttribute.CLICKHOUSE_RESPONSE_READ_BYTES);
+    }
+
+    /**
+     * Records the outcome of a successfully completed insert operation - what the server wrote.
+     *
+     * @param span - span of the operation
+     * @param metrics - metrics of the completed operation, may be {@code null}
+     */
+    public void recordInsertSuccess(Span span, OperationMetrics metrics) {
+        if (metrics == null) {
+            return;
+        }
+
+        recordQueryId(span, metrics);
+        recordServerMetric(span, metrics, ServerMetrics.NUM_ROWS_WRITTEN,
+                SpanAttribute.CLICKHOUSE_RESPONSE_WRITTEN_ROWS);
+        recordServerMetric(span, metrics, ServerMetrics.NUM_BYTES_WRITTEN,
+                SpanAttribute.CLICKHOUSE_RESPONSE_WRITTEN_BYTES);
+    }
+
+    /**
+     * Records the query id of a completed operation, which the server may have assigned itself.
+     *
+     * @param span - span of the operation
+     * @param metrics - metrics of the completed operation
+     */
+    protected void recordQueryId(Span span, OperationMetrics metrics) {
         if (metrics.getQueryId() != null) {
             span.setAttribute(SpanAttribute.CLICKHOUSE_QUERY_ID.getKey(), metrics.getQueryId());
         }
-        // the row count comes from the server's progress summary, which is not always available
-        Metric returnedRows = metrics.getMetric(ServerMetrics.RESULT_ROWS);
-        if (returnedRows != null && returnedRows.getLong() >= 0) {
-            span.setAttribute(SpanAttribute.DB_RESPONSE_RETURNED_ROWS.getKey(), returnedRows.getLong());
+    }
+
+    /**
+     * Records one server metric of a completed operation. The value comes from the server's progress
+     * summary, which is not always available, so a metric the server did not report is left out.
+     *
+     * @param span - span of the operation
+     * @param metrics - metrics of the completed operation
+     * @param metric - server metric to read
+     * @param attribute - attribute to record it under
+     */
+    protected void recordServerMetric(Span span, OperationMetrics metrics, ServerMetrics metric,
+                                      SpanAttribute attribute) {
+        Metric value = metrics.getMetric(metric);
+        if (value != null && value.getLong() >= 0) {
+            span.setAttribute(attribute.getKey(), value.getLong());
         }
     }
 

@@ -34,13 +34,8 @@ import java.net.HttpURLConnection;
 import java.net.Proxy;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Set;
-import java.util.TimeZone;
 import java.util.concurrent.ExecutorService;
 
 @Deprecated
@@ -157,8 +152,6 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
             "proxy-authorization","x-clickhouse-key"));
 
     private void setHeaders(HttpURLConnection conn, Map<String, String> headers) {
-        headers = mergeHeaders(headers);
-
         if (headers != null && !headers.isEmpty()) {
             for (Entry<String, String> header : headers.entrySet()) {
                 if (log.isDebugEnabled()) {
@@ -230,15 +223,20 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
     protected ClickHouseHttpResponse post(ClickHouseConfig config, String sql, ClickHouseInputStream data,
             List<ClickHouseExternalTable> tables, ClickHouseOutputStream output, String url,
             Map<String, String> headers, Runnable postCloseAction) throws IOException {
+        Map<String, String> mergedHeaders = mergeHeaders(headers);
         byte[] boundary = null;
         if (tables != null && !tables.isEmpty()) {
             String uuid = rm.createUniqueId();
             conn.setRequestProperty("content-type", "multipart/form-data; boundary=".concat(uuid));
             boundary = uuid.getBytes(StandardCharsets.US_ASCII);
+            if (mergedHeaders != null && !mergedHeaders.isEmpty()) {
+                mergedHeaders = new LinkedHashMap<>(mergedHeaders);
+                mergedHeaders.remove("content-encoding");
+            }
         } else {
             conn.setRequestProperty("content-type", "text/plain; charset=UTF-8");
         }
-        setHeaders(conn, headers);
+        setHeaders(conn, mergedHeaders);
 
         if (data != null || boundary != null) {
             conn.setChunkedStreamingMode(config.getRequestChunkSize());

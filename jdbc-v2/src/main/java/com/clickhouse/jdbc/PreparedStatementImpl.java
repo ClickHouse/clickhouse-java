@@ -131,6 +131,18 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         return compiledSql.toString();
     }
 
+    private String substituteParameters(String value) {
+        StringBuilder compiledSql = new StringBuilder(originalSql);
+        int posOffset = 0;
+        int[] positions = parsedPreparedStatement.getParamPositions();
+        for (int i = 0; i < argCount; i++) {
+            int p = positions[i] + posOffset;
+            compiledSql.replace(p, p + 1, value);
+            posOffset += value.length() - 1;
+        }
+        return compiledSql.toString();
+    }
+
     @Override
     public ResultSet executeQuery() throws SQLException {
         ensureOpen();
@@ -411,7 +423,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
             if (parsedPreparedStatement.isHasResultSet()) {
                 try {
                     // Replace '?' with NULL to make SQL valid for DESCRIBE
-                    String sql = replaceQuestionMarks(originalSql, NULL_LITERAL);
+                    String sql = substituteParameters(NULL_LITERAL);
                     TableSchema tSchema = connection.getClient().getTableSchemaFromQuery(sql);
                     resultSetMetaData = new ResultSetMetaDataImpl(tSchema.getColumns(),
                             connection.getSchema(), connection.getCatalog(),

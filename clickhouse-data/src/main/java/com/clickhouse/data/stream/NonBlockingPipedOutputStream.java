@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.clickhouse.data.ClickHouseByteBuffer;
 import com.clickhouse.data.ClickHouseChecker;
@@ -34,6 +35,7 @@ public class NonBlockingPipedOutputStream extends ClickHousePipedOutputStream {
     protected final int bufferSize;
     protected final CompletableFuture<Void> future;
     protected final long timeout;
+    private final AtomicBoolean closing = new AtomicBoolean(false);
 
     protected ByteBuffer buffer;
 
@@ -104,7 +106,7 @@ public class NonBlockingPipedOutputStream extends ClickHousePipedOutputStream {
 
     @Override
     public void close() throws IOException {
-        if (closed) {
+        if (closed || !closing.compareAndSet(false, true)) {
             return;
         }
 

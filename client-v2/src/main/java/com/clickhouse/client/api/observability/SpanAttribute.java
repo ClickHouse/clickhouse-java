@@ -52,7 +52,7 @@ public enum SpanAttribute {
     DB_RESPONSE_STATUS_CODE("db.response.status_code"),
 
     /**
-     * Number of rows returned by the server. Recorded when an operation succeeds and the server
+     * Number of rows returned by the server. Recorded when a read operation succeeds and the server
      * reported a progress summary.
      */
     DB_RESPONSE_RETURNED_ROWS("db.response.returned_rows"),
@@ -61,6 +61,30 @@ public enum SpanAttribute {
      * Query id of the operation, as assigned by the client or by the server.
      */
     CLICKHOUSE_QUERY_ID("clickhouse.query_id"),
+
+    /**
+     * Number of rows the server read from the storage. Recorded when a read operation succeeds and
+     * the server reported a progress summary.
+     */
+    CLICKHOUSE_RESPONSE_READ_ROWS("clickhouse.response.read_rows"),
+
+    /**
+     * Number of bytes the server read from the storage. Recorded when a read operation succeeds and
+     * the server reported a progress summary.
+     */
+    CLICKHOUSE_RESPONSE_READ_BYTES("clickhouse.response.read_bytes"),
+
+    /**
+     * Number of rows the server wrote to the storage. Recorded when an insert succeeds and the server
+     * reported a progress summary.
+     */
+    CLICKHOUSE_RESPONSE_WRITTEN_ROWS("clickhouse.response.written_rows"),
+
+    /**
+     * Number of bytes the server wrote to the storage. Recorded when an insert succeeds and the
+     * server reported a progress summary.
+     */
+    CLICKHOUSE_RESPONSE_WRITTEN_BYTES("clickhouse.response.written_bytes"),
 
     /**
      * Hostname of the server the request is sent to.

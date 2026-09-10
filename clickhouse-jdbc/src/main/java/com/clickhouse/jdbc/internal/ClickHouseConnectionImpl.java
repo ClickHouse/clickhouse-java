@@ -821,9 +821,10 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
                 String query = parsedStmt.getSQL();
                 boolean useStream = false;
                 Integer startIndex = parsedStmt.getPositions().get(ClickHouseSqlStatement.KEYWORD_VALUES_START);
-                if (startIndex != null) {
+                Integer stopIndex = parsedStmt.getPositions().get(ClickHouseSqlStatement.KEYWORD_VALUES_END);
+                if (startIndex != null && stopIndex != null) {
                     useStream = true;
-                    int endIndex = parsedStmt.getPositions().get(ClickHouseSqlStatement.KEYWORD_VALUES_END);
+                    int endIndex = stopIndex;
                     for (int i = startIndex + 1; i < endIndex; i++) {
                         char ch = query.charAt(i);
                         if (ch != '?' && ch != ',' && !Character.isWhitespace(ch)) {

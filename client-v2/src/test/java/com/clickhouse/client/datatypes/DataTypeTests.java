@@ -13,6 +13,7 @@ import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.GenericRecord;
+import com.clickhouse.client.api.query.NullValueException;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.sql.SQLUtils;
@@ -33,6 +34,7 @@ import org.testng.annotations.Test;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
@@ -200,30 +202,18 @@ public class DataTypeTests extends BaseIntegrationTest {
     }
 
     @Test(groups = {"integration"})
-    public void testQBitNativeFormatRejected() throws Exception {
+    public void testQBitNativeFormatNestedRejected() throws Exception {
         if (isVersionMatch(QBIT_UNSUPPORTED_VERSIONS)) {
             throw new SkipException("QBit requires ClickHouse 25.10+");
         }
 
-        // In the Native format the server transmits a QBit column using its internal bit-transposed
-        // layout, which is NOT the Array(element_type)-like representation the client decodes for QBit
-        // over RowBinary. Reading QBit via Native must therefore fail loudly with a clear error rather
-        // than silently decoding garbage and misaligning the trailing column that follows it.
+        // A plain top-level QBit column IS decoded from the Native format (see testQBitNativeFormatRead),
+        // but a QBit nested inside another type (here Map(String, QBit)) uses a Native layout this reader
+        // does not decode. Reading it must fail loudly with a clear error rather than silently decoding
+        // garbage and misaligning the columns that follow it.
         QuerySettings settings = new QuerySettings()
                 .setFormat(ClickHouseFormat.Native)
                 .serverSetting("allow_experimental_qbit_type", "1");
-        try (QueryResponse response = client.query(
-                "SELECT CAST([1, 2, 3, 4, 5, 6, 7, 8] AS QBit(Float32, 8)) AS q, 42 AS tail", settings).get()) {
-            ClientException ex = Assert.expectThrows(ClientException.class,
-                    () -> client.newBinaryFormatReader(response));
-            Assert.assertTrue(ex.getMessage().contains("QBit"),
-                    "Expected a clear QBit message, got: " + ex.getMessage());
-            Assert.assertTrue(ex.getMessage().contains("Native"),
-                    "Expected the message to mention the Native format, got: " + ex.getMessage());
-        }
-
-        // The same rejection applies to a QBit nested inside another type (here Map(String, QBit)),
-        // which the server does support and would otherwise be misread column-by-column.
         try (QueryResponse response = client.query(
                 "SELECT CAST(map('a', [1, 2, 3]) AS Map(String, QBit(Float32, 3))) AS m", settings).get()) {
             ClientException ex = Assert.expectThrows(ClientException.class,
@@ -232,6 +222,116 @@ public class DataTypeTests extends BaseIntegrationTest {
                     "Expected a clear QBit message for the nested case, got: " + ex.getMessage());
             Assert.assertTrue(ex.getMessage().contains("Native"),
                     "Expected the message to mention the Native format, got: " + ex.getMessage());
+        }
+    }
+
+    @DataProvider(name = "qbitNativeCases")
+    public static Object[][] qbitNativeCases() {
+        // elementType, ClickHouse array literal, expected vector, isDouble.
+        // Dimensions deliberately span dim<8 (single-byte bit plane), dim not a multiple of 8 with
+        // dim>8 (two-byte plane, partial last byte), and dim a multiple of 8, plus negative and
+        // fractional values, across all three supported element types.
+        return new Object[][] {
+                {"Float32", "[1, -2, 3.5, 4, 5, 6, 7, 8]",
+                        new float[]{1f, -2f, 3.5f, 4f, 5f, 6f, 7f, 8f}, false},
+                {"Float64", "[1, -2, 3.5, 4, 5, 6, 7, 8]",
+                        new double[]{1d, -2d, 3.5d, 4d, 5d, 6d, 7d, 8d}, true},
+                // Integers up to 256 are exactly representable in BFloat16, so these round-trip bit-for-bit.
+                {"BFloat16", "[1, 2, 4, 8, 16, 32, 64, 128]",
+                        new float[]{1f, 2f, 4f, 8f, 16f, 32f, 64f, 128f}, false},
+                {"Float32", "[1, -2, 3.5]", new float[]{1f, -2f, 3.5f}, false},
+                {"Float32", "[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]",
+                        new float[]{1f, 2f, 3f, 4f, 5f, 6f, 7f, 8f, 9f, 10f}, false},
+                {"Float64", "[-1, 2, -3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]",
+                        new double[]{-1d, 2d, -3d, 4d, 5d, 6d, 7d, 8d, 9d, 10d, 11d, 12d, 13d, 14d, 15d, 16d}, true},
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "qbitNativeCases")
+    public void testQBitNativeFormatRead(String elementType, String valueLiteral, Object expectedVector,
+                                         boolean isDouble) throws Exception {
+        if (isVersionMatch(QBIT_UNSUPPORTED_VERSIONS)) {
+            throw new SkipException("QBit requires ClickHouse 25.10+");
+        }
+
+        int dimension = isDouble ? ((double[]) expectedVector).length : ((float[]) expectedVector).length;
+        // rowId ... vec ... tail: the fixed-width columns around the QBit shift (and the assertions
+        // fail) if the bit-plane decode consumes the wrong number of bytes and desynchronizes the block.
+        String sql = "SELECT toInt64(7) AS rowId, CAST(" + valueLiteral + " AS QBit(" + elementType + ", "
+                + dimension + ")) AS vec, toInt32(42) AS tail SETTINGS allow_experimental_qbit_type = 1";
+
+        // Native: the QBit column arrives in the server's internal bit-plane-transposed layout and must
+        // be reconstructed to the same vector as RowBinary.
+        assertSingleQBitRow(sql, ClickHouseFormat.Native, expectedVector, isDouble);
+        // Parity: the same query over a RowBinary format must decode to an equal vector.
+        assertSingleQBitRow(sql, ClickHouseFormat.RowBinaryWithNamesAndTypes, expectedVector, isDouble);
+    }
+
+    private void assertSingleQBitRow(String sql, ClickHouseFormat format, Object expectedVector,
+                                     boolean isDouble) throws Exception {
+        QuerySettings settings = new QuerySettings().setFormat(format);
+        try (QueryResponse response = client.query(sql, settings).get()) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+            Assert.assertNotNull(reader.next());
+            Assert.assertEquals(reader.getLong("rowId"), 7L);
+            if (isDouble) {
+                Assert.assertEquals(reader.getDoubleArray("vec"), (double[]) expectedVector);
+            } else {
+                Assert.assertEquals(reader.getFloatArray("vec"), (float[]) expectedVector);
+            }
+            Assert.assertEquals(reader.getInteger("tail"), 42);
+            Assert.assertFalse(reader.hasNext());
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testQBitNativeFormatMultiRow() throws Exception {
+        if (isVersionMatch(QBIT_UNSUPPORTED_VERSIONS)) {
+            throw new SkipException("QBit requires ClickHouse 25.10+");
+        }
+
+        // In the Native format a QBit column is serialized column-major (each bit plane holds all rows'
+        // bytes contiguously). Reading several rows in one block exercises the per-row slicing across
+        // the shared bit planes; the trailing Int32 guards against desync. Covered for a single-byte
+        // bit plane (Float32, dimension 3) and for a wider element with a two-byte, partially-filled
+        // plane (Float64, dimension 10), so the per-row offset arithmetic is checked for both
+        // bytes-per-plane = 1 and 2.
+        List<Object> f32Rows = Arrays.asList(
+                new float[]{1f, 2f, 3f}, new float[]{4f, 5f, 6f}, new float[]{7f, 8f, 9f});
+        assertMultiRowQBit("SELECT number AS rowId, "
+                + "CAST([number * 3 + 1, number * 3 + 2, number * 3 + 3] AS QBit(Float32, 3)) AS vec, "
+                + "toInt32(42) AS tail FROM numbers(3) ORDER BY rowId "
+                + "SETTINGS allow_experimental_qbit_type = 1", f32Rows, false);
+
+        List<Object> f64Rows = new ArrayList<>();
+        for (int r = 0; r < 3; r++) {
+            double[] row = new double[10];
+            for (int j = 0; j < 10; j++) {
+                row[j] = (j + 1) + r * 10;
+            }
+            f64Rows.add(row);
+        }
+        assertMultiRowQBit("SELECT number AS rowId, "
+                + "CAST(arrayMap(x -> x + number * 10, range(1, 11)) AS QBit(Float64, 10)) AS vec, "
+                + "toInt32(42) AS tail FROM numbers(3) ORDER BY rowId "
+                + "SETTINGS allow_experimental_qbit_type = 1", f64Rows, true);
+    }
+
+    private void assertMultiRowQBit(String sql, List<Object> expectedPerRow, boolean isDouble) throws Exception {
+        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.Native);
+        try (QueryResponse response = client.query(sql, settings).get()) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+            for (int r = 0; r < expectedPerRow.size(); r++) {
+                Assert.assertNotNull(reader.next());
+                Assert.assertEquals(reader.getLong("rowId"), (long) r);
+                if (isDouble) {
+                    Assert.assertEquals(reader.getDoubleArray("vec"), (double[]) expectedPerRow.get(r));
+                } else {
+                    Assert.assertEquals(reader.getFloatArray("vec"), (float[]) expectedPerRow.get(r));
+                }
+                Assert.assertEquals(reader.getInteger("tail"), 42);
+            }
+            Assert.assertFalse(reader.hasNext());
         }
     }
 
@@ -251,6 +351,43 @@ public class DataTypeTests extends BaseIntegrationTest {
         Assert.assertEquals(rows.size(), 1);
         Assert.assertEquals(rows.get(0).getFloatArray("d"), new float[]{1f, 2f, 3f});
         Assert.assertEquals(rows.get(0).getInteger("tail"), 42);
+    }
+
+    @DataProvider(name = "simpleAggregateFunctionInDynamicColumn")
+    public static Object[][] simpleAggregateFunctionInDynamicColumn() {
+        return new Object[][]{
+                {"sum", "UInt64", "42", "42"},
+                {"max", "Int32", "-7", "-7"},
+                {"anyLast", "String", "'abc'", "abc"},
+                {"anyLast", "LowCardinality(String)", "'lc'", "lc"},
+                {"anyLast", "DateTime(\\'UTC\\')", "toDateTime(1700000000)", "2023-11-14T22:13:20Z[UTC]"},
+                {"groupArrayArray", "Array(String)", "['a', 'b']", "[a, b]"},
+                {"anyLast", "Map(String, UInt8)", "map('k', 1)", "{k=1}"},
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "simpleAggregateFunctionInDynamicColumn")
+    public void testSimpleAggregateFunctionInDynamicColumn(String function, String argType, String valueSQL,
+                                                           String expected) throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            throw new SkipException("Dynamic requires ClickHouse 24.8+");
+        }
+
+        // A SimpleAggregateFunction held in a Dynamic column encodes its concrete type on the wire as
+        // 0x2E <function_name> <var_uint number_of_parameters> <var_uint number_of_arguments>
+        // <argument_type_encodings>. All of it must be consumed and the value must then be read as its
+        // argument type, otherwise the following column ("tail") misaligns. The trailing 42 is the
+        // desync guard; "plain" is the same value in a Dynamic column without the wrapper.
+        List<GenericRecord> rows = client.queryAll(
+                "SELECT CAST(CAST(" + valueSQL + ", 'SimpleAggregateFunction(" + function + ", " + argType + ")')"
+                        + " AS Dynamic) AS d, CAST(CAST(" + valueSQL + ", '" + argType + "') AS Dynamic) AS plain,"
+                        + " 42 AS tail SETTINGS allow_experimental_dynamic_type = 1");
+        Assert.assertEquals(rows.size(), 1);
+        GenericRecord row = rows.get(0);
+        Assert.assertEquals(row.getString("d"), expected);
+        Assert.assertEquals(row.getString("d"), row.getString("plain"));
+        Assert.assertEquals(row.getObject("d").getClass(), row.getObject("plain").getClass());
+        Assert.assertEquals(row.getInteger("tail"), 42);
     }
 
     @Test(groups = {"integration"})
@@ -299,6 +436,96 @@ public class DataTypeTests extends BaseIntegrationTest {
             return tableDefinition(table, "rowId Int16", "words Array(String)", "numbers Array(Int32)",
                     "letters Array(String)");
         }
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "nonNullableArrayNullColumns")
+    public void testInsertNullIntoNonNullableArrayThrows(String columns) throws Exception {
+        final String table = "test_non_nullable_array_null";
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        client.execute(tableDefinition(table, columns)).get();
+
+        client.register(DTOForNonNullableArrayTests.class, client.getTableSchema(table));
+
+        Exception thrown = null;
+        try {
+            client.insert(table, Collections.singletonList(new DTOForNonNullableArrayTests(1, null, 7)))
+                    .get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            thrown = e;
+        }
+
+        Assert.assertNotNull(thrown, "Expected the insert to fail for a null in a non-nullable Array column using " + columns);
+        boolean clearMessage = false;
+        for (Throwable t = thrown; t != null; t = t.getCause()) {
+            if (t.getMessage() != null && t.getMessage().contains("An attempt to write null into not nullable column")) {
+                clearMessage = true;
+                break;
+            }
+        }
+        Assert.assertTrue(clearMessage, "Expected a clear non-nullable column error using " + columns + ", but got: " + thrown);
+    }
+
+    @DataProvider(name = "nonNullableArrayNullColumns")
+    public static Object[][] nonNullableArrayNullColumns() {
+        return new Object[][] {
+                {"rowId Int32, arr Array(Int32), tail Int32"},
+                {"rowId Int32, arr Array(Int32), tail Int32 DEFAULT 99"},
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "nonNullableArrayRoundTrip")
+    public void testInsertNonNullableArrayRoundTrips(List<Integer> arr, int expectedLength, String expectedConcat) throws Exception {
+        final String table = "test_non_nullable_array_round_trip";
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        client.execute(tableDefinition(table, "rowId Int32", "arr Array(Int32)", "tail Int32")).get();
+
+        client.register(DTOForNonNullableArrayTests.class, client.getTableSchema(table));
+        client.insert(table, Collections.singletonList(new DTOForNonNullableArrayTests(1, arr, 7)))
+                .get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS);
+
+        List<GenericRecord> records = client.queryAll(
+                "SELECT toInt32(length(arr)) AS alen, arrayStringConcat(arr, ',') AS acat, tail FROM " + table + " ORDER BY rowId");
+        Assert.assertEquals(records.size(), 1);
+        GenericRecord row = records.get(0);
+        Assert.assertEquals(row.getInteger("alen"), expectedLength);
+        Assert.assertEquals(row.getString("acat"), expectedConcat);
+        Assert.assertEquals(row.getInteger("tail"), 7);
+    }
+
+    @DataProvider(name = "nonNullableArrayRoundTrip")
+    public static Object[][] nonNullableArrayRoundTrip() {
+        return new Object[][] {
+                {new ArrayList<Integer>(), 0, ""},
+                {Arrays.asList(1, 2, 3), 3, "1,2,3"},
+        };
+    }
+
+    @Test(groups = {"integration"})
+    public void testInsertNullIntoDefaultedNonNullableArrayUsesDefault() throws Exception {
+        final String table = "test_non_nullable_array_null_default";
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        client.execute(tableDefinition(table, "rowId Int32", "arr Array(Int32) DEFAULT [1, 2]", "tail Int32")).get();
+
+        client.register(DTOForNonNullableArrayTests.class, client.getTableSchema(table));
+        client.insert(table, Collections.singletonList(new DTOForNonNullableArrayTests(1, null, 7)))
+                .get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS);
+
+        List<GenericRecord> records = client.queryAll(
+                "SELECT toInt32(length(arr)) AS alen, arrayStringConcat(arr, ',') AS acat, tail FROM " + table + " ORDER BY rowId");
+        Assert.assertEquals(records.size(), 1);
+        GenericRecord row = records.get(0);
+        Assert.assertEquals(row.getInteger("alen"), 2);
+        Assert.assertEquals(row.getString("acat"), "1,2");
+        Assert.assertEquals(row.getInteger("tail"), 7);
+    }
+
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class DTOForNonNullableArrayTests {
+        private int rowId;
+        private List<Integer> arr;
+        private int tail;
     }
 
     @Data
@@ -603,6 +830,7 @@ public class DataTypeTests extends BaseIntegrationTest {
                 case Nullable: // virtual type
                 case LowCardinality: // virtual type
                 case LineString: // same as Ring
+                case MultiPoint: // same as Ring
                 case MultiLineString: // same as MultiPolygon
                 case Time:
                 case Time64:
@@ -1038,6 +1266,7 @@ public class DataTypeTests extends BaseIntegrationTest {
                 case LowCardinality: // virtual type
                 case Enum: // virtual type
                 case LineString: // same as Ring
+                case MultiPoint: // same as Ring
                 case MultiLineString: // same as MultiPolygon
                 case Time:
                 case Time64:
@@ -1320,6 +1549,121 @@ public class DataTypeTests extends BaseIntegrationTest {
         Assert.assertEquals(records.get(0).getInteger("num"), 10);
     }
 
+    @DataProvider(name = "dynamicParametrizedElementTypes")
+    public Object[][] dynamicParametrizedElementTypes() {
+        return new Object[][]{
+                {"Decimal32(2)", "[1.25]", new String[]{"1.25"}},
+                {"Decimal64(4)", "[1.25, -3.5]", new String[]{"1.2500", "-3.5000"}},
+                {"Decimal(10, 2)", "[12345678.91]", new String[]{"12345678.91"}},
+                {"Decimal128(6)", "[0.000001]", new String[]{"0.000001"}},
+                {"Decimal256(20)", "[1.5]", new String[]{"1.50000000000000000000"}},
+                {"Enum8('a' = 1, 'b' = 2)", "['b']", new String[]{"b"}},
+                {"Enum8('a' = -1, 'b' = 2)", "['a']", new String[]{"a"}},
+                {"Enum8('a,b' = 1, 'c\\'d' = 2)", "['a,b', 'c\\'d']", new String[]{"a,b", "c'd"}},
+                {"Enum16('a' = 1000, 'b' = 2000)", "['b']", new String[]{"b"}},
+                {"Enum16('a' = -1000, 'b' = 2000)", "['a']", new String[]{"a"}},
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "dynamicParametrizedElementTypes")
+    public void testDynamicWithParametrizedElementType(String elementType, String values, String[] expected) throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
+        List<GenericRecord> records = client.queryAll("SELECT " + values + "::Array(" + elementType + ")::Dynamic AS v, 42::Int32 AS num");
+        Object[] items = records.get(0).getObjectArray("v");
+        Assert.assertEquals(items.length, expected.length);
+        for (int i = 0; i < expected.length; i++) {
+            Assert.assertEquals(String.valueOf(items[i]), expected[i]);
+        }
+        Assert.assertEquals(records.get(0).getInteger("num"), 42);
+    }
+
+    @Test(groups = {"integration"})
+    public void testDynamicWithEnum8WithMoreThan127Constants() throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
+        StringBuilder enumType = new StringBuilder("Enum8(");
+        for (int i = 0; i < 130; i++) {
+            if (i > 0) {
+                enumType.append(", ");
+            }
+            enumType.append('\'').append("c").append(i).append("' = ").append(i - 128);
+        }
+        enumType.append(')');
+
+        List<GenericRecord> records = client.queryAll("SELECT ['c0', 'c129']::Array(" + enumType + ")::Dynamic AS v, 42::Int32 AS num");
+        Object[] items = records.get(0).getObjectArray("v");
+        Assert.assertEquals(items.length, 2);
+        Assert.assertEquals(items[0].toString(), "c0");
+        Assert.assertEquals(items[1].toString(), "c129");
+        Assert.assertEquals(records.get(0).getInteger("num"), 42);
+    }
+
+    @Test(groups = {"integration"})
+    public void testDynamicWithParametrizedTypesInsideMapAndTuple() throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
+        List<GenericRecord> records = client.queryAll("SELECT " +
+                "map('k', 1.25::Decimal64(4))::Map(String, Decimal64(4))::Dynamic AS m, " +
+                "(1.25::Decimal64(4), 'b'::Enum8('a' = 1, 'b' = 2))::Tuple(d Decimal64(4), e Enum8('a' = 1, 'b' = 2))::Dynamic AS t, " +
+                "42::Int32 AS num");
+        GenericRecord row = records.get(0);
+        Assert.assertEquals(String.valueOf(((Map<?, ?>) row.getObject("m")).get("k")), "1.2500");
+        Object[] tuple = (Object[]) row.getObject("t");
+        Assert.assertEquals(String.valueOf(tuple[0]), "1.2500");
+        Assert.assertEquals(String.valueOf(tuple[1]), "b");
+        Assert.assertEquals(row.getInteger("num"), 42);
+    }
+
+    @Test(groups = {"integration"})
+    public void testDynamicWithVariantElement() throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
+        // The variant elements are declared in an order that differs from the order the server encodes
+        // them in, so a wrongly rebuilt variant maps a discriminator to the wrong element.
+        List<GenericRecord> records = client.queryAll("SELECT [1, 'a']::Array(Variant(String, Int32))::Dynamic AS v, 42::Int32 AS num");
+        Assert.assertEquals(records.get(0).getObjectArray("v"), new Object[]{1, "a"});
+        Assert.assertEquals(records.get(0).getInteger("num"), 42);
+    }
+
+    @Test(groups = {"integration"})
+    public void testDynamicWithNestedElement() throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
+        List<GenericRecord> records = client.queryAll("SELECT [(1, 'x', 1.25), (2, 'y', -3.5)]" +
+                "::Nested(a Int32, b String, c Decimal64(4))::Dynamic AS v, 42::Int32 AS num");
+        Object[] items = records.get(0).getObjectArray("v");
+        Assert.assertEquals(items.length, 2);
+        Assert.assertEquals((Object[]) items[0], new Object[]{1, "x", new BigDecimal("1.2500")});
+        Assert.assertEquals((Object[]) items[1], new Object[]{2, "y", new BigDecimal("-3.5000")});
+        Assert.assertEquals(records.get(0).getInteger("num"), 42);
+    }
+
+    @Test(groups = {"integration"})
+    public void testDynamicWithNestedTypesWithQuotedNames() throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
+        List<GenericRecord> records = client.queryAll("SELECT (1, 'row1', 0.1)::Tuple(`row id` Int32, `name,alias` String, value Float64)::Dynamic AS row, 10::Int32 AS num");
+
+        Object[] tuple = (Object[]) records.get(0).getObject("row");
+        Assert.assertEquals(tuple[0], 1);
+        Assert.assertEquals(tuple[1], "row1");
+        Assert.assertEquals(tuple[2], 0.1);
+        Assert.assertEquals(records.get(0).getInteger("num"), 10);
+    }
+
     @Test(groups = {"integration"})
     public void testDynamicWithFixedString() throws Exception {
         if (isVersionMatch("(,24.8]")) {
@@ -1354,6 +1698,16 @@ public class DataTypeTests extends BaseIntegrationTest {
         map3.put("a.d", "e");
         Map<String, Object> map4 = new HashMap<>();
         map4.put("a.d", "e");
+        Map<String, Object> map5 = new HashMap<>();
+        map5.put("a b", 1L);
+        Map<String, Object> map6 = new HashMap<>();
+        map6.put("a,b", 1L);
+        Map<String, Object> map7 = new HashMap<>();
+        map7.put("a b.c d", 1L);
+        Map<String, Object> map8 = new HashMap<>();
+        map8.put("a", 1L);
+        Map<String, Object> map9 = new HashMap<>();
+        map9.put("a`b", 1L);
 
         return new Object[][] {
                 { "JSON(max_dynamic_paths=100, max_dynamic_types=100)", "{\"name\": \"row1\", \"value\": 0.1}", map1},
@@ -1361,7 +1715,13 @@ public class DataTypeTests extends BaseIntegrationTest {
                 { "JSON", "{ \"a\" :  { \"b\" : \"c\", \"d\" : \"e\" } }", map3},
                 { "JSON(SKIP a.b)", "{ \"a\" :  { \"b\" : \"c\", \"d\" : \"e\" } }", map4},
                 { "JSON(SKIP REGEXP \'a\\.b\')", "{ \"a\" :  { \"b\" : \"c\", \"d\" : \"e\" } }", map4},
-
+                { "JSON(`a b` Int64)", "{\"a b\": 1}", map5},
+                { "JSON(`a,b` Int64)", "{\"a,b\": 1}", map6},
+                { "JSON(`a b`.`c d` Int64)", "{\"a b\": {\"c d\": 1}}", map7},
+                { "JSON(`a\\`b` Int64)", "{\"a`b\": 1}", map9},
+                { "JSON(SKIP `b c`)", "{\"a\": 1, \"b c\": 2}", map8},
+                { "JSON(SKIP REGEXP \'b c\')", "{\"a\": 1, \"b c\": 2}", map8},
+                { "JSON(`a b` Int64, SKIP `c d`)", "{\"a b\": 1, \"c d\": 2}", map5},
         };
     }
 
@@ -1871,6 +2231,82 @@ public class DataTypeTests extends BaseIntegrationTest {
             Assert.assertNotNull(record.getString("geom"));
             assertGeometryValue(record.getObject("geom"), expectedValues[rowId]);
         }
+    }
+
+    private static final String MULTI_POINT_UNSUPPORTED_VERSIONS = "(,26.7]";
+
+    @Data
+    @AllArgsConstructor
+    public static class DTOForMultiPointTests {
+        private int rowId;
+        private double[][] geom;
+        private double marker;
+    }
+
+    @Test(groups = {"integration"})
+    public void testMultiPoint() throws Exception {
+        if (isVersionMatch(MULTI_POINT_UNSUPPORTED_VERSIONS)) {
+            return;
+        }
+
+        final String table = "test_multi_point";
+        final double[][] expected = new double[][] {{1D, 2D}, {3D, 4D}, {5D, 6D}};
+
+        client.execute("DROP TABLE IF EXISTS " + table).get().close();
+        client.execute(tableDefinition(table, "rowId Int32", "geom MultiPoint", "marker Float64")).get().close();
+        client.register(DTOForMultiPointTests.class, client.getTableSchema(table));
+
+        client.insert(table, Collections.singletonList(new DTOForMultiPointTests(0, expected, 42D))).get().close();
+        client.execute("INSERT INTO " + table + " VALUES (1, readWKTMultiPoint('MULTIPOINT(1 2, 3 4, 5 6)'), 42)")
+                .get().close();
+
+        List<GenericRecord> records = client.queryAll("SELECT * FROM " + table + " ORDER BY rowId");
+        Assert.assertEquals(records.size(), 2);
+        for (GenericRecord record : records) {
+            Assert.assertTrue(Arrays.deepEquals((double[][]) record.getObject("geom"), expected));
+            Assert.assertTrue(Arrays.deepEquals(record.getGeoRing("geom").getValue(), expected));
+            Assert.assertEquals(record.getDouble("marker"), 42D);
+        }
+
+        try (QueryResponse response = client.query("SELECT * FROM " + table + " ORDER BY rowId").get()) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+            int rows = 0;
+            while (reader.next() != null) {
+                Assert.assertTrue(Arrays.deepEquals((double[][]) reader.readValue("geom"), expected));
+                Assert.assertEquals(reader.getString("geom"), "[(1.0,2.0),(3.0,4.0),(5.0,6.0)]");
+                Assert.assertEquals(reader.getDouble("marker"), 42D);
+                rows++;
+            }
+            Assert.assertEquals(rows, 2);
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testGeometryWithMultiPoint() throws Exception {
+        if (isVersionMatch(MULTI_POINT_UNSUPPORTED_VERSIONS)) {
+            return;
+        }
+
+        final String table = "test_geometry_multi_point";
+        final double[][] points = new double[][] {{1D, 2D}, {3D, 4D}, {5D, 6D}};
+        final double[][] ring = new double[][] {{1D, 2D}, {3D, 4D}, {1D, 2D}};
+
+        client.execute("DROP TABLE IF EXISTS " + table).get().close();
+        client.execute(tableDefinition(table, "rowId Int32", "geom Geometry", "marker Float64"),
+                (CommandSettings) new CommandSettings().serverSetting("allow_suspicious_variant_types", "1"))
+                .get().close();
+        client.execute("INSERT INTO " + table + " VALUES "
+                + "(0, readWKTMultiPoint('MULTIPOINT(1 2, 3 4, 5 6)'), 42), "
+                + "(1, CAST([(1, 2), (3, 4), (1, 2)] AS Ring), 42)").get().close();
+
+        List<GenericRecord> records = client.queryAll("SELECT * FROM " + table + " ORDER BY rowId");
+        Assert.assertEquals(records.size(), 2);
+        // A MultiPoint value stored in a Geometry column decodes to the same double[][] shape as a
+        // Ring value, which keeps decoding unchanged.
+        Assert.assertTrue(Arrays.deepEquals((double[][]) records.get(0).getObject("geom"), points));
+        Assert.assertTrue(Arrays.deepEquals((double[][]) records.get(1).getObject("geom"), ring));
+        Assert.assertEquals(records.get(0).getDouble("marker"), 42D);
+        Assert.assertEquals(records.get(1).getDouble("marker"), 42D);
     }
 
     @Test(groups = {"integration"})
@@ -2442,6 +2878,208 @@ public class DataTypeTests extends BaseIntegrationTest {
                         new Object[] { Arrays.asList(9000L), Arrays.asList(42L, 7L) }
                 },
         };
+    }
+
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class DTOForNullablePrimitivesTests {
+        private int rowId;
+        private byte int8;
+        private short uint8;
+        private short int16;
+        private int uint16;
+        private int int32;
+        private long uint32;
+        private long int64;
+        private float float32;
+        private double float64;
+        private boolean bool;
+        private byte enum8;
+        private short enum16;
+        private long trailing;
+    }
+
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class DTOForUInt64PrimitiveTests {
+        private int rowId;
+        private byte asByte;
+        private short asShort;
+        private int asInt;
+        private long asLong;
+        private float asFloat;
+        private double asDouble;
+        private boolean asBoolean;
+        private char asChar;
+        private long trailing;
+    }
+
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class DTOForNullablePrimitiveBFloat16Tests {
+        private int rowId;
+        private float bFloat16;
+        private long trailing;
+    }
+
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class DTOForNullPrimitiveTests {
+        private int rowId;
+        private long int64;
+        private long trailing;
+    }
+
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class DTOForNullBoxedTests {
+        private int rowId;
+        private Long int64;
+        private long trailing;
+    }
+
+    private static final String NULLABLE_PRIMITIVES_SQL =
+            "SELECT toInt32(number) AS rowId" +
+                    ", toNullable(toInt8(-128)) AS int8" +
+                    ", toNullable(toUInt8(255)) AS uint8" +
+                    ", toNullable(toInt16(-32768)) AS int16" +
+                    ", toNullable(toUInt16(65535)) AS uint16" +
+                    ", toNullable(toInt32(-2147483648)) AS int32" +
+                    ", toNullable(toUInt32(4294967295)) AS uint32" +
+                    ", toNullable(toInt64(-9223372036854775808)) AS int64" +
+                    ", toNullable(toFloat32(1.5)) AS float32" +
+                    ", toNullable(toFloat64(2.25)) AS float64" +
+                    ", toNullable(true) AS bool" +
+                    ", toNullable(CAST('b', 'Enum8(''a'' = 1, ''b'' = 2)')) AS enum8" +
+                    ", toNullable(CAST('y', 'Enum16(''x'' = 1000, ''y'' = 2000)')) AS enum16" +
+                    ", toInt64(777) AS trailing FROM numbers(3)";
+
+    private static final String NULL_VALUE_SQL =
+            "SELECT toInt32(1) AS rowId, CAST(NULL, 'Nullable(Int64)') AS int64, toInt64(777) AS trailing";
+
+    @Test(groups = {"integration"})
+    public void testReadNullableColumnsIntoPrimitivePojoFields() {
+        TableSchema schema = client.getTableSchemaFromQuery(NULLABLE_PRIMITIVES_SQL);
+        client.register(DTOForNullablePrimitivesTests.class, schema);
+
+        List<DTOForNullablePrimitivesTests> rows =
+                client.queryAll(NULLABLE_PRIMITIVES_SQL, DTOForNullablePrimitivesTests.class, schema);
+
+        List<DTOForNullablePrimitivesTests> expected = new ArrayList<>();
+        for (int rowId = 0; rowId < 3; rowId++) {
+            expected.add(new DTOForNullablePrimitivesTests(rowId, Byte.MIN_VALUE, (short) 255, Short.MIN_VALUE, 65535,
+                    Integer.MIN_VALUE, 4294967295L, Long.MIN_VALUE, 1.5f, 2.25d, true, (byte) 2, (short) 2000, 777L));
+        }
+        Assert.assertEquals(rows, expected);
+    }
+
+    @Test(groups = {"integration"})
+    public void testReadNullableBFloat16IntoPrimitivePojoField() {
+        if (isVersionMatch(BFLOAT16_UNSUPPORTED_VERSIONS)) {
+            throw new SkipException("BFloat16 requires ClickHouse 24.11+");
+        }
+
+        final String sql = "SELECT toInt32(1) AS rowId, CAST(1.5, 'Nullable(BFloat16)') AS bFloat16"
+                + ", toInt64(777) AS trailing";
+        TableSchema schema = client.getTableSchemaFromQuery(sql);
+        client.register(DTOForNullablePrimitiveBFloat16Tests.class, schema);
+
+        Assert.assertEquals(client.queryAll(sql, DTOForNullablePrimitiveBFloat16Tests.class, schema),
+                Collections.singletonList(new DTOForNullablePrimitiveBFloat16Tests(1, 1.5f, 777L)));
+    }
+
+    @Test(groups = {"integration"})
+    public void testReadNonNullableColumnIntoPrimitivePojoFieldRegisteredAsNullable() throws Exception {
+        final String table = "test_nullable_primitive_pojo_field";
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        client.execute(tableDefinition(table, "rowId Int32", "int64 Nullable(Int64)", "trailing Int64")).get();
+        client.execute("INSERT INTO " + table + " VALUES (1, -9223372036854775808, 777)").get();
+
+        TableSchema schema = client.getTableSchema(table);
+        client.register(DTOForNullPrimitiveTests.class, schema);
+
+        List<DTOForNullPrimitiveTests> rows = client.queryAll(
+                "SELECT rowId, assumeNotNull(int64) AS int64, trailing FROM " + table,
+                DTOForNullPrimitiveTests.class, schema);
+
+        Assert.assertEquals(rows, Collections.singletonList(new DTOForNullPrimitiveTests(1, Long.MIN_VALUE, 777L)));
+    }
+
+    @Test(groups = {"integration"})
+    public void testReadNullValueIntoPrimitivePojoField() {
+        TableSchema schema = client.getTableSchemaFromQuery(NULL_VALUE_SQL);
+        client.register(DTOForNullPrimitiveTests.class, schema);
+
+        ClientException exception = Assert.expectThrows(ClientException.class,
+                () -> client.queryAll(NULL_VALUE_SQL, DTOForNullPrimitiveTests.class, schema));
+        Throwable cause = exception.getCause();
+        while (cause != null && !(cause instanceof NullValueException)) {
+            cause = cause.getCause();
+        }
+        Assert.assertNotNull(cause, "NullValueException is not in the cause chain of " + exception);
+        Assert.assertEquals(cause.getMessage(), "Column int64 has null value and it cannot be cast to long");
+    }
+
+    @Test(groups = {"integration"})
+    public void testReadNullValueIntoBoxedPojoField() {
+        TableSchema schema = client.getTableSchemaFromQuery(NULL_VALUE_SQL);
+        client.register(DTOForNullBoxedTests.class, schema);
+
+        Assert.assertEquals(client.queryAll(NULL_VALUE_SQL, DTOForNullBoxedTests.class, schema),
+                Collections.singletonList(new DTOForNullBoxedTests(1, null, 777L)));
+    }
+
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class DTOForUInt64BoxedTests {
+        private int rowId;
+        private BigInteger u64;
+        private long trailing;
+    }
+
+    private static final String UINT64_PRIMITIVES_SQL =
+            "SELECT toInt32(number) AS rowId" +
+                    ", toUInt64(100) AS asByte" +
+                    ", toUInt64(30000) AS asShort" +
+                    ", toUInt64(2000000000) AS asInt" +
+                    ", toUInt64(18446744073709551615) AS asLong" +
+                    ", toUInt64(5) AS asFloat" +
+                    ", toUInt64(7) AS asDouble" +
+                    ", toUInt64(number) AS asBoolean" +
+                    ", toUInt64(65) AS asChar" +
+                    ", toInt64(777) AS trailing FROM numbers(2)";
+
+    private static final String UINT64_BOXED_SQL =
+            "SELECT toInt32(1) AS rowId, toUInt64(18446744073709551615) AS u64, toInt64(777) AS trailing";
+
+    @Test(groups = {"integration"})
+    public void testReadUInt64IntoPrimitivePojoFields() {
+        TableSchema schema = client.getTableSchemaFromQuery(UINT64_PRIMITIVES_SQL);
+        client.register(DTOForUInt64PrimitiveTests.class, schema);
+
+        List<DTOForUInt64PrimitiveTests> rows =
+                client.queryAll(UINT64_PRIMITIVES_SQL, DTOForUInt64PrimitiveTests.class, schema);
+
+        Assert.assertEquals(rows, Arrays.asList(
+                new DTOForUInt64PrimitiveTests(0, (byte) 100, (short) 30000, 2000000000, -1L, 5f, 7d, false, 'A', 777L),
+                new DTOForUInt64PrimitiveTests(1, (byte) 100, (short) 30000, 2000000000, -1L, 5f, 7d, true, 'A', 777L)));
+        Assert.assertEquals(Long.toUnsignedString(rows.get(0).getAsLong()), "18446744073709551615");
+    }
+
+    @Test(groups = {"integration"})
+    public void testReadUInt64IntoBoxedPojoField() {
+        TableSchema schema = client.getTableSchemaFromQuery(UINT64_BOXED_SQL);
+        client.register(DTOForUInt64BoxedTests.class, schema);
+
+        Assert.assertEquals(client.queryAll(UINT64_BOXED_SQL, DTOForUInt64BoxedTests.class, schema),
+                Collections.singletonList(new DTOForUInt64BoxedTests(1,
+                        new BigInteger("18446744073709551615"), 777L)));
     }
 
     public static String tableDefinition(String table, String... columns) {
