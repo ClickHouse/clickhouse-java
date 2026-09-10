@@ -631,6 +631,11 @@ public class HttpAPIClientHelper {
 
         final HttpEntity httpEntity;
         if (useMultipart) {
+            // a multipart body is always sent as-is, so the request must not declare a content encoding - the
+            // server would fail to decompress the plain body. Removed after addHeaders() to also drop an
+            // encoding set by the application with `http_header_*`.
+            req.removeHeaders(HttpHeaders.CONTENT_ENCODING);
+
             MultipartEntityBuilder multipartEntityBuilder = MultipartEntityBuilder.create();
             addStatementParams(requestConfig, multipartEntityBuilder::addTextBody);
             multipartEntityBuilder.addTextBody(ClickHouseHttpProto.QPARAM_QUERY_STMT, body);
