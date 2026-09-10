@@ -153,6 +153,13 @@
 
 ### Bug Fixes 
 
+- **[client-v2]** Fixed a query with statement parameters sent in the request body
+  (`client.http.use_form_request_for_query=true`) failing with `LZ4 decompression failed ... (LZ4_DECODER_FAILED)`
+  when client request compression and HTTP compression were both enabled. The multipart body is always sent
+  uncompressed, but the request still declared `Content-Encoding: lz4`; ClickHouse `26.8+` honours that header for
+  multipart requests and tried to decompress a plain body. The header is now omitted for multipart requests, like
+  the `decompress` query parameter already was. Response compression (`Accept-Encoding`,
+  `enable_http_compression`) is unchanged. (https://github.com/ClickHouse/clickhouse-java/issues/3075)
 - **[jdbc-v2, client-v2]** Fixes issue with `FORMAT` in query unable to override format set by client when used with
   ClickHouse 26.8+. Default format is `RowBinaryWithNamesAndTypes` set at client level. For JDBC, recommend using
   `format=JSONEachRow` to query JSON. Setting `format=` (empty or `null`) omits the format request header so explicit

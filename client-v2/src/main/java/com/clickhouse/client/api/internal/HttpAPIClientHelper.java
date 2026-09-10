@@ -570,10 +570,10 @@ public class HttpAPIClientHelper {
         return uri;
     }
 
-    private HttpPost createPostRequest(URI uri, Map<String, Object> requestConfig) {
+    private HttpPost createPostRequest(URI uri, Map<String, Object> requestConfig, boolean isMultipartRequest) {
         HttpPost req = new HttpPost(uri);
 //        req.setVersion(new ProtocolVersion("HTTP", 1, 0)); // to disable chunk transfer encoding
-        addHeaders(req, requestConfig);
+        addHeaders(req, requestConfig, isMultipartRequest);
         return req;
     }
 
@@ -620,7 +620,7 @@ public class HttpAPIClientHelper {
 
         // create configuration dependent objects
         final URI uri = createRequestURI(server, requestConfig, useMultipart);
-        final HttpPost req = createPostRequest(uri, requestConfig);
+        final HttpPost req = createPostRequest(uri, requestConfig, useMultipart);
 
         final HttpEntity httpEntity;
         if (useMultipart) {
@@ -829,7 +829,7 @@ public class HttpAPIClientHelper {
 
     public TransportRequest createRequest(Endpoint server, Map<String, Object> requestConfig, IOCallback<OutputStream> writeCallback) {
         final URI uri = createRequestURI(server, requestConfig, false);
-        final HttpPost req = createPostRequest(uri, requestConfig);
+        final HttpPost req = createPostRequest(uri, requestConfig, false);
         try {
             String contentEncoding = req.containsHeader(HttpHeaders.CONTENT_ENCODING) ? req.getHeader(HttpHeaders.CONTENT_ENCODING).getValue() : null;
             req.setEntity(wrapRequestEntity(
@@ -869,7 +869,7 @@ public class HttpAPIClientHelper {
 
     private static final ContentType CONTENT_TYPE = ContentType.create(ContentType.TEXT_PLAIN.getMimeType(), "UTF-8");
 
-    private void addHeaders(HttpPost req, Map<String, Object> requestConfig) {
+    private void addHeaders(HttpPost req, Map<String, Object> requestConfig, boolean isMultipartRequest) {
         setHeader(req, HttpHeaders.CONTENT_TYPE, CONTENT_TYPE.getMimeType());
         if (requestConfig.containsKey(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey())) {
             Object formatObj = requestConfig.get(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey());
@@ -955,6 +955,12 @@ public class HttpAPIClientHelper {
         }
 
         // Special cases
+        if (isMultipartRequest) {
+            // a multipart body is sent as-is (see createRequest), so any content encoding would make the server
+            // fail to decompress the request
+            req.removeHeaders(HttpHeaders.CONTENT_ENCODING);
+        }
+
         if (req.containsHeader(HttpHeaders.AUTHORIZATION)
             && (req.containsHeader(ClickHouseHttpProto.HEADER_DB_USER) ||
                 req.containsHeader(ClickHouseHttpProto.HEADER_DB_PASSWORD)))

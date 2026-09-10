@@ -13,7 +13,9 @@ import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
 import org.apache.hc.core5.http.ClassicHttpResponse;
+import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.message.BasicHeader;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedConstruction;
@@ -325,6 +327,104 @@ public class HttpAPIClientHelperTest {
         HttpAPIClientHelper helper = HttpAPIClientHelperFactory.newHelper(new HashMap<>(), LZ4Factory.fastestInstance());
         // Empty request settings -> default client_retry_on_failures, which includes ServerRetryable.
         assertEquals(helper.shouldRetry(ex, new HashMap<>()), expectedRetry);
+    }
+
+    /**
+     * A multipart body (statement parameters sent as form data) is never compressed, so the request must not
+     * declare a content encoding - the server would try to decompress the plain body and fail with
+     * LZ4_DECODER_FAILED. A request that is not multipart, and response compression, keep their signalling.
+     */
+    @DataProvider(name = "requestCompressionSignalling")
+    public static Object[][] requestCompressionSignalling() {
+        return new Object[][] {
+                // clientCompression, useHttpCompression, sendParamsInBody, withParams,
+                //         contentEncoding, acceptEncoding, decompressParam
+                {true, true, true, true, null, "lz4", false},
+                {true, true, true, false, "lz4", "lz4", false}, // no parameters -> not a multipart request
+                {true, true, false, true, "lz4", "lz4", false},
+                {false, true, true, true, null, "lz4", false},
+                {true, false, true, true, null, null, false},
+                {true, false, false, true, null, null, true},
+        };
+    }
+
+    @Test(dataProvider = "requestCompressionSignalling")
+    public void testRequestCompressionSignalling(boolean clientCompression, boolean useHttpCompression,
+                                                 boolean sendParamsInBody, boolean withParams,
+                                                 String expectedContentEncoding, String expectedAcceptEncoding,
+                                                 boolean expectDecompressParam) {
+        Map<String, Object> reqConfig = compressionConfig(clientCompression, useHttpCompression, sendParamsInBody);
+        if (withParams) {
+            reqConfig.put(HttpAPIClientHelper.KEY_STATEMENT_PARAMS, Collections.singletonMap("p1", "1"));
+        }
+
+        HttpPost req = newHelper().createRequest(new HttpEndpoint("localhost", 8123, false, "/"), reqConfig,
+                "SELECT {p1:Int32}").getDelegate();
+
+        String setup = "clientCompression=" + clientCompression + ", useHttpCompression=" + useHttpCompression
+                + ", sendParamsInBody=" + sendParamsInBody + ", withParams=" + withParams;
+        assertEquals(headerValue(req, HttpHeaders.CONTENT_ENCODING), expectedContentEncoding,
+                "unexpected " + HttpHeaders.CONTENT_ENCODING + " for " + setup);
+        assertEquals(req.getEntity().getContentEncoding(), expectedContentEncoding,
+                "the request body entity must declare the same encoding as the request for " + setup);
+        assertEquals(headerValue(req, HttpHeaders.ACCEPT_ENCODING), expectedAcceptEncoding,
+                "response compression signalling must not depend on the request body form");
+
+        String query = req.getRequestUri();
+        assertEquals(query.contains(ClickHouseHttpProto.QPARAM_DECOMPRESS + "=1"), expectDecompressParam,
+                "unexpected " + ClickHouseHttpProto.QPARAM_DECOMPRESS + " parameter in " + query);
+        assertEquals(query.contains(ClickHouseHttpProto.QPARAM_ENABLE_HTTP_COMPRESSION + "=1"), useHttpCompression,
+                "unexpected " + ClickHouseHttpProto.QPARAM_ENABLE_HTTP_COMPRESSION + " parameter in " + query);
+    }
+
+    /**
+     * A content encoding set by the application through {@code http_header_*} cannot make the plain multipart
+     * body compressed either, so it must not reach the server.
+     */
+    @Test
+    public void testCustomContentEncodingHeaderRemovedForMultipartRequest() {
+        Map<String, Object> reqConfig = compressionConfig(false, false, true);
+        reqConfig.put(HttpAPIClientHelper.KEY_STATEMENT_PARAMS, Collections.singletonMap("p1", "1"));
+        reqConfig.put(ClientConfigProperties.HTTP_HEADER_PREFIX + HttpHeaders.CONTENT_ENCODING, "lz4");
+
+        HttpPost req = newHelper().createRequest(new HttpEndpoint("localhost", 8123, false, "/"), reqConfig,
+                "SELECT {p1:Int32}").getDelegate();
+
+        assertNull(headerValue(req, HttpHeaders.CONTENT_ENCODING),
+                "a custom " + HttpHeaders.CONTENT_ENCODING + " must be removed from a multipart request");
+    }
+
+    /**
+     * Data is streamed into the request body, so an insert is never a multipart request and keeps compressing
+     * its body even when the client is configured to send statement parameters in the body.
+     */
+    @Test
+    public void testDataRequestKeepsContentEncodingWhenParamsInBodyEnabled() {
+        Map<String, Object> reqConfig = compressionConfig(true, true, true);
+
+        HttpPost req = newHelper().createRequest(new HttpEndpoint("localhost", 8123, false, "/"), reqConfig,
+                out -> out.write(1)).getDelegate();
+
+        assertEquals(headerValue(req, HttpHeaders.CONTENT_ENCODING), "lz4",
+                "an insert body is compressed, so the request must declare the content encoding");
+    }
+
+    private static HttpAPIClientHelper newHelper() {
+        return HttpAPIClientHelperFactory.newHelper(new HashMap<>(), LZ4Factory.fastestInstance());
+    }
+
+    private static Map<String, Object> compressionConfig(boolean clientCompression, boolean useHttpCompression,
+                                                         boolean sendParamsInBody) {
+        Map<String, Object> reqConfig = new HashMap<>();
+        reqConfig.put(ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey(), clientCompression);
+        reqConfig.put(ClientConfigProperties.USE_HTTP_COMPRESSION.getKey(), useHttpCompression);
+        reqConfig.put(ClientConfigProperties.HTTP_SEND_PARAMS_IN_BODY.getKey(), sendParamsInBody);
+        return reqConfig;
+    }
+
+    private static String headerValue(HttpPost req, String name) {
+        Header header = req.getFirstHeader(name);
+        return header == null ? null : header.getValue();
     }
 
     /**
