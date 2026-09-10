@@ -154,6 +154,16 @@
 ### Bug Fixes 
 
 - **[jdbc-v2, client-v2]** Fixes issue with `FORMAT` in query unable to override format set by client when used with ClickHouse 26.8+. Default format is `RowBinaryWithNamesAndTypes` set at client level. For JDBC, recommend using `format=JSONEachRow` to query JSON. Setting `format=` (empty or `null`) omits the format request header so explicit query `FORMAT` clauses take effect; note that on JDBC any statement without a `FORMAT` clause and all `DatabaseMetaData` operations will fail because the server falls back to `default_format` (`TabSeparated`). (https://github.com/ClickHouse/clickhouse-java/issues/3086)
+- **[jdbc-v2]** Fixed `Connection#prepareStatement` and `PreparedStatement#addBatch` throwing
+  `StringIndexOutOfBoundsException` for an `INSERT ... VALUES (...)` statement containing a JDBC escape sequence
+  (`{d '...'}`, `{ts '...'}`, ...) or a ClickHouse query parameter whose name starts with `d`/`t` (e.g. `{d:Int32}`).
+  The default `JAVACC` parser records the values list positions as offsets into the SQL it rebuilds from the token
+  stream, where such sequences are rewritten or dropped, while the driver slices the original SQL with them — so the
+  slice was taken at the wrong offsets or past the end of the statement. The positions are now checked against the
+  original SQL and discarded when they do not address its values list, in which case the driver falls back to its
+  generic parameter substitution path. Such a statement is now prepared without error; the escape sequence itself is
+  still sent to the server unchanged. The `ANTLR4` parser backends were not affected.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3017)
 - **[jdbc-v2]** Fixed a `?` inside a `//` line comment or inside a heredoc (dollar quoted string, e.g. `$$...$$` or
   `$tag$...$tag$`) being counted as a `PreparedStatement` parameter. Such a statement expected a value the application
   could not supply, so `executeQuery()` failed with `Parameter at position 'N' is not set` for a query the server
