@@ -153,6 +153,11 @@
 
 ### Bug Fixes 
 
+- **[jdbc-v2]** Added the non-reserved keywords `AGGREGATE`, `BOUNDED`, `EXTEND`, `HANDLER`, `IDLE`, `PROTOCOL`,
+  `RECENT`, `TIMEOUT` and `UNORDERED` (ClickHouse `26.8+`; `IDLE`, `TIMEOUT` and `RECENT` come from the multi-word
+  keywords `IDLE TIMEOUT` and `RECENT SAMPLES`) to the list of keywords allowed in identifier positions. The server
+  accepts all of them as a column or table alias, so a query using one of them as an identifier must parse.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3113)
 - **[client-v2]** Fixed a query with statement parameters sent in the request body
   (`client.http.use_form_request_for_query=true`) failing with `LZ4 decompression failed ... (LZ4_DECODER_FAILED)`
   when client request compression and HTTP compression were both enabled. The multipart body is always sent
