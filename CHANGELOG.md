@@ -145,7 +145,10 @@
   lexer had no heredoc token, so such a body raised a lexer error that left the statement classified as
   `UNKNOWN` — an INSERT was reported as a result-set-bearing statement with no table name and no values-list
   positions, which disables the batch values template and the table-name based paths. A heredoc is now lexed
-  as a single string literal. (https://github.com/ClickHouse/clickhouse-java/issues/3029)
+  as a single string literal. Malformed SQL that opens a values list but never closes it — for example an
+  invalid heredoc such as `INSERT INTO t VALUES ($$a!b$$` — also no longer makes `parsePreparedStatement`
+  throw a `NullPointerException`: the values-list positions stay unset when only the start position is
+  known. (https://github.com/ClickHouse/clickhouse-java/issues/3029)
 - **[client-v2, jdbc-v2]** Reduced noisy and potentially sensitive logging; SQL that fails to parse is no
   longer logged at `WARN` (it could contain credentials/PII). (https://github.com/ClickHouse/clickhouse-java/issues/2970)
 - **[client-v2]** Fixed `BigDecimal` values written into a `Dynamic` column being silently truncated when the

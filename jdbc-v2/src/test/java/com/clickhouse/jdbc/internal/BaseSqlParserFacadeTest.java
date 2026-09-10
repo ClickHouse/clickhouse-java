@@ -393,6 +393,57 @@ public abstract class BaseSqlParserFacadeTest {
                 {"SELECT a$b FROM t", false, "t", null},
                 // Contrast: a quoted string literal keeps its existing handling
                 {"INSERT INTO t VALUES ('a!b', 1)", true, "t", "('a!b', 1)"},
+                // Multiline bodies: a heredoc is the only ClickHouse string that can hold raw line
+                // breaks, so neither the line break nor what follows it may end the literal
+                {"INSERT INTO t VALUES ($$line1\nline2$$, 1)", true, "t", "($$line1\nline2$$, 1)"},
+                {"INSERT INTO t VALUES ($tag$line1\nline2$tag$, 1)", true, "t", "($tag$line1\nline2$tag$, 1)"},
+                {"INSERT INTO t VALUES ($$line1\r\nline2$$, 1)", true, "t", "($$line1\r\nline2$$, 1)"},
+                {"INSERT INTO t VALUES ($$a!b\nc|d$$, 1)", true, "t", "($$a!b\nc|d$$, 1)"},
+                {"INSERT INTO t\nVALUES\n($$a\nb$$,\n1)", true, "t", "($$a\nb$$,\n1)"},
+                // A comment opener inside a multiline body is data, not a comment
+                {"INSERT INTO t VALUES ($$-- still data\nmore data$$, 1)", true, "t",
+                        "($$-- still data\nmore data$$, 1)"},
+                {"INSERT INTO t VALUES ($$/* still data\n*/$$, 1)", true, "t", "($$/* still data\n*/$$, 1)"},
+                {"SELECT $$line1\nline2$$ AS x FROM t", false, "t", null},
+        };
+    }
+
+    @Test(dataProvider = "malformedHeredocStatementsDP")
+    public void testMalformedHeredocStatementsAreHandledGracefully(String sql) {
+        // Invalid heredoc strings (unterminated, mismatched or empty tags) must not make the parser
+        // throw: the driver relies on the returned statement to decide how to run the query. The
+        // backends classify these differently, so only the shared contract is pinned here.
+        ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
+        Assert.assertNotNull(stmt, "Parser should return a statement for: " + sql);
+        int start = stmt.getAssignValuesListStartPosition();
+        int stop = stmt.getAssignValuesListStopPosition();
+        if (start >= 0 || stop >= 0) {
+            Assert.assertTrue(start >= 0 && stop >= start && stop < sql.length(),
+                    "Values list positions should address the SQL or stay unset, got start=" + start
+                            + " stop=" + stop + " for: " + sql);
+        }
+    }
+
+    @DataProvider
+    public static Object[][] malformedHeredocStatementsDP() {
+        return new Object[][] {
+                // Unterminated heredoc: the closing tag never arrives
+                {"INSERT INTO t VALUES ($$abc, 1)"},
+                {"INSERT INTO t VALUES ($tag$abc, 1)"},
+                {"SELECT $$abc"},
+                {"SELECT $tag$"},
+                {"SELECT $$"},
+                // A single unpaired dollar cannot close a heredoc
+                {"INSERT INTO t VALUES ($$abc$, 1)"},
+                // Mismatched opening and closing tags
+                {"INSERT INTO t VALUES ($tag$abc$other$, 1)"},
+                // A tag cannot hold whitespace, so this is not a heredoc at all
+                {"INSERT INTO t VALUES ($ $a$ $, 1)"},
+                // Two heredocs with no separator between them
+                {"INSERT INTO t VALUES ($$a!b$$$$c!d$$, 1)"},
+                {"SELECT $$abc$$$$def"},
+                // The statement is cut off inside the values list
+                {"INSERT INTO t VALUES ($$a!b$$"},
         };
     }
 

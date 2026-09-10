@@ -100,8 +100,12 @@ public abstract class SqlParserFacade {
             stmt.setAssignValuesGroups(parsedStmt.getValueGroups());
 
             Integer startIndex = parsedStmt.getPositions().get(ClickHouseSqlStatement.KEYWORD_VALUES_START);
-            if (startIndex != null) {
-                int endIndex = parsedStmt.getPositions().get(ClickHouseSqlStatement.KEYWORD_VALUES_END);
+            Integer stopIndex = parsedStmt.getPositions().get(ClickHouseSqlStatement.KEYWORD_VALUES_END);
+            // Malformed SQL can leave a values list open: the start position is recorded while the
+            // parser fails before the closing parenthesis, so the end position is never set. Leave both
+            // positions unset in that case instead of failing on the missing one.
+            if (startIndex != null && stopIndex != null) {
+                int endIndex = stopIndex;
                 stmt.setAssignValuesListStartPosition(startIndex);
                 stmt.setAssignValuesListStopPosition(endIndex);
                 String query = parsedStmt.getSQL();
