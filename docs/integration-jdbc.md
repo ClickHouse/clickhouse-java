@@ -28,6 +28,49 @@ Two distributions are published under the same artifact:
 
 ---
 
+## Development Environment 
+
+### Java Version
+
+The ClickHouse JDBC driver requires **Java 8 or newer**. All mainline development and testing are validated on recent LTS versions (Java 8, 11, 17, and 21 as available). We recommend using up-to-date LTS releases, as feature coverage, TLS support, and performance are best with newer runtimes.
+
+### Local ClickHouse for Development
+
+For local development and rapid prototyping, you can run ClickHouse in a container with minimal setup:
+
+```sh
+docker run --rm -d -p 8123:8123 --name clickhouse-server clickhouse/clickhouse-server:latest
+```
+
+This launches a fresh ClickHouse server, with the HTTP API available at `localhost:8123`. The default database is `default` and no password is required for the default user (`default`). This is ideal for smoke tests, schema exploration, and validating basic integration.
+
+You can also use any recent [official ClickHouse binary](https://clickhouse.com/docs/en/getting-started/install/) or use Docker Compose for more complex setups.
+
+> **Note:** Local environments are best for initial integration, experiments, and CI pipelines — not for realistic scale, performance, or operational requirements.
+
+### ClickHouse Cloud (Recommended for Production-like Integration)
+
+While local ClickHouse is excellent for early development, **we strongly recommend using [ClickHouse Cloud](https://clickhouse.com/cloud/)** for end-to-end integration and before considering your application production ready.
+
+ClickHouse Cloud environments mirror real-world production settings:
+
+- Managed authentication, scaling, secure TLS endpoints
+- Production-like network performance and stability
+- Long-running, stateful databases without the churn or "works on my machine" surprises
+
+Using ClickHouse Cloud during integration helps uncover configuration or authentication nuances, avoid brittle local-only assumptions, and validates your app against true cloud operations. All features described in this guide are supported equally, and connection examples are identical — just provide your cloud hostname, port, and TLS-enabled URL in the JDBC connection string.
+
+> **Best practice:** Validate your integration against ClickHouse Cloud regularly, especially before feature launches and release cutoffs.
+
+### Summary
+
+- **Local ClickHouse**: Fast, simple; best for initial trials and interactive development.
+- **ClickHouse Cloud**: Closest to real-world production, surfaces integration and operational issues early, and ensures all JDBC (and client) features work as expected.
+
+For more, see the [ClickHouse Cloud docs](https://clickhouse.com/docs/en/cloud/) and the [official integrations guide](https://clickhouse.com/docs/en/integrations/java/).
+
+
+
 ## Integration path at a glance
 
 Work through these steps in order. The "Common Pitfalls" notes tell you what breaks if you skip one.
@@ -47,6 +90,14 @@ Work through these steps in order. The "Common Pitfalls" notes tell you what bre
 ## Step 1 — Instantiation strategy
 
 **Goal:** decide the lifecycle of a JDBC `Connection` and how you pool connections.
+
+This is important to mention about user provided configuration when system is transparent about connection properties. Build an adoption layer between connector and JDBC driver properties to 
+decouple your system from changes in JDBC driver. Having such adoption layer helps also with migration to new version and resolving compatibility issues. Always separate your application or 
+connector configuration from JDBC driver. It may be very problematic in future to resolve name collisions and handle upgrades. It is very important to document how JDBC driver 
+can be configured by user and where to find driver configuration references. 
+
+**Security Note** Always validate input for configuration. JDBC verifies it own configuration but some values can be semantically invalid. For example, do not let to reconfigure client name.
+ 
 
 ### What the JDBC objects are
 
@@ -391,6 +442,8 @@ public boolean checkConnectionHealth(Connection conn, int timeoutSeconds) throws
 }
 ```
 
+
+
 ### Common Pitfalls
 
 <common-pitfalls>
@@ -656,6 +709,41 @@ public Connection createRowBinaryInsertConnection() throws SQLException {
 | HTTP compression | `client.use_http_compression=true` | Content-Encoding on the HTTP layer |
 | Async insert | `async_insert=1` (server setting) | Server-side insert buffering |
 
+When using the RowBinary writer for inserts, you can combine it with async inserts (`async_insert=1` and optionally `wait_async_insert=1`) to achieve very high-throughput, low-latency ingestion. The RowBinary format is efficient for bulk data transfer, while async insert lets the server buffer and process inserts in the background, enabling the client to proceed without blocking on disk writes.
+
+**How this helps:**
+- **Lower client-side latency:** The JDBC driver streams RowBinary-encoded data directly to the server; with async insert enabled, the server acknowledges receipt quickly, decoupling the client from storage latency.
+- **Higher throughput:** The combination is ideal for ingest-heavy workloads—batches or streaming ETL—because the client isn't forced to wait for each insert to be durably stored before proceeding.
+- **Optimized network and server utilization:** RowBinary reduces payload size and overhead, async insert handles bursty/high-rate loads by buffering, and both together reduce insert round-trip costs.
+
+**Example: Batched, streaming async insert using RowBinary**
+
+```java
+public void asyncRowBinaryInsert(Connection conn, List<Event> events) throws SQLException {
+    if (events.isEmpty()) {
+        return;
+    }
+    try (PreparedStatement ps = conn.prepareStatement(
+            "INSERT INTO events (id, name, created_at) " +
+            "SETTINGS async_insert=1, wait_async_insert=1 VALUES (?, ?, ?)")) {
+        for (Event event : events) {
+            ps.setLong(1, event.getId());
+            ps.setString(2, event.getName());
+            ps.setObject(3, event.getCreatedAt());
+            ps.addBatch();
+        }
+        ps.executeBatch();
+    }
+}
+```
+
+This leverages the JDBC driver's RowBinary streaming (when `beta.row_binary_for_simple_insert=true` is set) *plus* async server-side processing, so your application can ingest large volumes with minimal response-time overhead.
+
+> **Tip:** For the best results on very high-volume pipelines, adjust both server async insert settings (see [ClickHouse docs](https://clickhouse.com/docs/en/operations/settings/settings#async_insert)) and the client's connection/HTTP pool size and streaming/chunking properties.
+> 
+> **Caution:** Remember that with async insert, success response means "data accepted for processing" — not yet "written." Use `wait_async_insert=1` to wait for commit, and deduplication tokens if retrying inserts to avoid duplicates.
+
+
 ### Idempotency — deduplication token
 
 JDBC does not expose `insert_deduplication_token` as a first-class API. Three ways to use it:
@@ -675,6 +763,103 @@ public void insertWithPerStatementDedup(Connection conn, String token) throws SQ
 **2. Switch to the Java Client** for per-insert token control via `InsertSettings.setDeduplicationToken(...)`.
 
 See [integration-client.md — deduplication token](integration-client.md#idempotency--deduplication-token) for semantics and requirements.
+
+
+**Async inserts** 
+ClickHouse supports "async inserts", which allow inserts to buffer on the server side (`async_insert=1`), returning control to the client before the data is fully written to disk. **Caveat:** The insert operation may report success even though the data is not yet persisted, and you *cannot* reliably check row count in statistics to confirm completion.
+
+**To ensure the insert is actually complete and data is committed, the only supported option is to use `wait_async_insert=1` in the SQL SETTINGS clause.** This makes the server wait for the buffered insert to finish before acknowledging the operation:
+
+```java
+public void safeAsyncInsert(Connection conn) throws SQLException {
+    try (Statement stmt = conn.createStatement()) {
+        stmt.executeUpdate(
+            "INSERT INTO events SETTINGS async_insert=1, wait_async_insert=1 VALUES (1, 'a')");
+    }
+}
+```
+
+> **Note:** Inserts using async mode may interact with deduplication. If your workflow is retry-prone or idempotency is required, always set an explicit deduplication token (see prior section) in `insert_deduplication_token`. This avoids duplicate inserts if the first async INSERT is still being processed when a retry occurs.
+
+**Summary:**  
+- Never rely on server statistics/row count to determine async insert completion.
+- Use `wait_async_insert=1` to guarantee data is committed before continuing.
+- For deduplication, combine `insert_deduplication_token` with async inserts as needed (`SETTINGS async_insert=1, wait_async_insert=1, insert_deduplication_token = 'your_token'`).
+
+### Failure Handling 
+
+#### Retriable Operations
+
+Most operations retried by the JDBC driver are **network-level failures** — for example, timeouts, connection drops, and intermediate transport errors.  
+The underlying Java Client (`client-v2`) already implements robust automatic retry logic for such network and transient issues, so in almost all cases **explicit retry logic in application code is unnecessary**.
+
+Some server-side errors, however, may also be transient and suitable for retry, depending on the use case:
+
+- **Execution timeout errors**: If a query fails due to a timeout (e.g., server-side `max_execution_time` or too aggressive timeout settings), the operation may be retried with adjusted settings or after a backoff delay.
+- **Schema mismatch errors** (see below): When the table schema changes between requests (causing errors such as "UNABLE TO READ ALL DATA"), retrying the operation after refreshing the schema can resolve the problem.
+- **Server overloads or resource spikes**: Very occasionally, a server might return a retryable error indicating temporary overload; review the exception chain for details.
+
+> **Best Practice:**  
+> - Trust the client's network retry strategy for network or I/O failures.
+> - For retrying queries after **server-side errors**, examine the exception code and context to determine whether a retry makes sense — especially for timeouts, schema mismatches, or temporary overloads.
+> - Avoid blanket retries of all `SQLException`s, since some are non-retriable (invalid SQL, authentication failure, etc.), and indiscriminate retrying can produce duplicate writes if idempotency is not ensured.
+
+See below for how to detect and handle schema mismatch errors specifically.
+
+#### Schema mismatch
+
+When working with a ClickHouse cluster, you may encounter errors if the table schema changes unexpectedly between queries or ingestions. While most JDBC applications escape this because generated SQL typically matches the current schema, dynamic ingestion workflows or custom binary writers (like RowBinary insert streams) are particularly sensitive.
+
+**Typical error:**  
+A schema change — such as adding, removing, or altering a column — can result in ingestion failures with errors like:
+
+- **ClickHouse Error Code 33 — "UNABLE TO READ ALL DATA"**:  
+  This error appears when the data sent from the client does not match the expected table schema on the server (column count, order, or types are incompatible).  
+  - For example, if you use a RowBinary writer and the schema is out of sync, ClickHouse cannot parse the incoming data block, resulting in this error.
+  - Code 33 may also be reported as a generic SQL exception by the JDBC layer, and the actual error code is only accessible if the exception's cause is a `ServerException` from the ClickHouse client.
+
+**Detection & Handling:**
+- **Detection:**  
+  Error Code 33 signals that ClickHouse could not read all required data — most often due to a schema drift or column mismatch between the client and ClickHouse table.  
+  However, in the JDBC pathway, the underlying ClickHouse error code is accessible *only if* the root cause of the `SQLException` is a `com.clickhouse.client.ServerException`. You should check if `SQLException.getCause()` is a `ServerException` and inspect the code/message.
+- **Best practices for handling:**  
+  1. **Catch and examine SQL exceptions.**  
+     - If `ex.getCause()` is a `ServerException` with code 33 (or message indicating unable to read all data), assume a schema mismatch.
+  2. **Proactively refresh schema.**  
+     - Fetch the latest table schema using JDBC's `DatabaseMetaData` or a `DESCRIBE TABLE` query.
+  3. **Regenerate SQL or update your ingestion/mapping logic.**  
+     - Make sure your SQL, `PreparedStatement`, or RowBinary column mapping exactly matches the current table schema.
+  4. **Retry the operation.**
+
+**Example: Handling Error Code 33 (ServerException only)**
+
+```java
+import com.clickhouse.client.ServerException;
+
+try {
+    // ... ingestion code ...
+} catch (SQLException ex) {
+    Throwable cause = ex.getCause();
+    if (cause instanceof ServerException) {
+        ServerException serverEx = (ServerException) cause;
+        // ClickHouse code 33: UNABLE TO READ ALL DATA (schema mismatch)
+        if (serverEx.getErrorCode() == 33 ) {
+            // Possible table schema mismatch
+            // 1. Reload schema via DatabaseMetaData or DESCRIBE TABLE
+            // 2. Update SQL or RowBinary mapping as needed
+            // 3. Retry with updated logic
+        } else {
+            throw ex; // not a schema mismatch
+        }
+    } else {
+        throw ex; // Cannot determine server error code
+    }
+}
+```
+
+> **Note:** Always ensure your application's data shape matches the target table exactly when using RowBinary or similar binary ingestion APIs. If your code holds a schema cache, invalidate it and fetch the up-to-date schema on a Code 33 error before retrying.
+
+See [ClickHouse error codes documentation](https://clickhouse.com/docs/en/operations/error-codes/) for more on Code 33 and related scenarios.
 
 ### Best practices
 
