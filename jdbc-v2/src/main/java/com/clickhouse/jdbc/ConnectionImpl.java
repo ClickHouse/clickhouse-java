@@ -14,6 +14,7 @@ import com.clickhouse.jdbc.internal.FeatureManager;
 import com.clickhouse.jdbc.internal.JdbcConfiguration;
 import com.clickhouse.jdbc.internal.ParsedPreparedStatement;
 import com.clickhouse.jdbc.internal.SqlParserFacade;
+import com.clickhouse.jdbc.internal.parser.javacc.ClickHouseSqlStatement;
 import com.clickhouse.jdbc.metadata.DatabaseMetaDataImpl;
 import com.google.common.collect.ImmutableMap;
 import org.slf4j.Logger;
@@ -460,10 +461,14 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
              * - INSERT INTO t VALUES (now(), ?, ?) !# there is a function in the values
              * - INSERT INTO t VALUES (now(), ?, 1), (now(), ?, 2) !# multiple values list
              * - INSERT INTO t SELECT ?, ?, ? !# insert from select
+             * - INSERT INTO [TABLE] FUNCTION f(...) VALUES (?) !# the target is a table function
+             * - the target table could not be resolved from the statement
              */
+            String table = parsedStatement.getTable();
             if (!parsedStatement.isInsertWithSelect() && parsedStatement.getAssignValuesGroups() == 1
-                    && !parsedStatement.isUseFunction()) {
-                TableSchema tableSchema = client.getTableSchema(parsedStatement.getTable(), schema);
+                    && !parsedStatement.isUseFunction()
+                    && table != null && !ClickHouseSqlStatement.DEFAULT_TABLE.equals(table)) {
+                TableSchema tableSchema = client.getTableSchema(table, schema);
                 return new WriterStatementImpl(this, sql, tableSchema, parsedStatement);
             }
         }
