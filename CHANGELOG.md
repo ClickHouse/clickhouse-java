@@ -153,6 +153,11 @@
 
 ### Bug Fixes 
 
+- **[jdbc-v2]** Added the non-reserved keywords `AGGREGATE`, `BOUNDED`, `EXTEND`, `HANDLER`, `IDLE`, `PROTOCOL`,
+  `RECENT`, `TIMEOUT` and `UNORDERED` (ClickHouse `26.8+`; `IDLE`, `TIMEOUT` and `RECENT` come from the multi-word
+  keywords `IDLE TIMEOUT` and `RECENT SAMPLES`) to the list of keywords allowed in identifier positions. The server
+  accepts all of them as a column or table alias, so a query using one of them as an identifier must parse.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3113)
 - **[jdbc-v2, client-v2]** Fixes issue with `FORMAT` in query unable to override format set by client when used with
   ClickHouse 26.8+. Default format is `RowBinaryWithNamesAndTypes` set at client level. For JDBC, recommend using
   `format=JSONEachRow` to query JSON. Setting `format=` (empty or `null`) omits the format request header so explicit
