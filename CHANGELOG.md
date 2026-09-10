@@ -153,7 +153,13 @@
 
 ### Bug Fixes 
 
-- **[jdbc-v2, client-v2]** Fixes issue with `FORMAT` in query unable to override format set by client when used with ClickHouse 26.8+. Default format is `RowBinaryWithNamesAndTypes` set at client level. For JDBC, recommend using `format=JSONEachRow` to query JSON. Setting `format=` (empty or `null`) omits the format request header so explicit query `FORMAT` clauses take effect; note that on JDBC any statement without a `FORMAT` clause and all `DatabaseMetaData` operations will fail because the server falls back to `default_format` (`TabSeparated`). (https://github.com/ClickHouse/clickhouse-java/issues/3086)
+- **[jdbc-v2, client-v2]** Fixes issue with `FORMAT` in query unable to override format set by client when used with
+  ClickHouse 26.8+. Default format is `RowBinaryWithNamesAndTypes` set at client level. For JDBC, recommend using
+  `format=JSONEachRow` to query JSON. Setting `format=` (empty or `null`) omits the format request header so explicit
+  query `FORMAT` clauses take effect; note that on JDBC any statement without a `FORMAT` clause will fail because the
+  server falls back to `default_format` (`TabSeparated`). `DatabaseMetaData` is unaffected: every statement it runs
+  internally pins `RowBinaryWithNamesAndTypes` in its own settings, so metadata keeps working regardless of the
+  connection's `format` property. (https://github.com/ClickHouse/clickhouse-java/issues/3086)
 - **[jdbc-v2]** Fixed `Connection#prepareStatement` and `PreparedStatement#addBatch` throwing
   `StringIndexOutOfBoundsException` for an `INSERT ... VALUES (...)` statement containing a JDBC escape sequence
   (`{d '...'}`, `{ts '...'}`, ...) or a ClickHouse query parameter whose name starts with `d`/`t` (e.g. `{d:Int32}`).

@@ -424,7 +424,8 @@ The response format can be configured using the `format` connection property (`C
 - To read JSON in JDBC, the recommended approach is setting `format=JSONEachRow` in connection properties along with `jdbc_json_parser_factory`.
 - Setting `format=` (empty string) or `null` is an **expert-only setting**:
   - Setting `format=` omits the `X-ClickHouse-Format` request header, allowing explicit SQL `FORMAT` clauses written in query strings to take effect.
-  - **Caveat:** For any statement without an explicit SQL `FORMAT` clause, the server falls back to its `default_format` (`TabSeparated`). Because JDBC `ResultSet` only consumes `RowBinaryWithNamesAndTypes` and `JSONEachRow`, all queries without a `FORMAT` clause and all `DatabaseMetaData` operations (e.g. `getTables()`, `getColumns()`) will fail with a `SQLException`.
+  - **Caveat:** For any statement without an explicit SQL `FORMAT` clause, the server falls back to its `default_format` (`TabSeparated`). Because JDBC `ResultSet` only consumes `RowBinaryWithNamesAndTypes` and `JSONEachRow`, such queries fail with a `SQLException`.
+  - `DatabaseMetaData` operations (e.g. `getTables()`, `getColumns()`) are not affected by the `format` property: they pin `RowBinaryWithNamesAndTypes` on the statements they run internally.
 
 ### Usage of `JSONEachRow` in JDBC
 

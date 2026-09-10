@@ -46,6 +46,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection()) {
             final String tableName = "get_columns_metadata_test";
             try (Statement stmt = conn.createStatement()) {
+                stmt.executeUpdate("DROP TABLE IF EXISTS " + tableName);
                 stmt.executeUpdate("" +
                         "CREATE TABLE " + tableName + " (id Int32, name String NOT NULL, v1 Nullable(Int8), v2 Array(Int8)) " +
                         "ENGINE MergeTree ORDER BY tuple()");
@@ -165,6 +166,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection(props)) {
             final String tableName = "get_columns_binary_string_support_test";
             try (Statement stmt = conn.createStatement()) {
+                stmt.executeUpdate("DROP TABLE IF EXISTS " + tableName);
                 stmt.executeUpdate("CREATE TABLE " + tableName +
                         " (id Int32, name String NOT NULL, v1 Nullable(Int8), v2 Array(Int8)) " +
                         "ENGINE MergeTree ORDER BY tuple()");
@@ -673,6 +675,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
 
             }
             try (Statement stmt = conn.createStatement()){
+                stmt.executeUpdate("DROP TABLE IF EXISTS test_db_metadata_type_memory");
                 stmt.executeUpdate("CREATE TABLE test_db_metadata_type_memory (v Int32) ENGINE Memory");
             }
             try (ResultSet rs = dbmd.getTables(null, "default", "test_db_metadata_type_memory", null)) {
