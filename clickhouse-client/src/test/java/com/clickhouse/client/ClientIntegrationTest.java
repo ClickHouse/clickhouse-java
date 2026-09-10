@@ -1206,6 +1206,10 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             negativeOneValue = ClickHouseUtils.format("'%s'", ClickHouseIntegerValue.of(-1).asUuid());
             zeroValue = ClickHouseUtils.format("'%s'", ClickHouseIntegerValue.of(0).asUuid());
             positiveOneValue = ClickHouseUtils.format("'%s'", ClickHouseIntegerValue.of(1).asUuid());
+        } else if (dataType.startsWith(ClickHouseDataType.DateTime64.name())) {
+            negativeOneValue = ClickHouseUtils.format("'%s'", negativeOne);
+            zeroValue = ClickHouseUtils.format("'%s'", zero);
+            positiveOneValue = ClickHouseUtils.format("'%s'", positiveOne);
         }
 
         try {
