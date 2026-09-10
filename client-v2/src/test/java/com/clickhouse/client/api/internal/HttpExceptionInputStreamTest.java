@@ -3,6 +3,7 @@ package com.clickhouse.client.api.internal;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.ServerException;
 import org.testng.Assert;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.io.ByteArrayInputStream;
@@ -17,6 +18,29 @@ public class HttpExceptionInputStreamTest {
     private static final String EXCEPTION_TAG = "0123456789abcdef";
     private static final String ERROR_MESSAGE =
             "Code: 159. DB::Exception: Timeout exceeded. (TIMEOUT_EXCEEDED)";
+
+    @DataProvider(name = "smallReads")
+    public Object[][] smallReads() {
+        return new Object[][] {{0}, {1}, {8}};
+    }
+
+    @Test(dataProvider = "smallReads")
+    public void shouldNotDrainResponseOnSmallRead(int readSize) throws Exception {
+        byte[] body = "result-data-that-must-remain-unread".getBytes(StandardCharsets.UTF_8);
+        ByteArrayInputStream source = new ByteArrayInputStream(body);
+        try (InputStream input = new HttpExceptionInputStream(source, EXCEPTION_TAG, 200, "query-id")) {
+            if (readSize == 0) {
+                Assert.assertEquals(input.read(), body[0]);
+            } else {
+                byte[] buffer = new byte[readSize];
+                Assert.assertEquals(input.read(buffer), readSize);
+                for (int i = 0; i < buffer.length; i++) {
+                    Assert.assertEquals(buffer[i], body[i]);
+                }
+            }
+            Assert.assertEquals(source.available(), body.length - Math.max(1, readSize));
+        }
+    }
 
     @Test
     public void shouldDetectExceptionAcrossReadBoundaries() throws Exception {

@@ -87,7 +87,7 @@ final class HttpExceptionInputStream extends InputStream {
                 return -1;
             }
 
-            fillPending();
+            fillPending(length);
             scanPending();
         }
     }
@@ -109,9 +109,10 @@ final class HttpExceptionInputStream extends InputStream {
         return Math.max(0, scanOffset - pendingStart);
     }
 
-    private void fillPending() {
+    private void fillPending(int requestedLength) {
         try {
-            int read = source.read(sourceBuffer);
+            // Reading ahead can drain a small HTTP response and release its pooled connection prematurely.
+            int read = source.read(sourceBuffer, 0, Math.min(requestedLength, sourceBuffer.length));
             if (read < 0) {
                 sourceDone = true;
                 scanOffset = pendingEnd;

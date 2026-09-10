@@ -147,7 +147,8 @@
   `X-ClickHouse-Exception-Tag` response header and throws a `ServerException` when the stream reaches it. When the
   server error is `TIMEOUT_EXCEEDED` (code 159), `jdbc-v2` now reports `SQLTimeoutException` with SQLState `HYT00`
   from `ResultSet.next()` while preserving the original exception chain. Previously the tagged frame could be read as
-  row data and the timeout was exposed as a generic `SQLException`.
+  row data and the timeout was exposed as a generic `SQLException`. Normal reads remain demand-driven so parsing
+  response metadata does not drain a small response and return its HTTP connection to the pool prematurely.
   (https://github.com/ClickHouse/clickhouse-java/issues/2702, https://github.com/ClickHouse/clickhouse-java/issues/3077)
 - **[jdbc-v2]** Fixed `PreparedStatement.getMetaData()` losing the result-set schema for a statement whose SQL
   contains a comment. The `DESCRIBE` query used to resolve the metadata was built by re-scanning the SQL with a
