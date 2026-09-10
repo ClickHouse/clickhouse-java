@@ -735,6 +735,61 @@ public class ClientTests extends BaseIntegrationTest {
                 Assert.assertTrue(e.getMessage().contains("Trust store and certificates cannot be used together"), e.getMessage()));
     }
 
+    @Test
+    public void testFormatPropertyParsing() {
+        Map<String, String> rawMap = new HashMap<>();
+        rawMap.put("format", "csv");
+        Map<String, Object> parsedMap = ClientConfigProperties.parseConfigMap(rawMap);
+        Assert.assertEquals(parsedMap.get("format"), ClickHouseFormat.CSV);
+
+        rawMap.clear();
+        rawMap.put("format", "  jsoneachrow  ");
+        parsedMap = ClientConfigProperties.parseConfigMap(rawMap);
+        Assert.assertEquals(parsedMap.get("format"), ClickHouseFormat.JSONEachRow);
+
+        rawMap.clear();
+        rawMap.put("format", "CustomNewFormat");
+        parsedMap = ClientConfigProperties.parseConfigMap(rawMap);
+        Assert.assertEquals(parsedMap.get("format"), "CustomNewFormat");
+
+        rawMap.clear();
+        rawMap.put("format", "");
+        parsedMap = ClientConfigProperties.parseConfigMap(rawMap);
+        Assert.assertFalse(parsedMap.containsKey("format"), "Empty string format should result in key not present or null");
+
+        rawMap.clear();
+        rawMap.put("format", "   ");
+        parsedMap = ClientConfigProperties.parseConfigMap(rawMap);
+        Assert.assertFalse(parsedMap.containsKey("format"), "Whitespace format should result in key not present or null");
+    }
+
+    @Test
+    public void testQueryFormatBuilder() {
+        try (Client c1 = new Client.Builder().addEndpoint("http://localhost:8123").queryFormat(null).build()) {
+            Assert.assertNull(c1.getConfiguration().get(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey()));
+        }
+
+        try (Client c2 = new Client.Builder().addEndpoint("http://localhost:8123").queryFormat("").build()) {
+            Assert.assertNull(c2.getConfiguration().get(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey()));
+        }
+
+        try (Client c3 = new Client.Builder().addEndpoint("http://localhost:8123").queryFormat("   ").build()) {
+            Assert.assertNull(c3.getConfiguration().get(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey()));
+        }
+
+        try (Client c4 = new Client.Builder().addEndpoint("http://localhost:8123").queryFormat("csv").build()) {
+            Assert.assertEquals(c4.getConfiguration().get(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey()), "CSV");
+        }
+
+        try (Client c5 = new Client.Builder().addEndpoint("http://localhost:8123").queryFormat("  jsoneachrow  ").build()) {
+            Assert.assertEquals(c5.getConfiguration().get(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey()), "JSONEachRow");
+        }
+
+        try (Client c6 = new Client.Builder().addEndpoint("http://localhost:8123").queryFormat("CustomNewFormat").build()) {
+            Assert.assertEquals(c6.getConfiguration().get(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey()), "CustomNewFormat");
+        }
+    }
+
     @Test(groups = {"integration"})
     public void testOverrideSettings() throws Exception {
         final String clientTimezone = "America/Los_Angeles";

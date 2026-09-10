@@ -499,7 +499,7 @@ The client provides transparent access to the response stream from ClickHouse. Y
 A response format can be specified in several ways:
 - **`QuerySettings#setFormat(ClickHouseFormat format)`**: Sets the format header (`X-ClickHouse-Format`) for a specific query request.
 - **`FORMAT` clause in SQL**: Appending `FORMAT <FormatName>` directly in the SQL query string.
-- **Client default setting**: The client sets a default `format` option (`ClientConfigProperties.INPUT_OUTPUT_FORMAT`, defaulting to `RowBinaryWithNamesAndTypes`) at the client level.
+- **Client default setting**: The client sets a default `format` option (`ClientConfigProperties.INPUT_OUTPUT_FORMAT`, defaulting to `RowBinaryWithNamesAndTypes`) at the client level. Configured via `Client.Builder#queryFormat(String format)` or `setOption("format", ...)`. Note that `queryFormat` accepts a `String` to allow using new ClickHouse formats not yet defined in the `ClickHouseFormat` enum, and passing `null` or an empty string omits the format header.
 - **Server setting**: ClickHouse server session setting (`default_format`).
 
 **Precedence and Version Differences:**

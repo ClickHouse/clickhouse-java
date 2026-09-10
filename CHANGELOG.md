@@ -153,9 +153,7 @@
 
 ### Bug Fixes 
 
-- **[jdbc-v2]** Fixes issue with `FORMAT` in query unable to override format set by client when used with ClickHouse 26.8+ 
-  Default format is `RowBinaryWithNamesAndTypes` as before but set on client level and can be set to `null` to rely on 
-  query `FORMAT` clause. (https://github.com/ClickHouse/clickhouse-java/issues/3086)
+- **[jdbc-v2, client-v2]** Fixes issue with `FORMAT` in query unable to override format set by client when used with ClickHouse 26.8+. Default format is `RowBinaryWithNamesAndTypes` set at client level. For JDBC, recommend using `format=JSONEachRow` to query JSON. Setting `format=` (empty or `null`) omits the format request header so explicit query `FORMAT` clauses take effect; note that on JDBC any statement without a `FORMAT` clause and all `DatabaseMetaData` operations will fail because the server falls back to `default_format` (`TabSeparated`). (https://github.com/ClickHouse/clickhouse-java/issues/3086)
 - **[jdbc-v2]** Fixed a `?` inside a `//` line comment or inside a heredoc (dollar quoted string, e.g. `$$...$$` or
   `$tag$...$tag$`) being counted as a `PreparedStatement` parameter. Such a statement expected a value the application
   could not supply, so `executeQuery()` failed with `Parameter at position 'N' is not set` for a query the server

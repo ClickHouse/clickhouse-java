@@ -401,7 +401,11 @@ public class Client implements AutoCloseable {
                         + "' cannot be set as a string; supply a javax.net.ssl.SSLContext object via "
                         + "Client.Builder.setSSLContext(...)");
             }
-            this.configuration.put(key, value);
+            if (value == null) {
+                this.configuration.remove(key);
+            } else {
+                this.configuration.put(key, value);
+            }
             if (key.equals(ClientConfigProperties.PRODUCT_NAME.getKey())) {
                 setClientName(value);
             }
@@ -1302,12 +1306,25 @@ public class Client implements AutoCloseable {
 
         /**
          * Sets default format used when no format is specified in {@code QuerySettings}.
+         * Accepts a ClickHouse format name as a String (e.g. "RowBinaryWithNamesAndTypes", "CSV", "JSONEachRow").
+         * String input is accepted to allow usage of new ClickHouse formats not yet defined in {@link ClickHouseFormat}.
+         * Pass {@code null} or an empty string to send no format header.
          *
-         * @param format - valid ClickHouse format
+         * @param format - ClickHouse format name, or null / empty string for no format header
          * @return this instance of builder
          */
         public Builder queryFormat(String format) {
-            this.setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), ClickHouseFormat.valueOf(format).name());
+            if (format == null || format.trim().isEmpty()) {
+                this.setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), null);
+                return this;
+            }
+            String trimmed = format.trim();
+            try {
+                ClickHouseFormat chFormat = ClickHouseFormat.fromString(trimmed);
+                this.setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), chFormat.name());
+            } catch (IllegalArgumentException e) {
+                this.setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), trimmed);
+            }
             return this;
         }
 

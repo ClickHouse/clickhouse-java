@@ -421,7 +421,10 @@ The response format can be configured using the `format` connection property (`C
 **Important for ClickHouse 26.8+:**
 - On ClickHouse 26.8+, the request format header sent by the driver (`X-ClickHouse-Format`) takes priority over a `FORMAT` clause written in the SQL query string.
 - By default, the driver sends `format=RowBinaryWithNamesAndTypes`.
-- To use a SQL `FORMAT` clause (such as `SELECT ... FORMAT JSONEachRow`) with ClickHouse 26.8+, set `format=JSONEachRow` in connection properties or set `format=` (to `""` empty string) so the default binary format header is omitted and ClickHouse honors the query's `FORMAT` clause.
+- To read JSON in JDBC, the recommended approach is setting `format=JSONEachRow` in connection properties along with `jdbc_json_parser_factory`.
+- Setting `format=` (empty string) or `null` is an **expert-only setting**:
+  - Setting `format=` omits the `X-ClickHouse-Format` request header, allowing explicit SQL `FORMAT` clauses written in query strings to take effect.
+  - **Caveat:** For any statement without an explicit SQL `FORMAT` clause, the server falls back to its `default_format` (`TabSeparated`). Because JDBC `ResultSet` only consumes `RowBinaryWithNamesAndTypes` and `JSONEachRow`, all queries without a `FORMAT` clause and all `DatabaseMetaData` operations (e.g. `getTables()`, `getColumns()`) will fail with a `SQLException`.
 
 ### Usage of `JSONEachRow` in JDBC
 
@@ -429,7 +432,7 @@ JDBC V2 supports streaming `JSONEachRow` responses as standard `ResultSet` insta
 
 1. **Configure Driver Properties:**
    Set `jdbc_json_parser_factory` (`DriverProperties.JSON_PARSER_FACTORY`) to the fully-qualified class name of a `JsonParserFactory` implementation (such as `JacksonJsonParserFactory` or `GsonJsonParserFactory`).
-   Set `format` (`ClientConfigProperties.INPUT_OUTPUT_FORMAT`) to `"JSONEachRow"` (or set `format=` when including `FORMAT JSONEachRow` in the query).
+   Set `format` (`ClientConfigProperties.INPUT_OUTPUT_FORMAT`) to `"JSONEachRow"`.
 
 ```java
 import com.clickhouse.client.api.ClientConfigProperties;
@@ -470,7 +473,7 @@ public void readJsonEachRowResultSet(Connection conn) throws Exception {
 | Simple CRUD / reporting | Standard JDBC — sufficient | — |
 | Bulk ingest (millions of rows) | Batch `PreparedStatement` + RowBinary beta | Java Client stream insert |
 | Complex type handling | `getObject()` with type map | Java Client POJO/binary readers |
-| Export to a file format | `format` property / JSONEachRow | Java Client with format selection |
+| Export to a file format | Not supported via ResultSet (ResultSet requires `RowBinaryWithNamesAndTypes` or `JSONEachRow`; text formats like CSV fail) | Java Client with format selection (`conn.unwrap(ConnectionImpl.class).getClient()`) |
 | BI tool integration | JDBC is the right choice | — |
 
 ### Hybrid usage: dropping down to the Java Client

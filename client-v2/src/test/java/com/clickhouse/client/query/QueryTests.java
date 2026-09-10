@@ -2405,12 +2405,29 @@ public class QueryTests extends BaseIntegrationTest {
             Assert.assertEquals(response.getFormat(), ClickHouseFormat.RowBinaryWithNamesAndTypes);
         }
 
-        // 3. Client configured with format set to null allows query SQL FORMAT clause to take effect
+        // 3. Client configured with format set to null or empty string allows query SQL FORMAT clause to take effect
         try (Client nullFormatClient = newClient()
-                .setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), null)
+                .queryFormat(null)
                 .build()) {
             try (QueryResponse response = nullFormatClient.query("SELECT 1 AS num FORMAT JSONEachRow").get()) {
                 Assert.assertEquals(response.getFormat(), ClickHouseFormat.JSONEachRow);
+            }
+        }
+
+        try (Client emptyFormatClient = newClient()
+                .queryFormat("")
+                .build()) {
+            try (QueryResponse response = emptyFormatClient.query("SELECT 1 AS num FORMAT JSONEachRow").get()) {
+                Assert.assertEquals(response.getFormat(), ClickHouseFormat.JSONEachRow);
+            }
+        }
+
+        // 4. Client configured via queryFormat(...) with lowercase or custom format string
+        try (Client customFormatClient = newClient()
+                .queryFormat("csv")
+                .build()) {
+            try (QueryResponse response = customFormatClient.query("SELECT 1 AS num").get()) {
+                Assert.assertEquals(response.getFormat(), ClickHouseFormat.CSV);
             }
         }
     }

@@ -868,14 +868,50 @@ public class StatementTest extends JdbcIntegrationTest {
         config1.setProperty(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), "");
         try (Connection conn = getJdbcConnection(config1);
              Statement stmt = conn.createStatement()) {
-            Assert.expectThrows(SQLException.class, () -> stmt.executeQuery("SELECT 1 FORMAT JSON"));
+            SQLException ex = Assert.expectThrows(SQLException.class, () -> stmt.executeQuery("SELECT 1 FORMAT JSON"));
+            assertTrue(ex.getMessage().contains("received format 'JSON'"), "Unexpected message: " + ex.getMessage());
+            assertTrue(ex.getMessage().contains("'format' property configuration"), "Unexpected message: " + ex.getMessage());
         }
 
         Properties config2 = new Properties();
         config2.setProperty(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), ClickHouseFormat.CSV.name());
         try (Connection conn = getJdbcConnection(config2);
              Statement stmt = conn.createStatement()) {
-            Assert.expectThrows(SQLException.class, () -> stmt.executeQuery("SELECT 1 FORMAT JSON"));
+            SQLException ex = Assert.expectThrows(SQLException.class, () -> stmt.executeQuery("SELECT 1"));
+            assertTrue(ex.getMessage().contains("received format 'CSV'"), "Unexpected message: " + ex.getMessage());
+            assertTrue(ex.getMessage().contains("'format' property configuration"), "Unexpected message: " + ex.getMessage());
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testEmptyFormatConfigurationBehavior() throws Exception {
+        Properties config = new Properties();
+        config.setProperty(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), "");
+        try (Connection conn = getJdbcConnection(config);
+             Statement stmt = conn.createStatement()) {
+
+            stmt.execute("CREATE TABLE IF NOT EXISTS test_empty_format_tb (id Int32, name String) ENGINE = Memory");
+            try {
+                int updateCount = stmt.executeUpdate("INSERT INTO test_empty_format_tb VALUES (1, 'hello')");
+                assertEquals(updateCount, 1);
+
+                SQLException exQuery = Assert.expectThrows(SQLException.class, () -> stmt.executeQuery("SELECT 1"));
+                assertTrue(exQuery.getMessage().contains("received format 'TabSeparated'"), "Unexpected message: " + exQuery.getMessage());
+
+                SQLException exExec = Assert.expectThrows(SQLException.class, () -> stmt.execute("SELECT 1"));
+                assertTrue(exExec.getMessage().contains("received format 'TabSeparated'"), "Unexpected message: " + exExec.getMessage());
+
+                SQLException exMeta = Assert.expectThrows(SQLException.class, () -> conn.getMetaData().getTables(null, null, "test_empty_format_tb", null));
+                assertTrue(exMeta.getMessage().contains("received format 'TabSeparated'"), "Unexpected message: " + exMeta.getMessage());
+
+                try (ResultSet rs = stmt.executeQuery("SELECT 1 AS num FORMAT RowBinaryWithNamesAndTypes")) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getInt("num"), 1);
+                    assertFalse(rs.next());
+                }
+            } finally {
+                stmt.execute("DROP TABLE IF EXISTS test_empty_format_tb");
+            }
         }
     }
 

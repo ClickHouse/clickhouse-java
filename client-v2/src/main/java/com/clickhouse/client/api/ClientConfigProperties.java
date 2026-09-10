@@ -351,6 +351,13 @@ public enum ClientConfigProperties {
             if (configValue.isEmpty()) {
                 return null;
             }
+            if (valueType.equals(ClickHouseFormat.class)) {
+                try {
+                    return ClickHouseFormat.fromString(configValue);
+                } catch (IllegalArgumentException e) {
+                    return configValue;
+                }
+            }
             Object[] constants = valueType.getEnumConstants();
             for (Object constant : constants) {
                 if (constant.toString().equalsIgnoreCase(configValue)) {
