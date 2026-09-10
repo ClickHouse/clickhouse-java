@@ -377,21 +377,42 @@ public class HttpAPIClientHelperTest {
                 "unexpected " + ClickHouseHttpProto.QPARAM_ENABLE_HTTP_COMPRESSION + " parameter in " + query);
     }
 
+    @DataProvider(name = "contentEncodingHeaderNames")
+    public static Object[][] contentEncodingHeaderNames() {
+        return new Object[][] {{HttpHeaders.CONTENT_ENCODING}, {"content-encoding"}};
+    }
+
     /**
      * A content encoding set by the application through {@code http_header_*} cannot make the plain multipart
-     * body compressed either, so it must not reach the server.
+     * body compressed either, so it must not reach the server, whatever the header is spelled like.
      */
-    @Test
-    public void testCustomContentEncodingHeaderRemovedForMultipartRequest() {
+    @Test(dataProvider = "contentEncodingHeaderNames")
+    public void testCustomContentEncodingHeaderRemovedForMultipartRequest(String headerName) {
         Map<String, Object> reqConfig = compressionConfig(false, false, true);
         reqConfig.put(HttpAPIClientHelper.KEY_STATEMENT_PARAMS, Collections.singletonMap("p1", "1"));
-        reqConfig.put(ClientConfigProperties.HTTP_HEADER_PREFIX + HttpHeaders.CONTENT_ENCODING, "lz4");
+        reqConfig.put(ClientConfigProperties.HTTP_HEADER_PREFIX + headerName, "lz4");
 
         HttpPost req = newHelper().createRequest(new HttpEndpoint("localhost", 8123, false, "/"), reqConfig,
                 "SELECT {p1:Int32}").getDelegate();
 
         assertNull(headerValue(req, HttpHeaders.CONTENT_ENCODING),
-                "a custom " + HttpHeaders.CONTENT_ENCODING + " must be removed from a multipart request");
+                "a custom " + headerName + " must be removed from a multipart request");
+    }
+
+    /**
+     * A request that is not multipart is unaffected: a content encoding set by the application through
+     * {@code http_header_*} still reaches the server.
+     */
+    @Test(dataProvider = "contentEncodingHeaderNames")
+    public void testCustomContentEncodingHeaderKeptForRequestWithoutParams(String headerName) {
+        Map<String, Object> reqConfig = compressionConfig(false, false, true);
+        reqConfig.put(ClientConfigProperties.HTTP_HEADER_PREFIX + headerName, "lz4");
+
+        HttpPost req = newHelper().createRequest(new HttpEndpoint("localhost", 8123, false, "/"), reqConfig,
+                "SELECT 1").getDelegate();
+
+        assertEquals(headerValue(req, HttpHeaders.CONTENT_ENCODING), "lz4",
+                "a custom " + headerName + " must be kept on a request that is not multipart");
     }
 
     /**
