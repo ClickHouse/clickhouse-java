@@ -589,7 +589,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testGetPrimaryKeys() throws Exception {
-        runQuery("SELECT 1;");
+        runQuery("SELECT 1 FORMAT RowBinaryWithNamesAndTypes;");
         runQuery("SYSTEM FLUSH LOGS");
 
         try (Connection conn = getJdbcConnection()) {
@@ -1660,6 +1660,11 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
             final DatabaseMetaData dbmd = conn.getMetaData();
 
             try (Statement stmt = conn.createStatement()) {
+                // Drop views and dictionary first before dropping source table
+                stmt.executeUpdate("DROP DICTIONARY IF EXISTS test_table_types_dict");
+                stmt.executeUpdate("DROP VIEW IF EXISTS test_table_types_mat_view");
+                stmt.executeUpdate("DROP VIEW IF EXISTS test_table_types_view");
+
                 // Regular MergeTree table
                 stmt.executeUpdate("DROP TABLE IF EXISTS test_table_types_regular");
                 stmt.executeUpdate("CREATE TABLE test_table_types_regular (id Int32) ENGINE = MergeTree ORDER BY id");
@@ -1749,6 +1754,21 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
                         }
                     }
                 }
+            }
+        } finally {
+            try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
+                stmt.executeUpdate("DROP DICTIONARY IF EXISTS test_table_types_dict");
+                stmt.executeUpdate("DROP VIEW IF EXISTS test_table_types_mat_view");
+                stmt.executeUpdate("DROP VIEW IF EXISTS test_table_types_view");
+                stmt.executeUpdate("DROP TABLE IF EXISTS test_table_types_source");
+                stmt.executeUpdate("DROP TABLE IF EXISTS test_table_types_regular");
+                stmt.executeUpdate("DROP TABLE IF EXISTS test_table_types_remote");
+                if (!isCloud()) {
+                    stmt.executeUpdate("DROP TABLE IF EXISTS test_table_types_log");
+                    stmt.executeUpdate("DROP TABLE IF EXISTS test_table_types_memory");
+                }
+            } catch (Exception e) {
+                // ignore cleanup errors
             }
         }
     }

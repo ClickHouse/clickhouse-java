@@ -901,8 +901,10 @@ public class StatementTest extends JdbcIntegrationTest {
                 SQLException exExec = Assert.expectThrows(SQLException.class, () -> stmt.execute("SELECT 1"));
                 assertTrue(exExec.getMessage().contains("received format 'TabSeparated'"), "Unexpected message: " + exExec.getMessage());
 
-                SQLException exMeta = Assert.expectThrows(SQLException.class, () -> conn.getMetaData().getTables(null, null, "test_empty_format_tb", null));
-                assertTrue(exMeta.getMessage().contains("received format 'TabSeparated'"), "Unexpected message: " + exMeta.getMessage());
+                try (ResultSet rsMeta = conn.getMetaData().getTables(null, null, "test_empty_format_tb", null)) {
+                    assertTrue(rsMeta.next());
+                    assertEquals(rsMeta.getString("TABLE_NAME"), "test_empty_format_tb");
+                }
 
                 try (ResultSet rs = stmt.executeQuery("SELECT 1 AS num FORMAT RowBinaryWithNamesAndTypes")) {
                     assertTrue(rs.next());
