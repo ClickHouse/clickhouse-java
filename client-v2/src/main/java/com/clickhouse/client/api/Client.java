@@ -60,6 +60,7 @@ import org.apache.hc.core5.concurrent.DefaultThreadFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -90,8 +91,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-
-import javax.net.ssl.SSLContext;
 
 /**
  * <p>Client is the starting point for all interactions with ClickHouse. </p>
@@ -403,7 +402,11 @@ public class Client implements AutoCloseable {
                         + "' cannot be set as a string; supply a javax.net.ssl.SSLContext object via "
                         + "Client.Builder.setSSLContext(...)");
             }
-            this.configuration.put(key, value);
+            if (value == null) {
+                this.configuration.remove(key);
+            } else {
+                this.configuration.put(key, value);
+            }
             if (key.equals(ClientConfigProperties.PRODUCT_NAME.getKey())) {
                 setClientName(value);
             }
@@ -1324,6 +1327,29 @@ public class Client implements AutoCloseable {
             return this;
         }
 
+        /**
+         * Sets default format used when no format is specified in {@code QuerySettings}.
+         * Accepts a ClickHouse format name as a String (e.g. "RowBinaryWithNamesAndTypes", "CSV", "JSONEachRow").
+         * String input is accepted to allow usage of new ClickHouse formats not yet defined in {@link ClickHouseFormat}.
+         * Pass {@code null} or an empty string to send no format header.
+         *
+         * @param format - ClickHouse format name, or null / empty string for no format header
+         * @return this instance of builder
+         */
+        public Builder queryFormat(String format) {
+            if (ClientUtils.isBlank(format)) {
+                this.setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), null);
+                return this;
+            }
+            try {
+                ClickHouseFormat chFormat = ClickHouseFormat.fromString(format);
+                this.setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), chFormat.name());
+            } catch (IllegalArgumentException e) {
+                this.setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), format.trim());
+            }
+            return this;
+        }
+
         public Client build() {
             // check if endpoint are empty. so can not initiate client
             if (this.endpoints.isEmpty()) {
@@ -1931,9 +1957,6 @@ public class Client implements AutoCloseable {
         }
         final QuerySettings requestSettings = new QuerySettings(buildRequestSettings(settings.getAllSettings()));
 
-        if (requestSettings.getFormat() == null) {
-            requestSettings.setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
-        }
         applyFormatSpecificSettings(requestSettings);
         ClientStatisticsHolder clientStats = new ClientStatisticsHolder();
         // Origin of the duration of a failed operation. Taken where the client starts OP_DURATION, which is

@@ -365,6 +365,7 @@ public class ClientTests extends BaseIntegrationTest {
                 .setSocketRcvbuf(100000)
                 .setSocketSndbuf(100000)
                 .binaryStringSupport(true)
+                .queryFormat(ClickHouseFormat.CSV.name())
                 .build()) {
             Map<String, String> config = client.getConfiguration();
             Assert.assertEquals(config.size(), 39); // to check everything is set. Increment when new added.
@@ -393,7 +394,7 @@ public class ClientTests extends BaseIntegrationTest {
             Assert.assertEquals(config.get(ClientConfigProperties.SOCKET_SNDBUF_OPT.getKey()), "100000");
             Assert.assertEquals(config.get(ClientConfigProperties.SSL_MODE.getKey()), "STRICT");
             Assert.assertEquals(config.get(ClientConfigProperties.BINARY_STRING_SUPPORT.getKey()), "true");
-
+            Assert.assertEquals(config.get(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey()), "CSV");
         }
     }
 
@@ -732,6 +733,61 @@ public class ClientTests extends BaseIntegrationTest {
                 Assert.assertTrue(e.getMessage().contains("Trust store and certificates cannot be used together"), e.getMessage()));
         t.apply(builderF.get().setOption(CredentialsManager.AUTHORIZATION_HEADER_KEY, "CustomAuth token").setClientCertificate("cert").setSSLTrustStore("trustStore"), (e) ->
                 Assert.assertTrue(e.getMessage().contains("Trust store and certificates cannot be used together"), e.getMessage()));
+    }
+
+    @Test
+    public void testFormatPropertyParsing() {
+        Map<String, String> rawMap = new HashMap<>();
+        rawMap.put("format", "csv");
+        Map<String, Object> parsedMap = ClientConfigProperties.parseConfigMap(rawMap);
+        Assert.assertEquals(parsedMap.get("format"), ClickHouseFormat.CSV);
+
+        rawMap.clear();
+        rawMap.put("format", "  jsoneachrow  ");
+        parsedMap = ClientConfigProperties.parseConfigMap(rawMap);
+        Assert.assertEquals(parsedMap.get("format"), ClickHouseFormat.JSONEachRow);
+
+        rawMap.clear();
+        rawMap.put("format", "CustomNewFormat");
+        parsedMap = ClientConfigProperties.parseConfigMap(rawMap);
+        Assert.assertEquals(parsedMap.get("format"), "CustomNewFormat");
+
+        rawMap.clear();
+        rawMap.put("format", "");
+        parsedMap = ClientConfigProperties.parseConfigMap(rawMap);
+        Assert.assertFalse(parsedMap.containsKey("format"), "Empty string format should result in key not present or null");
+
+        rawMap.clear();
+        rawMap.put("format", "   ");
+        parsedMap = ClientConfigProperties.parseConfigMap(rawMap);
+        Assert.assertFalse(parsedMap.containsKey("format"), "Whitespace format should result in key not present or null");
+    }
+
+    @Test
+    public void testQueryFormatBuilder() {
+        try (Client c1 = new Client.Builder().addEndpoint("http://localhost:8123").queryFormat(null).build()) {
+            Assert.assertNull(c1.getConfiguration().get(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey()));
+        }
+
+        try (Client c2 = new Client.Builder().addEndpoint("http://localhost:8123").queryFormat("").build()) {
+            Assert.assertNull(c2.getConfiguration().get(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey()));
+        }
+
+        try (Client c3 = new Client.Builder().addEndpoint("http://localhost:8123").queryFormat("   ").build()) {
+            Assert.assertNull(c3.getConfiguration().get(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey()));
+        }
+
+        try (Client c4 = new Client.Builder().addEndpoint("http://localhost:8123").queryFormat("csv").build()) {
+            Assert.assertEquals(c4.getConfiguration().get(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey()), "CSV");
+        }
+
+        try (Client c5 = new Client.Builder().addEndpoint("http://localhost:8123").queryFormat("  jsoneachrow  ").build()) {
+            Assert.assertEquals(c5.getConfiguration().get(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey()), "JSONEachRow");
+        }
+
+        try (Client c6 = new Client.Builder().addEndpoint("http://localhost:8123").queryFormat("CustomNewFormat").build()) {
+            Assert.assertEquals(c6.getConfiguration().get(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey()), "CustomNewFormat");
+        }
     }
 
     @Test(groups = {"integration"})
