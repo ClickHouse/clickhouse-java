@@ -170,28 +170,35 @@ public abstract class SqlParserFacade {
         private boolean closesParenthesizedGroup(String sql, int startPosition, int stopPosition) {
             int len = sql.length();
             int depth = 0;
+            int i = startPosition;
             try {
-                for (int i = startPosition; i <= stopPosition; i++) {
+                while (i <= stopPosition) {
                     char ch = sql.charAt(i);
+                    int afterSkipped; // index right after quoted text or a comment, -1 when neither starts here
                     if (ClickHouseUtils.isQuote(ch)) {
-                        i = ClickHouseUtils.skipQuotedString(sql, i, len, ch) - 1;
+                        afterSkipped = ClickHouseUtils.skipQuotedString(sql, i, len, ch);
                     } else if (ch == '#' || (i + 1 < len && sql.charAt(i + 1) == ch && (ch == '-' || ch == '/'))) {
                         // search from the last character of the comment opener: it is never a line separator, and
                         // skipSingleLineComment() only reports one found strictly after the index it is given
-                        i = ClickHouseUtils.skipSingleLineComment(sql, ch == '#' ? i : i + 1, len) - 1;
+                        afterSkipped = ClickHouseUtils.skipSingleLineComment(sql, ch == '#' ? i : i + 1, len);
                     } else if (ch == '/' && i + 1 < len && sql.charAt(i + 1) == '*') {
-                        i = ClickHouseUtils.skipMultiLineComment(sql, i + 2, len) - 1;
-                    } else if (ch == '(') {
-                        depth++;
-                        continue;
-                    } else if (ch == ')' && --depth == 0) {
-                        return i == stopPosition;
+                        afterSkipped = ClickHouseUtils.skipMultiLineComment(sql, i + 2, len);
                     } else {
-                        continue;
+                        afterSkipped = -1;
                     }
 
-                    if (i > stopPosition) { // quoted text or comment reaching past the values list
-                        return false;
+                    if (afterSkipped < 0) {
+                        if (ch == '(') {
+                            depth++;
+                        } else if (ch == ')' && --depth == 0) {
+                            return i == stopPosition;
+                        }
+                        i++;
+                    } else {
+                        if (afterSkipped - 1 > stopPosition) { // quoted text or comment reaching past the values list
+                            return false;
+                        }
+                        i = afterSkipped;
                     }
                 }
             } catch (IllegalArgumentException e) { // unterminated quoted text or comment
