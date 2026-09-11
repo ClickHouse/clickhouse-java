@@ -36,6 +36,7 @@ import java.sql.Types;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.HashMap;
 import java.util.Map;
@@ -850,6 +851,110 @@ public class ResultSetImplTest extends JdbcIntegrationTest {
                 Assert.fail(description + " must report the failure as an SQLException, but was: " + e, e);
             }
         }
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "gettersOnOutOfRangeIndex")
+    public void testOutOfRangeIndexIsReportedAsSqlException(String format, Properties properties,
+                                                           String description, RsAccessor accessor) throws SQLException {
+        try (Connection conn = getJdbcConnection(properties);
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT 'abc' AS txt")) {
+            assertTrue(rs.next());
+            try {
+                accessor.apply(rs);
+                Assert.fail(format + " " + description + " must reject a column index the result set does not have");
+            } catch (SQLException expected) {
+                // an invalid column index is reported to JDBC callers, whatever the format
+            } catch (Exception e) {
+                Assert.fail(format + " " + description + " must report an invalid column index as an SQLException,"
+                        + " but was: " + e, e);
+            }
+        }
+    }
+
+    @DataProvider(name = "gettersOnOutOfRangeIndex")
+    public static Object[][] gettersOnOutOfRangeIndex() {
+        // the result set of the test query has one column, so every index below is invalid
+        int[] indexes = new int[]{2, 0, -1};
+        Object[][] formats = new Object[][]{
+                {"RowBinaryWithNamesAndTypes", new Properties()},
+                {"JSONEachRow", jsonEachRowProperties()},
+        };
+
+        List<Object[]> cases = new ArrayList<>();
+        for (Object[] format : formats) {
+            for (int index : indexes) {
+                cases.add(new Object[]{format[0], format[1], "getString(" + index + ")",
+                        (RsAccessor) rs -> rs.getString(index)});
+                cases.add(new Object[]{format[0], format[1], "getLong(" + index + ")",
+                        (RsAccessor) rs -> rs.getLong(index)});
+                cases.add(new Object[]{format[0], format[1], "getBytes(" + index + ")",
+                        (RsAccessor) rs -> rs.getBytes(index)});
+                cases.add(new Object[]{format[0], format[1], "getBinaryStream(" + index + ")",
+                        (RsAccessor) rs -> rs.getBinaryStream(index)});
+            }
+        }
+        return cases.toArray(new Object[0][]);
+    }
+
+    @Test(groups = {"integration"})
+    public void testByteGettersUnknownLabelReadsAsNull() throws SQLException {
+        for (Properties properties : new Properties[]{new Properties(), jsonEachRowProperties()}) {
+            try (Connection conn = getJdbcConnection(properties);
+                 Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery("SELECT 'abc' AS txt")) {
+                assertTrue(rs.next());
+
+                // an unknown label reads as SQL NULL, like the other label getters
+                Assert.assertNull(rs.getBytes("no_such_column"));
+                assertTrue(rs.wasNull());
+                Assert.assertNull(rs.getBinaryStream("no_such_column"));
+                assertTrue(rs.wasNull());
+            }
+        }
+
+        // on a closed result set the failure is reported to JDBC callers
+        Connection conn = getJdbcConnection();
+        Statement stmt = conn.createStatement();
+        ResultSet rs = stmt.executeQuery("SELECT 'abc' AS txt");
+        assertTrue(rs.next());
+        rs.close();
+        Assert.expectThrows(SQLException.class, () -> rs.getBytes("txt"));
+        Assert.expectThrows(SQLException.class, () -> rs.getBinaryStream("txt"));
+        stmt.close();
+        conn.close();
+    }
+
+    @Test(groups = {"integration"})
+    public void testByteGettersReadSqlNullAsNull() throws SQLException {
+        for (Properties properties : new Properties[]{new Properties(), jsonEachRowProperties()}) {
+            try (Connection conn = getJdbcConnection(properties);
+                 Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery("SELECT CAST(NULL AS Nullable(String)) AS txt, 'abc' AS present")) {
+                assertTrue(rs.next());
+
+                Assert.assertNull(rs.getBytes(1));
+                assertTrue(rs.wasNull());
+                Assert.assertNull(rs.getBinaryStream(1));
+                assertTrue(rs.wasNull());
+            }
+        }
+
+        // contrast: a column that has a value is unaffected
+        try (Connection conn = getJdbcConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT CAST(NULL AS Nullable(String)) AS txt, 'abc' AS present")) {
+            assertTrue(rs.next());
+            assertEquals(new String(rs.getBytes(2), StandardCharsets.UTF_8), "abc");
+            Assert.assertFalse(rs.wasNull());
+        }
+    }
+
+    private static Properties jsonEachRowProperties() {
+        Properties properties = new Properties();
+        properties.setProperty(DriverProperties.JSON_PARSER_FACTORY.getKey(), JacksonJsonParserFactory.class.getName());
+        properties.setProperty(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), "JSONEachRow");
+        return properties;
     }
 
     @DataProvider(name = "gettersOnUnconvertibleValue")

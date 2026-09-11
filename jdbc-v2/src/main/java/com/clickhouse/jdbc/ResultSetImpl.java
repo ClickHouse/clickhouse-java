@@ -383,13 +383,11 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
             if (reader.hasValue(columnIndex)) {
                 wasNull = false;
                 return reader.getByteArray(columnIndex);
-            } else {
-                wasNull = true;
-                return null;
             }
+            reportNoValue(columnIndex);
+            return null;
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("Method: getBytes(\"%d\") encountered an exception.", columnIndex),
-                    String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
+            throw getterException("getBytes", columnIndex, e);
         }
     }
 
@@ -440,13 +438,11 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 }
                 wasNull = false;
                 return new ByteArrayInputStream(bytes);
-            } else {
-                wasNull = true;
-                return null;
             }
+            reportNoValue(columnIndex);
+            return null;
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("Method: getBinaryStream(\"%d\") encountered an exception.", columnIndex),
-                    String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
+            throw getterException("getBinaryStream", columnIndex, e);
         }
     }
 
@@ -506,7 +502,8 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public byte[] getBytes(String columnLabel) throws SQLException {
-        return getBytes(getSchema().nameToColumnIndex(columnLabel));
+        checkClosed();
+        return getBytes(columnIndexOf(columnLabel));
     }
 
     @Override
@@ -545,7 +542,8 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public InputStream getBinaryStream(String columnLabel) throws SQLException {
-        return getBinaryStream(getSchema().nameToColumnIndex(columnLabel));
+        checkClosed();
+        return getBinaryStream(columnIndexOf(columnLabel));
     }
 
     @Override
