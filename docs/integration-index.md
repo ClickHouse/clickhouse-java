@@ -9,6 +9,7 @@ This document is the starting point for integrating ClickHouse into a Java appli
 | This guide | Anyone evaluating options | this document |
 | Java Client path | New applications, high-throughput pipelines, custom data processing | [integration-client.md](integration-client.md) |
 | JDBC path | Existing JDBC-based stacks, BI tools, ORMs | [integration-jdbc.md](integration-jdbc.md) |
+| Operations & Observability | SREs, monitoring setup, connection pool tuning, troubleshooting | [integration-ops.md](integration-ops.md) |
 
 Reference information should be fetched from official documentation for [Java Client](https://clickhouse.com/docs/integrations/language-clients/java/client) or [JDBC Driver](https://clickhouse.com/docs/integrations/language-clients/java/jdbc). 
 
