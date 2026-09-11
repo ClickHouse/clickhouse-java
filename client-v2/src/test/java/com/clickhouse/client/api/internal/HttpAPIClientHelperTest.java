@@ -11,11 +11,13 @@ import com.clickhouse.client.api.transport.internal.TransportRequest;
 import net.jpountz.lz4.LZ4Factory;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.io.BasicHttpClientConnectionManager;
 import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
 import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpEntity;
 import org.apache.hc.core5.http.HttpHeaders;
+import org.apache.hc.core5.http.io.SocketConfig;
 import org.apache.hc.core5.http.message.BasicHeader;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedConstruction;
@@ -184,6 +186,43 @@ public class HttpAPIClientHelperTest {
 
         assertEquals(calls.size(), 0, "default STRICT with no SNI and no cipher suites must keep using the "
                 + "plain SSLConnectionSocketFactory (unchanged behaviour)");
+    }
+
+    /**
+     * Socket buffer sizes are left to the operating system unless the application configures them: an
+     * unconfigured buffer must stay at the transport default (0 = not applied to the socket), while a
+     * configured one must reach the socket configuration.
+     */
+    @Test(dataProvider = "socketBufferSizes")
+    public void testSocketBufferSizesAppliedOnlyWhenConfigured(Integer rcvBufSize, Integer sndBufSize,
+                                                               int expectedRcvBufSize, int expectedSndBufSize) {
+        Map<String, Object> config = new HashMap<>();
+        if (rcvBufSize != null) {
+            config.put(ClientConfigProperties.SOCKET_RCVBUF_OPT.getKey(), rcvBufSize);
+        }
+        if (sndBufSize != null) {
+            config.put(ClientConfigProperties.SOCKET_SNDBUF_OPT.getKey(), sndBufSize);
+        }
+        config.put(ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey(), 3000);
+
+        SocketConfig socketConfig = captureSocketConfig(config);
+
+        assertEquals(socketConfig.getRcvBufSize(), expectedRcvBufSize,
+                "receive buffer size must be applied only when configured");
+        assertEquals(socketConfig.getSndBufSize(), expectedSndBufSize,
+                "send buffer size must be applied only when configured");
+        // contrast: a socket option that is set must still reach the socket configuration
+        assertEquals(socketConfig.getSoTimeout().toMilliseconds(), 3000);
+    }
+
+    @DataProvider(name = "socketBufferSizes")
+    private static Object[][] socketBufferSizes() {
+        return new Object[][]{
+                {null, null, 0, 0},
+                {100_000, null, 100_000, 0},
+                {null, 200_000, 0, 200_000},
+                {100_000, 200_000, 100_000, 200_000},
+        };
     }
 
     /**
@@ -589,6 +628,19 @@ public class HttpAPIClientHelperTest {
             helper.createHttpClient(true, sslConfig);
         }
         return constructorArgs;
+    }
+
+    private static SocketConfig captureSocketConfig(Map<String, Object> configuration) {
+        Map<String, Object> config = new HashMap<>(configuration);
+        config.put(ClientConfigProperties.CONNECTION_POOL_ENABLED.getKey(), Boolean.FALSE);
+        HttpAPIClientHelper helper = HttpAPIClientHelperFactory.newHelper(new HashMap<>(), LZ4Factory.fastestJavaInstance());
+        try (MockedConstruction<BasicHttpClientConnectionManager> mocked =
+                     mockConstruction(BasicHttpClientConnectionManager.class)) {
+            helper.createHttpClient(false, config);
+            ArgumentCaptor<SocketConfig> socketConfig = ArgumentCaptor.forClass(SocketConfig.class);
+            verify(mocked.constructed().get(0)).setSocketConfig(socketConfig.capture());
+            return socketConfig.getValue();
+        }
     }
 
     private static String[] baseSupportedCipherSuites(CustomSSLConnectionFactory factory) throws Exception {
