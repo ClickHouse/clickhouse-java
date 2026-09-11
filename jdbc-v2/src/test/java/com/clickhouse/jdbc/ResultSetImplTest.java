@@ -326,6 +326,58 @@ public class ResultSetImplTest extends JdbcIntegrationTest {
         }
     }
 
+    @Test(groups = {"integration"})
+    public void testJsonEachRowUnknownLabelReadsAsNull() throws SQLException {
+        Properties properties = new Properties();
+        properties.setProperty(DriverProperties.JSON_PARSER_FACTORY.getKey(), JacksonJsonParserFactory.class.getName());
+        properties.setProperty(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), "JSONEachRow");
+        try (Connection conn = getJdbcConnection(properties); Statement stmt = conn.createStatement()) {
+            try (ResultSet rs = stmt.executeQuery("SELECT 'abc' AS name")) {
+                Assert.assertTrue(rs.next());
+
+                Assert.assertNull(rs.getString("no_such_column"));
+                Assert.assertTrue(rs.wasNull());
+                Assert.assertEquals(rs.getLong("no_such_column"), 0L);
+                Assert.assertTrue(rs.wasNull());
+
+                // contrast: a known label still reads the value
+                Assert.assertEquals(rs.getString("name"), "abc");
+                Assert.assertFalse(rs.wasNull());
+
+                // contrast: an index the result set does not have is still rejected
+                Assert.expectThrows(SQLException.class, () -> rs.getString(2));
+
+                // the getters that report an unknown label on the binary path report it the same
+                // way here: as an SQLException, not as a raw reader error
+                Assert.expectThrows(SQLException.class, () -> rs.getDate("no_such_column"));
+                Assert.expectThrows(SQLException.class, () -> rs.getTimestamp("no_such_column"));
+                Assert.expectThrows(SQLException.class, () -> rs.getObject("no_such_column"));
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testUnknownLabelReadsAsNull() throws SQLException {
+        try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
+            try (ResultSet rs = stmt.executeQuery("SELECT 'abc' AS name")) {
+                Assert.assertTrue(rs.next());
+
+                Assert.assertNull(rs.getString("no_such_column"));
+                Assert.assertTrue(rs.wasNull());
+                Assert.assertEquals(rs.getLong("no_such_column"), 0L);
+                Assert.assertTrue(rs.wasNull());
+
+                Assert.assertEquals(rs.getString("name"), "abc");
+                Assert.assertFalse(rs.wasNull());
+
+                Assert.expectThrows(SQLException.class, () -> rs.getString(2));
+                Assert.expectThrows(SQLException.class, () -> rs.getDate("no_such_column"));
+                Assert.expectThrows(SQLException.class, () -> rs.getTimestamp("no_such_column"));
+                Assert.expectThrows(SQLException.class, () -> rs.getObject("no_such_column"));
+            }
+        }
+    }
+
 
     @Test(groups = {"integration"})
     public void testFetchDirectionsAndSize() throws SQLException {

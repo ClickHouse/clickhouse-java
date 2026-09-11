@@ -80,6 +80,11 @@ public class JSONEachRowFormatReader implements ClickHouseTextFormatReader {
 
     @Override
     public boolean hasValue(int colIndex) {
+        // An index the current schema does not have holds no value. It is reported as such,
+        // like the binary readers do, instead of raising NoSuchColumnException.
+        if (colIndex < 1 || colIndex > schema.getColumns().size()) {
+            return false;
+        }
         return hasValue(schema.columnIndexToName(colIndex));
     }
 
