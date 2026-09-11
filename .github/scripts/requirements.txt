@@ -1,2 +1,2 @@
-jwcrypto
+jwcrypto==1.6.0
 
