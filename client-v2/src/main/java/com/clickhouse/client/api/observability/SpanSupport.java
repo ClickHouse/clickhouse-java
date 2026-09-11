@@ -36,9 +36,9 @@ public class SpanSupport {
      */
     public static final String DB_SYSTEM_NAME = "clickhouse";
 
-    public static final String OPERATION_QUERY = "query";
+    public static final String OPERATION_QUERY = "QUERY";
 
-    public static final String OPERATION_INSERT = "insert";
+    public static final String OPERATION_INSERT = "INSERT";
 
     /**
      * Name of a transport request span. All requests the client makes are HTTP {@code POST}s.
