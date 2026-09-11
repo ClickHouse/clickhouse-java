@@ -69,9 +69,19 @@ public enum ClientConfigProperties {
 
     SOCKET_OPERATION_TIMEOUT("socket_timeout", Integer.class, "0"),
 
-    SOCKET_RCVBUF_OPT("socket_rcvbuf", Integer.class, "804800"),
+    /**
+     * Socket receive buffer size in bytes (SO_RCVBUF). Not set by default: the operating system
+     * sizes and auto-tunes the buffer. Setting it disables that auto-tuning and is not recommended
+     * unless a measurement shows a benefit.
+     */
+    SOCKET_RCVBUF_OPT("socket_rcvbuf", Integer.class),
 
-    SOCKET_SNDBUF_OPT("socket_sndbuf",  Integer.class,"804800"),
+    /**
+     * Socket send buffer size in bytes (SO_SNDBUF). Not set by default: the operating system
+     * sizes and auto-tunes the buffer. Setting it disables that auto-tuning and is not recommended
+     * unless a measurement shows a benefit.
+     */
+    SOCKET_SNDBUF_OPT("socket_sndbuf", Integer.class),
 
     SOCKET_REUSEADDR_OPT("socket_reuseaddr", Boolean.class),
 
