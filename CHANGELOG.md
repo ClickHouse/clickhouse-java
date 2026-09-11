@@ -160,6 +160,13 @@
 
 ### Bug Fixes 
 
+- **[jdbc-v2]** Fixed `WITH RECURSIVE <name> AS (...)` failing to parse. Neither SQL grammar knew the `RECURSIVE`
+  keyword, so it was taken for the name of the first common table expression and the statement was rejected. The
+  query itself still ran, because the driver falls back to sending the original SQL, but every `createStatement` /
+  `prepareStatement` call logged a parse failure (`WARN` with the JavaCC backend) and the statement was classified as
+  unknown. `RECURSIVE` is now accepted after `WITH` by both the JavaCC and the ANTLR4 grammars, and stays usable as
+  an ordinary identifier (column, alias, table or CTE name).
+  (https://github.com/ClickHouse/clickhouse-java/issues/3122)
 - **[jdbc-v2]** Added the non-reserved keywords `AGGREGATE`, `BOUNDED`, `EXTEND`, `HANDLER`, `IDLE`, `PROTOCOL`,
   `RECENT`, `TIMEOUT` and `UNORDERED` (ClickHouse `26.8+`; `IDLE`, `TIMEOUT` and `RECENT` come from the multi-word
   keywords `IDLE TIMEOUT` and `RECENT SAMPLES`) to the list of keywords allowed in identifier positions. The server
