@@ -402,17 +402,70 @@ public boolean checkConnectionHealth(Connection conn, int timeoutSeconds) throws
 
 ## Step 4 — Formats under the hood
 
-**Goal:** understand that JDBC hides format selection, so you can decide up front whether JDBC's fixed contract is sufficient.
+**Goal:** understand how JDBC handles format selection internally and how to configure custom formats like `JSONEachRow`.
 
-JDBC does **not** expose format selection. The driver picks formats internally by operation type:
+JDBC uses the client's format selection mechanism under the hood. By default, the driver sends `X-ClickHouse-Format: RowBinaryWithNamesAndTypes` for query execution:
 
 | Operation | Internal format | Notes |
 |-----------|-----------------|-------|
-| Query (`executeQuery`) | Binary row format from server | Converted to JDBC `ResultSet` rows |
+| Query (`executeQuery`) | `RowBinaryWithNamesAndTypes` | Converted to JDBC `ResultSet` rows |
 | Simple INSERT via `Statement` | SQL text | `INSERT INTO t VALUES (...)` |
 | `PreparedStatement` INSERT | SQL text or RowBinary | RowBinary when `beta.row_binary_for_simple_insert=true` |
 | Writer statement INSERT | RowBinary | Streaming binary writer |
 | Batch INSERT | Multi-row SQL rewrite or RowBinary | Depends on statement shape |
+
+### Format Selection and SQL `FORMAT` Clauses
+
+The response format can be configured using the `format` connection property (`ClientConfigProperties.INPUT_OUTPUT_FORMAT` or `"format"`).
+
+**Important for ClickHouse 26.8+:**
+- On ClickHouse 26.8+, the request format header sent by the driver (`X-ClickHouse-Format`) takes priority over a `FORMAT` clause written in the SQL query string.
+- By default, the driver sends `format=RowBinaryWithNamesAndTypes`.
+- To read JSON in JDBC, the recommended approach is setting `format=JSONEachRow` in connection properties along with `jdbc_json_parser_factory`.
+- Setting `format=` (empty string) or `null` is an **expert-only setting**:
+  - Setting `format=` omits the `X-ClickHouse-Format` request header, allowing explicit SQL `FORMAT` clauses written in query strings to take effect.
+  - **Caveat:** For any statement without an explicit SQL `FORMAT` clause, the server falls back to its `default_format` (`TabSeparated`). Because JDBC `ResultSet` only consumes `RowBinaryWithNamesAndTypes` and `JSONEachRow`, such queries fail with a `SQLException`.
+  - `DatabaseMetaData` operations (e.g. `getTables()`, `getColumns()`) are not affected by the `format` property: they pin `RowBinaryWithNamesAndTypes` on the statements they run internally.
+
+### Usage of `JSONEachRow` in JDBC
+
+JDBC V2 supports streaming `JSONEachRow` responses as standard `ResultSet` instances. This feature is opt-in and requires configuring a `JsonParserFactory`.
+
+1. **Configure Driver Properties:**
+   Set `jdbc_json_parser_factory` (`DriverProperties.JSON_PARSER_FACTORY`) to the fully-qualified class name of a `JsonParserFactory` implementation (such as `JacksonJsonParserFactory` or `GsonJsonParserFactory`).
+   Set `format` (`ClientConfigProperties.INPUT_OUTPUT_FORMAT`) to `"JSONEachRow"`.
+
+```java
+import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.data_formats.JacksonJsonParserFactory;
+import com.clickhouse.jdbc.DriverProperties;
+
+public Properties createJsonEachRowProperties() {
+    Properties props = new Properties();
+    props.setProperty(DriverProperties.JSON_PARSER_FACTORY.getKey(), JacksonJsonParserFactory.class.getName());
+    props.setProperty(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), "JSONEachRow");
+    return props;
+}
+```
+
+2. **Execute Query and Process ResultSet:**
+
+```java
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.Statement;
+
+public void readJsonEachRowResultSet(Connection conn) throws Exception {
+    try (Statement stmt = conn.createStatement();
+         ResultSet rs = stmt.executeQuery("SELECT id, name, payload FROM events ORDER BY id")) {
+        while (rs.next()) {
+            int id = rs.getInt("id");
+            String name = rs.getString("name");
+            Object payload = rs.getObject("payload"); // returns parser-native List/Map
+        }
+    }
+}
+```
 
 ### When JDBC's format contract is not enough
 
@@ -421,7 +474,7 @@ JDBC does **not** expose format selection. The driver picks formats internally b
 | Simple CRUD / reporting | Standard JDBC — sufficient | — |
 | Bulk ingest (millions of rows) | Batch `PreparedStatement` + RowBinary beta | Java Client stream insert |
 | Complex type handling | `getObject()` with type map | Java Client POJO/binary readers |
-| Export to a file format | Not supported via JDBC | Java Client with format selection |
+| Export to a file format | Not supported via ResultSet (ResultSet requires `RowBinaryWithNamesAndTypes` or `JSONEachRow`; text formats like CSV fail) | Java Client with format selection (`conn.unwrap(ConnectionImpl.class).getClient()`) |
 | BI tool integration | JDBC is the right choice | — |
 
 ### Hybrid usage: dropping down to the Java Client
@@ -452,7 +505,7 @@ This hybrid approach allows you to use standard JDBC for simple CRUD and metadat
 ### Common Pitfalls
 
 <common-pitfalls>
-- **No format selection API** — you cannot request `Native`, `Parquet`, or `JSONEachRow` through standard JDBC.
+- **Format selection scope** — format selection can be configured via connection properties (`format=JSONEachRow` or setting `jdbc_json_parser_factory`), but standard JDBC `ResultSet` requires compatible row formats (`RowBinaryWithNamesAndTypes` or `JSONEachRow`). Other wire formats like `Native` or `Parquet` require dropping down to the Java Client.
 - **Row-oriented output only** — no column-oriented or parallel block consumption.
 - **Type mapping layer** may lose precision or structure for complex types.
 - **Text INSERT overhead** — default SQL-based inserts are slower than binary streaming. Use the [Java Client](integration-client.md) for maximum throughput.
@@ -760,6 +813,63 @@ Key JDBC-specific properties (see [`DriverProperties`](../jdbc-v2/src/main/java/
 | `jdbc_cluster_name` | — | Cluster for `KILL QUERY ON CLUSTER` |
 | `jdbc_type_mappings` | — | Custom ClickHouse → Java type overrides |
 | `default_query_settings` | — | Default settings for all queries |
+| `jdbc_metrics_recorder` | — | Custom `MetricsRecorder` implementation class name |
+
+
+## Observability & Monitoring
+
+The ClickHouse JDBC driver (V2) supports metrics and distributed tracing by leveraging the underlying Client V2 engine and standard JDBC application instrumentation. For detailed metric definitions, span attributes, and OpenTelemetry semantic conventions, see the [Client V2 Observability Documentation](https://clickhouse.com/docs/integrations/language-clients/java/client#v2-o11y).
+
+### Distributed Tracing & Spans
+
+When executing JDBC statements (`executeQuery`, `executeUpdate`, `executeBatch`), distributed tracing operates across a parent-child span hierarchy:
+
+1. **Outer JDBC / Application Span:** Created automatically by the OpenTelemetry Java Agent or APM instrumentation when intercepting `java.sql` method calls (e.g., `PreparedStatement.executeBatch()`).
+2. **Client V2 Operation Span:** Created by the underlying Client V2 engine under the current active trace context (`Context.current()`). Carries ClickHouse-specific metadata such as `clickhouse.query_id`, statement text (`db.query.text`), and server execution statistics (`clickhouse.response.read_rows`, `clickhouse.response.written_rows`).
+3. **Transport Request Span:** Created per HTTP POST request attempt to the ClickHouse server, recording endpoint details (`server.address`, `server.port`), HTTP status codes (`http.response.status_code`), and retry attempts.
+
+```text
+Application HTTP Request Span
+  └── JDBC Statement Span (e.g., PreparedStatement.executeQuery)
+      └── Client V2 Operation Span (query default)
+          └── Transport Request Span (POST http://localhost:8123)
+```
+
+Because Client V2 inherits `Context.current()`, JDBC database spans automatically join the ambient trace of the surrounding HTTP or messaging context without manual context propagation.
+
+### JDBC Auto-Instrumentation
+
+Standard JDBC operations (`Connection`, `PreparedStatement`, `ResultSet`, `executeBatch`) are automatically tracked by Java application runtime frameworks and APM agents:
+
+- **OpenTelemetry Java Agent:** Automatically intercepts standard JDBC method invocations, creating trace spans for database executions (`SELECT`, `INSERT`, `TRUNCATE`) with `db.system=clickhouse`, statement text, and execution timings.
+- **Spring Boot & Micrometer:** Spring Data JPA repositories and `JdbcTemplate` automatically instrument database calls when Spring Boot's Micrometer Observation or Spring Actuator metrics are active.
+
+### Configuring Driver Metrics Recorders
+
+You can enable Client V2 operational metrics (durations, counts, retries) for JDBC connections using the `jdbc_metrics_recorder` connection property. The driver instantiates the specified class via its public no-argument constructor per connection.
+
+```java
+// Configure via JDBC URL parameter
+String url = "jdbc:clickhouse://localhost:8123/default?jdbc_metrics_recorder=com.clickhouse.client.api.observability.micrometer.MicrometerMetricsRecorder";
+
+// Or set via java.util.Properties
+Properties properties = new Properties();
+properties.setProperty("jdbc_metrics_recorder", "com.clickhouse.client.api.observability.micrometer.MicrometerMetricsRecorder");
+
+try (Connection conn = DriverManager.getConnection(url, properties)) {
+    // JDBC operations report operation metrics to Micrometer's globalRegistry
+}
+```
+
+*Note: `MicrometerMetricsRecorder` is shipped with the driver, but requires `io.micrometer:micrometer-core` to be available on the application's runtime classpath.*
+
+### Spring Boot Demo Reference
+
+For a complete sample demonstrating JDBC driver setup and telemetry in a Spring Boot service, see the `examples/demo-spring-service` module in this repository:
+
+- **JDBC Datasource Setup** (`src/main/resources/application.yml`): Configures `spring.datasource` with `com.clickhouse.jdbc.ClickHouseDriver` and driver properties (`jdbc_ignore_unsupported_values: true`).
+- **Spring Data JPA Integration** (`com.clickhouse.examples.repository.SignalRepository`): Shows repository-based entity persistence over ClickHouse JDBC.
+- **`JdbcTemplate` Utilities** (`com.clickhouse.examples.schema.ClickHouseSchemaInitializer`): Demonstrates executing DDL and exporting metric points using Spring `JdbcTemplate`.
 
 
 ## References
@@ -778,6 +888,7 @@ Key JDBC-specific properties (see [`DriverProperties`](../jdbc-v2/src/main/java/
 
 - [integration-common.md](integration-common.md) — choosing JDBC vs Client
 - [integration-client.md](integration-client.md) — Java Client integration path
+- [integration-ops.md](integration-ops.md) — operations and observability guide
 - [authentication.md](authentication.md) — full authentication and TLS reference
 - [features.md](features.md) — compatibility contract
 - [type_mapping.md](../type_mapping.md) — JDBC type mapping recommendations

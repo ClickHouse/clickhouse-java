@@ -477,6 +477,45 @@ public class ClickHouseColumnTest {
         Assert.assertEquals(geometry.getGeometryVariantOrdNum(new Object()), -1);
     }
 
+    @Test(groups = { "unit" })
+    public void testGeometryVariantOrder() {
+        ClickHouseColumn geometry = ClickHouseColumn.of("v", "Geometry");
+
+        // The discriminators the server assigns to the Geometry variants. MultiPoint was added in
+        // 26.8 after the other six and keeps the last position instead of being ordered by name.
+        List<ClickHouseDataType> expected = Arrays.asList(
+                ClickHouseDataType.LineString,
+                ClickHouseDataType.MultiLineString,
+                ClickHouseDataType.MultiPolygon,
+                ClickHouseDataType.Point,
+                ClickHouseDataType.Polygon,
+                ClickHouseDataType.Ring,
+                ClickHouseDataType.MultiPoint);
+
+        List<ClickHouseDataType> actual = new LinkedList<>();
+        geometry.getNestedColumns().forEach(c -> actual.add(c.getDataType()));
+        Assert.assertEquals(actual, expected);
+
+        // MultiPoint shares double[][] with Ring and LineString, so a Java value written to a
+        // Geometry column must keep resolving to the variant it resolved to before.
+        Assert.assertEquals(geometry.getGeometryVariantOrdNum(2),
+                getVariantOrdNum(geometry, ClickHouseDataType.Ring));
+        Assert.assertEquals(geometry.getGeometryVariantOrdNum(
+                        ClickHouseGeoRingValue.of(new double[][] { { 1D, 2D }, { 3D, 4D } })),
+                getVariantOrdNum(geometry, ClickHouseDataType.Ring));
+    }
+
+    @Test(groups = { "unit" })
+    public void testMultiPointColumn() {
+        ClickHouseColumn column = ClickHouseColumn.of("m", "MultiPoint");
+
+        Assert.assertEquals(column.getDataType(), ClickHouseDataType.MultiPoint);
+        Assert.assertFalse(column.isNullable());
+        Assert.assertTrue(column.newValue(null) instanceof ClickHouseGeoRingValue);
+        Assert.assertEquals(ClickHouseColumn.of("m", "Array(MultiPoint)").getArrayBaseColumn().getDataType(),
+                ClickHouseDataType.MultiPoint);
+    }
+
     private static int getVariantOrdNum(ClickHouseColumn column, ClickHouseDataType dataType) {
         for (int i = 0; i < column.getNestedColumns().size(); i++) {
             if (column.getNestedColumns().get(i).getDataType() == dataType) {

@@ -23,6 +23,7 @@ public final class ExceptionUtils {
     public static final String SQL_STATE_INVALID_SCHEMA = "3F000";
     public static final String SQL_STATE_INVALID_TX_STATE = "25000";
     public static final String SQL_STATE_DATA_EXCEPTION = "22000";
+    private static final String SQL_STATE_TABLE_NOT_FOUND = "42S02";
     // Used only when feature is not supported
     public static final String SQL_STATE_FEATURE_NOT_SUPPORTED = "0A000";
     // Used only when method is called on wrong object type (for example, PreparedStatement.addBatch(String))
@@ -70,7 +71,11 @@ public final class ExceptionUtils {
         } else if (cause instanceof ConnectionInitiationException) {
             return new SQLException(exceptionMessage, SQL_STATE_CONNECTION_EXCEPTION, cause);
         } else if (cause instanceof ServerException) {
-            return new SQLException(exceptionMessage, SQL_STATE_DATA_EXCEPTION, ((ServerException) cause).getCode(), cause);
+            int errorCode = ((ServerException) cause).getCode();
+            String sqlState = errorCode == ServerException.TABLE_NOT_FOUND
+                    ? SQL_STATE_TABLE_NOT_FOUND
+                    : SQL_STATE_DATA_EXCEPTION;
+            return new SQLException(exceptionMessage, sqlState, errorCode, cause);
         } else if (cause instanceof ClientException) {
             return new SQLException(exceptionMessage, SQL_STATE_CLIENT_ERROR, cause);
         } else if (cause instanceof MalformedURLException) {

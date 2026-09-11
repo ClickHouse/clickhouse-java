@@ -1,8 +1,13 @@
 ## 0.11.0-rc1 
 
 [Release Migration Guide](docs/releases/0_11_0.md)
+[Migration Helpers](migration-helpers) - small code helpers to convert old configuration to a new one.
 
 ### Breaking Changes
+
+- **[client-v2]** `com.clickhouse.client.api.observability.SpanSupport` now uses `QUERY` and `INSERT` operation
+  constants (`QUERY <database>` and `INSERT <database>.<table>` span names). `db.operation.name` attribute is set to
+  `INSERT` for insert operations and left unset for queries because SQL statements are not parsed on the client.
 
 - **[client-v2]** `com.clickhouse.client.api.metrics.OperationMetrics` now has a single constructor,
   `OperationMetrics(ClientStatisticsHolder, OperationType)`; the constructor without an operation type was removed.
@@ -12,6 +17,24 @@
 
 ### New Features
 
+- **[migration-helpers]** Added `migration-helpers` module containing `ConfigurationMigrationHelper` and
+  `ConfigPropertyCache` to convert configuration properties and connection URLs from v1 (0.7.1) format to v2 (0.9.8+)
+  format (automatically prefixing ClickHouse server settings with `clickhouse_setting_`, custom headers with
+  `http_header_`, and mapping renamed property keys).
+
+- **[client-v2, jdbc-v2]** Added support for the `MultiPoint` geo data type (ClickHouse `26.8+`). Previously the type was
+  unknown to the client, so reading or writing a `MultiPoint` column failed with `Unknown data type: MultiPoint`, and a
+  `MultiPoint` value inside a `Geometry` column failed with an out-of-range variant discriminator. `MultiPoint` is
+  `Array(Point)` on the wire, exactly like `Ring` and `LineString`, so it is read and written as `double[][]` through
+  generic records, binary readers, POJO binding, and SQL parameter formatting, and is read from `Dynamic` columns. In the
+  JDBC driver (`jdbc-v2`) `MultiPoint` maps
+  to `java.sql.Types.ARRAY`, is returned as `double[][]` from `getObject` and as a `java.sql.Array` from `getArray`, and is
+  reported by `ResultSetMetaData` and `DatabaseMetaData`. ClickHouse `26.8` also adds `MultiPoint` to the `Geometry`
+  variant; the server appends it after the existing six variants instead of ordering it by type name, so the client now
+  keeps that order and decodes a `MultiPoint` held in a `Geometry` column. Because `MultiPoint` shares its Java
+  representation (`double[][]`) with `Ring` and `LineString`, it is not selectable through the shape-based `Geometry`
+  write path — a 2D value keeps resolving to `Ring` as before, and writing `MultiPoint` requires a concrete `MultiPoint`
+  column. (https://github.com/ClickHouse/clickhouse-java/issues/3048)
 - **[client-v2, jdbc-v2]** Added a Micrometer implementation of the metrics SPI.
   `Client.Builder.setMetricsRecorder(new MicrometerMetricsRecorder(meterRegistry))` reports the metrics of every client
   operation to a Micrometer `MeterRegistry`: a timer `db.client.operation.duration` per completed operation, a timer
@@ -137,6 +160,99 @@
 
 ### Bug Fixes 
 
+- **[jdbc-v2]** Added the non-reserved keywords `AGGREGATE`, `BOUNDED`, `EXTEND`, `HANDLER`, `IDLE`, `PROTOCOL`,
+  `RECENT`, `TIMEOUT` and `UNORDERED` (ClickHouse `26.8+`; `IDLE`, `TIMEOUT` and `RECENT` come from the multi-word
+  keywords `IDLE TIMEOUT` and `RECENT SAMPLES`) to the list of keywords allowed in identifier positions. The server
+  accepts all of them as a column or table alias, so a query using one of them as an identifier must parse.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3113)
+- **[client-v2]** Fixed a query with statement parameters sent in the request body
+  (`client.http.use_form_request_for_query=true`) failing with `LZ4 decompression failed ... (LZ4_DECODER_FAILED)`
+  when client request compression and HTTP compression were both enabled. The multipart body is always sent
+  uncompressed, but the request still declared `Content-Encoding: lz4`; ClickHouse `26.8+` honours that header for
+  multipart requests and tried to decompress a plain body. The header is now omitted for multipart requests, like
+  the `decompress` query parameter already was. Response compression (`Accept-Encoding`,
+  `enable_http_compression`) is unchanged. (https://github.com/ClickHouse/clickhouse-java/issues/3075)
+- **[client-v1]** Fixed the `DateTime64` case of `testReadWriteSimpleTypes` failing against ClickHouse 26.8. From 26.8
+  an unquoted number written to a `DateTime64` column in the `Values`/`Quoted` and `JSON` paths is a Unix timestamp in
+  seconds instead of the raw scaled value - the server setting `input_format_read_datetime_number_as_raw_value`
+  changed its default from `1` to `0` - so the `insert into ... values(1)` of the test stored `1970-01-01 00:00:01`
+  instead of the expected `1970-01-01 00:00:00.001`. The test now writes a quoted date-time literal for `DateTime64`,
+  as it already does for `FixedString` and `UUID`, so the written value means the same on every server version and the
+  sub-second round-trip stays covered. No client code is affected: both clients quote a date-time value in a text
+  statement or send it in `RowBinary`. (https://github.com/ClickHouse/clickhouse-java/issues/3114)
+- **[jdbc-v2, client-v2]** Fixes issue with `FORMAT` in query unable to override format set by client when used with
+  ClickHouse 26.8+. Default format is `RowBinaryWithNamesAndTypes` set at client level. For JDBC, recommend using
+  `format=JSONEachRow` to query JSON. Setting `format=` (empty or `null`) omits the format request header so explicit
+  query `FORMAT` clauses take effect; note that on JDBC any statement without a `FORMAT` clause will fail because the
+  server falls back to `default_format` (`TabSeparated`). `DatabaseMetaData` is unaffected: every statement it runs
+  internally pins `RowBinaryWithNamesAndTypes` in its own settings, so metadata keeps working regardless of the
+  connection's `format` property. (https://github.com/ClickHouse/clickhouse-java/issues/3086)
+- **[jdbc-v2]** Fixed `Connection#prepareStatement` and `PreparedStatement#addBatch` throwing
+  `StringIndexOutOfBoundsException` for an `INSERT ... VALUES (...)` statement containing a JDBC escape sequence
+  (`{d '...'}`, `{ts '...'}`, ...) or a ClickHouse query parameter whose name starts with `d`/`t` (e.g. `{d:Int32}`).
+  The default `JAVACC` parser records the values list positions as offsets into the SQL it rebuilds from the token
+  stream, where such sequences are rewritten or dropped, while the driver slices the original SQL with them — so the
+  slice was taken at the wrong offsets or past the end of the statement. The positions are now checked against the
+  original SQL and discarded when they do not address its values list, in which case the driver falls back to its
+  generic parameter substitution path. Such a statement is now prepared without error; the escape sequence itself is
+  still sent to the server unchanged. The `ANTLR4` parser backends were not affected.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3017)
+- **[jdbc-v2]** Fixed a `?` inside a `//` line comment or inside a heredoc (dollar quoted string, e.g. `$$...$$` or
+  `$tag$...$tag$`) being counted as a `PreparedStatement` parameter. Such a statement expected a value the application
+  could not supply, so `executeQuery()` failed with `Parameter at position 'N' is not set` for a query the server
+  executes fine. The placeholder scan now skips both token kinds, like the server lexer does; a `$` that does not open a
+  heredoc is still treated as an ordinary character (it is a valid identifier character).
+  (https://github.com/ClickHouse/clickhouse-java/issues/3009)
+- **[jdbc-v2]** Fixed `INSERT INTO [TABLE] FUNCTION f(...) VALUES (?)` failing with
+  `Code: 60 ... does not exist. (UNKNOWN_TABLE)` when the `beta.row_binary_for_simple_insert` feature was
+  enabled. Neither SQL parser reported a table-function insert target as a function, so the statement was
+  routed to the `RowBinary` writer, which looked the function name (or a placeholder such as `unknown`) up as
+  a table. Both parsers now report such a statement as using a function, so it stays on the regular SQL path;
+  additionally the JavaCC grammar no longer mis-parses `INSERT INTO TABLE FUNCTION f(...)` by consuming
+  `FUNCTION` as the table name. Inserts into a plain table are unaffected and still use the `RowBinary`
+  writer. (https://github.com/ClickHouse/clickhouse-java/issues/3015)
+- **[jdbc-v2]** Fixed `Connection#prepareStatement` throwing a `NullPointerException` for an
+  `INSERT ... VALUES (...)` statement whose values list the default JavaCC parser cannot parse — most commonly one
+  containing a heredoc string (`$$...$$`), which the grammar has no token for, but also any other unparsable token
+  inside the list. The parser's error recovery left the values list's start position recorded without its matching end
+  position, which was then unboxed unguarded. Both positions are now dropped together, so the driver falls back to its
+  generic parameter-substitution path and such statements are prepared and executed successfully. The `ANTLR4`
+  parser backends were not affected. (https://github.com/ClickHouse/clickhouse-java/issues/3013)
+- **[client-v2]** Fixed reading a `JSON` or named `Tuple` value nested in a `Dynamic` column when a typed path or
+  element name requires quoting (it contains a space, a comma or a bracket). Names read from the binary type encoding
+  were appended to the reconstructed type name unquoted, so e.g. ``JSON(`a b` Int64)`` inside a `Dynamic` column
+  produced a malformed type name and the whole query failed with `IllegalArgumentException: Unknown data type: b Int64`.
+  Such names are now back-quoted (with inner back-quotes escaped) exactly as the server renders them, and `JSON` skip
+  paths and path regexps are emitted with their `SKIP` / `SKIP REGEXP` markers. Names that need no quoting are
+  rendered as before. Top-level `JSON` columns and `JSON` nested in `Map`/`Tuple`/`Array` were
+  not affected — their type comes from the `RowBinaryWithNamesAndTypes` header, which the server already quotes.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3001)
+- **[client-v2]** Fixed reading a `Variant`, `Nested`, `Decimal` or `Enum` value held in a `Dynamic` column. The
+  concrete type rebuilt from the binary type encoding did not match what the server encoded: `Variant` was wrapped
+  twice (so the discriminator selected the wrong element), `Nested` read only the element names and left the element
+  type encodings in the stream, and `Decimal`/`Enum` lost their precision and scale / their constants whenever the
+  value sat inside another type, so a decimal read back unscaled (`1.2500` as `12500`) and every enum value read back
+  as `<unknown>`. The constant width of an enum is now taken from the type tag rather than from the number of
+  constants, which also fixes reading an `Enum16` with fewer than 128 constants and negative `Enum8` constants.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3003)
+- **[client-v2]** Fixed a `Nullable(T)` column bound to a **primitive** POJO field silently corrupting a row on the
+  POJO read path. The compiled setter went straight to a primitive read method without consuming the `Nullable`
+  null-marker byte, which is on the wire for every value of a nullable column regardless of the value, so the stream
+  stayed shifted by one byte per row and the nullable column and every column after it decoded from the wrong offset
+  without any error being raised. The generated setter now consumes the marker; a value that is actually `NULL` cannot
+  be held by a primitive field and is reported with a `NullValueException`. Boxed POJO fields are unaffected.
+  (https://github.com/ClickHouse/clickhouse-java/issues/2993)
+- **[client-v2]** Fixed the `Native` format reader (`NativeFormatReader`) misreading `Array` columns in multi-row
+  results whose rows have different lengths. Native encodes an array column as cumulative row offsets followed by the
+  flattened elements, but the reader used the first row's offset as the element count for every row — truncating later
+  rows and desyncing the columns that follow the array in the same block. Each row's length is now derived from the
+  difference between consecutive offsets, and empty array rows (`len == 0`) no longer read a phantom element. Results
+  with uniform array lengths were unaffected. (https://github.com/ClickHouse/clickhouse-java/issues/2955)
+- **[jdbc-v2]** Fixed `SQLException#getSQLState()` returning the generic data-exception state `22000`
+  when ClickHouse reports an unknown table. The driver now returns `42S02` (base table or view not found) while
+  preserving the ClickHouse error code and original exception. (https://github.com/ClickHouse/clickhouse-java/issues/3104)
+- **[client-v2]** Fixed truncated LZ4 stream errors reporting literal `{0}` and `{1}` placeholders instead of the
+  number of bytes read and expected. (https://github.com/ClickHouse/clickhouse-java/issues/3108)
 - **[jdbc-v2]** Fixed `DatabaseMetaData#getTables` reporting `TABLE_TYPE = TABLE` for a table with the `BigQuery`
   engine (present in `system.table_engines` since ClickHouse `26.8`). The engine was missing from the
   engine-to-table-type mapping, so it fell back to the default `TABLE`, and `getTables(..., types = {"REMOTE TABLE"})`
@@ -253,6 +369,11 @@
   performs the handshake and runs the post-close action; a concurrent or repeated `close()` returns immediately. A
   `close()` which fails while flushing the remaining data also marks the stream closed and runs the post-close
   action, so the stream cannot stay half-closed. (https://github.com/ClickHouse/clickhouse-java/issues/3055)
+- **[data]** Fixed `NonBlockingPipedOutputStream.close()` not being idempotent under concurrency. Two threads could
+  both flush and mutate the same pending buffer before the reader consumed it, silently replacing the payload with
+  an empty buffer and running the post-close action twice. Exactly one caller now flushes the pending data, enqueues
+  the end-of-stream marker, and runs the post-close action; concurrent or repeated `close()` calls return immediately.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3057)
 - **[jdbc-v2]** Fixed JDBC escape processing rewriting text inside string literals and quoted identifiers. Because
   `PreparedStatement` inlines bound parameters into the statement text, a bound value containing `{fn ` (or `{d '...'}`
   / `{ts '...'}`) was re-read as SQL syntax: the `{fn ` was removed together with the next `}` found anywhere in the
@@ -266,6 +387,12 @@
 - **[client-v2]** Fixed LZ4 input streams not closing their underlying HTTP response stream. Closing an LZ4 stream
   returned by `QueryResponse.getInputStream()` now releases the wrapped transport stream, including after a partial
   read. (https://github.com/ClickHouse/clickhouse-java/issues/2985)
+- **[jdbc-v2]** Fixed the default JavaCC SQL parser aborting on a heredoc string (`$$body$$`, `$tag$body$tag$`)
+  whose body contains a character that is not a valid SQL token on its own, such as `!`, `&`, `|` or `~`. The
+  lexer had no heredoc token, so such a body raised a lexer error that left the statement classified as
+  `UNKNOWN` — an INSERT was reported as a result-set-bearing statement with no table name and no values-list
+  positions, which disables the batch values template and the table-name based paths. A heredoc is now lexed
+  as a single string literal. (https://github.com/ClickHouse/clickhouse-java/issues/3029)
 - **[client-v2, jdbc-v2]** Reduced noisy and potentially sensitive logging; SQL that fails to parse is no
   longer logged at `WARN` (it could contain credentials/PII). (https://github.com/ClickHouse/clickhouse-java/issues/2970)
 - **[client-v2]** Fixed `BigDecimal` values written into a `Dynamic` column being silently truncated when the
@@ -329,6 +456,15 @@
   NPE instead of a clear error. It now throws `IllegalArgumentException` naming the column, consistent with
   the existing `IllegalArgumentException` for other unsupported enum values. Nullable enum columns are
   unaffected. (https://github.com/ClickHouse/clickhouse-java/issues/2931)
+- **[client-v2]** Fixed silent data corruption when serializing a Java `null` into a non-nullable
+  `Array(...)` column via `RowBinaryFormatWriter`. `RowBinaryFormatSerializer.writeValuePreamble`
+  special-cased `Array`, emitting a stray marker byte on top of the array length; the server read the
+  extra byte as a phantom extra row (single-column inserts) or as a column shift that failed the insert
+  with `CANNOT_READ_ALL_DATA` (multi-column inserts). A non-nullable `Array` cannot represent a `null`,
+  so it now throws `IllegalArgumentException` naming the column — consistent with every other non-nullable
+  type — in both the `RowBinary` and `RowBinaryWithDefaults` paths. Empty arrays (`[]`) still serialize
+  correctly, and `Dynamic` columns, which can hold a `null` as the implicit `Nothing` type, are
+  unaffected. (https://github.com/ClickHouse/clickhouse-java/issues/2938)
 - **[client-v2]** Fixed POJO insert error classification so transport write failures such as java.net.SocketException:
   Broken pipe (Write failed) are now surfaced as transfer/network errors instead of being wrapped as
   DataSerializationException. This only changes the exception type reported for request-body transport failures during
