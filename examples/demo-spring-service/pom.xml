@@ -71,13 +71,13 @@
         <dependency>
             <groupId>com.clickhouse</groupId>
             <artifactId>clickhouse-jdbc</artifactId>
-            <version>${clickhouse-jdbc.version}</version>
+            <version>${clickhouse-java.version}</version>
             <classifier>all</classifier>
         </dependency>
         <dependency>
             <groupId>com.clickhouse</groupId>
             <artifactId>client-v2</artifactId>
-            <version>${clickhouse-jdbc.version}</version>
+            <version>${clickhouse-java.version}</version>
         </dependency>
 
         <!-- OpenTelemetry SDK, custom ClickHouse metrics, and OTLP export -->
