@@ -699,7 +699,12 @@ public class ResultSetImplTest extends JdbcIntegrationTest {
             assertEquals(lookupsByName.get(), 0,
                     "Getters called by column label must resolve the label to an index and read by index");
 
+            // A column index the result set does not have is still rejected, and a label it does not
+            // have still reads as SQL NULL, as before reading by index.
             Assert.assertThrows(SQLException.class, () -> rs.getLong(7));
+            Assert.assertThrows(SQLException.class, () -> rs.getLong(-1));
+            assertEquals(rs.getLong("no_such_column"), 0L);
+            assertTrue(rs.wasNull());
         }
     }
 
@@ -718,6 +723,8 @@ public class ResultSetImplTest extends JdbcIntegrationTest {
             Assert.expectThrows(SQLException.class, () -> rs.getLong(1));
             Assert.expectThrows(SQLException.class, () -> rs.getUnicodeStream(1));
             Assert.expectThrows(SQLException.class, () -> rs.getUnicodeStream("id"));
+            Assert.expectThrows(SQLException.class, () -> rs.getObject("id"));
+            Assert.expectThrows(SQLException.class, () -> rs.getString("id"));
         }
     }
 
