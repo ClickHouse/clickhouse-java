@@ -683,7 +683,9 @@ public class ResultSetImplTest extends JdbcIntegrationTest {
             assertTrue(rs.wasNull());
             assertEquals(rs.getDouble(4), 1.5);
             Assert.assertFalse(rs.wasNull());
-            assertEquals(rs.getTimestamp(5).toInstant(), Instant.parse("2024-01-02T03:04:05.678Z"));
+            // getTimestamp() renders the column value with the connection calendar (the JVM default
+            // zone), so the expected value is built the same way to hold in any JVM zone.
+            assertEquals(rs.getTimestamp(5), Timestamp.valueOf("2024-01-02 03:04:05.678"));
             assertEquals(rs.getBigDecimal(6), new BigDecimal("12.34"));
             assertEquals(rs.getObject(2, String.class), "abc");
 
@@ -760,9 +762,14 @@ public class ResultSetImplTest extends JdbcIntegrationTest {
 
             assertEquals(rs.getObject(3, new HashMap<>()), "abc");
 
-            assertEquals(rs.getObject(4, Timestamp.class).toInstant(), Instant.parse("2024-05-06T07:08:09Z"));
-            assertEquals(rs.getObject(5, Date.class).toString(), "2024-05-06");
-            assertEquals(rs.getDate(5, Calendar.getInstance(TimeZone.getTimeZone("UTC"))).toString(), "2024-05-06");
+            // Without an explicit calendar the column value is rendered with the connection calendar,
+            // which uses the JVM default zone. The expected values are built the same way, so the
+            // assertions hold in any JVM zone.
+            assertEquals(rs.getObject(4, Timestamp.class), Timestamp.valueOf("2024-05-06 07:08:09"));
+            assertEquals(rs.getObject(5, Date.class), Date.valueOf("2024-05-06"));
+            // An explicit calendar replaces that zone, so the returned value is midnight UTC.
+            assertEquals(rs.getDate(5, Calendar.getInstance(TimeZone.getTimeZone("UTC"))).getTime(),
+                    Instant.parse("2024-05-06T00:00:00Z").toEpochMilli());
 
             Assert.assertNull(rs.getTime(6, null));
             assertTrue(rs.wasNull());
