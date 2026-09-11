@@ -19,7 +19,8 @@ Because both layers share the same Apache HttpClient HTTP transport stack, conne
 
 ### HTTP Connection Pooling (`client-v2`)
 
-The `Client` instance owns an internal Apache HttpClient 5 connection pool. It manages persistent HTTP connections to ClickHouse endpoints.
+The `Client` uses Apache Http Client `5.x` that is feature rich and has own connection pool. Key pool settings that exposed by our client configuration are listed below. 
+For more information please see Apache HTTP Client [documentation](https://hc.apache.org/httpcomponents-client-5.6.x/configuration.html). 
 
 #### Key Pool Settings
 
