@@ -1125,7 +1125,7 @@ public void inspectResponseMetrics(Client client) throws Exception {
 
 Tracing in Client V2 produces two types of spans arranged in a parent-child hierarchy:
 
-1. **Operation Span:** Represents a high-level client operation (`query <database>` or `insert <database>.<table_name>`). Started under the current thread's trace context (`Context.current()`) so that database operations join the caller's active trace span.
+1. **Operation Span:** Represents a high-level client operation (`QUERY <database>` or `INSERT <database>.<table_name>`). Started under the current thread's trace context (`Context.current()`) so that database operations join the caller's active trace span.
 2. **Transport Request Span:** Represents an individual HTTP transport request attempt (`POST`). Created as a child of the corresponding operation span. Each retry attempt creates a new transport request span under the operation span.
 
 #### Span Attributes
@@ -1138,7 +1138,7 @@ Spans are populated with standard OpenTelemetry attributes (`SpanAttribute`):
 | `db.namespace` | All operations | Before request start | Target database name. |
 | `db.query.text` | Query | Before request start | SQL statement text for queries or commands. |
 | `db.collection.name` | Insert | Before request start | Target table name. |
-| `db.operation.name` | Insert | Before request start | Operation type (`insert`, `ping`, `getTableSchema`). |
+| `db.operation.name` | Insert | Before request start | Operation type (`INSERT`). Set for insert operations, but left unset for queries because SQL is not parsed on the client. |
 | `db.operation.batch.size` | Insert | Before request start | Number of items in insert batch. |
 | `db.query.parameter.<name>` | Query | Before request start | Statement parameter values. |
 | `clickhouse.query_id` | All operations | Before request start, updated on completion | ClickHouse query ID assigned by client or server. |

@@ -5,6 +5,10 @@
 
 ### Breaking Changes
 
+- **[client-v2]** `com.clickhouse.client.api.observability.SpanSupport` now uses `QUERY` and `INSERT` operation
+  constants (`QUERY <database>` and `INSERT <database>.<table>` span names). `db.operation.name` attribute is set to
+  `INSERT` for insert operations and left unset for queries because SQL statements are not parsed on the client.
+
 - **[client-v2]** `com.clickhouse.client.api.metrics.OperationMetrics` now has a single constructor,
   `OperationMetrics(ClientStatisticsHolder, OperationType)`; the constructor without an operation type was removed.
   Metrics are created by the client, which always knows the kind of the operation it runs, and the constructor takes
@@ -13,7 +17,10 @@
 
 ### New Features
 
-- **[migration-helpers]** Added `migration-helpers` module containing `ConfigurationMigrationHelper` and `ConfigPropertyCache` to convert configuration properties and connection URLs from v1 (0.7.1) format to v2 (0.9.8+) format (automatically prefixing ClickHouse server settings with `clickhouse_setting_`, custom headers with `http_header_`, and mapping renamed property keys).
+- **[migration-helpers]** Added `migration-helpers` module containing `ConfigurationMigrationHelper` and
+  `ConfigPropertyCache` to convert configuration properties and connection URLs from v1 (0.7.1) format to v2 (0.9.8+)
+  format (automatically prefixing ClickHouse server settings with `clickhouse_setting_`, custom headers with
+  `http_header_`, and mapping renamed property keys).
 
 - **[client-v2, jdbc-v2]** Added support for the `MultiPoint` geo data type (ClickHouse `26.8+`). Previously the type was
   unknown to the client, so reading or writing a `MultiPoint` column failed with `Unknown data type: MultiPoint`, and a

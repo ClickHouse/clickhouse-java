@@ -69,7 +69,7 @@ public class SpanRecorderUnitTest {
         }
 
         CapturedSpan operationSpan = recorder.operationSpan();
-        Assert.assertEquals(operationSpan.getName(), "query test_db");
+        Assert.assertEquals(operationSpan.getName(), "QUERY test_db");
         Assert.assertEquals(operationSpan.getSettingsDatabase(), "test_db",
                 "the recorder must receive the resolved operation settings");
         Assert.assertEquals(operationSpan.getSettingsQueryId(), "query-id-1");
@@ -113,8 +113,8 @@ public class SpanRecorderUnitTest {
         }
 
         CapturedSpan operationSpan = recorder.operationSpan();
-        Assert.assertEquals(operationSpan.getName(), "insert test_db.target_table");
-        Assert.assertEquals(operationSpan.getAttribute(SpanAttribute.DB_OPERATION_NAME), "insert");
+        Assert.assertEquals(operationSpan.getName(), "INSERT test_db.target_table");
+        Assert.assertEquals(operationSpan.getAttribute(SpanAttribute.DB_OPERATION_NAME), "INSERT");
         Assert.assertEquals(operationSpan.getAttribute(SpanAttribute.DB_COLLECTION_NAME), "target_table");
         Assert.assertEquals(operationSpan.getAttribute(SpanAttribute.DB_NAMESPACE), "test_db");
         Assert.assertEquals(operationSpan.getAttribute(SpanAttribute.DB_OPERATION_BATCH_SIZE), 3);
@@ -135,7 +135,7 @@ public class SpanRecorderUnitTest {
         }
 
         CapturedSpan operationSpan = recorder.operationSpan();
-        Assert.assertEquals(operationSpan.getName(), "insert test_db.target_table");
+        Assert.assertEquals(operationSpan.getName(), "INSERT test_db.target_table");
         Assert.assertEquals(operationSpan.getAttribute(SpanAttribute.DB_COLLECTION_NAME), "target_table");
         Assert.assertNull(operationSpan.getAttribute(SpanAttribute.DB_OPERATION_BATCH_SIZE),
                 "the number of rows in a stream is not known to the client");
@@ -224,7 +224,7 @@ public class SpanRecorderUnitTest {
         }
 
         CapturedSpan operationSpan = recorder.operationSpan();
-        Assert.assertEquals(operationSpan.getName(), "insert test_db.target_table");
+        Assert.assertEquals(operationSpan.getName(), "INSERT test_db.target_table");
         Assert.assertEquals(operationSpan.getErrorType(), expectedErrorType);
         Assert.assertEquals(operationSpan.getEndCount(), 1);
 
@@ -317,7 +317,7 @@ public class SpanRecorderUnitTest {
             }
         }
 
-        Assert.assertEquals(threadRecorder.operationSpan().getName(), "query test_db");
+        Assert.assertEquals(threadRecorder.operationSpan().getName(), "QUERY test_db");
         Assert.assertSame(threadRecorder.operationStartThread, callingThread,
                 "an operation span must be started on the caller's thread so it joins the caller's trace");
         Assert.assertNotSame(threadRecorder.requestStartThread, callingThread,
@@ -390,7 +390,7 @@ public class SpanRecorderUnitTest {
         Assert.assertEquals(queryOnlyRecorder.querySpans.size(), 1,
                 "the overridden method is the only one that recorded a span");
         CapturedSpan querySpan = queryOnlyRecorder.querySpans.get(0);
-        Assert.assertEquals(querySpan.getName(), "query test_db");
+        Assert.assertEquals(querySpan.getName(), "QUERY test_db");
         Assert.assertEquals(querySpan.getAttribute(SpanAttribute.DB_QUERY_TEXT), "SELECT 1");
         Assert.assertEquals(querySpan.getEndCount(), 1);
     }

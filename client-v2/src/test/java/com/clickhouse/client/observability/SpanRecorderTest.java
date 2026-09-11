@@ -63,7 +63,7 @@ public class SpanRecorderTest extends BaseIntegrationTest {
         }
 
         CapturedSpan operationSpan = recorder.operationSpan();
-        Assert.assertEquals(operationSpan.getName(), "query " + database);
+        Assert.assertEquals(operationSpan.getName(), "QUERY " + database);
         Assert.assertEquals(operationSpan.getAttribute(SpanAttribute.DB_SYSTEM_NAME), "clickhouse");
         Assert.assertEquals(operationSpan.getAttribute(SpanAttribute.DB_NAMESPACE), database);
         Assert.assertEquals(operationSpan.getAttribute(SpanAttribute.DB_RESPONSE_RETURNED_ROWS), 3L);
@@ -115,7 +115,7 @@ public class SpanRecorderTest extends BaseIntegrationTest {
         // a ping runs a query, so it is reported as one - the client does not name the operations it
         // implements on top of a query
         CapturedSpan operationSpan = recorder.operationSpan();
-        Assert.assertEquals(operationSpan.getName(), "query " + database);
+        Assert.assertEquals(operationSpan.getName(), "QUERY " + database);
         Assert.assertEquals(operationSpan.getAttribute(SpanAttribute.DB_QUERY_TEXT), "SELECT 1");
         Assert.assertNull(operationSpan.getAttribute(SpanAttribute.DB_OPERATION_NAME));
         Assert.assertNull(operationSpan.getAttribute(SpanAttribute.DB_COLLECTION_NAME));
@@ -128,7 +128,7 @@ public class SpanRecorderTest extends BaseIntegrationTest {
         client.execute("TRUNCATE TABLE " + TABLE).get();
 
         CapturedSpan operationSpan = recorder.operationSpan();
-        Assert.assertEquals(operationSpan.getName(), "query " + database);
+        Assert.assertEquals(operationSpan.getName(), "QUERY " + database);
         Assert.assertEquals(operationSpan.getAttribute(SpanAttribute.DB_QUERY_TEXT), "TRUNCATE TABLE " + TABLE);
         Assert.assertNull(operationSpan.getAttribute(SpanAttribute.DB_OPERATION_NAME));
         Assert.assertNull(operationSpan.getErrorType());
@@ -141,7 +141,7 @@ public class SpanRecorderTest extends BaseIntegrationTest {
         Assert.assertEquals(schema.getColumns().size(), 2);
 
         CapturedSpan operationSpan = recorder.operationSpan();
-        Assert.assertEquals(operationSpan.getName(), "query " + database);
+        Assert.assertEquals(operationSpan.getName(), "QUERY " + database);
         Assert.assertEquals(operationSpan.getAttribute(SpanAttribute.DB_QUERY_TEXT),
                 "DESCRIBE TABLE " + TABLE);
         Assert.assertNull(operationSpan.getAttribute(SpanAttribute.DB_OPERATION_NAME));
@@ -155,7 +155,7 @@ public class SpanRecorderTest extends BaseIntegrationTest {
         Assert.assertEquals(schema.getColumns().size(), 1);
 
         CapturedSpan operationSpan = recorder.operationSpan();
-        Assert.assertEquals(operationSpan.getName(), "query " + database);
+        Assert.assertEquals(operationSpan.getName(), "QUERY " + database);
         Assert.assertEquals(operationSpan.getAttribute(SpanAttribute.DB_QUERY_TEXT),
                 "DESC (SELECT id FROM " + TABLE + ")");
         Assert.assertNull(operationSpan.getAttribute(SpanAttribute.DB_OPERATION_NAME));

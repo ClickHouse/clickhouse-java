@@ -137,7 +137,7 @@ Client V2 supports OpenTelemetry distributed tracing across a structured 3-tier 
 ```text
 Application HTTP / Messaging Span (e.g. Spring Controller / Kafka Consumer)
   └── [JDBC Path Only] JDBC Statement Span (e.g., PreparedStatement.executeBatch)
-      └── Client V2 Operation Span (query <database> or insert <database>.<table_name>)
+      └── Client V2 Operation Span (QUERY <database> or INSERT <database>.<table_name>)
           └── Transport Request Span (POST http://localhost:8123)
 ```
 
@@ -154,7 +154,7 @@ Spans are populated with standard OpenTelemetry attributes (`SpanAttribute`):
 | `db.namespace` | All operations | Before request start | Target database name. |
 | `db.query.text` | Query | Before request start | SQL statement text. |
 | `db.collection.name` | Insert | Before request start | Target table name. |
-| `db.operation.name` | Insert | Before request start | Operation type (`insert`, `ping`, `getTableSchema`). |
+| `db.operation.name` | Insert | Before request start | Operation type (`INSERT`). Set for insert operations, but left unset for queries because SQL is not parsed on the client. |
 | `db.operation.batch.size` | Insert | Before request start | Batch row count. |
 | `db.query.parameter.<name>` | Query | Before request start | Statement parameter values. |
 | `clickhouse.query_id` | All operations | Before request start, updated on completion | ClickHouse query ID assigned by client or server. |
