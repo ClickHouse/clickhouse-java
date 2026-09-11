@@ -5,6 +5,7 @@ import com.clickhouse.client.api.data_formats.ClickHouseFormatReader;
 import com.clickhouse.client.api.data_formats.JacksonJsonParserFactory;
 import com.clickhouse.data.ClickHouseVersion;
 import org.testng.Assert;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
@@ -14,6 +15,7 @@ import java.io.StringReader;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Proxy;
 import java.math.BigDecimal;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.sql.Array;
 import java.sql.Blob;
@@ -34,10 +36,12 @@ import java.sql.Types;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Calendar;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
 import java.util.Properties;
+import java.util.TimeZone;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.testng.Assert.assertEquals;
@@ -729,6 +733,100 @@ public class ResultSetImplTest extends JdbcIntegrationTest {
             SQLException e = Assert.expectThrows(SQLException.class, () -> rs.getUnicodeStream("no_such_column"));
             assertTrue(e.getMessage().contains("no_such_column"),
                     "Exception must name the unknown column label, but was: " + e.getMessage());
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testTypedGettersByIndexAndLabel() throws SQLException, IOException {
+        try (Connection conn = getJdbcConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT toDecimal64('12.3456', 4) AS dec," +
+                     " 'https://clickhouse.com/docs' AS url, 'abc' AS txt," +
+                     " toDateTime('2024-05-06 07:08:09', 'UTC') AS ts, toDate('2024-05-06') AS d," +
+                     " CAST(NULL AS Nullable(DateTime)) AS null_ts")) {
+            assertTrue(rs.next());
+
+            assertEquals(rs.getBigDecimal(1), new BigDecimal("12.3456"));
+            assertEquals(rs.getBigDecimal("dec"), new BigDecimal("12.3456"));
+
+            assertEquals(rs.getURL(2), new URL("https://clickhouse.com/docs"));
+            assertEquals(rs.getURL("url"), new URL("https://clickhouse.com/docs"));
+
+            assertEquals(rs.getNString(3), "abc");
+            assertEquals(rs.getNString("txt"), "abc");
+
+            assertEquals(readFully(rs.getNCharacterStream(3)), "abc");
+            assertEquals(readFully(rs.getNCharacterStream("txt")), "abc");
+
+            assertEquals(rs.getObject(3, new HashMap<>()), "abc");
+
+            assertEquals(rs.getObject(4, Timestamp.class).toInstant(), Instant.parse("2024-05-06T07:08:09Z"));
+            assertEquals(rs.getObject(5, Date.class).toString(), "2024-05-06");
+            assertEquals(rs.getDate(5, Calendar.getInstance(TimeZone.getTimeZone("UTC"))).toString(), "2024-05-06");
+
+            Assert.assertNull(rs.getTime(6, null));
+            assertTrue(rs.wasNull());
+        }
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "gettersOnUnconvertibleValue")
+    public void testGetterFailureIsReportedAsSqlException(String description, RsAccessor accessor) throws SQLException {
+        try (Connection conn = getJdbcConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT 'abc' AS txt")) {
+            assertTrue(rs.next());
+            try {
+                accessor.apply(rs);
+                Assert.fail(description + " must report the failure as an SQLException, but nothing was thrown");
+            } catch (SQLException expected) {
+                // the value of a String column cannot be converted, and the failure is reported to JDBC callers
+            } catch (Exception e) {
+                Assert.fail(description + " must report the failure as an SQLException, but was: " + e, e);
+            }
+        }
+    }
+
+    @DataProvider(name = "gettersOnUnconvertibleValue")
+    public static Object[][] gettersOnUnconvertibleValue() {
+        return new Object[][]{
+                {"getByte(int)", (RsAccessor) rs -> rs.getByte(1)},
+                {"getByte(String)", (RsAccessor) rs -> rs.getByte("txt")},
+                {"getShort(int)", (RsAccessor) rs -> rs.getShort(1)},
+                {"getShort(String)", (RsAccessor) rs -> rs.getShort("txt")},
+                {"getInt(int)", (RsAccessor) rs -> rs.getInt(1)},
+                {"getInt(String)", (RsAccessor) rs -> rs.getInt("txt")},
+                {"getLong(int)", (RsAccessor) rs -> rs.getLong(1)},
+                {"getLong(String)", (RsAccessor) rs -> rs.getLong("txt")},
+                {"getFloat(int)", (RsAccessor) rs -> rs.getFloat(1)},
+                {"getFloat(String)", (RsAccessor) rs -> rs.getFloat("txt")},
+                {"getDouble(int)", (RsAccessor) rs -> rs.getDouble(1)},
+                {"getDouble(String)", (RsAccessor) rs -> rs.getDouble("txt")},
+                {"getBigDecimal(int)", (RsAccessor) rs -> rs.getBigDecimal(1)},
+                {"getBigDecimal(String)", (RsAccessor) rs -> rs.getBigDecimal("txt")},
+                {"getBigDecimal(int, int)", (RsAccessor) rs -> rs.getBigDecimal(1, 2)},
+                {"getBigDecimal(String, int)", (RsAccessor) rs -> rs.getBigDecimal("txt", 2)},
+                {"getURL(int)", (RsAccessor) rs -> rs.getURL(1)},
+                {"getURL(String)", (RsAccessor) rs -> rs.getURL("txt")},
+                {"getTime(int, Calendar)", (RsAccessor) rs -> rs.getTime(1, null)},
+                {"getTime(String, Calendar)", (RsAccessor) rs -> rs.getTime("txt", null)},
+                {"getDate(int, Calendar)", (RsAccessor) rs -> rs.getDate(1, Calendar.getInstance())},
+                {"getDate(String, Calendar)", (RsAccessor) rs -> rs.getDate("txt", Calendar.getInstance())},
+        };
+    }
+
+    @FunctionalInterface
+    public interface RsAccessor {
+        Object apply(ResultSet rs) throws Exception;
+    }
+
+    private static String readFully(Reader reader) throws IOException {
+        try (Reader r = reader) {
+            StringBuilder value = new StringBuilder();
+            int c;
+            while ((c = r.read()) != -1) {
+                value.append((char) c);
+            }
+            return value.toString();
         }
     }
 
