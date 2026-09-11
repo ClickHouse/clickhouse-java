@@ -549,6 +549,46 @@ public abstract class BaseSqlParserFacadeTest {
         };
     }
 
+    @Test(dataProvider = "recursiveCteStatementsDP")
+    public void testRecursiveCteStatements(String sql, boolean insert, String expectedTable) {
+        ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
+        Assert.assertFalse(stmt.isHasErrors(), "Query should parse without errors: " + sql);
+        Assert.assertEquals(stmt.isInsert(), insert, "Insert type mismatch for: " + sql);
+        Assert.assertEquals(stmt.isHasResultSet(), !insert, "Result set flag mismatch for: " + sql);
+        if (expectedTable != null) {
+            Assert.assertEquals(stmt.getTable(), expectedTable, "Table name mismatch for: " + sql);
+        }
+    }
+
+    @DataProvider
+    public static Object[][] recursiveCteStatementsDP() {
+        return new Object[][] {
+                {"WITH RECURSIVE t AS (SELECT 1 AS n UNION ALL SELECT n + 1 FROM t WHERE n < 5)"
+                        + " SELECT sum(n) FROM t", false, "t"},
+                // The keyword is case insensitive
+                {"with recursive t as (select 1 as n union all select n + 1 from t where n < 5)"
+                        + " select sum(n) from t", false, "t"},
+                // A recursive CTE next to a plain one, in both orders
+                {"WITH RECURSIVE a AS (SELECT 1 AS n), b AS (SELECT 2 AS n) SELECT n FROM a", false, "a"},
+                {"WITH RECURSIVE 1 AS x, a AS (SELECT 1 AS n) SELECT n + x FROM a", false, "a"},
+                // A recursive CTE also prefixes the SELECT of an INSERT. The backends disagree on the
+                // reported table of an INSERT with a CTE, so the target is not pinned here.
+                {"INSERT INTO dst WITH RECURSIVE r AS (SELECT 1 AS n UNION ALL SELECT n + 1 FROM r WHERE n < 3)"
+                        + " SELECT n FROM r", true, null},
+                // A recursive CTE inside a subquery
+                {"SELECT sum(n) FROM (WITH RECURSIVE r AS (SELECT 1 AS n UNION ALL SELECT n + 1 FROM r"
+                        + " WHERE n < 3) SELECT n FROM r)", false, null},
+                // Contrast: a non-recursive CTE keeps its existing handling
+                {"WITH t AS (SELECT 1 AS n) SELECT n FROM t", false, "t"},
+                // Contrast: recursive is still an ordinary identifier elsewhere
+                {"SELECT recursive FROM t", false, "t"},
+                {"SELECT n AS recursive FROM t", false, "t"},
+                {"SELECT n FROM recursive", false, "recursive"},
+                {"WITH RECURSIVE recursive AS (SELECT 1 AS n) SELECT n FROM recursive", false, "recursive"},
+                {"WITH recursive AS (SELECT 1 AS n) SELECT n FROM recursive", false, "recursive"},
+        };
+    }
+
     @Test(dataProvider = "javaCcHeredocStatementsDP")
     public void testHeredocStatementsJavaCcOnly(String sql, String expectedValuesList) {
         // The ANTLR4 grammars do not accept these two heredoc bodies yet, so the expectations only
