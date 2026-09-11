@@ -112,6 +112,35 @@ Please use tools like [openssl](https://docs.openssl.org/master/man1/openssl/) t
     - verify same value is set in database `select name, auth_type, auth_params from system.users where auth_type = 'ssl_certificate'` (query will output `auth_params` with something like ` {"common_names":["some_user"]}`)
 </Note>
 
+### Connection Pooling {#connection-pooling}
+
+The `Client` uses Apache HttpClient 5 with an internal HTTP connection pool. Each operation borrows a connection from the pool, sends the request, streams the response, and returns the connection to the pool.
+
+Key connection pool settings on `Client.Builder`:
+
+| Setting | Builder Method | Default | Description |
+|---------|----------------|---------|-------------|
+| Max Connections | `setMaxConnections(int)` | `10` | Maximum open HTTP connections per server endpoint. |
+| Connection TTL | `setConnectionTTL(long, ChronoUnit)` | `-1` (disabled) | Time-to-live after which an active connection is closed and recreated. |
+| Keep-Alive Timeout | `setKeepAliveTimeout(long, ChronoUnit)` | Server default | HTTP Keep-Alive duration for idle pooled connections. |
+| Connection Request Timeout | `setConnectionRequestTimeout(long, ChronoUnit)` | `10000ms` | Maximum time a thread blocks waiting for an available connection from the pool. |
+| Reuse Strategy | `setConnectionReuseStrategy(ConnectionReuseStrategy strategy)` | `FIFO` | Connection pool allocation strategy (`FIFO` or `LIFO`). |
+| Connection Pooling | `enableConnectionPool(boolean enable)` | `true` | Enable or disable HTTP connection pooling. |
+
+#### Recommended Connection Pool Configuration
+
+```java showLineNumbers
+Client client = new Client.Builder()
+        .addEndpoint("https://clickhouse-cloud-instance:8443/")
+        .setUsername("default")
+        .setPassword("secret")
+        .setMaxConnections(50)
+        .setConnectionRequestTimeout(5, TimeUnit.SECONDS)
+        .setKeepAliveTimeout(60, TimeUnit.SECONDS)
+        .setConnectionReuseStrategy(ConnectionReuseStrategy.FIFO)
+        .build();
+```
+
 ## Configuration {#configuration}
 
 All settings are defined by instance methods (a.k.a configuration methods) that make the scope and context of each value clear.

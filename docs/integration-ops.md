@@ -19,47 +19,18 @@ Because both layers share the same Apache HttpClient HTTP transport stack, conne
 
 ### HTTP Connection Pooling (`client-v2`)
 
-The `Client` uses Apache Http Client `5.x` that is feature rich and has own connection pool. Key pool settings that exposed by our client configuration are listed below. 
-For more information please see Apache HTTP Client [documentation](https://hc.apache.org/httpcomponents-client-5.6.x/configuration.html). 
+The `Client` uses Apache HttpClient `5.x`, which manages its own internal HTTP connection pool.
 
-#### Key Pool Settings
+For parameter specifications and pool configuration guidance, see:
+- [Java Client Integration Guide: Connections Configuration](integration-client.md#step-4--connections-configuration)
+- [Java Client Documentation: Connection Pooling](clickhouse-docs/client.mdx#connection-pooling)
 
-| Setting | Builder Method | Default | Description |
-|---------|----------------|---------|-------------|
-| Max Connections | `setMaxConnections(int)` | `10` | Maximum open HTTP connections per server endpoint. |
-| Connection TTL | `setConnectionTTL(long, TimeUnit)` | `-1` (disabled) | Time-to-live after which an active connection is closed and recreated. |
-| Keep-Alive Timeout | `setKeepAliveTimeout(long, TimeUnit)` | Server default | HTTP Keep-Alive duration for idle pooled connections. |
-| Connection Request Timeout | `setConnectionRequestTimeout(long, TimeUnit)` | `10000ms` | Maximum time a thread blocks waiting for an available connection from the pool. |
-| Reuse Strategy | `setConnectionReuseStrategy(ConnectionReuseStrategy)` | `FIFO` | Connection pool allocation strategy (`FIFO` or `LIFO`). |
+#### Operational Considerations
 
-#### Recommended Pool Configuration
+When operating `client-v2` in production environments, keep the following operational rules in mind:
 
-```java
-import com.clickhouse.client.api.Client;
-import com.clickhouse.client.api.enums.ConnectionReuseStrategy;
-
-import java.util.concurrent.TimeUnit;
-
-public Client createOptimizedClient() {
-    return new Client.Builder()
-        .addEndpoint("http://localhost:8123")
-        .setUsername("default")
-        .setPassword("secret")
-        .setMaxConnections(50)
-        .setConnectionRequestTimeout(5, TimeUnit.SECONDS)
-        .setKeepAliveTimeout(60, TimeUnit.SECONDS)
-        .setConnectionReuseStrategy(ConnectionReuseStrategy.FIFO)
-        .build();
-}
-```
-
-### JDBC Pooling Considerations (HikariCP & Frameworks)
-
-When using the JDBC driver (`clickhouse-jdbc`) with an external connection pooler like **HikariCP**:
-
-- **Layering:** HikariCP manages JDBC `Connection` instances, while each JDBC connection wraps a `Client` instance with its own internal HTTP socket pool.
-- **Sizing Alignment:** Avoid over-allocating HikariCP connections. Because ClickHouse processes HTTP requests concurrently over pooled sockets, a smaller HikariCP pool (e.g., 10–20 connections) paired with a properly sized `Client` HTTP pool is typically optimal.
-- **Connection Lifecycle:** Configure HikariCP's `maxLifetime` slightly shorter than any network or load-balancer idle timeout to prevent stale socket exceptions.
+- **Operation Timeouts under High Concurrency:** If the application experiences operation timeouts or connection request timeouts (`ConnectionRequestTimeoutException`) while handling many concurrent requests, check the maximum connections setting (`setMaxConnections`). If the pool limit is too small for peak concurrent demand, threads will block waiting for an available connection from the pool and eventually time out.
+- **`NoHttpResponseException` (Stale Connections):** If the application encounters `NoHttpResponseException`, it is most probably a stale connection problem where the ClickHouse server or an intermediate load balancer/proxy closed idle HTTP connections without the client knowing. Configure `setKeepAliveTimeout` to be less than the keep-alive timeout configured on the ClickHouse server or load balancer so idle connections are closed client-side before becoming stale.
 
 ---
 
@@ -108,24 +79,24 @@ public void processBatchAsync(Client client, String table, List<?> data, Context
 
 ## Troubleshooting & Diagnostics
 
-### 1. Diagnosing Connection Pool Starvation
+### 1. Connection Pool Starvation
 
 **Symptom:** Threads block or throw `ConnectionInitiationException` / `ConnectionRequestTimeoutException` with messages indicating connection acquisition timeout.
 
 **Diagnosis:**
 - Monitor the `httpcomponents.httpclient.pool.total.pending` gauge in Grafana / Prometheus. A non-zero or spiking pending count indicates thread contention for HTTP sockets.
-- Compare `httpcomponents.httpclient.pool.total.connections{state="leased"}` against `httpcomponents.httpclient.pool.total.max`.
+- Compare `httpcomponents.httpclient.pool.total.connections{state="leased"}` against `httpcomponents.httpclient.pool.total.connections{state="max"}` (or `pool.total.max`).
 
 **Remediation:**
 - Increase `Client.Builder.setMaxConnections(...)` to match concurrent thread demand.
 - Ensure all query and insert response objects (`QueryResponse`, `InsertResponse`) are closed promptly using `try-with-resources`.
 
-### 2. Correlating Application Traces with ClickHouse Server Logs (`system.query_log`)
+### 2. Query Correlation with Server Logs (`system.query_log`)
 
-**Symptom:** Need to trace an expensive or failing query from APM traces down to ClickHouse server execution logs.
+**Task:** Correlate client-side operation failures, slow queries, or execution details with server-side logs in ClickHouse (`system.query_log`).
 
 **Solution:**
-- The client records `clickhouse.query_id` on every operation span.
+- The client assigns or receives a `query_id` for all operations. It can be retrieved from `OperationMetrics.getQueryId()`, logged in application logs, or read from the `clickhouse.query_id` span attribute when tracing is enabled.
 - You can supply a custom query ID generator during client setup:
   ```java
   clientBuilder.setQueryIdGenerator(() -> UUID.randomUUID().toString());
@@ -170,7 +141,7 @@ public void processBatchAsync(Client client, String table, List<?> data, Context
 - For POJO inserts, high serialization duration points to expensive reflection or large batch encoding.
 - Consider tuning batch sizes or utilizing direct binary stream writers (`RowBinaryFormatWriter`) for ultra-high throughput paths.
 
-### 5. Distinguishing Transport Failures vs Server Exceptions
+### 5. Transport Failures vs. Server Exceptions
 
 - **Server Exception:** Indicated by non-null `db.response.status_code` tag (e.g. `60` for missing table, `159` for timeout). Represents ClickHouse server rejecting the query.
 - **Transport / Connection Failure:** `db.response.status_code` is absent, and `error.type` indicates `ConnectionInitiationException`, `DataTransferException`, or `NoHttpResponseException`. Indicates network, proxy, or server availability issues.

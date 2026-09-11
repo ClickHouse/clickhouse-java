@@ -433,14 +433,38 @@ The reasoning is only valid for **short-lived read operations**, where connectio
 
 ### Connection pool
 
-These are the only pool-related properties you normally touch; the rest have safe defaults.
+The `Client` uses an internal Apache HttpClient 5 pool. Key pool settings exposed by client configuration are listed below:
 
 | Property (Builder method) | Purpose | Default |
 |---------------------------|---------|---------|
-| `max_open_connections` (`.setMaxConnections()`) | Pool size — set from the parallelism guidance above | 10 |
-| `connection_pool_enabled` (`.enableConnectionPool()`) | Enable/disable pooling (keep enabled) | true |
-| `connection_ttl` (`.setConnectionTTL()`) | Max lifetime of a pooled connection | — |
-| `connection_reuse_strategy` (`.setConnectionReuseStrategy()`) | FIFO or LIFO reuse | — |
+| `max_open_connections` (`.setMaxConnections()`) | Maximum open HTTP connections per server endpoint. Size set from parallelism guidance above. | `10` |
+| `connection_ttl` (`.setConnectionTTL()`) | Time-to-live after which an active connection is closed and recreated. | `-1` (disabled) |
+| `http_keep_alive_timeout` (`.setKeepAliveTimeout()`) | HTTP Keep-Alive duration for idle pooled connections. | Server default |
+| `connection_request_timeout` (`.setConnectionRequestTimeout()`) | Maximum time a thread blocks waiting for an available connection from the pool. | `10000ms` |
+| `connection_reuse_strategy` (`.setConnectionReuseStrategy()`) | Connection pool allocation strategy (`FIFO` or `LIFO`). | `FIFO` |
+| `connection_pool_enabled` (`.enableConnectionPool()`) | Enable/disable HTTP connection pooling (keep enabled). | `true` |
+
+#### Recommended Pool Configuration
+
+```java
+import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.enums.ConnectionReuseStrategy;
+
+import java.util.concurrent.TimeUnit;
+
+public Client.Builder createBaseClient() {
+    return new Client.Builder()
+        .addEndpoint("http://localhost:8123")
+        .setUsername("default")
+        .setPassword("secret")
+        .setMaxConnections(50)
+        .setConnectionRequestTimeout(5, TimeUnit.SECONDS)
+        .setKeepAliveTimeout(60, TimeUnit.SECONDS)
+        .setConnectionReuseStrategy(ConnectionReuseStrategy.FIFO);
+}
+```
+
+**`setKeepAliveTimeout` and stale connections.** If your application encounters `NoHttpResponseException`, it usually indicates stale pooled connections that were closed by the server or an intermediate proxy/load balancer due to idle timeouts. Setting `setKeepAliveTimeout` to a duration shorter than the server's Keep-Alive timeout ensures idle connections are refreshed before sending a request.
 
 **`connection_ttl` against ClickHouse Cloud.** Keep it **relatively small** when the endpoint is a Cloud (or otherwise load-balanced) deployment. A short TTL forces connections to be retired and re-established frequently, so new connections keep going through the load balancer, which lets it **redistribute traffic across nodes** instead of pinning long-lived connections to whichever node they first landed on.
 
@@ -450,7 +474,9 @@ These are the only pool-related properties you normally touch; the rest have saf
 
 > **CONSTRAINT:** Do not create a `Client` per request. It destroys pool warm-up and adds latency on every call — the single most common mistake.
 > 
-> **Pool too small** (`max_open_connections`) throttles concurrency; size it to peak concurrent operations, not average.
+> **Pool too small** (`max_open_connections`): Throttles concurrency and leads to operation timeouts under high request volume; size it to peak concurrent operations, not average.
+> 
+> **Stale connection errors (`NoHttpResponseException`):** Occurs when idle pooled connections are closed by server/proxy timeouts. Resolve by configuring `setKeepAliveTimeout` to be less than the server keep-alive duration.
 > 
 > **CONSTRAINT:** Always `close()` the client at shutdown to avoid leaking the pool and its threads.
 ---
