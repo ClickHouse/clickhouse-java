@@ -236,7 +236,8 @@ public class QuerySettings {
     /**
      * Algorithm of a compressed response body of this operation. The algorithm is requested with the HTTP
      * content coding of the operation, so a compressed body always uses the algorithm set here.
-     * {@link CompressionAlgorithm#NONE} disables compression. Defaults to the algorithm of the client.
+     * Whether the response is compressed is controlled by the compression flags of the client. Defaults
+     * to the algorithm of the client.
      *
      * @param algorithm - algorithm of a compressed body
      * @return same instance of the settings

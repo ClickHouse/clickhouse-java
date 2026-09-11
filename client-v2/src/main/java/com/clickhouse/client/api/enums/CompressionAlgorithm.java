@@ -7,12 +7,13 @@ package com.clickhouse.client.api.enums;
  * for a response and {@code Content-Encoding} for a request - so a compressed body always uses the
  * algorithm of the request and never one the server picks on its own.</p>
  *
+ * <p>The algorithm selects only <i>how</i> a body is compressed. <i>Whether</i> a body is compressed is
+ * controlled by the compression flags - {@code compressServerResponse} for a response and
+ * {@code compressClientRequest} for a request.</p>
+ *
  * <ul>
  *     <li>{@link #LZ4} - default. Needs {@code org.lz4:lz4-java}, which the client depends on.</li>
- *     <li>{@link #ZSTD} - needs {@code com.github.luben:zstd-jni} on the classpath, which the client does not
- *     bring: an application that selects this algorithm declares the dependency itself.</li>
- *     <li>{@link #GZIP} - supported by the JDK, so it needs no additional dependency.</li>
- *     <li>{@link #NONE} - no compression, whatever {@code compress}/{@code decompress} are set to.</li>
+ *     <li>{@link #ZSTD} - needs {@code com.github.luben:zstd-jni}, which the client depends on.</li>
  * </ul>
  */
 public enum CompressionAlgorithm {
@@ -23,19 +24,9 @@ public enum CompressionAlgorithm {
     LZ4("lz4"),
 
     /**
-     * Zstandard. Requires {@code com.github.luben:zstd-jni} on the classpath.
+     * Zstandard.
      */
-    ZSTD("zstd"),
-
-    /**
-     * gzip. Supported by the JDK.
-     */
-    GZIP("gzip"),
-
-    /**
-     * No compression.
-     */
-    NONE("none");
+    ZSTD("zstd");
 
     private final String httpContentCoding;
 

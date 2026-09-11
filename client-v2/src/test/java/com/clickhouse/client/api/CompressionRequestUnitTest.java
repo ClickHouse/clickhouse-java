@@ -49,8 +49,6 @@ public class CompressionRequestUnitTest {
                 // algorithm -> content coding the response is requested with (null: no compression requested)
                 {CompressionAlgorithm.LZ4, "lz4"},
                 {CompressionAlgorithm.ZSTD, "zstd"},
-                {CompressionAlgorithm.GZIP, "gzip"},
-                {CompressionAlgorithm.NONE, null},
         };
     }
 
@@ -62,7 +60,22 @@ public class CompressionRequestUnitTest {
         // the codec of the compress=1 framing is the one of the server, so it is never requested
         Assert.assertFalse(request.queryParameter("compress").isPresent(),
                 "compress=1 must not be requested");
-        Assert.assertEquals(request.queryParameter("enable_http_compression").isPresent(), coding != null);
+        Assert.assertTrue(request.queryParameter("enable_http_compression").isPresent());
+    }
+
+    @Test(groups = {"unit"})
+    public void testCompressionFlagsDisableCompression() {
+        LoggedRequest request = runQuery(builder -> builder
+                .compressionAlgorithm(CompressionAlgorithm.ZSTD)
+                .compressServerResponse(false)
+                .compressClientRequest(false), null);
+
+        // the algorithm selects only how a body is compressed - the flags select whether it is
+        Assert.assertNull(header(request, "Accept-Encoding"));
+        Assert.assertNull(header(request, "Content-Encoding"));
+        Assert.assertFalse(request.queryParameter("enable_http_compression").isPresent());
+        Assert.assertFalse(request.queryParameter("compress").isPresent());
+        Assert.assertFalse(request.queryParameter("decompress").isPresent());
     }
 
     @Test(groups = {"unit"})
@@ -76,9 +89,9 @@ public class CompressionRequestUnitTest {
     @Test(groups = {"unit"})
     public void testOperationOverridesClientAlgorithm() {
         LoggedRequest request = runQuery(builder -> builder.compressionAlgorithm(CompressionAlgorithm.LZ4),
-                new QuerySettings().compressionAlgorithm(CompressionAlgorithm.GZIP));
+                new QuerySettings().compressionAlgorithm(CompressionAlgorithm.ZSTD));
 
-        Assert.assertEquals(header(request, "Accept-Encoding"), "gzip");
+        Assert.assertEquals(header(request, "Accept-Encoding"), "zstd");
     }
 
     @Test(groups = {"unit"})
@@ -93,23 +106,23 @@ public class CompressionRequestUnitTest {
     @Test(groups = {"unit"})
     public void testRequestCompressedWithContentCodingOfAlgorithm() {
         LoggedRequest request = runQuery(builder -> builder
-                .compressionAlgorithm(CompressionAlgorithm.GZIP)
+                .compressionAlgorithm(CompressionAlgorithm.ZSTD)
                 .compressClientRequest(true)
                 .useHttpCompression(true), null);
 
-        Assert.assertEquals(header(request, "Content-Encoding"), "gzip");
+        Assert.assertEquals(header(request, "Content-Encoding"), "zstd");
     }
 
     @Test(groups = {"unit"})
     public void testRequestFramingStaysLz4WithoutHttpCompression() {
         LoggedRequest request = runQuery(builder -> builder
-                .compressionAlgorithm(CompressionAlgorithm.GZIP)
+                .compressionAlgorithm(CompressionAlgorithm.ZSTD)
                 .compressClientRequest(true)
                 .useHttpCompression(false), null);
 
         // the ClickHouse framing of a request is LZ4, so the algorithm applies to the response only
         Assert.assertNull(header(request, "Content-Encoding"));
-        Assert.assertEquals(header(request, "Accept-Encoding"), "gzip");
+        Assert.assertEquals(header(request, "Accept-Encoding"), "zstd");
         Assert.assertTrue(request.queryParameter("enable_http_compression").isPresent(),
                 "the response is compressed with the requested content coding");
         Assert.assertFalse(request.queryParameter("compress").isPresent(),
@@ -130,15 +143,15 @@ public class CompressionRequestUnitTest {
                 client.insert("some_table",
                         new ByteArrayInputStream("1\n".getBytes(StandardCharsets.UTF_8)),
                         ClickHouseFormat.TSV,
-                        new InsertSettings().compressionAlgorithm(CompressionAlgorithm.GZIP)).get();
+                        new InsertSettings().compressionAlgorithm(CompressionAlgorithm.ZSTD)).get();
             } catch (Exception e) {
                 // the stub answers an empty body, so only the request itself is of interest here
             }
         }
 
         LoggedRequest request = lastRequest();
-        Assert.assertEquals(header(request, "Content-Encoding"), "gzip");
-        Assert.assertEquals(header(request, "Accept-Encoding"), "gzip");
+        Assert.assertEquals(header(request, "Content-Encoding"), "zstd");
+        Assert.assertEquals(header(request, "Accept-Encoding"), "zstd");
     }
 
     private LoggedRequest runQuery(UnaryOperator<Client.Builder> configure,

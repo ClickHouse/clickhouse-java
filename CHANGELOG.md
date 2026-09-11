@@ -11,12 +11,13 @@
   default and no setting overrides it, so the client could not keep reading a response it asked for. A response is
   now requested with the content coding of the new `client.compression_algorithm` property
   (`Client.Builder#compressionAlgorithm`), which defaults to `LZ4` and keeps the algorithm of a compressed body the
-  same on every server version. Set the property to `ZSTD`, `GZIP` or `NONE` to select another algorithm; `ZSTD`
-  needs `com.github.luben:zstd-jni` on the classpath, which the client does not bring - the dependency of
-  `clickhouse-jdbc` stays `provided`, so packaging is unchanged and an application that selects `ZSTD` declares the
-  dependency itself. A client that reads a
-  compressed response now also sends `enable_http_compression=1`, which a user profile that forbids setting changes
-  (`readonly = 1`) rejects - such a profile has to use `readonly = 2` or `client.compression_algorithm = NONE`.
+  same on every server version. Set the property to `ZSTD` to select the other algorithm; the client now brings
+  `com.github.luben:zstd-jni` itself, and the dependency of `clickhouse-jdbc` is no longer `provided`, so the shaded
+  jars carry it and an application needs no additional dependency. The property selects only *how* a body is
+  compressed - *whether* it is compressed stays with `compressServerResponse` and `compressClientRequest`. A client
+  that reads a compressed response now also sends `enable_http_compression=1`, which a user profile that forbids
+  setting changes (`readonly = 1`) rejects - such a profile has to use `readonly = 2` or read an uncompressed
+  response (`compressServerResponse(false)`).
   (https://github.com/ClickHouse/clickhouse-java/issues/3105)
 
 - **[client-v2]** `com.clickhouse.client.api.metrics.OperationMetrics` now has a single constructor,

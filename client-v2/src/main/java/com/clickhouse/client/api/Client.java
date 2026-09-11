@@ -663,11 +663,10 @@ public class Client implements AutoCloseable {
         /**
          * Algorithm of a compressed request or response body. The algorithm is requested with the HTTP
          * content-coding of the operation, so a compressed body always uses the algorithm set here and
-         * never one the server picks on its own. {@link CompressionAlgorithm#NONE} disables compression.
-         * Default is {@link CompressionAlgorithm#LZ4}.
+         * never one the server picks on its own. Default is {@link CompressionAlgorithm#LZ4}.
          * <p>
-         * {@link CompressionAlgorithm#ZSTD} needs {@code com.github.luben:zstd-jni} on the classpath, which the
-         * client does not bring: an application that selects the algorithm declares the dependency itself.
+         * The algorithm selects only how a body is compressed. Whether a body is compressed is controlled by
+         * {@link #compressServerResponse(boolean)} and {@link #compressClientRequest(boolean)}.
          * <p>
          * A request body follows this algorithm only together with {@link #useHttpCompression(boolean)};
          * the ClickHouse framing of a request compressed without it is always LZ4.

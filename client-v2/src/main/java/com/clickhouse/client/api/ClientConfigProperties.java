@@ -251,8 +251,8 @@ public enum ClientConfigProperties {
      * Algorithm of a compressed request or response body. The algorithm is requested with the HTTP
      * content-coding of the operation ({@code Accept-Encoding} for a response, {@code Content-Encoding}
      * for a request), so a compressed body always uses the algorithm the client asked for and never one
-     * the server picks on its own. {@link CompressionAlgorithm#NONE} disables compression of both
-     * directions.
+     * the server picks on its own. The algorithm selects only how a body is compressed; whether a body is
+     * compressed is controlled by {@link #COMPRESS_SERVER_RESPONSE} and {@link #COMPRESS_CLIENT_REQUEST}.
      * <p>
      * The name of an algorithm and its content-coding token are both accepted, in any case.
      * <p>

@@ -86,10 +86,6 @@ public class ClientConfigPropertiesTest {
                 {"lz4", CompressionAlgorithm.LZ4},
                 {"ZSTD", CompressionAlgorithm.ZSTD},
                 {"zstd", CompressionAlgorithm.ZSTD},
-                {"GZIP", CompressionAlgorithm.GZIP},
-                {"gzip", CompressionAlgorithm.GZIP},
-                {"NONE", CompressionAlgorithm.NONE},
-                {"none", CompressionAlgorithm.NONE},
         };
     }
 
