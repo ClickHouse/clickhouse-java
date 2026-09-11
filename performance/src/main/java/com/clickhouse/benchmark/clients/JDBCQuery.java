@@ -58,4 +58,24 @@ public class JDBCQuery extends BenchmarkBase {
     public void selectJDBCV2UseName(DataState dataState, Blackhole blackhole) throws SQLException {
         selectDataUseNames(jdbcV2, dataState, blackhole);
     }
+
+    @Benchmark
+    public void selectJDBCV1NoCompression(DataState dataState, Blackhole blackhole) throws SQLException {
+        selectData(jdbcV1NoCompression, dataState, blackhole);
+    }
+
+    @Benchmark
+    public void selectJDBCV2NoCompression(DataState dataState, Blackhole blackhole) throws SQLException {
+        selectData(jdbcV2NoCompression, dataState, blackhole);
+    }
+
+    @Benchmark
+    public void selectJDBCV1UseNamesNoCompression(DataState dataState, Blackhole blackhole) throws SQLException {
+        selectDataUseNames(jdbcV1NoCompression, dataState, blackhole);
+    }
+
+    @Benchmark
+    public void selectJDBCV2UseNameNoCompression(DataState dataState, Blackhole blackhole) throws SQLException {
+        selectDataUseNames(jdbcV2NoCompression, dataState, blackhole);
+    }
 }

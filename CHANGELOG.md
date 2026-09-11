@@ -158,6 +158,19 @@
 - **[client-v2, jdbc-v2]** Added logging on previously-silent error and diagnostic paths (no functional or
   public-API change). (https://github.com/ClickHouse/clickhouse-java/issues/2969)
 
+### Improvements
+
+- **[jdbc-v2]** Improved read throughput of `ResultSet` getters called by column index. An index-based getter
+  (`getObject(int)`, `getLong(int)`, ...) resolved the index to a column name and the name-based getter resolved that
+  name back to an index, so every value read by index cost two hash-map lookups, and the common
+  `getObject(i); wasNull(); getLong(i)` sequence cost four. Index-based and name-based getters now share a single
+  index-based read path: a value is read by index directly, and a column label is resolved to an index once.
+  (https://github.com/ClickHouse/clickhouse-java/issues/2516)
+- **[performance]** Added JDBC read benchmarks that run without server response compression
+  (`selectJDBCV1NoCompression`, `selectJDBCV2NoCompression` and their name-based variants), next to the existing
+  benchmarks that read with compression enabled.
+  (https://github.com/ClickHouse/clickhouse-java/issues/2516)
+
 ### Bug Fixes 
 
 - **[jdbc-v2]** Added the non-reserved keywords `AGGREGATE`, `BOUNDED`, `EXTEND`, `HANDLER`, `IDLE`, `PROTOCOL`,

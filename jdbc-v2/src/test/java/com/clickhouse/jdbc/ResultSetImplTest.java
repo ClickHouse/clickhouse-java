@@ -1,6 +1,7 @@
 package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.data_formats.ClickHouseFormatReader;
 import com.clickhouse.client.api.data_formats.JacksonJsonParserFactory;
 import com.clickhouse.data.ClickHouseVersion;
 import org.testng.Assert;
@@ -9,6 +10,8 @@ import org.testng.annotations.Test;
 import java.io.InputStream;
 import java.io.Reader;
 import java.io.StringReader;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Proxy;
 import java.math.BigDecimal;
 import java.sql.Array;
 import java.sql.Blob;
@@ -26,12 +29,14 @@ import java.sql.Statement;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
 import java.util.Properties;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertTrue;
@@ -646,5 +651,67 @@ public class ResultSetImplTest extends JdbcIntegrationTest {
                 }
             }
         }
+    }
+
+    @Test(groups = {"integration"})
+    public void testIndexedGettersReadByIndexOnly() throws SQLException {
+        runQuery("DROP TABLE IF EXISTS rs_indexed_getters");
+        runQuery("CREATE TABLE rs_indexed_getters (id Int64, s String, n Nullable(Int32), d Float64," +
+                " ts DateTime64(3, 'UTC'), dec Decimal(10, 2)) ENGINE = MergeTree ORDER BY (id)");
+        runQuery("INSERT INTO rs_indexed_getters VALUES (42, 'abc', NULL, 1.5, '2024-01-02 03:04:05.678', 12.34)");
+
+        try (Connection conn = getJdbcConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT * FROM rs_indexed_getters")) {
+            ResultSetImpl rsImpl = (ResultSetImpl) rs;
+            AtomicInteger lookupsByName = new AtomicInteger();
+            rsImpl.reader = readerCountingNameLookups(rsImpl.reader, lookupsByName);
+
+            assertTrue(rs.next());
+            assertEquals(rs.getLong(1), 42L);
+            assertEquals(rs.getObject(1), 42L);
+            assertEquals(rs.getString(2), "abc");
+            assertEquals(rs.getInt(3), 0);
+            assertTrue(rs.wasNull());
+            Assert.assertNull(rs.getObject(3));
+            assertTrue(rs.wasNull());
+            assertEquals(rs.getDouble(4), 1.5);
+            Assert.assertFalse(rs.wasNull());
+            assertEquals(rs.getTimestamp(5).toInstant(), Instant.parse("2024-01-02T03:04:05.678Z"));
+            assertEquals(rs.getBigDecimal(6), new BigDecimal("12.34"));
+            assertEquals(rs.getObject(2, String.class), "abc");
+
+            assertEquals(lookupsByName.get(), 0,
+                    "Getters called by column index must not resolve values by column name");
+
+            // A label is resolved to a column index once, so the reader is used by index here as well.
+            assertEquals(rs.getLong("id"), 42L);
+            assertEquals(rs.getString("s"), "abc");
+            assertEquals(rs.getObject("n"), null);
+            assertEquals(lookupsByName.get(), 0,
+                    "Getters called by column label must resolve the label to an index and read by index");
+
+            Assert.assertThrows(SQLException.class, () -> rs.getLong(7));
+        }
+    }
+
+    /**
+     * Wraps a reader and counts calls to accessors that take a column name, so a test can verify that
+     * index-based getters do not resolve values through column names.
+     */
+    private static ClickHouseFormatReader readerCountingNameLookups(ClickHouseFormatReader delegate,
+                                                                    AtomicInteger lookupsByName) {
+        return (ClickHouseFormatReader) Proxy.newProxyInstance(ResultSetImplTest.class.getClassLoader(),
+                new Class<?>[]{ClickHouseFormatReader.class}, (proxy, method, args) -> {
+                    Class<?>[] parameterTypes = method.getParameterTypes();
+                    if (parameterTypes.length > 0 && parameterTypes[0] == String.class) {
+                        lookupsByName.incrementAndGet();
+                    }
+                    try {
+                        return method.invoke(delegate, args);
+                    } catch (InvocationTargetException e) {
+                        throw e.getCause();
+                    }
+                });
     }
 }
