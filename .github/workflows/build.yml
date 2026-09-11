@@ -207,7 +207,7 @@ jobs:
 
   test-with-cloud:
     runs-on: ubuntu-latest
-    needs: test-jdbc-driver
+    needs: compile
     strategy:
       matrix:
         # most recent LTS releases as well as latest stable builds
@@ -271,9 +271,13 @@ jobs:
         env:
           CLICKHOUSE_CLOUD_HOST: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_HOST_SMT_PROD }}
           CLICKHOUSE_CLOUD_PASSWORD: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_PASSWORD_SMT_PROD }}
-          CLIENT_JWT: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_JWT_DESERT_VM_43 }}
-          JWT_TEST_HOST: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_HOST_SMT }}
+          JWT_PKEY: ${{ secrets.JWT_PKEY }}
         run: |
+          python3 -m pip install -r .github/scripts/requirements.txt
+          python3 .github/scripts/generate_jwt.py jwt.token
+          JWT_TOKEN="$(cat jwt.token)"
+          rm -f jwt.token
+          export JWT_TOKEN
           mvn --batch-mode --no-transfer-progress --projects ${{ matrix.project }} -DclickhouseVersion=${{ matrix.clickhouse }} -Dprotocol=http -Dmaven.javadoc.skip=true verify
       - name: Upload test results
         uses: actions/upload-artifact@v4

@@ -268,6 +268,15 @@ public Client.Builder createBaseClient() {
 
 For a non-`Bearer` scheme, use `setAccessToken(...)` — the value is sent verbatim, so include the scheme yourself. Runtime updates: `updateBearerToken(...)` (adds prefix) and `updateAccessToken(...)` (verbatim).
 
+#### JWT Authentication (ClickHouse Cloud)
+
+> **Main Documentation:** See [JWT Authentication in ClickHouse Cloud](https://clickhouse.com/docs/concepts/features/security/external-authenticators/jwt) and the local reference in [clickhouse-docs/client.mdx#jwt-authentication](clickhouse-docs/client.mdx#jwt-authentication).
+
+- **Cloud-Only Feature:** JWT authentication is a **ClickHouse Cloud-only** feature. ClickHouse Cloud dynamically creates **ephemeral users** derived from claims embedded in each token.
+- **User-to-Service Authentication:** JWT authentication is intended for **user-to-service** authentication (e.g., authenticating end users or application sessions).
+- **Service-to-Service Recommendation:** Using JWT for **service-to-service** communication is **not recommended** because JWT tokens have a short lifespan and require frequent refreshing. Traditional username/password credentials or long-lived tokens are preferred for service-to-service workloads.
+- **Runtime Token Refresh API:** If token refresh is required on long-lived client instances, the client provides runtime update methods: `client.updateBearerToken(newJwtToken)` (adds `Bearer ` prefix) or `client.updateAccessToken(newRawToken)` (sent verbatim). See [Step 9 — Runtime credentials & Access Tokens](#runtime-credentials--access-tokens) for details.
+
 **Note**: realtime credentials update would work well with runtime configuration update but would not work for multi-tenant setup. Multi tenant application should organize exclusive access to client 
 while handling tenant operation to avoid cross-talk problem. Separate client instance per tenant must be used when each tenant has own database.
 
@@ -950,6 +959,8 @@ Field-to-column matching is controlled by [`ColumnToMethodMatchingStrategy`](../
 ### Runtime credentials & Access Tokens
 
 ClickHouse supports authentication via access tokens (e.g., JWTs) instead of traditional username/password credentials. This is common in cloud deployments or when using an authentication proxy.
+
+> **JWT Authentication Note:** JWT authentication is a **ClickHouse Cloud-only feature** intended for **user-to-service authentication**. Using JWT for **service-to-service** communication is **not recommended** due to short token lifespans and the requirement to refresh tokens. If token refreshing is necessary, use `client.updateBearerToken(...)`. For complete details, see [JWT Authentication in ClickHouse Cloud](https://clickhouse.com/docs/concepts/features/security/external-authenticators/jwt) and [clickhouse-docs/client.mdx#jwt-authentication](clickhouse-docs/client.mdx#jwt-authentication).
 
 You can configure token authentication when building the client:
 

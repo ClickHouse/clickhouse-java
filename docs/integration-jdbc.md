@@ -293,6 +293,15 @@ public Connection createTokenAuthConnection() throws SQLException {
 }
 ```
 
+#### JWT Authentication (ClickHouse Cloud)
+
+> **Main Documentation:** See [JWT Authentication in ClickHouse Cloud](https://clickhouse.com/docs/concepts/features/security/external-authenticators/jwt) and the local reference in [clickhouse-docs/jdbc.mdx#jwt-authentication](clickhouse-docs/jdbc.mdx#jwt-authentication).
+
+- **Cloud-Only Feature:** JWT authentication is a **ClickHouse Cloud-only** feature. ClickHouse Cloud dynamically creates **ephemeral users** derived from token claims.
+- **User-to-Service Authentication:** JWT authentication is designed for **user-to-service** authentication patterns.
+- **Service-to-Service Recommendation:** Using JWT for **service-to-service** communication is **not recommended** because JWT tokens have a short lifespan and require frequent refreshing.
+- **No Standard JDBC Token Update:** In standard JDBC, there is **no standard API or mechanism to update authentication tokens on active `Connection` instances**. Pooled JDBC connections are long-lived and initialized with static connection properties. While you can unwrap the underlying Java Client via `connection.unwrap(ConnectionImpl.class).getClient().updateBearerToken(...)` (see [clickhouse-docs/jdbc.mdx#jwt-authentication](clickhouse-docs/jdbc.mdx#jwt-authentication)), this is non-standard for JDBC applications. For JDBC service applications, standard username/password authentication is recommended.
+
 ### Option C — Mutual TLS (client certificate)
 
 ```java
