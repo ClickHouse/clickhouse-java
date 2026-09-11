@@ -1042,7 +1042,7 @@ Tracing in Client V2 produces two types of spans arranged in a parent-child hier
 1. **Operation Span**: Represents a high-level client operation (`QUERY <database>` or `INSERT <database>.<table_name>`). Started under the current thread's trace context (`Context.current()`) so that database operations join the caller's active trace span.
 2. **Transport Request Span**: Represents an individual HTTP transport request attempt (`POST`). Created as a child of the corresponding operation span. Each retry attempt creates a new transport request span under the operation span.
 
-#### Span Attributes
+#### Span Attributes {#v2-o11y-span-attributes}
 
 Spans are populated with standard OpenTelemetry attributes (`SpanAttribute`):
 
@@ -1067,6 +1067,25 @@ Spans are populated with standard OpenTelemetry attributes (`SpanAttribute`):
 | `http.response.status_code` | Transport request | On response / failure | HTTP status code returned by server (e.g. `200`, `500`). |
 | `db.response.status_code` | All &amp; Transport request | On failure | ClickHouse server error code on failure. |
 | `error.type` | All &amp; Transport request | On failure | Exception class name on error. |
+
+<Note>
+**Context Propagation Across Asynchronous Boundaries:** Because Client V2 inherits `Context.current()`, operations started on threads with an active trace span automatically join the trace. When delegating tasks across thread pools (e.g., Spring `@Async` or custom `ExecutorService`), propagate the OpenTelemetry context explicitly:
+
+```java
+import io.opentelemetry.context.Context;
+import io.opentelemetry.context.Scope;
+import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.insert.InsertResponse;
+
+public void processBatchAsync(Client client, String table, List<?> data, Context parentContext) throws Exception {
+    try (Scope ignored = parentContext.makeCurrent()) {
+        try (InsertResponse response = client.insert(table, data).get()) {
+            // Background Client V2 span joins parentContext trace
+        }
+    }
+}
+```
+</Note>
 
 ### Developing Custom Recorders {#v2-o11y-custom-recorders}
 

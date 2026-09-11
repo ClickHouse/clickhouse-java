@@ -818,7 +818,7 @@ Key JDBC-specific properties (see [`DriverProperties`](../jdbc-v2/src/main/java/
 
 ## Observability & Monitoring
 
-The ClickHouse JDBC driver (V2) supports metrics and distributed tracing by leveraging the underlying Client V2 engine and standard JDBC application instrumentation. For detailed metric definitions, span attributes, and OpenTelemetry semantic conventions, see the [Java Client Observability Documentation](integration-client.md#observability--monitoring).
+The ClickHouse JDBC driver (V2) supports metrics and distributed tracing by leveraging the underlying Client V2 engine and standard JDBC application instrumentation. For detailed metric definitions, span attributes, and OpenTelemetry semantic conventions, see the [Client V2 Observability Documentation](https://clickhouse.com/docs/integrations/language-clients/java/client#v2-o11y).
 
 ### Distributed Tracing & Spans
 

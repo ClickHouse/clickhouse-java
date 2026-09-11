@@ -66,109 +66,23 @@ When using the JDBC driver (`clickhouse-jdbc`) with an external connection poole
 
 Observability in `clickhouse-java` is split into operational metrics (reported via `MetricsRecorder`), HTTP connection pool metrics (bound to Micrometer), and in-band response statistics (`OperationMetrics`).
 
-### Operational Metrics (`MetricsRecorder`)
+For detailed metric definitions, tag specifications, and connection pool gauge details, see the [Client V2 Metrics Documentation](https://clickhouse.com/docs/integrations/language-clients/java/client#v2-o11y-metrics) (or local [clickhouse-docs/client.mdx](clickhouse-docs/client.mdx#v2-o11y-metrics)).
 
-Client V2 defines standard database client metrics following OpenTelemetry semantic conventions (`MetricName` and `MetricAttribute`):
-
-| Metric Name | Type / Unit | Description |
-|-------------|-------------|-------------|
-| `db.client.operation.duration` | Timer (`s`) | Total duration of a ClickHouse client operation (queries and inserts), recorded for both successful and failed operations. |
-| `clickhouse.client.operation.serialization.duration` | Timer (`s`) | Duration of client-side serialization (e.g., POJO encoding during inserts). |
-| `clickhouse.client.operation.count` | Counter (`{operation}`) | Total number of completed client operations, grouped by outcome tags. |
-| `clickhouse.client.operation.retries` | Counter (`{retry}`) | Number of retried attempts across client operations. |
-
-#### Low-Cardinality Metric Tags / Attributes
-
-Meters exported via `MicrometerMetricsRecorder` carry low-cardinality tags (`MetricAttribute`):
-
-| Tag Key | Description | Example Values |
-|---------|-------------|----------------|
-| `db.system.name` | Database system identifier | `clickhouse` |
-| `db.namespace` | Target ClickHouse database | `default`, `analytics` |
-| `db.operation.name` | Operation type | `query`, `insert` |
-| `db.collection.name` | Target table name (recorded for inserts) | `events` |
-| `db.response.status_code` | Server error code on failure | `60` |
-| `error.type` | Exception class name on failure (`none` on success) | `com.clickhouse.client.api.ServerException` |
-
-### Connection Pool Gauges
-
-Binding connection pool metrics exposes Apache HttpClient 5 pool statistics to Micrometer via `.registerClientMetrics(meterRegistry, "groupName")`:
-
-| Meter Name | Tags | Description |
-|------------|------|-------------|
-| `httpcomponents.httpclient.pool.total.max` | `httpclient=<group>` | Configured maximum allowed persistent connections across all routes. |
-| `httpcomponents.httpclient.pool.total.connections` | `httpclient=<group>`, `state=available` / `leased` | Number of persistent available or active leased connections. |
-| `httpcomponents.httpclient.pool.total.pending` | `httpclient=<group>` | Number of threads currently blocked awaiting a free pooled connection. |
-| `httpcomponents.httpclient.connect.time` | `httpclient=<group>` | Running average connection establishment time. |
-
-### In-Band Response Metrics API
-
-Applications can inspect execution metrics directly from response objects (`QueryResponse`, `InsertResponse`) via `OperationMetrics`:
-
-```java
-import com.clickhouse.client.api.Client;
-import com.clickhouse.client.api.metrics.ClientMetrics;
-import com.clickhouse.client.api.metrics.OperationMetrics;
-import com.clickhouse.client.api.metrics.ServerMetrics;
-import com.clickhouse.client.api.query.QueryResponse;
-
-public void inspectResponseMetrics(Client client) throws Exception {
-    try (QueryResponse response = client.query("SELECT * FROM my_table").get()) {
-        OperationMetrics metrics = response.getMetrics();
-        
-        long readRows = metrics.getMetric(ServerMetrics.NUM_ROWS_READ).getLong();
-        long readBytes = metrics.getMetric(ServerMetrics.NUM_BYTES_READ).getLong();
-        long writtenRows = metrics.getMetric(ServerMetrics.NUM_ROWS_WRITTEN).getLong();
-        long clientDurationMs = metrics.getMetric(ClientMetrics.OP_DURATION).getLong();
-        
-        String queryId = metrics.getQueryId();
-    }
-}
-```
+- **Operational Metrics (`MetricsRecorder`):** Tracks operation durations (`db.client.operation.duration`), serialization overhead, operation counts, and retry attempt counters with low-cardinality tags (`db.system.name`, `db.namespace`, `db.operation.name`, `db.collection.name`, `error.type`).
+- **Connection Pool Gauges:** Binds Apache HttpClient 5 pool statistics (`pool.total.max`, `pool.total.connections`, `pool.total.pending`, `connect.time`) to Micrometer via `.registerClientMetrics(meterRegistry, groupName)`.
+- **In-Band Response Metrics (`OperationMetrics`):** Directly inspect execution stats (rows/bytes read or written, server execution time, query ID) from response objects (`QueryResponse`, `InsertResponse`).
 
 ---
 
 ## Distributed Tracing & Spans
 
-Client V2 supports OpenTelemetry distributed tracing across a structured 3-tier parent-child span hierarchy.
+Client V2 supports OpenTelemetry distributed tracing across a structured 3-tier parent-child span hierarchy:
 
-### Span Hierarchy
+1. **Outer / Application Span:** Ambient trace context in thread (`Context.current()`).
+2. **Client V2 Operation Span:** High-level client operation span (`QUERY <database>` or `INSERT <database>.<table_name>`).
+3. **Transport Request Span:** Individual HTTP POST attempt span (including retries).
 
-```text
-Application HTTP / Messaging Span (e.g. Spring Controller / Kafka Consumer)
-  └── [JDBC Path Only] JDBC Statement Span (e.g., PreparedStatement.executeBatch)
-      └── Client V2 Operation Span (QUERY <database> or INSERT <database>.<table_name>)
-          └── Transport Request Span (POST http://localhost:8123)
-```
-
-1. **Operation Span**: High-level operation created under the current active trace context (`Context.current()`).
-2. **Transport Request Span**: Individual HTTP transport request attempt (`POST`). Created per attempt, so retries generate separate request spans under the same operation span.
-
-### Span Attributes Reference
-
-Spans are populated with standard OpenTelemetry attributes (`SpanAttribute`):
-
-| Span Attribute Key | Scope / Type | Recorded Moment | Description |
-|--------------------|--------------|-----------------|-------------|
-| `db.system.name` | All operations | Before request start | Always `clickhouse`. |
-| `db.namespace` | All operations | Before request start | Target database name. |
-| `db.query.text` | Query | Before request start | SQL statement text. |
-| `db.collection.name` | Insert | Before request start | Target table name. |
-| `db.operation.name` | Insert | Before request start | Operation type (`INSERT`). Set for insert operations, but left unset for queries because SQL is not parsed on the client. |
-| `db.operation.batch.size` | Insert | Before request start | Batch row count. |
-| `db.query.parameter.<name>` | Query | Before request start | Statement parameter values. |
-| `clickhouse.query_id` | All operations | Before request start, updated on completion | ClickHouse query ID assigned by client or server. |
-| `db.response.returned_rows` | Query | On success completion | Rows returned to caller. |
-| `clickhouse.response.read_rows` | Query | On success completion | Rows read from storage by server. |
-| `clickhouse.response.read_bytes` | Query | On success completion | Bytes read from storage by server. |
-| `clickhouse.response.written_rows` | Insert | On success completion | Rows written to storage by server. |
-| `clickhouse.response.written_bytes` | Insert | On success completion | Bytes written to storage by server. |
-| `server.address` | Transport request | Before attempt | Target server hostname or IP address. |
-| `server.port` | Transport request | Before attempt | Target server port. |
-| `http.request.method` | Transport request | Before attempt | HTTP method (always `POST`). |
-| `http.response.status_code` | Transport request | On response / failure | HTTP status code (e.g. `200`, `500`). |
-| `db.response.status_code` | All & Transport request | On failure | ClickHouse server error code. |
-| `error.type` | All & Transport request | On failure | Exception class name on error. |
+For complete span hierarchy specifications and span attributes, see the [Client V2 Spans Documentation](https://clickhouse.com/docs/integrations/language-clients/java/client#v2-o11y-spans) (or local [clickhouse-docs/client.mdx](clickhouse-docs/client.mdx#v2-o11y-spans)).
 
 ### Context Propagation across Asynchronous Boundaries
 
