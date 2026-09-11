@@ -595,7 +595,13 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public InputStream getUnicodeStream(String columnLabel) throws SQLException {
-        return getUnicodeStream(columnIndexOf(columnLabel));
+        checkClosed();
+        int columnIndex = columnIndexOf(columnLabel);
+        if (columnIndex < 1) {
+            throw new SQLException("Column \"" + columnLabel + "\" does not exist.",
+                    ExceptionUtils.SQL_STATE_CLIENT_ERROR);
+        }
+        return getUnicodeStream(columnIndex);
     }
 
     @Override
@@ -1634,6 +1640,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public Object getObject(int columnIndex) throws SQLException {
+        checkClosed();
         checkColumnIndex(columnIndex);
         return getObjectImpl(columnIndex, null, connTypeMap);
     }

@@ -7,12 +7,14 @@ import com.clickhouse.data.ClickHouseVersion;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
 import java.io.StringReader;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Proxy;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.sql.Array;
 import java.sql.Blob;
 import java.sql.Clob;
@@ -692,6 +694,41 @@ public class ResultSetImplTest extends JdbcIntegrationTest {
                     "Getters called by column label must resolve the label to an index and read by index");
 
             Assert.assertThrows(SQLException.class, () -> rs.getLong(7));
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testGettersOnClosedResultSetThrowSqlException() throws SQLException {
+        try (Connection conn = getJdbcConnection();
+             Statement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery("SELECT 42 AS id");
+            assertTrue(rs.next());
+            assertEquals(rs.getLong(1), 42L);
+            rs.close();
+
+            Assert.expectThrows(SQLException.class, () -> rs.getObject(1));
+            Assert.expectThrows(SQLException.class, () -> rs.getObject(1, new HashMap<>()));
+            Assert.expectThrows(SQLException.class, () -> rs.getObject(1, Integer.class));
+            Assert.expectThrows(SQLException.class, () -> rs.getLong(1));
+            Assert.expectThrows(SQLException.class, () -> rs.getUnicodeStream(1));
+            Assert.expectThrows(SQLException.class, () -> rs.getUnicodeStream("id"));
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testGetUnicodeStreamByLabel() throws SQLException, IOException {
+        try (Connection conn = getJdbcConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT 'abc' AS s")) {
+            assertTrue(rs.next());
+
+            byte[] value = new byte[3];
+            assertEquals(rs.getUnicodeStream("s").read(value), 3);
+            assertEquals(new String(value, StandardCharsets.UTF_8), "abc");
+
+            SQLException e = Assert.expectThrows(SQLException.class, () -> rs.getUnicodeStream("no_such_column"));
+            assertTrue(e.getMessage().contains("no_such_column"),
+                    "Exception must name the unknown column label, but was: " + e.getMessage());
         }
     }
 
