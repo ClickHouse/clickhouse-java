@@ -27,6 +27,7 @@ final class HttpExceptionInputStream extends InputStream {
     private final String exceptionTag;
     private final int transportStatus;
     private final String queryId;
+    private final Runnable onCompleteException;
     private final byte[] exceptionPrefix;
     private final byte[] sourceBuffer = new byte[BUFFER_SIZE];
 
@@ -39,10 +40,16 @@ final class HttpExceptionInputStream extends InputStream {
     private IOException terminalIOException;
 
     HttpExceptionInputStream(InputStream source, String exceptionTag, int transportStatus, String queryId) {
+        this(source, exceptionTag, transportStatus, queryId, () -> { });
+    }
+
+    HttpExceptionInputStream(InputStream source, String exceptionTag, int transportStatus, String queryId,
+                             Runnable onCompleteException) {
         this.source = source;
         this.exceptionTag = exceptionTag;
         this.transportStatus = transportStatus;
         this.queryId = queryId;
+        this.onCompleteException = onCompleteException;
         byte[] tagBytes = exceptionTag.getBytes(StandardCharsets.UTF_8);
         this.exceptionPrefix = Arrays.copyOf(EXCEPTION_MARKER, EXCEPTION_MARKER.length + tagBytes.length + 2);
         System.arraycopy(tagBytes, 0, exceptionPrefix, EXCEPTION_MARKER.length, tagBytes.length);
@@ -99,7 +106,14 @@ final class HttpExceptionInputStream extends InputStream {
 
     @Override
     public void close() throws IOException {
-        source.close();
+        try {
+            source.close();
+        } catch (IOException e) {
+            if (!(terminalException instanceof ServerException)) {
+                throw e;
+            }
+            terminalException.addSuppressed(e);
+        }
     }
 
     private int safeLength() {
@@ -167,21 +181,25 @@ final class HttpExceptionInputStream extends InputStream {
 
         try {
             while (exceptionBody.size() <= MAX_EXCEPTION_SIZE) {
+                byte[] body = exceptionBody.toByteArray();
+                int messageLength = completeMessageLength(body);
+                if (messageLength >= 0) {
+                    terminalException = parseException(Arrays.copyOf(body, messageLength));
+                    sourceDone = true;
+                    onCompleteException.run();
+                    return;
+                }
                 int read = source.read(sourceBuffer);
                 if (read < 0) {
-                    terminalException = parseException(exceptionBody.toByteArray());
+                    terminalException = new ClientException("Incomplete ClickHouse exception frame", parseException(body));
                     sourceDone = true;
                     return;
                 }
                 int remaining = MAX_EXCEPTION_SIZE + 1 - exceptionBody.size();
                 exceptionBody.write(sourceBuffer, 0, Math.min(read, remaining));
-                if (read > remaining || exceptionBody.size() > MAX_EXCEPTION_SIZE) {
-                    terminalException = new ClientException("ClickHouse exception frame exceeds "
-                            + MAX_EXCEPTION_SIZE + " bytes");
-                    sourceDone = true;
-                    return;
-                }
             }
+            terminalException = new ClientException("ClickHouse exception frame exceeds " + MAX_EXCEPTION_SIZE + " bytes");
+            sourceDone = true;
         } catch (IOException e) {
             ClientException truncatedFrame = new ClientException(
                     "Failed to finish reading ClickHouse exception frame", parseException(exceptionBody.toByteArray()));
@@ -192,35 +210,39 @@ final class HttpExceptionInputStream extends InputStream {
     }
 
     private ServerException parseException(byte[] body) {
-        String message = stripTrailer(new String(body, StandardCharsets.UTF_8)).trim();
+        String message = new String(body, StandardCharsets.UTF_8).trim();
         Matcher matcher = ERROR_CODE_PATTERN.matcher(message);
         int errorCode = matcher.find() ? Integer.parseInt(matcher.group(1)) : ServerException.CODE_UNKNOWN;
         return new ServerException(errorCode, message, transportStatus, queryId);
     }
 
-    private String stripTrailer(String body) {
-        int closingMarker = body.lastIndexOf(EXCEPTION_END_MARKER);
-        if (closingMarker < 0) {
-            return body;
+    private int completeMessageLength(byte[] body) {
+        byte[] suffix = (" " + exceptionTag + EXCEPTION_END_MARKER).getBytes(StandardCharsets.UTF_8);
+        int digitsEnd = body.length - suffix.length;
+        if (digitsEnd <= 0) {
+            return -1;
         }
-
-        String beforeMarker = body.substring(0, closingMarker);
-        int trailerStart = beforeMarker.lastIndexOf("\r\n");
-        if (trailerStart < 0) {
-            return body;
-        }
-
-        String trailer = beforeMarker.substring(trailerStart + 2);
-        int separator = trailer.indexOf(' ');
-        if (separator <= 0 || !trailer.substring(separator + 1).equals(exceptionTag)) {
-            return body;
-        }
-        for (int i = 0; i < separator; i++) {
-            if (!Character.isDigit(trailer.charAt(i))) {
-                return body;
+        for (int i = 0; i < suffix.length; i++) {
+            if (body[digitsEnd + i] != suffix[i]) {
+                return -1;
             }
         }
-        return beforeMarker.substring(0, trailerStart);
+        int digitsStart = digitsEnd;
+        while (digitsStart > 0 && body[digitsStart - 1] != '\n') {
+            digitsStart--;
+        }
+        if (digitsStart == 0 || digitsStart == digitsEnd) {
+            return -1;
+        }
+        int messageLength = 0;
+        for (int i = digitsStart; i < digitsEnd; i++) {
+            if (body[i] < '0' || body[i] > '9' || messageLength > MAX_EXCEPTION_SIZE / 10) {
+                return -1;
+            }
+            messageLength = messageLength * 10 + body[i] - '0';
+        }
+        // The server counts UTF-8 bytes, including the message's final newline, not Java characters.
+        return messageLength == digitsStart ? messageLength : -1;
     }
 
     private static int indexOf(byte[] data, int from, int to, byte[] pattern) {

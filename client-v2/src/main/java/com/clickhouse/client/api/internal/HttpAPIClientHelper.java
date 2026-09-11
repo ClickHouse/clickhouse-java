@@ -64,6 +64,7 @@ import org.apache.hc.core5.http.io.entity.ByteArrayEntity;
 import org.apache.hc.core5.http.io.entity.EntityTemplate;
 import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.hc.core5.io.CloseMode;
+import org.apache.hc.core5.io.ModalCloseable;
 import org.apache.hc.core5.io.IOCallback;
 import org.apache.hc.core5.net.URIAuthority;
 import org.apache.hc.core5.net.URIBuilder;
@@ -656,6 +657,7 @@ public class HttpAPIClientHelper {
     private static final class TransportResponseImpl implements TransportResponse {
 
         private final ClassicHttpResponse delegate;
+        private volatile boolean aborted;
 
         TransportResponseImpl(ClassicHttpResponse delegate) {
             this.delegate = delegate;
@@ -692,7 +694,9 @@ public class HttpAPIClientHelper {
 
         @Override
         public void close() throws IOException {
-            delegate.close();
+            if (!aborted) {
+                delegate.close();
+            }
         }
 
         @Override
@@ -702,7 +706,14 @@ public class HttpAPIClientHelper {
                 Header exceptionTag = delegate.getFirstHeader(ClickHouseHttpProto.HEADER_EXCEPTION_TAG);
                 return exceptionTag == null || exceptionTag.getValue().isEmpty()
                         ? input
-                        : new HttpExceptionInputStream(input, exceptionTag.getValue(), delegate.getCode(), getQueryId());
+                        : new HttpExceptionInputStream(input, exceptionTag.getValue(), delegate.getCode(), getQueryId(),
+                                () -> {
+                                    // A tagged exception can deliberately leave HTTP chunk framing incomplete.
+                                    if (delegate instanceof ModalCloseable) {
+                                        aborted = true;
+                                        ((ModalCloseable) delegate).close(CloseMode.IMMEDIATE);
+                                    }
+                                });
             } catch (Exception e) {
                 throw new ClientException("Failed to construct input stream", e);
             }

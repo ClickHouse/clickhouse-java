@@ -2,6 +2,10 @@ package com.clickhouse.client.api.internal;
 
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.ServerException;
+import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatReader;
+import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
+import com.clickhouse.client.api.query.QuerySettings;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
@@ -12,12 +16,42 @@ import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.TimeZone;
 
 public class HttpExceptionInputStreamTest {
 
     private static final String EXCEPTION_TAG = "0123456789abcdef";
     private static final String ERROR_MESSAGE =
-            "Code: 159. DB::Exception: Timeout exceeded. (TIMEOUT_EXCEEDED)";
+            "Code: 159. DB::Exception: Timeout exceeded. (TIMEOUT_EXCEEDED)\n";
+
+    @DataProvider(name = "iterationModes")
+    public Object[][] iterationModes() {
+        return new Object[][] {{false}, {true}};
+    }
+
+    @Test(dataProvider = "iterationModes")
+    public void shouldDeliverLastRowBeforePrefetchFailure(boolean useHasNext) throws Exception {
+        byte[] rows = {1, 1, 'v', 5, 'U', 'I', 'n', 't', '8', 1, 2};
+        QuerySettings settings = new QuerySettings().setOption(
+                ClientConfigProperties.USE_TIMEZONE.getKey(), TimeZone.getTimeZone("UTC"));
+        try (InputStream input = new HttpExceptionInputStream(new ByteArrayInputStream(
+                responseBody(rows, exceptionFrame(EXCEPTION_TAG))), EXCEPTION_TAG, 200, "query-id");
+             RowBinaryWithNamesAndTypesFormatReader reader = new RowBinaryWithNamesAndTypesFormatReader(
+                     input, settings, new BinaryStreamReader.DefaultByteBufferAllocator())) {
+            for (int expected = 1; expected <= 2; expected++) {
+                if (useHasNext) {
+                    Assert.assertTrue(reader.hasNext());
+                }
+                Assert.assertEquals(((Number) reader.next().get("v")).intValue(), expected);
+            }
+            ServerException exception = useHasNext
+                    ? Assert.expectThrows(ServerException.class, reader::hasNext)
+                    : Assert.expectThrows(ServerException.class, reader::next);
+            Assert.assertEquals(exception.getCode(), 159);
+            Assert.assertSame(Assert.expectThrows(ServerException.class, reader::next), exception);
+        }
+    }
 
     @DataProvider(name = "smallReads")
     public Object[][] smallReads() {
@@ -83,7 +117,8 @@ public class HttpExceptionInputStreamTest {
     @Test
     public void shouldPreserveServerExceptionWhenFrameReadFails() throws Exception {
         byte[] resultPrefix = "result-data".getBytes(StandardCharsets.UTF_8);
-        byte[] body = responseBody(resultPrefix, exceptionFrame(EXCEPTION_TAG));
+        byte[] frame = exceptionFrame(EXCEPTION_TAG);
+        byte[] body = responseBody(resultPrefix, Arrays.copyOf(frame, frame.length - 4));
         InputStream failingSource = new FilterInputStream(new ByteArrayInputStream(body)) {
             @Override
             public int read(byte[] buffer, int offset, int length) throws IOException {
@@ -113,6 +148,26 @@ public class HttpExceptionInputStreamTest {
         }
     }
 
+    @DataProvider(name = "invalidFrames")
+    public Object[][] invalidFrames() {
+        String valid = new String(exceptionFrame(EXCEPTION_TAG), StandardCharsets.UTF_8);
+        return new Object[][] {
+                {valid.substring(0, valid.length() - 4)},
+                {valid.replace(ERROR_MESSAGE.length() + " " + EXCEPTION_TAG, "1 " + EXCEPTION_TAG)},
+                {valid.replace(ERROR_MESSAGE.length() + " " + EXCEPTION_TAG,
+                        ERROR_MESSAGE.length() + " fedcba9876543210")}
+        };
+    }
+
+    @Test(dataProvider = "invalidFrames")
+    public void shouldRejectIncompleteOrInvalidFrameAtEof(String frame) throws Exception {
+        try (InputStream input = new HttpExceptionInputStream(new ByteArrayInputStream(
+                frame.getBytes(StandardCharsets.UTF_8)), EXCEPTION_TAG, 200, "query-id")) {
+            ClientException exception = Assert.expectThrows(ClientException.class, input::read);
+            Assert.assertEquals(exception.getMessage(), "Incomplete ClickHouse exception frame");
+        }
+    }
+
     private static byte[] responseBody(byte[] resultPrefix, byte[] exceptionFrame) throws IOException {
         ByteArrayOutputStream body = new ByteArrayOutputStream();
         body.write(resultPrefix);
@@ -122,7 +177,7 @@ public class HttpExceptionInputStreamTest {
 
     private static byte[] exceptionFrame(String tag) {
         String frame = "\r\n__exception__\r\n" + tag + "\r\n" + ERROR_MESSAGE
-                + "\r\n" + ERROR_MESSAGE.getBytes(StandardCharsets.UTF_8).length + " " + tag
+                + ERROR_MESSAGE.getBytes(StandardCharsets.UTF_8).length + " " + tag
                 + "\r\n__exception__\r\n";
         return frame.getBytes(StandardCharsets.UTF_8);
     }

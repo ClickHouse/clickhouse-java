@@ -10,24 +10,32 @@ import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import org.apache.hc.core5.http.HttpStatus;
 import org.testng.Assert;
 import org.testng.annotations.Test;
+import org.testng.annotations.DataProvider;
 
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLTimeoutException;
+import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Properties;
 
 public class ResultSetTimeoutTest {
 
-    @Test
-    public void shouldMapServerTimeoutWhileReadingResultSet() throws Exception {
+    @DataProvider(name = "serverErrors")
+    public Object[][] serverErrors() {
+        return new Object[][] {{159, "HYT00", SQLTimeoutException.class}, {60, "42S02", SQLException.class}};
+    }
+
+    @Test(dataProvider = "serverErrors")
+    public void shouldDeliverAllRowsBeforeServerError(int code, String sqlState,
+                                                     Class<? extends SQLException> exceptionClass) throws Exception {
         String exceptionTag = "0123456789abcdef";
         String queryId = "result-set-timeout";
-        String errorMessage = "Code: 159. DB::Exception: Timeout exceeded. (TIMEOUT_EXCEEDED)";
+        String errorMessage = "Code: " + code + ". DB::Exception: Query failed.\n";
         String exceptionFrame = "\r\n__exception__\r\n" + exceptionTag + "\r\n" + errorMessage
-                + "\r\n" + errorMessage.getBytes(StandardCharsets.UTF_8).length + " " + exceptionTag
+                + errorMessage.getBytes(StandardCharsets.UTF_8).length + " " + exceptionTag
                 + "\r\n__exception__\r\n";
         // RowBinaryWithNamesAndTypes schema followed by two rows; next() prefetches one row ahead.
         byte[] rowBinaryResultPrefix = {
@@ -59,13 +67,15 @@ public class ResultSetTimeoutTest {
                  ResultSet resultSet = statement.executeQuery("SELECT 1")) {
                 Assert.assertTrue(resultSet.next());
                 Assert.assertEquals(resultSet.getInt(1), 1);
+                Assert.assertTrue(resultSet.next());
+                Assert.assertEquals(resultSet.getInt(1), 2);
 
-                SQLTimeoutException exception = Assert.expectThrows(SQLTimeoutException.class, resultSet::next);
-                Assert.assertEquals(exception.getErrorCode(), 159);
-                Assert.assertEquals(exception.getSQLState(), ExceptionUtils.SQL_STATE_TIMEOUT);
+                SQLException exception = Assert.expectThrows(exceptionClass, resultSet::next);
+                Assert.assertEquals(exception.getErrorCode(), code);
+                Assert.assertEquals(exception.getSQLState(), sqlState);
                 Assert.assertTrue(ExceptionUtils.getRootCause(exception) instanceof ServerException);
-                Assert.assertEquals(((ServerException) ExceptionUtils.getRootCause(exception)).getCode(), 159);
-                Assert.assertTrue(exception.getMessage().startsWith(errorMessage), exception.getMessage());
+                Assert.assertEquals(((ServerException) ExceptionUtils.getRootCause(exception)).getCode(), code);
+                Assert.assertTrue(exception.getMessage().startsWith(errorMessage.trim()), exception.getMessage());
             }
         } finally {
             mockServer.stop();

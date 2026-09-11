@@ -265,6 +265,8 @@
   from `ResultSet.next()` while preserving the original exception chain. Previously the tagged frame could be read as
   row data and the timeout was exposed as a generic `SQLException`. Normal reads remain demand-driven so parsing
   response metadata does not drain a small response and return its HTTP connection to the pool prematurely.
+  Complete exception frames are validated by message byte length and tag even when HTTP framing is interrupted;
+  binary readers deliver the last complete row before reporting a prefetch failure, and retain server error codes.
   (https://github.com/ClickHouse/clickhouse-java/issues/2702, https://github.com/ClickHouse/clickhouse-java/issues/3077)
 - **[jdbc-v2]** Fixed `PreparedStatement.getMetaData()` losing the result-set schema for a statement whose SQL
   contains a comment. The `DESCRIBE` query used to resolve the metadata was built by re-scanning the SQL with a
