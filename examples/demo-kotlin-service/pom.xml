@@ -55,7 +55,7 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <maven.compiler.release>17</maven.compiler.release>
 
-        <clickhouse-java.version>0.10.0-rc1-SNAPSHOT</clickhouse-java.version>
+        <clickhouse-java.version>0.11.0-rc1-SNAPSHOT</clickhouse-java.version>
         <clickhouse-packages.classifier>all</clickhouse-packages.classifier>
 
         <kotlin.version>2.4.10</kotlin.version>
