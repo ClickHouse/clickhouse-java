@@ -15,6 +15,7 @@ import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.query.GenericRecord;
+import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.data.ClickHouseDataProcessor;
 import com.clickhouse.data.ClickHouseFormat;
@@ -58,6 +59,9 @@ public class BenchmarkBase {
     protected Client clientV2;
     protected static Connection jdbcV1;
     protected static Connection jdbcV2;
+    // Same connections with server response compression turned off, to measure read paths without it.
+    protected static Connection jdbcV1NoCompression;
+    protected static Connection jdbcV2NoCompression;
 
     @Setup(Level.Iteration)
     public void setUpIteration() {
@@ -66,6 +70,8 @@ public class BenchmarkBase {
         clientV2 = getClientV2();
         jdbcV1 = getJdbcV1();
         jdbcV2 = getJdbcV2();
+        jdbcV1NoCompression = getJdbcV1(false);
+        jdbcV2NoCompression = getJdbcV2(false);
     }
 
     @TearDown(Level.Iteration)
@@ -94,6 +100,22 @@ public class BenchmarkBase {
                 LOGGER.error(e.getMessage());
             }
             jdbcV2 = null;
+        }
+        if (jdbcV1NoCompression != null) {
+            try {
+                jdbcV1NoCompression.close();
+            } catch (SQLException e) {
+                LOGGER.error(e.getMessage());
+            }
+            jdbcV1NoCompression = null;
+        }
+        if (jdbcV2NoCompression != null) {
+            try {
+                jdbcV2NoCompression.close();
+            } catch (SQLException e) {
+                LOGGER.error(e.getMessage());
+            }
+            jdbcV2NoCompression = null;
         }
     }
 
@@ -282,10 +304,15 @@ public class BenchmarkBase {
     }
 
     protected static Connection getJdbcV1() {
+        return getJdbcV1(true);
+    }
+
+    protected static Connection getJdbcV1(boolean compressResponse) {
         Properties properties = new Properties();
         properties.put(ClickHouseDefaults.USER.getKey(), getUsername());
         properties.put(ClickHouseDefaults.PASSWORD.getKey(), getPassword());
         properties.put(ClickHouseDefaults.DATABASE.getKey(), DB_NAME);
+        properties.put(ClickHouseClientOption.COMPRESS.getKey(), String.valueOf(compressResponse));
 
         Connection jdbcV1 = null;
         String jdbcURL = jdbcURLV1(isCloud());
@@ -299,11 +326,16 @@ public class BenchmarkBase {
     }
 
     protected static Connection getJdbcV2() {
+        return getJdbcV2(true);
+    }
+
+    protected static Connection getJdbcV2(boolean compressResponse) {
         Properties properties = new Properties();
         properties.put(ClientConfigProperties.USER.getKey(), getUsername());
         properties.put(ClientConfigProperties.PASSWORD.getKey(), getPassword());
         properties.put(DriverProperties.BETA_ROW_BINARY_WRITER.getKey(), "true");
         properties.put(ClientConfigProperties.DATABASE.getKey(), DB_NAME);
+        properties.put(ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getKey(), String.valueOf(compressResponse));
 
         Connection jdbcV2 = null;
         String jdbcURL = jdbcURLV2(isCloud());

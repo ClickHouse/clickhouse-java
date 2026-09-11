@@ -126,6 +126,49 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         }
     }
 
+    /**
+     * Index returned by {@link #columnIndexOf(String)} when the result set has no column with that label.
+     * It is distinct from any index a caller can pass, so an invalid index is still reported as such.
+     */
+    private static final int COLUMN_NOT_FOUND = Integer.MIN_VALUE;
+
+    /**
+     * Resolves a column label to its 1-based index, or {@link #COLUMN_NOT_FOUND} when the result set has no
+     * such column. The reader reports an unknown index as "no value", so the result can be passed directly
+     * to an index-based accessor.
+     */
+    private int columnIndexOf(String columnLabel) {
+        int columnIndex = getSchema().findColumnIndex(columnLabel);
+        return columnIndex < 1 ? COLUMN_NOT_FOUND : columnIndex;
+    }
+
+    /**
+     * Returns the column definition for a 1-based index, or {@code null} when the result set has no such column.
+     * Used by the error paths only, so that reporting a failure never fails itself on an unknown index.
+     */
+    private ClickHouseColumn columnDefinitionAt(int columnIndex) {
+        List<ClickHouseColumn> columns = getSchema().getColumns();
+        return columnIndex >= 1 && columnIndex <= columns.size() ? columns.get(columnIndex - 1) : null;
+    }
+
+    /**
+     * Marks the value of the current row as SQL NULL and rejects a column index the result set does not have.
+     * Called only when the reader reports no value, so the range check stays off the hot path. An index of
+     * {@link #COLUMN_NOT_FOUND} is the sentinel {@link #columnIndexOf(String)} returns for an unknown label
+     * and is reported as SQL NULL, like a missing value.
+     */
+    private void reportNoValue(int columnIndex) throws SQLException {
+        if (columnIndex != COLUMN_NOT_FOUND && (columnIndex < 1 || columnIndex > getSchema().getColumns().size())) {
+            throw new SQLException("Column index out of range: " + columnIndex, ExceptionUtils.SQL_STATE_CLIENT_ERROR);
+        }
+        wasNull = true;
+    }
+
+    private SQLException getterException(String method, Object column, Exception e) {
+        return ExceptionUtils.toSqlState(String.format("Method: %s(\"%s\") encountered an exception.", method, column),
+                String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
+    }
+
 
     @Override
     public boolean next() throws SQLException {
@@ -200,47 +243,137 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public String getString(int columnIndex) throws SQLException {
-        return getString(columnIndexToName(columnIndex));
+        checkClosed();
+        try {
+            if (reader.hasValue(columnIndex)) {
+                wasNull = false;
+                return reader.getString(columnIndex);
+            }
+            reportNoValue(columnIndex);
+            return null;
+        } catch (Exception e) {
+            throw getterException("getString", columnIndex, e);
+        }
     }
 
     @Override
     public boolean getBoolean(int columnIndex) throws SQLException {
-        return getBoolean(columnIndexToName(columnIndex));
+        checkClosed();
+        try {
+            if (reader.hasValue(columnIndex)) {
+                wasNull = false;
+                return reader.getBoolean(columnIndex);
+            }
+            reportNoValue(columnIndex);
+            return false;
+        } catch (Exception e) {
+            throw getterException("getBoolean", columnIndex, e);
+        }
     }
 
     @Override
     public byte getByte(int columnIndex) throws SQLException {
-        return getByte(columnIndexToName(columnIndex));
+        checkClosed();
+        try {
+            if (reader.hasValue(columnIndex)) {
+                wasNull = false;
+                return reader.getByte(columnIndex);
+            }
+            reportNoValue(columnIndex);
+            return 0;
+        } catch (Exception e) {
+            throw getterException("getByte", columnIndex, e);
+        }
     }
 
     @Override
     public short getShort(int columnIndex) throws SQLException {
-        return getShort(columnIndexToName(columnIndex));
+        checkClosed();
+        try {
+            if (reader.hasValue(columnIndex)) {
+                wasNull = false;
+                return reader.getShort(columnIndex);
+            }
+            reportNoValue(columnIndex);
+            return 0;
+        } catch (Exception e) {
+            throw getterException("getShort", columnIndex, e);
+        }
     }
 
     @Override
     public int getInt(int columnIndex) throws SQLException {
-        return getInt(columnIndexToName(columnIndex));
+        checkClosed();
+        try {
+            if (reader.hasValue(columnIndex)) {
+                wasNull = false;
+                return reader.getInteger(columnIndex);
+            }
+            reportNoValue(columnIndex);
+            return 0;
+        } catch (Exception e) {
+            throw getterException("getInt", columnIndex, e);
+        }
     }
 
     @Override
     public long getLong(int columnIndex) throws SQLException {
-        return getLong(columnIndexToName(columnIndex));
+        checkClosed();
+        try {
+            if (reader.hasValue(columnIndex)) {
+                wasNull = false;
+                return reader.getLong(columnIndex);
+            }
+            reportNoValue(columnIndex);
+            return 0;
+        } catch (Exception e) {
+            throw getterException("getLong", columnIndex, e);
+        }
     }
 
     @Override
     public float getFloat(int columnIndex) throws SQLException {
-        return getFloat(columnIndexToName(columnIndex));
+        checkClosed();
+        try {
+            if (reader.hasValue(columnIndex)) {
+                wasNull = false;
+                return reader.getFloat(columnIndex);
+            }
+            reportNoValue(columnIndex);
+            return 0;
+        } catch (Exception e) {
+            throw getterException("getFloat", columnIndex, e);
+        }
     }
 
     @Override
     public double getDouble(int columnIndex) throws SQLException {
-        return getDouble(columnIndexToName(columnIndex));
+        checkClosed();
+        try {
+            if (reader.hasValue(columnIndex)) {
+                wasNull = false;
+                return reader.getDouble(columnIndex);
+            }
+            reportNoValue(columnIndex);
+            return 0;
+        } catch (Exception e) {
+            throw getterException("getDouble", columnIndex, e);
+        }
     }
 
     @Override
     public BigDecimal getBigDecimal(int columnIndex, int scale) throws SQLException {
-        return getBigDecimal(columnIndexToName(columnIndex), scale);
+        checkClosed();
+        try {
+            if (reader.hasValue(columnIndex)) {
+                wasNull = false;
+                return reader.getBigDecimal(columnIndex);
+            }
+            reportNoValue(columnIndex);
+            return null;
+        } catch (Exception e) {
+            throw getterException("getBigDecimal", columnIndex, e);
+        }
     }
 
     @Override
@@ -250,13 +383,11 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
             if (reader.hasValue(columnIndex)) {
                 wasNull = false;
                 return reader.getByteArray(columnIndex);
-            } else {
-                wasNull = true;
-                return null;
             }
+            reportNoValue(columnIndex);
+            return null;
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("Method: getBytes(\"%d\") encountered an exception.", columnIndex),
-                    String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
+            throw getterException("getBytes", columnIndex, e);
         }
     }
 
@@ -282,7 +413,17 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public InputStream getUnicodeStream(int columnIndex) throws SQLException {
-        return getUnicodeStream(columnIndexToName(columnIndex));
+        checkClosed();
+        try {
+            if (reader.hasValue(columnIndex)) {
+                wasNull = false;
+                return new ByteArrayInputStream(reader.getString(columnIndex).getBytes(StandardCharsets.UTF_8));
+            }
+            reportNoValue(columnIndex);
+            return null;
+        } catch (Exception e) {
+            throw getterException("getUnicodeStream", columnIndex, e);
+        }
     }
 
     @Override
@@ -297,163 +438,72 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 }
                 wasNull = false;
                 return new ByteArrayInputStream(bytes);
-            } else {
-                wasNull = true;
-                return null;
             }
+            reportNoValue(columnIndex);
+            return null;
         } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("Method: getBinaryStream(\"%d\") encountered an exception.", columnIndex),
-                    String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
+            throw getterException("getBinaryStream", columnIndex, e);
         }
     }
 
     @Override
     public String getString(String columnLabel) throws SQLException {
         checkClosed();
-        try {
-            if (reader.hasValue(columnLabel)) {
-                wasNull = false;
-                return reader.getString(columnLabel);
-            } else {
-                wasNull = true;
-                return null;
-            }
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("Method: getString(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
-        }
+        return getString(columnIndexOf(columnLabel));
     }
 
     @Override
     public boolean getBoolean(String columnLabel) throws SQLException {
         checkClosed();
-        try {
-            if (reader.hasValue(columnLabel)) {
-                wasNull = false;
-                return reader.getBoolean(columnLabel);
-            } else {
-                wasNull = true;
-                return false;
-            }
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("Method: getBoolean(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
-        }
+        return getBoolean(columnIndexOf(columnLabel));
     }
 
     @Override
     public byte getByte(String columnLabel) throws SQLException {
         checkClosed();
-        try {
-            if (reader.hasValue(columnLabel)) {
-                wasNull = false;
-                return reader.getByte(columnLabel);
-            } else {
-                wasNull = true;
-                return 0;
-            }
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("Method: getByte(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
-        }
+        return getByte(columnIndexOf(columnLabel));
     }
 
     @Override
     public short getShort(String columnLabel) throws SQLException {
         checkClosed();
-        try {
-            if (reader.hasValue(columnLabel)) {
-                wasNull = false;
-                return reader.getShort(columnLabel);
-            } else {
-                wasNull = true;
-                return 0;
-            }
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("Method: getShort(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
-        }
+        return getShort(columnIndexOf(columnLabel));
     }
 
     @Override
     public int getInt(String columnLabel) throws SQLException {
         checkClosed();
-        try {
-            if (reader.hasValue(columnLabel)) {
-                wasNull = false;
-                return reader.getInteger(columnLabel);
-            } else {
-                wasNull = true;
-                return 0;
-            }
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("Method: getInt(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
-        }
+        return getInt(columnIndexOf(columnLabel));
     }
 
     @Override
     public long getLong(String columnLabel) throws SQLException {
         checkClosed();
-        try {
-            if (reader.hasValue(columnLabel)) {
-                wasNull = false;
-                return reader.getLong(columnLabel);
-            } else {
-                wasNull = true;
-                return 0;
-            }
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("Method: getLong(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
-        }
+        return getLong(columnIndexOf(columnLabel));
     }
 
     @Override
     public float getFloat(String columnLabel) throws SQLException {
         checkClosed();
-        try {
-            if (reader.hasValue(columnLabel)) {
-                wasNull = false;
-                return reader.getFloat(columnLabel);
-            } else {
-                wasNull = true;
-                return 0;
-            }
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("Method: getFloat(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
-        }
+        return getFloat(columnIndexOf(columnLabel));
     }
 
     @Override
     public double getDouble(String columnLabel) throws SQLException {
         checkClosed();
-        try {
-            if (reader.hasValue(columnLabel)) {
-                wasNull = false;
-                return reader.getDouble(columnLabel);
-            } else {
-                wasNull = true;
-                return 0;
-            }
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("Method: getDouble(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
-        }
+        return getDouble(columnIndexOf(columnLabel));
     }
 
     @Override
     public BigDecimal getBigDecimal(String columnLabel, int scale) throws SQLException {
         checkClosed();
-        try {
-            if (reader.hasValue(columnLabel)) {
-                wasNull = false;
-                return reader.getBigDecimal(columnLabel);
-            } else {
-                wasNull = true;
-                return null;
-            }
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("Method: getBigDecimal(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
-        }
+        return getBigDecimal(columnIndexOf(columnLabel), scale);
     }
 
     @Override
     public byte[] getBytes(String columnLabel) throws SQLException {
-        return getBytes(getSchema().nameToColumnIndex(columnLabel));
+        checkClosed();
+        return getBytes(columnIndexOf(columnLabel));
     }
 
     @Override
@@ -482,12 +532,18 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public InputStream getUnicodeStream(String columnLabel) throws SQLException {
         checkClosed();
-        return new ByteArrayInputStream(reader.getString(columnLabel).getBytes(StandardCharsets.UTF_8));
+        int columnIndex = columnIndexOf(columnLabel);
+        if (columnIndex == COLUMN_NOT_FOUND) {
+            throw new SQLException("Column \"" + columnLabel + "\" does not exist.",
+                    ExceptionUtils.SQL_STATE_CLIENT_ERROR);
+        }
+        return getUnicodeStream(columnIndex);
     }
 
     @Override
     public InputStream getBinaryStream(String columnLabel) throws SQLException {
-        return getBinaryStream(getSchema().nameToColumnIndex(columnLabel));
+        checkClosed();
+        return getBinaryStream(columnIndexOf(columnLabel));
     }
 
     @Override
@@ -546,23 +602,23 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public BigDecimal getBigDecimal(int columnIndex) throws SQLException {
-        return getBigDecimal(columnIndexToName(columnIndex));
+        checkClosed();
+        try {
+            if (reader.hasValue(columnIndex)) {
+                wasNull = false;
+                return reader.getBigDecimal(columnIndex);
+            }
+            reportNoValue(columnIndex);
+            return null;
+        } catch (Exception e) {
+            throw getterException("getBigDecimal", columnIndex, e);
+        }
     }
 
     @Override
     public BigDecimal getBigDecimal(String columnLabel) throws SQLException {
         checkClosed();
-        try {
-            if (reader.hasValue(columnLabel)) {
-                wasNull = false;
-                return reader.getBigDecimal(columnLabel);
-            } else {
-                wasNull = true;
-                return null;
-            }
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("Method: getBigDecimal(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
-        }
+        return getBigDecimal(columnIndexOf(columnLabel));
     }
 
     @Override
@@ -1040,25 +1096,31 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public Date getDate(int columnIndex, Calendar cal) throws SQLException {
-        return getDate(columnIndexToName(columnIndex), cal);
-    }
-
-    @Override
-    public Date getDate(String columnLabel, Calendar cal) throws SQLException {
         checkClosed();
         try {
-
-            LocalDate ld = reader.getLocalDate(columnLabel);
+            LocalDate ld = reader.getLocalDate(columnIndex);
             if (ld == null) {
-                wasNull = true;
+                reportNoValue(columnIndex);
                 return null;
             }
             wasNull = false;
 
             return DataTypeUtils.toSqlDate(ld, cal.getTimeZone());
         } catch (Exception e) {
-            ClickHouseColumn column = getSchema().getColumnByName(columnLabel);
-            switch (column.getValueDataType()) {
+            throw dateConversionException(columnIndex, e);
+        }
+    }
+
+    @Override
+    public Date getDate(String columnLabel, Calendar cal) throws SQLException {
+        checkClosed();
+        return getDate(columnIndexOf(columnLabel), cal);
+    }
+
+    private SQLException dateConversionException(int columnIndex, Exception e) {
+        ClickHouseColumn columnDefinition = columnDefinitionAt(columnIndex);
+        if (columnDefinition != null) {
+            switch (columnDefinition.getValueDataType()) {
                 case Date:
                 case Date32:
                 case DateTime64:
@@ -1066,25 +1128,20 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 case DateTime32:
                     break;
                 default:
-                    throw new SQLException("Value of " + column.getValueDataType() + " type cannot be converted to Date value");
+                    return new SQLException("Value of " + columnDefinition.getValueDataType()
+                            + " type cannot be converted to Date value");
             }
-            throw ExceptionUtils.toSqlState(String.format("Method: getDate(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
         }
+        return getterException("getDate", columnIndex, e);
     }
 
     @Override
     public Time getTime(int columnIndex, Calendar cal) throws SQLException {
-        return getTime(columnIndexToName(columnIndex), cal);
-    }
-
-    @Override
-    public Time getTime(String columnLabel, Calendar cal) throws SQLException {
         checkClosed();
-
         try {
-            LocalDateTime ld = reader.getLocalDateTime(columnLabel);
+            LocalDateTime ld = reader.getLocalDateTime(columnIndex);
             if (ld == null) {
-                wasNull = true;
+                reportNoValue(columnIndex);
                 return null;
             }
             wasNull = false;
@@ -1092,8 +1149,20 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
             long time = ld.atZone(c.getTimeZone().toZoneId()).toEpochSecond() * 1000 + TimeUnit.NANOSECONDS.toMillis(ld.getNano());
             return new Time(time);
         } catch (Exception e) {
-            ClickHouseColumn column = getSchema().getColumnByName(columnLabel);
-            switch (column.getValueDataType()) {
+            throw timeConversionException(columnIndex, e);
+        }
+    }
+
+    @Override
+    public Time getTime(String columnLabel, Calendar cal) throws SQLException {
+        checkClosed();
+        return getTime(columnIndexOf(columnLabel), cal);
+    }
+
+    private SQLException timeConversionException(int columnIndex, Exception e) {
+        ClickHouseColumn columnDefinition = columnDefinitionAt(columnIndex);
+        if (columnDefinition != null) {
+            switch (columnDefinition.getValueDataType()) {
                 case Time:
                 case Time64:
                 case DateTime64:
@@ -1101,11 +1170,11 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 case DateTime32:
                     break;
                 default:
-                    throw new SQLException("Value of " + column.getValueDataType() + " type cannot be converted to Time value");
+                    return new SQLException("Value of " + columnDefinition.getValueDataType()
+                            + " type cannot be converted to Time value");
             }
-
-            throw ExceptionUtils.toSqlState(String.format("Method: getTime(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
         }
+        return getterException("getTime", columnIndex, e);
     }
 
     @Override
@@ -1114,47 +1183,50 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         try {
             ZonedDateTime zdt = reader.getZonedDateTime(columnIndex);
             if (zdt == null) {
-                wasNull = true;
+                reportNoValue(columnIndex);
                 return null;
             }
             wasNull = false;
 
             return DataTypeUtils.toSqlTimestamp(zdt.toLocalDateTime(), cal.getTimeZone());
         } catch (Exception e) {
-            ClickHouseColumn column = getSchema().getColumnByIndex(columnIndex);
-            switch (column.getValueDataType()) {
-                case DateTime64:
-                case DateTime:
-                case DateTime32:
-                    break;
-                default:
-                    throw new SQLException("Value of " + column.getValueDataType() + " type cannot be converted to Timestamp value");
+            ClickHouseColumn column = columnDefinitionAt(columnIndex);
+            if (column != null) {
+                switch (column.getValueDataType()) {
+                    case DateTime64:
+                    case DateTime:
+                    case DateTime32:
+                        break;
+                    default:
+                        throw new SQLException("Value of " + column.getValueDataType() + " type cannot be converted to Timestamp value");
+                }
             }
 
-            throw ExceptionUtils.toSqlState(String.format("Method: getTimestamp(\"%s\") encountered an exception.", columnIndex),
-                    String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
+            throw getterException("getTimestamp", columnIndex, e);
         }
 
     }
 
     @Override
     public Timestamp getTimestamp(String columnLabel, Calendar cal) throws SQLException {
-        return getTimestamp(getSchema().nameToColumnIndex(columnLabel), cal);
+        checkClosed();
+        return getTimestamp(columnIndexOf(columnLabel), cal);
     }
 
     @Override
     public URL getURL(int columnIndex) throws SQLException {
-        return getURL(columnIndexToName(columnIndex));
+        checkClosed();
+        try {
+            return new URL(reader.getString(columnIndex));
+        } catch (Exception e) {
+            throw getterException("getURL", columnIndex, e);
+        }
     }
 
     @Override
     public URL getURL(String columnLabel) throws SQLException {
         checkClosed();
-        try {
-            return new URL(reader.getString(columnLabel));
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("Method: getURL(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
-        }
+        return getURL(columnIndexOf(columnLabel));
     }
 
     @Override
@@ -1296,32 +1368,34 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public String getNString(int columnIndex) throws SQLException {
-        return getNString(columnIndexToName(columnIndex));
+        checkClosed();
+        try {
+            return reader.getString(columnIndex);
+        } catch (Exception e) {
+            throw getterException("getNString", columnIndex, e);
+        }
     }
 
     @Override
     public String getNString(String columnLabel) throws SQLException {
         checkClosed();
-        try {
-            return reader.getString(columnLabel);
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("Method: getNString(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
-        }
+        return getNString(columnIndexOf(columnLabel));
     }
 
     @Override
     public Reader getNCharacterStream(int columnIndex) throws SQLException {
-        return getNCharacterStream(columnIndexToName(columnIndex));
+        checkClosed();
+        try {
+            return new StringReader(reader.getString(columnIndex));
+        } catch (Exception e) {
+            throw getterException("getNCharacterStream", columnIndex, e);
+        }
     }
 
     @Override
     public Reader getNCharacterStream(String columnLabel) throws SQLException {
         checkClosed();
-        try {
-            return new StringReader(reader.getString(columnLabel));
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("Method: getNCharacterStream(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
-        }
+        return getNCharacterStream(columnIndexOf(columnLabel));
     }
 
     @Override
@@ -1480,7 +1554,8 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public Object getObject(int columnIndex) throws SQLException {
-        return getObject(columnIndexToName(columnIndex));
+        checkClosed();
+        return getObjectImpl(columnIndex, null, connTypeMap);
     }
 
     @Override
@@ -1490,7 +1565,8 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     @Override
     public Object getObject(int columnIndex, Map<String, Class<?>> map) throws SQLException {
-        return getObject(columnIndexToName(columnIndex), map);
+        checkClosed();
+        return getObjectImpl(columnIndex, null, map);
     }
 
     @Override
@@ -1502,7 +1578,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
     @Override
     public <T> T getObject(int columnIndex, Class<T> type) throws SQLException {
         checkClosed();
-        return getObject(columnIndexToName(columnIndex), type);
+        return getObjectImpl(columnIndex, type, Collections.emptyMap());
     }
 
     @Override
@@ -1511,55 +1587,65 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         return getObjectImpl(columnLabel, type, Collections.emptyMap());
     }
 
-    @SuppressWarnings("unchecked")
     public <T> T getObjectImpl(String columnLabel, Class<?> type, Map<String, Class<?>> typeMap) throws SQLException {
+        checkClosed();
+        return getObjectImpl(columnIndexOf(columnLabel), type, typeMap);
+    }
+
+    public <T> T getObjectImpl(int columnIndex, Class<?> type, Map<String, Class<?>> typeMap) throws SQLException {
         try {
-            ClickHouseColumn column = getSchema().getColumnByName(columnLabel);
-            if (column == null) {
-                throw new SQLException("Column \"" + columnLabel + "\" does not exist.");
-            }
+            return readObject(columnIndex, type, typeMap);
+        } catch (Exception e) {
+            throw ExceptionUtils.toSqlState(String.format("Method: getObject(\"%s\", %s) encountered an exception.", columnIndex, type),
+                    String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
+        }
+    }
 
-            if (reader.hasValue(columnLabel)) {
-                wasNull = false;
-                Object value = reader.readValue(columnLabel);
+    @SuppressWarnings("unchecked")
+    private <T> T readObject(int columnIndex, Class<?> type, Map<String, Class<?>> typeMap) throws SQLException {
+        ClickHouseColumn column = columnDefinitionAt(columnIndex);
+        if (column == null) {
+            throw new SQLException(columnIndex == COLUMN_NOT_FOUND ? "Column does not exist."
+                    : "Column \"" + columnIndex + "\" does not exist.");
+        }
 
-                if (type == null) {
-                    if (column.getDataType() == com.clickhouse.data.ClickHouseDataType.Array
-                            && column.getArrayBaseColumn() == null) {
-                        return (T) value;
-                    }
-                    type = metaData.resolveColumnClass(columnLabel, typeMap);
-                } else {
-                    ///  shortcut
-                    if (type == Timestamp.class) {
-                        return (T) getTimestamp(columnLabel);
-                    } else if (type == Time.class) {
-                        return (T) getTime(columnLabel);
-                    } else if (type == Date.class) {
-                        return (T) getDate(columnLabel);
-                    }
-                }
+        if (reader.hasValue(columnIndex)) {
+            wasNull = false;
+            Object value = reader.readValue(columnIndex);
 
-                if (type == null) {//As a fallback, try to get the value as is
+            if (type == null) {
+                if (column.getDataType() == com.clickhouse.data.ClickHouseDataType.Array
+                        && column.getArrayBaseColumn() == null) {
                     return (T) value;
                 }
-
-                if (type == java.sql.Array.class
-                        && column.getDataType() == com.clickhouse.data.ClickHouseDataType.Array
-                        && column.getArrayBaseColumn() == null
-                        && value instanceof List<?>) {
-                    throw new SQLException("JSONEachRow arrays are returned as parser-native List values. " +
-                            "Use getObject(...) to read this column.");
-                }
-
-                return (T) JdbcUtils.convert(value, type, column);
+                type = metaData.resolveColumnClass(columnIndex, typeMap);
             } else {
-                wasNull = true;
-                return null;
+                ///  shortcut
+                if (type == Timestamp.class) {
+                    return (T) getTimestamp(columnIndex);
+                } else if (type == Time.class) {
+                    return (T) getTime(columnIndex);
+                } else if (type == Date.class) {
+                    return (T) getDate(columnIndex);
+                }
             }
-        } catch (Exception e) {
-            throw ExceptionUtils.toSqlState(String.format("Method: getObject(\"%s\", %s) encountered an exception.", columnLabel, type),
-                    String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
+
+            if (type == null) {//As a fallback, try to get the value as is
+                return (T) value;
+            }
+
+            if (type == java.sql.Array.class
+                    && column.getDataType() == com.clickhouse.data.ClickHouseDataType.Array
+                    && column.getArrayBaseColumn() == null
+                    && value instanceof List<?>) {
+                throw new SQLException("JSONEachRow arrays are returned as parser-native List values. " +
+                        "Use getObject(...) to read this column.");
+            }
+
+            return (T) JdbcUtils.convert(value, type, column);
+        } else {
+            wasNull = true;
+            return null;
         }
     }
 
