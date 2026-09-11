@@ -37,6 +37,7 @@ Work through these steps in order. Each one is a decision point; the "Common Pit
 | 7 | [Write operations & tuning](#step-7--write-operations--tuning) | Insert pattern; heavy-ingest tuning; idempotency; write errors |
 | 8 | [Metadata & schema discovery](#step-8--metadata--schema-discovery) | How to obtain schemas without JDBC metadata |
 | 9 | [Miscellaneous features](#step-9--miscellaneous-features) | Sessions and other optional capabilities |
+| 10 | [Observability & monitoring](#observability--monitoring) | Metrics, distributed tracing spans, and connection pool gauges |
 
 ---
 
@@ -432,14 +433,38 @@ The reasoning is only valid for **short-lived read operations**, where connectio
 
 ### Connection pool
 
-These are the only pool-related properties you normally touch; the rest have safe defaults.
+The `Client` uses an internal Apache HttpClient 5 pool. Key pool settings exposed by client configuration are listed below:
 
 | Property (Builder method) | Purpose | Default |
 |---------------------------|---------|---------|
-| `max_open_connections` (`.setMaxConnections()`) | Pool size — set from the parallelism guidance above | 10 |
-| `connection_pool_enabled` (`.enableConnectionPool()`) | Enable/disable pooling (keep enabled) | true |
-| `connection_ttl` (`.setConnectionTTL()`) | Max lifetime of a pooled connection | — |
-| `connection_reuse_strategy` (`.setConnectionReuseStrategy()`) | FIFO or LIFO reuse | — |
+| `max_open_connections` (`.setMaxConnections()`) | Maximum open HTTP connections per server endpoint. Size set from parallelism guidance above. | `10` |
+| `connection_ttl` (`.setConnectionTTL()`) | Time-to-live after which an active connection is closed and recreated. | `-1` (disabled) |
+| `http_keep_alive_timeout` (`.setKeepAliveTimeout()`) | HTTP Keep-Alive duration for idle pooled connections. | Server default |
+| `connection_request_timeout` (`.setConnectionRequestTimeout()`) | Maximum time a thread blocks waiting for an available connection from the pool. | `10000ms` |
+| `connection_reuse_strategy` (`.setConnectionReuseStrategy()`) | Connection pool allocation strategy (`FIFO` or `LIFO`). | `FIFO` |
+| `connection_pool_enabled` (`.enableConnectionPool()`) | Enable/disable HTTP connection pooling (keep enabled). | `true` |
+
+#### Recommended Pool Configuration
+
+```java
+import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.enums.ConnectionReuseStrategy;
+
+import java.util.concurrent.TimeUnit;
+
+public Client.Builder createBaseClient() {
+    return new Client.Builder()
+        .addEndpoint("http://localhost:8123")
+        .setUsername("default")
+        .setPassword("secret")
+        .setMaxConnections(50)
+        .setConnectionRequestTimeout(5, TimeUnit.SECONDS)
+        .setKeepAliveTimeout(60, TimeUnit.SECONDS)
+        .setConnectionReuseStrategy(ConnectionReuseStrategy.FIFO);
+}
+```
+
+**`setKeepAliveTimeout` and stale connections.** If your application encounters `NoHttpResponseException`, it usually indicates stale pooled connections that were closed by the server or an intermediate proxy/load balancer due to idle timeouts. Setting `setKeepAliveTimeout` to a duration shorter than the server's Keep-Alive timeout ensures idle connections are refreshed before sending a request.
 
 **`connection_ttl` against ClickHouse Cloud.** Keep it **relatively small** when the endpoint is a Cloud (or otherwise load-balanced) deployment. A short TTL forces connections to be retired and re-established frequently, so new connections keep going through the load balancer, which lets it **redistribute traffic across nodes** instead of pinning long-lived connections to whichever node they first landed on.
 
@@ -449,7 +474,9 @@ These are the only pool-related properties you normally touch; the rest have saf
 
 > **CONSTRAINT:** Do not create a `Client` per request. It destroys pool warm-up and adds latency on every call — the single most common mistake.
 > 
-> **Pool too small** (`max_open_connections`) throttles concurrency; size it to peak concurrent operations, not average.
+> **Pool too small** (`max_open_connections`): Throttles concurrency and leads to operation timeouts under high request volume; size it to peak concurrent operations, not average.
+> 
+> **Stale connection errors (`NoHttpResponseException`):** Occurs when idle pooled connections are closed by server/proxy timeouts. Resolve by configuring `setKeepAliveTimeout` to be less than the server keep-alive duration.
 > 
 > **CONSTRAINT:** Always `close()` the client at shutdown to avoid leaking the pool and its threads.
 ---
@@ -491,6 +518,40 @@ Consider these trade-offs:
 - **Columnar formats (e.g., `Parquet`, `Arrow`):** Excellent for bulk data exports or interoperability with other analytical systems.
 
 Always pick the format that minimizes unnecessary transcoding in your application layer.
+
+### Format Selection
+
+The client provides transparent access to the response stream from ClickHouse. You can request any supported ClickHouse format in your request and read data via the `InputStream` from the `QueryResponse` object.
+
+A response format can be specified in several ways:
+- **`QuerySettings#setFormat(ClickHouseFormat format)`**: Sets the format header (`X-ClickHouse-Format`) for a specific query request.
+- **`FORMAT` clause in SQL**: Appending `FORMAT <FormatName>` directly in the SQL query string.
+- **Client default setting**: The client sets a default `format` option (`ClientConfigProperties.INPUT_OUTPUT_FORMAT`, defaulting to `RowBinaryWithNamesAndTypes`) at the client level. Configured via `Client.Builder#queryFormat(String format)` or `setOption("format", ...)`. Note that `queryFormat` accepts a `String` to allow using new ClickHouse formats not yet defined in the `ClickHouseFormat` enum, and passing `null` or an empty string omits the format header.
+- **Server setting**: ClickHouse server session setting (`default_format`).
+
+**Precedence and Version Differences:**
+
+- **Client < 0.11.0 & ClickHouse < 26.8:** The `FORMAT` clause in the query string takes priority over the request format header.
+- **Client >= 0.11.0 & ClickHouse >= 26.8:** The request format header (`X-ClickHouse-Format`) takes priority over the `FORMAT` clause in the query string.
+- **Client 0.11.0+:** Default `format` is set at the client level rather than at the operation level. This allows existing code to work without changes, while new code can use a SQL `FORMAT` clause by setting `format` on the client or in `QuerySettings` to `null`.
+
+**Inspecting Server Response Format:**
+
+Use `QueryResponse#getFormat()` to inspect the format of the response data stream (resolved from the server `X-ClickHouse-Format` response header):
+
+```java
+import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.query.QueryResponse;
+import com.clickhouse.client.api.query.QuerySettings;
+import com.clickhouse.data.ClickHouseFormat;
+
+public ClickHouseFormat inspectQueryFormat(Client client, String sql) throws Exception {
+    QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.JSONEachRow);
+    try (QueryResponse response = client.query(sql, settings).get()) {
+        return response.getFormat();
+    }
+}
+```
 
 ## Step 6 — Read operations & tuning
 
@@ -966,6 +1027,34 @@ A [`Session`](../client-v2/src/main/java/com/clickhouse/client/api/Session.java)
 
 ---
 
+## Observability & Monitoring
+
+The ClickHouse Java Client (V2) provides built-in observability features designed around OpenTelemetry semantic conventions and Micrometer metrics. The client enables monitoring operational durations, throughput, retries, server execution statistics, connection pool status, and distributed tracing spans.
+
+For complete metric definitions, span hierarchies, attributes, dependency specifications, and custom recorder implementation details, see the [Client V2 Observability Documentation](https://clickhouse.com/docs/integrations/language-clients/java/client#v2-o11y) (or local [clickhouse-docs/client.mdx](clickhouse-docs/client.mdx#v2-o11y)).
+
+### Client Builder Observability API
+
+The `Client.Builder` provides methods to configure metrics collection, connection pool monitoring, and distributed tracing:
+
+- `setMetricsRecorder(MetricsRecorder recorder)` — Registers a metrics recorder for operational metrics (`DefaultMetricsRecorder.NOOP` by default).
+- `setSpanRecorder(SpanRecorder recorder)` — Registers a span recorder for distributed tracing (`DefaultSpanRecorder.NOOP` by default).
+- `registerClientMetrics(Object registry, String groupName)` — Binds Apache HttpClient connection pool metrics to a Micrometer `MeterRegistry`.
+
+Built-in recorders are provided via `OpenTelemetrySpanRecorder` and `MicrometerMetricsRecorder`. For configuration examples, integration patterns, and classpath dependency requirements, see the [Client Builder Observability API Documentation](https://clickhouse.com/docs/integrations/language-clients/java/client#v2-o11y-builder-api).
+
+### Metrics & Spans Overview
+
+Client V2 automatically exports operational metrics, connection pool statistics, and distributed tracing spans:
+
+- **Metrics:** Operational timers/counters (`db.client.operation.duration`, `clickhouse.client.operation.count`, retries), connection pool gauges, and in-band execution statistics (`OperationMetrics`). See [Metrics Reported Documentation](https://clickhouse.com/docs/integrations/language-clients/java/client#v2-o11y-metrics).
+- **Spans:** Parent-child span hierarchy representing operations (`QUERY` / `INSERT`) and transport requests (`POST`). See [Spans Reported Documentation](https://clickhouse.com/docs/integrations/language-clients/java/client#v2-o11y-spans) and [Span Attributes Documentation](https://clickhouse.com/docs/integrations/language-clients/java/client#v2-o11y-span-attributes).
+- **Custom Recorders:** Applications can extend `DefaultMetricsRecorder` or `DefaultSpanRecorder` to integrate custom telemetry backends. See [Custom Recorders Documentation](https://clickhouse.com/docs/integrations/language-clients/java/client#v2-o11y-custom-recorders).
+
+For a complete production-style Spring Boot service demonstrating telemetry setup, connection pooling, and trace context propagation across `@Async` boundaries, see the `examples/demo-spring-service` module in this repository.
+
+---
+
 ## Error model
 
 This is the shared exception reference used by the read ([Step 6](#step-6--read-operations--tuning)) and write ([Step 7](#step-7--write-operations--tuning)) error sections. All exceptions extend [`ClickHouseException`](../client-v2/src/main/java/com/clickhouse/client/api/ClickHouseException.java) (an unchecked `RuntimeException`). Because operations return `CompletableFuture`, a failed operation surfaces its cause wrapped in `java.util.concurrent.ExecutionException` when you call `.get()`; unwrap it with `getCause()`.
@@ -1017,5 +1106,6 @@ public void executeQueryWithErrorHandling(Client client, String sql) throws Exce
 
 - [integration-index.md](integration-index.md) — choosing JDBC vs Client
 - [integration-jdbc.md](integration-jdbc.md) — JDBC integration path
+- [integration-ops.md](integration-ops.md) — operations and observability guide
 - [authentication.md](authentication.md) — full authentication and TLS reference (referenced from Steps 2–3)
 - [features.md](features.md) — compatibility contract (referenced from Step 5)
