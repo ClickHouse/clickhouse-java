@@ -29,6 +29,15 @@
   an internal type (`com.clickhouse.client.api.internal.ClientStatisticsHolder`), so application code is not expected
   to call it. (https://github.com/ClickHouse/clickhouse-java/issues/2974)
 
+- **[client-v2, jdbc-v2]** The socket buffer options `socket_rcvbuf` and `socket_sndbuf` have no default value anymore.
+  They were set to 804800 bytes for every connection, which replaced the buffer size the operating system would choose
+  and disabled its auto-tuning; the value was also capped by the operating system limits, so on many systems it had no
+  effect. Now the options are applied only when the application sets them (`Client.Builder#setSocketRcvbuf`,
+  `Client.Builder#setSocketSndbuf`, or the properties of the same name), and the operating system sizes and tunes the
+  buffers otherwise. Setting them is not recommended unless a measurement shows a benefit. An application that relies on
+  the previous size can restore it by setting both options to 804800.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3121)
+
 ### New Features
 
 - **[migration-helpers]** Added `migration-helpers` module containing `ConfigurationMigrationHelper` and

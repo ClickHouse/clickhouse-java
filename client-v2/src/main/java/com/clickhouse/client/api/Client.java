@@ -578,7 +578,10 @@ public class Client implements AutoCloseable {
         }
 
         /**
-         * Default socket receive buffer size in bytes.
+         * Socket receive buffer size in bytes (SO_RCVBUF). Not set by default: the operating system
+         * sizes and auto-tunes the buffer. Calling this method disables that auto-tuning and is not
+         * recommended unless a measurement shows a benefit. The value is also capped by the operating
+         * system limits, so a large value may have no effect.
          *
          * @param size - socket receive buffer size in bytes
          */
@@ -588,7 +591,10 @@ public class Client implements AutoCloseable {
         }
 
         /**
-         * Default socket send buffer size in bytes.
+         * Socket send buffer size in bytes (SO_SNDBUF). Not set by default: the operating system
+         * sizes and auto-tunes the buffer. Calling this method disables that auto-tuning and is not
+         * recommended unless a measurement shows a benefit. The value is also capped by the operating
+         * system limits, so a large value may have no effect.
          *
          * @param size - socket send buffer size in bytes
          */

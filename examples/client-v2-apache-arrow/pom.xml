@@ -54,7 +54,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
-        <clickhouse-java.version>0.10.0-rc1-SNAPSHOT</clickhouse-java.version>
+        <clickhouse-java.version>0.11.0-rc1-SNAPSHOT</clickhouse-java.version>
         <arrow.version>19.0.0</arrow.version>
         <slf4j.version>2.0.17</slf4j.version>
         <testng.version>7.5.1</testng.version>

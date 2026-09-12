@@ -333,7 +333,7 @@ public class ClientTests extends BaseIntegrationTest {
                     Assert.assertEquals(config.get(p.getKey()), p.getDefaultValue(), "Default value doesn't match");
                 }
             }
-            Assert.assertEquals(config.size(), 39); // to check everything is set. Increment when new added.
+            Assert.assertEquals(config.size(), 37); // to check everything is set. Increment when new added.
         }
 
         try (Client client = new Client.Builder()
@@ -395,6 +395,26 @@ public class ClientTests extends BaseIntegrationTest {
             Assert.assertEquals(config.get(ClientConfigProperties.SSL_MODE.getKey()), "STRICT");
             Assert.assertEquals(config.get(ClientConfigProperties.BINARY_STRING_SUPPORT.getKey()), "true");
             Assert.assertEquals(config.get(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey()), "CSV");
+        }
+    }
+
+    @DataProvider(name = "socketBufferOptions")
+    private static Object[][] socketBufferOptions() {
+        return new Object[][]{
+                {ClientConfigProperties.SOCKET_RCVBUF_OPT},
+                {ClientConfigProperties.SOCKET_SNDBUF_OPT},
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "socketBufferOptions")
+    public void testSocketBufferIsUnsetUnlessConfigured(ClientConfigProperties option) {
+        Assert.assertNull(option.getDefaultValue(), "Socket buffer size must have no default");
+        Assert.assertNull(option.getDefObjVal(), "Socket buffer size must have no default");
+
+        try (Client client = newClient().build()) {
+            Assert.assertFalse(client.getConfiguration().containsKey(option.getKey()),
+                    "Socket buffer size must not be configured unless requested");
+            Assert.assertEquals(client.queryAll("SELECT 1").get(0).getInteger(1), 1);
         }
     }
 
