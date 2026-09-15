@@ -270,7 +270,7 @@ For a non-`Bearer` scheme, use `setAccessToken(...)` — the value is sent verba
 
 #### JWT Authentication (ClickHouse Cloud)
 
-> **Main Documentation:** See [JWT Authentication in ClickHouse Cloud](https://clickhouse.com/docs/concepts/features/security/external-authenticators/jwt) and the local reference in [clickhouse-docs/client.mdx#jwt-authentication](clickhouse-docs/client.mdx#jwt-authentication).
+> **Main Documentation:** See [JWT Authentication in ClickHouse Cloud](https://clickhouse.com/docs/concepts/features/security/external-authenticators/jwt).
 
 - **Cloud-Only Feature:** JWT authentication is a **ClickHouse Cloud-only** feature. ClickHouse Cloud dynamically creates **ephemeral users** derived from claims embedded in each token.
 - **User-to-Service Authentication:** JWT authentication is intended for **user-to-service** authentication (e.g., authenticating end users or application sessions).
