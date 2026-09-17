@@ -118,6 +118,7 @@ import java.util.zip.GZIPOutputStream;
 import static com.github.tomakehurst.wiremock.stubbing.Scenario.STARTED;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNotEquals;
+import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.fail;
 
@@ -2810,16 +2811,15 @@ public class HttpTransportTests extends BaseIntegrationTest {
         final String replicaKey = UUID.randomUUID().toString();
         QuerySettings stickyReplica = new QuerySettings().httpHeader(ClickHouseHttpProto.HEADER_REPLICA_TAG, replicaKey);
 
-        try (Client client = newClient().build()) {
-            GenericRecord hostname1 = client.queryAll("SELECT hostname()").get(0);
-            GenericRecord hostname2 = client.queryAll("SELECT hostname()").get(0);
-
-            assertEquals(hostname1.getString(1), hostname2.getString(1));
-
-            if (isCloud()) {
-                GenericRecord hostname3 = client.queryAll("SELECT hostname()").get(0);
-                GenericRecord hostname4 = client.queryAll("SELECT hostname()").get(0);
-                assertNotEquals(hostname3.getString(1), hostname4.getString(1));
+        String prevHostname = null;
+        for (int i = 0; i < 10; i++) {
+            try (Client client = newClient().build()) {
+                GenericRecord hostname1 = client.queryAll("SELECT hostname()", stickyReplica).get(0);
+                if (prevHostname == null) {
+                    prevHostname = hostname1.getString(1);
+                } else {
+                    assertEquals(hostname1.getString(1), prevHostname);
+                }
             }
         }
     }
