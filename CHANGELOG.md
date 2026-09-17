@@ -24,6 +24,8 @@
   the previous size can restore it by setting both options to 804800.
   (https://github.com/ClickHouse/clickhouse-java/issues/3121)
 
+- **[r2dbc]** Pre `1.0.0` is not supported anymore because R2DBC API reached stable `1.0.0` version.  
+
 ### New Features
 
 - **[migration-helpers]** Added `migration-helpers` module containing `ConfigurationMigrationHelper` and
