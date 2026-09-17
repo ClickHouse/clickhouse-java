@@ -2818,7 +2818,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 if (prevHostname == null) {
                     prevHostname = hostname1.getString(1);
                 } else {
-                    assertEquals(hostname1.getString(1), prevHostname);
+                    assertEquals(hostname1.getString(1), prevHostname, "Failed to reach same replica on " + i + " iteration.");
                 }
             }
         }
