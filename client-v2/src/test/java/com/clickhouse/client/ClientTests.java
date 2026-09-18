@@ -27,6 +27,7 @@ import org.apache.commons.lang3.RandomStringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
+import org.testng.SkipException;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 import org.testng.util.Strings;
@@ -333,7 +334,7 @@ public class ClientTests extends BaseIntegrationTest {
                     Assert.assertEquals(config.get(p.getKey()), p.getDefaultValue(), "Default value doesn't match");
                 }
             }
-            Assert.assertEquals(config.size(), 38); // to check everything is set. Increment when new added.
+            Assert.assertEquals(config.size(), 36); // to check everything is set. Increment when new added.
         }
 
         try (Client client = new Client.Builder()
@@ -395,6 +396,26 @@ public class ClientTests extends BaseIntegrationTest {
             Assert.assertEquals(config.get(ClientConfigProperties.SSL_MODE.getKey()), "STRICT");
             Assert.assertEquals(config.get(ClientConfigProperties.BINARY_STRING_SUPPORT.getKey()), "true");
             Assert.assertEquals(config.get(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey()), "CSV");
+        }
+    }
+
+    @DataProvider(name = "socketBufferOptions")
+    private static Object[][] socketBufferOptions() {
+        return new Object[][]{
+                {ClientConfigProperties.SOCKET_RCVBUF_OPT},
+                {ClientConfigProperties.SOCKET_SNDBUF_OPT},
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "socketBufferOptions")
+    public void testSocketBufferIsUnsetUnlessConfigured(ClientConfigProperties option) {
+        Assert.assertNull(option.getDefaultValue(), "Socket buffer size must have no default");
+        Assert.assertNull(option.getDefObjVal(), "Socket buffer size must have no default");
+
+        try (Client client = newClient().build()) {
+            Assert.assertFalse(client.getConfiguration().containsKey(option.getKey()),
+                    "Socket buffer size must not be configured unless requested");
+            Assert.assertEquals(client.queryAll("SELECT 1").get(0).getInteger(1), 1);
         }
     }
 
@@ -820,6 +841,32 @@ public class ClientTests extends BaseIntegrationTest {
         } catch (ClientException e) {
             Assert.assertTrue(e.getCause() instanceof ServerException, "Expected ServerException but got " + e.getCause());
             Assert.assertEquals(((ServerException) e.getCause()).getCode(), ServerException.TABLE_NOT_FOUND);
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testJWTWithCloud() throws Exception {
+        String jwt = System.getenv("JWT_TOKEN");
+        if (jwt == null || jwt.trim().isEmpty()) {
+            throw new SkipException("JWT_TOKEN environment variable is not set. Skipping JWT test.");
+        }
+        ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
+        Assert.assertFalse(jwt.contains("\n") || jwt.contains("-----"), "JWT should be single string ready for HTTP header");
+        try (Client client = new Client.Builder()
+                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isCloud())
+                .compressClientRequest(false)
+                .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
+                .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1")
+                .useBearerTokenAuth(jwt).build()) {
+            try {
+                List<GenericRecord> response = client.queryAll("SELECT currentUser()");
+                String username = response.get(0).getString(1);
+                Assert.assertTrue(username != null && username.matches("^JWT::.+::.+$"),
+                        "Expected username in format JWT::<subject>::<claims_hash>, but actual username was: '" + username + "'");
+            } catch (Exception e) {
+                e.printStackTrace();
+                throw e;
+            }
         }
     }
 

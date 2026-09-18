@@ -23,7 +23,7 @@
         <opentelemetry.javaagent.version>2.30.0</opentelemetry.javaagent.version>
         <opentelemetry.javaagent.traces.exporter>otlp</opentelemetry.javaagent.traces.exporter>
         <opentelemetry.javaagent.traces.endpoint>http://localhost:4318/v1/traces</opentelemetry.javaagent.traces.endpoint>
-        <clickhouse-jdbc.version>0.10.0-rc1-SNAPSHOT</clickhouse-jdbc.version>
+        <clickhouse-java.version>0.11.0-rc1-SNAPSHOT</clickhouse-java.version>
         <!-- Spring Boot 3.3 manages 1.19.x, which cannot negotiate with Docker Engine 29. -->
         <testcontainers.version>1.21.4</testcontainers.version>
     </properties>
@@ -71,13 +71,13 @@
         <dependency>
             <groupId>com.clickhouse</groupId>
             <artifactId>clickhouse-jdbc</artifactId>
-            <version>${clickhouse-jdbc.version}</version>
+            <version>${clickhouse-java.version}</version>
             <classifier>all</classifier>
         </dependency>
         <dependency>
             <groupId>com.clickhouse</groupId>
             <artifactId>client-v2</artifactId>
-            <version>${clickhouse-jdbc.version}</version>
+            <version>${clickhouse-java.version}</version>
         </dependency>
 
         <!-- OpenTelemetry SDK, custom ClickHouse metrics, and OTLP export -->

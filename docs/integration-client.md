@@ -268,6 +268,15 @@ public Client.Builder createBaseClient() {
 
 For a non-`Bearer` scheme, use `setAccessToken(...)` — the value is sent verbatim, so include the scheme yourself. Runtime updates: `updateBearerToken(...)` (adds prefix) and `updateAccessToken(...)` (verbatim).
 
+#### JWT Authentication (ClickHouse Cloud)
+
+> **Main Documentation:** See [JWT Authentication in ClickHouse Cloud](https://clickhouse.com/docs/concepts/features/security/external-authenticators/jwt).
+
+- **Cloud-Only Feature:** JWT authentication is a **ClickHouse Cloud-only** feature. ClickHouse Cloud dynamically creates **ephemeral users** derived from claims embedded in each token.
+- **User-to-Service Authentication:** JWT authentication is intended for **user-to-service** authentication (e.g., authenticating end users or application sessions).
+- **Service-to-Service Recommendation:** Using JWT for **service-to-service** communication is **not recommended** because JWT tokens have a short lifespan and require frequent refreshing. Traditional username/password credentials or long-lived tokens are preferred for service-to-service workloads.
+- **Runtime Token Refresh API:** If token refresh is required on long-lived client instances, the client provides runtime update methods: `client.updateBearerToken(newJwtToken)` (adds `Bearer ` prefix) or `client.updateAccessToken(newRawToken)` (sent verbatim). See [Step 9 — Runtime credentials & Access Tokens](#runtime-credentials--access-tokens) for details.
+
 **Note**: realtime credentials update would work well with runtime configuration update but would not work for multi-tenant setup. Multi tenant application should organize exclusive access to client 
 while handling tenant operation to avoid cross-talk problem. Separate client instance per tenant must be used when each tenant has own database.
 
@@ -383,6 +392,7 @@ Timeouts are critical parameters that directly impact application stability unde
 - **Connection timeout** (`.setConnectTimeout()`): The TCP connect timeout. Setting this value too low can cause failures when the application and server are in different geographical regions. Additionally, connection timeouts are closely tied to the connection pool: if the application issues concurrent requests that exceed the available pool size, it may manifest as a connection timeout because no free connections are present.
 - **Socket timeout** (`.setSocketTimeout()`): The timeout for underlying socket read/write operations. While it applies strictly to socket activity, it is vital because it dictates how long the client will wait for long-running queries to return data. If your workload involves heavy analytical queries, you may need a very long socket timeout. However, the trade-off of a long socket timeout is the increased risk of encountering stale or silently dropped connections.
 - **TCP keepalive**: Can be enabled to mitigate stale connections, though the host operating system's settings may ultimately override it. System-level TCP keepalive defaults are often several hours; configuring a shorter keepalive period makes sense for long-running operations. Keep in mind that executing extremely long operations over the public internet remains inherently risky.
+- **Socket buffers** (`.setSocketRcvbuf()`, `.setSocketSndbuf()`): Not set by default, so the operating system sizes the socket buffers and auto-tunes them for the connection. Setting a fixed size turns that auto-tuning off and is additionally capped by the operating system limits, so a large value may have no effect. Configure these options only when a measurement shows a benefit for your workload.
 
 > **Note on runtime configuration:** You can optionally override the default network timeout on a per-operation basis using `QuerySettings.setNetworkTimeout(long timeout, ChronoUnit unit)`. This allows you to set stricter boundaries on specific queries without altering the client-wide defaults.
 
@@ -950,6 +960,8 @@ Field-to-column matching is controlled by [`ColumnToMethodMatchingStrategy`](../
 ### Runtime credentials & Access Tokens
 
 ClickHouse supports authentication via access tokens (e.g., JWTs) instead of traditional username/password credentials. This is common in cloud deployments or when using an authentication proxy.
+
+> **JWT Authentication Note:** JWT authentication is a **ClickHouse Cloud-only feature** intended for **user-to-service authentication**. Using JWT for **service-to-service** communication is **not recommended** due to short token lifespans and the requirement to refresh tokens. If token refreshing is necessary, use `client.updateBearerToken(...)`. For complete details, see [JWT Authentication in ClickHouse Cloud](https://clickhouse.com/docs/concepts/features/security/external-authenticators/jwt) and [clickhouse-docs/client.mdx#jwt-authentication](clickhouse-docs/client.mdx#jwt-authentication).
 
 You can configure token authentication when building the client:
 
