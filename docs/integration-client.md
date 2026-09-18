@@ -358,6 +358,8 @@ The mechanism follows from how the server and any fronting infrastructure are co
 
 Runtime rotation via `updateUserAndPassword` / `updateBearerToken` updates the credentials of the **already-selected** mechanism; it throws `ClientMisconfigurationException` rather than switching to a different mechanism.
 
+See [integration-testing.md — Configuration](integration-testing.md#configuration) for what to verify when testing authentication end-to-end (boundary/invalid values, certificate acceptance).
+
 ---
 
 ## Step 3 — Transport & connectivity (TLS, proxies, timeouts)
@@ -374,7 +376,7 @@ Runtime rotation via `updateUserAndPassword` / `updateBearerToken` updates the c
 | Trust store (JKS/PKCS12) | `setSSLTrustStore(...)`, `setSSLTrustStorePassword(...)` |
 | HTTP proxy | `setProxy(ProxyType.HTTP, host, port)`, `setProxyCredentials(user, password)` |
 
-See [SSLExamples](../examples/client-v2/src/main/java/com/clickhouse/examples/client_v2/SSLExamples.java) for a runnable walkthrough and [authentication.md](authentication.md) for full details.
+See [SSLExamples](../examples/client-v2/src/main/java/com/clickhouse/examples/client_v2/SSLExamples.java) for a runnable walkthrough and [authentication.md](authentication.md) for full details. See also [integration-testing.md — Test Environment](integration-testing.md#test-environment) for testing across protocols, hosts, and ClickHouse versions.
 
 ### Init configuration — timeouts
 
@@ -412,6 +414,8 @@ Key use cases include:
 > **Timeouts too aggressive** for heavy analytical queries cause spurious failures — align `socket_timeout` with expected query duration or use per-operation network timeouts.
 > 
 > **Proxy credentials omitted** on authenticated proxies produce opaque connection failures.
+
+See [integration-testing.md — Connecting](integration-testing.md#connecting) for connection-timeout and concurrency test scenarios to cover.
 ---
 
 ## Step 4 — Connections Configuration
@@ -420,7 +424,7 @@ In the Java Client a "connection" is an **HTTP connection borrowed from the inte
 
 ### Connection limit (`max_open_connections`)
 
-The pool size depends on your workload — specifically on its **concurrency**, not on how much data it moves. What matters is **how many operations run at the same time**, not the number of rows or bytes any single operation transfers. A pool of 20 connections serves at most 20 simultaneous operations regardless of whether each returns one row or a million. This is the single setting you actually tune. The table below will help to estimate rough number. Having slightly bigger number than actualy needed is not a problem because unused connections will be garbage collected. It is recommended to perform a load testing with one application instance to detect if estimated number works. 
+The pool size depends on your workload — specifically on its **concurrency**, not on how much data it moves. What matters is **how many operations run at the same time**, not the number of rows or bytes any single operation transfers. A pool of 20 connections serves at most 20 simultaneous operations regardless of whether each returns one row or a million. This is the single setting you actually tune. The table below will help to estimate rough number. Having slightly bigger number than actualy needed is not a problem because unused connections will be garbage collected. It is recommended to perform a load testing with one application instance to detect if estimated number works — see [integration-testing.md — Load Testing](integration-testing.md#load-testing) for how to design that test. 
 Connection limit may acts as a backpreasure for incomming requests if they get blocked by DB access. When request backlog grows it may also slowdowns whole application so it is very important to find a balance between concurrent operations and their execution time. Be aware that in most applications allocated memory is freed only at the end of request.  
 
 
@@ -480,6 +484,8 @@ public Client.Builder createBaseClient() {
 > **Stale connection errors (`NoHttpResponseException`):** Occurs when idle pooled connections are closed by server/proxy timeouts. Resolve by configuring `setKeepAliveTimeout` to be less than the server keep-alive duration.
 > 
 > **CONSTRAINT:** Always `close()` the client at shutdown to avoid leaking the pool and its threads.
+
+See [integration-testing.md — Connecting](integration-testing.md#connecting) for tests that verify pool sizing (`max_open_connections`) and connection release under load.
 ---
 
 ## Step 5 — Data formats, readers & writers
@@ -703,6 +709,8 @@ See the [Error model](#error-model) for the exception hierarchy and how to unwra
 | Server aborted an excessively heavy query | `ServerException` code `159` (`TIMEOUT_EXCEEDED`) | The query exceeded `max_execution_time`. Raise the limit or optimize the query; do not retry unconditionally. |
 | Transport connect/read timeout | `DataTransferException` / timeout | Often transient. A read is idempotent, so re-running the whole query is safe. |
 | Connection dropped **mid-stream** (after you began iterating) | `DataTransferException` while reading | You cannot resume from the middle — some rows were already consumed. Close the `QueryResponse` and re-run the entire query. Make consumers tolerant of re-reading from the start. |
+
+See [integration-testing.md — Fetching Data](integration-testing.md#fetching-data) for read-path test scenarios to cover (data types, formats, failure handling).
 ---
 
 ## Step 7 — Write operations & tuning
@@ -858,6 +866,7 @@ public void insertWithDeduplication(Client client, InputStream dataStream, Strin
 - Assign a **stable** token per logical batch (file name, Kafka offset, job ID).
 - Use it for retry-safe pipelines and at-least-once sources (Kafka, SQS, file reprocessing).
 - Requires a `MergeTree` engine with deduplication configured. See [`InsertTests.testInsertSettingsDeduplicationToken`](../client-v2/src/test/java/com/clickhouse/client/insert/InsertTests.java).
+- See [integration-testing.md — Loading Data](integration-testing.md#loading-data) for how to verify the deduplication token is set correctly and honored.
 
 ### Errors & how to handle them
 
@@ -1110,3 +1119,4 @@ public void executeQueryWithErrorHandling(Client client, String sql) throws Exce
 - [integration-ops.md](integration-ops.md) — operations and observability guide
 - [authentication.md](authentication.md) — full authentication and TLS reference (referenced from Steps 2–3)
 - [features.md](features.md) — compatibility contract (referenced from Step 5)
+- [integration-testing.md](integration-testing.md) — integration testing recommendations and practices
