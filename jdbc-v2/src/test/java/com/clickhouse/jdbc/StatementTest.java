@@ -1,6 +1,7 @@
 package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.Session;
 import com.clickhouse.client.api.data_formats.GsonJsonParserFactory;
 import com.clickhouse.client.api.data_formats.JacksonJsonParserFactory;
@@ -24,6 +25,7 @@ import java.sql.Date;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.sql.SQLTimeoutException;
 import java.sql.Statement;
 import java.time.LocalDate;
 import java.util.Arrays;
@@ -44,12 +46,17 @@ import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertSame;
 import static org.testng.Assert.assertThrows;
 import static org.testng.Assert.assertTrue;
+import static org.testng.Assert.expectThrows;
 import static org.testng.Assert.fail;
 
 
 @Test(groups = {"integration"})
 public class StatementTest extends JdbcIntegrationTest {
     private static final Logger log = LoggerFactory.getLogger(StatementTest.class);
+
+    /** Runs long enough on a single thread for a low `max_execution_time` to interrupt it. */
+    private static final String SLOW_QUERY =
+            "SELECT count(), sum(sipHash64(number)) FROM numbers(1000000000) SETTINGS max_threads = 1";
 
     @Test(groups = {"integration"})
     public void testExecuteQuerySimpleNumbers() throws Exception {
@@ -1761,6 +1768,66 @@ public class StatementTest extends JdbcIntegrationTest {
     @Test(dataProvider = "escapedSQLToNativeDP")
     public void testEscapedSQLToNative(String sql, String expected) {
         assertEquals(StatementImpl.escapedSQLToNative(sql), expected);
+    }
+
+    @Test(groups = {"integration"})
+    public void testSetQueryTimeoutRejectsNegativeValue() throws Exception {
+        try (Connection conn = getJdbcConnection();
+             Statement stmt = conn.createStatement()) {
+            assertThrows(SQLException.class, () -> stmt.setQueryTimeout(-1));
+            assertEquals(stmt.getQueryTimeout(), 0);
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testSetQueryTimeoutSetsAndResetsMaxExecutionTime() throws Exception {
+        try (Connection conn = getJdbcConnection();
+             StatementImpl stmt = (StatementImpl) conn.createStatement()) {
+            assertNull(stmt.getLocalSettings().getMaxExecutionTime());
+
+            stmt.setQueryTimeout(5);
+            assertEquals(stmt.getQueryTimeout(), 5);
+            assertEquals(stmt.getLocalSettings().getMaxExecutionTime(), Integer.valueOf(5));
+
+            stmt.setQueryTimeout(0);
+            assertEquals(stmt.getQueryTimeout(), 0);
+            assertNull(stmt.getLocalSettings().getMaxExecutionTime());
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testSetQueryTimeoutLeavesMaxExecutionTimeUnsetForAsyncOperations() throws Exception {
+        Properties config = new Properties();
+        config.setProperty(ClientConfigProperties.ASYNC_OPERATIONS.getKey(), "true");
+        try (Connection conn = getJdbcConnection(config);
+             StatementImpl stmt = (StatementImpl) conn.createStatement()) {
+            stmt.setQueryTimeout(5);
+
+            assertEquals(stmt.getQueryTimeout(), 5);
+            assertNull(stmt.getLocalSettings().getMaxExecutionTime());
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testServerExecutionTimeoutIsReportedAsSqlTimeoutException() throws Exception {
+        try (Connection conn = getJdbcConnection();
+             Statement stmt = conn.createStatement()) {
+            stmt.setQueryTimeout(1);
+
+            SQLTimeoutException e = expectThrows(SQLTimeoutException.class, () -> stmt.executeQuery(SLOW_QUERY));
+            assertEquals(e.getErrorCode(), ServerException.EXECUTION_TIMEOUT);
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testServerExecutionTimeoutIsReportedAsSqlTimeoutExceptionOnUpdate() throws Exception {
+        try (Connection conn = getJdbcConnection();
+             Statement stmt = conn.createStatement()) {
+            stmt.setQueryTimeout(1);
+
+            SQLTimeoutException e = expectThrows(SQLTimeoutException.class, () -> stmt.executeUpdate(SLOW_QUERY));
+            assertEquals(e.getErrorCode(), ServerException.EXECUTION_TIMEOUT);
+        }
     }
 
     private static String getDBName(Statement stmt) throws SQLException {

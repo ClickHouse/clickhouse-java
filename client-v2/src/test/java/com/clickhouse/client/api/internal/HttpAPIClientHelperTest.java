@@ -341,8 +341,8 @@ public class HttpAPIClientHelperTest {
 
     @DataProvider(name = "serverExceptionRetryCases")
     public static Object[][] serverExceptionRetryCases() {
-        // Server code 159 (TIMEOUT_EXCEEDED) is retryable; code 60 (TABLE_NOT_FOUND) is not.
-        ServerException retryable = new ServerException(159, "TIMEOUT_EXCEEDED", 500, "q1");
+        // Server code 209 (SOCKET_TIMEOUT) is retryable; code 60 (TABLE_NOT_FOUND) is not.
+        ServerException retryable = new ServerException(209, "SOCKET_TIMEOUT", 500, "q1");
         ServerException nonRetryable = new ServerException(60, "TABLE_NOT_FOUND", 404, "q2");
         return new Object[][]{
                 // ServerException thrown directly (behaviour that already worked; pinned as contrast).

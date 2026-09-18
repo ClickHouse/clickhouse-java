@@ -79,7 +79,7 @@ Compatibility-sensitive traits:
 - Schema and database context: Supports database selection through URL, `setSchema`, `USE`, and statement-level settings.
 - Non-transactional operation: Exposes ClickHouse-appropriate transaction behavior with auto-commit semantics and unsupported transactional features.
 - Statement execution: Supports `execute`, `executeQuery`, `executeUpdate`, large update counts, and forward-only/read-only statements.
-- Query cancellation and timeout: Supports JDBC query timeout handling and query cancellation through server-side `KILL QUERY`, with optional JDBC `cluster_name` property support to add `ON CLUSTER '<name>'` for cluster-wide cancellation.
+- Query cancellation and timeout: Supports JDBC query timeout handling and query cancellation through server-side `KILL QUERY`, with optional JDBC `cluster_name` property support to add `ON CLUSTER '<name>'` for cluster-wide cancellation. `Statement#setQueryTimeout` is applied as the `max_execution_time` server setting, because without asynchronous operations the query runs in the calling thread and a client-side future timeout cannot interrupt it. Exceeding the timeout raises `SQLTimeoutException`, whose vendor code is the ClickHouse error code when the server reported the timeout.
 - Batch execution: Supports batched statements and prepared-statement batches, including multi-row rewrite for eligible `INSERT ... VALUES` statements.
 - Prepared statements: Supports `?` parameters through client-side SQL rendering and validates that all parameters are bound before execution.
 - SQL parsing and classification: Classifies SQL to distinguish queries, updates, inserts, `USE`, and role-changing statements, with selectable parser backends.
