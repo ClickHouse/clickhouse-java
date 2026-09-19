@@ -171,6 +171,16 @@
 
 ### Bug Fixes 
 
+- **[client-v2]** `ServerException` with code `159 TIMEOUT_EXCEEDED` is no longer reported as retryable. The server
+  raises it once the query has already consumed its whole `max_execution_time` budget, so every automatic retry spends
+  that budget again and multiplies the load that caused the timeout. The fix was released in `0.9.9` but never reached
+  `main`, so `0.10.0` shipped the original behaviour.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3136)
+- **[jdbc-v2]** Fixed `Statement#setQueryTimeout` being ignored. The client executes a query in the calling thread
+  unless asynchronous operations are enabled, and the future timeout then has no effect, so the value is applied as the
+  `max_execution_time` server setting instead. An execution timeout is reported as `SQLTimeoutException` carrying the
+  server error code as its vendor code. The fix was released in `0.9.9` but never reached `main`, so `0.10.0` shipped
+  the original behaviour. (https://github.com/ClickHouse/clickhouse-java/issues/3136)
 - **[jdbc-v2]** Added the non-reserved keywords `AGGREGATE`, `BOUNDED`, `EXTEND`, `HANDLER`, `IDLE`, `PROTOCOL`,
   `RECENT`, `TIMEOUT` and `UNORDERED` (ClickHouse `26.8+`; `IDLE`, `TIMEOUT` and `RECENT` come from the multi-word
   keywords `IDLE TIMEOUT` and `RECENT SAMPLES`) to the list of keywords allowed in identifier positions. The server

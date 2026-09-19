@@ -1,6 +1,7 @@
 package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.data_formats.ClickHouseFormatReader;
 import com.clickhouse.client.api.data_formats.JSONEachRowFormatReader;
 import com.clickhouse.client.api.internal.ServerSettings;
@@ -17,6 +18,7 @@ import org.slf4j.LoggerFactory;
 import java.net.SocketTimeoutException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.SQLTimeoutException;
 import java.sql.SQLWarning;
 import java.sql.Statement;
 import java.util.ArrayDeque;
@@ -26,6 +28,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -360,6 +363,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             }
             handleSocketTimeoutException(e);
             onResultSetClosed(null);
+            throwOnExecutionTimeout(e, mergedSettings.getQueryId());
             throw ExceptionUtils.toSqlState(e);
         }
     }
@@ -367,6 +371,29 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     protected void handleSocketTimeoutException(Exception e) {
         if (e.getCause() instanceof SocketTimeoutException || e instanceof SocketTimeoutException) {
             this.connection.onNetworkTimeout();
+        }
+    }
+
+    /**
+     * Translates an execution timeout into {@link SQLTimeoutException}, which the JDBC spec requires when a
+     * statement exceeds the limit set by {@link #setQueryTimeout(int)}. A timeout is reported either by the
+     * client, when the query is awaited with a timeout, or by the server as error code
+     * {@link ServerException#EXECUTION_TIMEOUT}. The server error code is carried over as the vendor code so
+     * callers can classify the failure without unwrapping the cause chain.
+     *
+     * @param e exception thrown by the query execution
+     * @param queryId id of the query that failed
+     */
+    protected void throwOnExecutionTimeout(Exception e, String queryId) throws SQLTimeoutException {
+        ServerException serverException = e instanceof ServerException ? (ServerException) e
+                : e.getCause() instanceof ServerException ? (ServerException) e.getCause() : null;
+        boolean isTimeout = e instanceof TimeoutException || e.getCause() instanceof TimeoutException
+                || (serverException != null && serverException.getCode() == ServerException.EXECUTION_TIMEOUT);
+
+        if (isTimeout) {
+            throw new SQLTimeoutException("Query execution time exceeded limit (queryId=" + queryId + ")",
+                    ExceptionUtils.SQL_STATE_OPERATION_CANCELLED,
+                    serverException == null ? ServerException.CODE_UNKNOWN : serverException.getCode(), e);
         }
     }
 
@@ -396,6 +423,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             lastQueryId = response.getQueryId();
         } catch (Exception e) {
             handleSocketTimeoutException(e);
+            throwOnExecutionTimeout(e, mergedSettings.getQueryId());
             throw ExceptionUtils.toSqlState(e);
         }
 
@@ -469,7 +497,31 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     @Override
     public void setQueryTimeout(int seconds) throws SQLException {
         ensureOpen();
+        if (seconds < 0) {
+            throw new SQLException("Timeout should be >= 0 but " + seconds + " was passed");
+        }
+
+        if (seconds > 0) {
+            // With asynchronous operations the query is awaited with a timeout, which bounds the call on its own.
+            // Otherwise it runs in the calling thread and `max_execution_time` is the only way to bound it.
+            if (!isAsyncOperationsEnabled()) {
+                getLocalSettings().setMaxExecutionTime(seconds);
+            }
+        } else {
+            getLocalSettings().resetOption(ClientConfigProperties.serverSetting(ServerSettings.MAX_EXECUTION_TIME));
+        }
         queryTimeout = seconds;
+    }
+
+    private boolean isAsyncOperationsEnabled() {
+        try {
+            return Boolean.parseBoolean(getConnection().getClient().getConfiguration()
+                    .getOrDefault(ClientConfigProperties.ASYNC_OPERATIONS.getKey(),
+                            ClientConfigProperties.ASYNC_OPERATIONS.getDefaultValue()));
+        } catch (Exception e) {
+            LOG.error("Failed to read client configuration " + ClientConfigProperties.ASYNC_OPERATIONS.getKey(), e);
+            return false;
+        }
     }
 
     @Override
