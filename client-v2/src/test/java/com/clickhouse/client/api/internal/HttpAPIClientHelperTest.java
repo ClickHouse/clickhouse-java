@@ -371,28 +371,34 @@ public class HttpAPIClientHelperTest {
     /**
      * A multipart body (statement parameters sent as form data) is never compressed, so the request must not
      * declare a content encoding - the server would try to decompress the plain body and fail with
-     * LZ4_DECODER_FAILED. A request that is not multipart, and response compression, keep their signalling.
+     * LZ4_DECODER_FAILED. A request that is not multipart, and response compression, keep their signalling:
+     * a compressed response is always asked for with a content coding, so its codec is the one the client
+     * selects, whatever the form of the request body is.
      */
     @DataProvider(name = "requestCompressionSignalling")
     public static Object[][] requestCompressionSignalling() {
         return new Object[][] {
-                // clientCompression, useHttpCompression, sendParamsInBody, withParams,
-                //         contentEncoding, acceptEncoding, decompressParam
-                {true, true, true, true, null, "lz4", false},
-                {true, true, true, false, "lz4", "lz4", false}, // no parameters -> not a multipart request
-                {true, true, false, true, "lz4", "lz4", false},
-                {false, true, true, true, null, "lz4", false},
-                {true, false, true, true, null, null, false},
-                {true, false, false, true, null, null, true},
+                // clientCompression, useHttpCompression, serverCompression, sendParamsInBody, withParams,
+                //         contentEncoding, acceptEncoding, decompressParam, httpCompressionParam
+                {true, true, true, true, true, null, "lz4", false, true},
+                {true, true, true, true, false, "lz4", "lz4", false, true}, // no parameters -> not a multipart request
+                {true, true, true, false, true, "lz4", "lz4", false, true},
+                {false, true, true, true, true, null, "lz4", false, true},
+                {true, false, true, true, true, null, "lz4", false, true},
+                {true, false, true, false, true, null, "lz4", true, true},
+                // no response compression -> nothing is signalled for it; the request body keeps its own
+                {true, false, false, false, true, null, null, true, false},
         };
     }
 
     @Test(dataProvider = "requestCompressionSignalling")
     public void testRequestCompressionSignalling(boolean clientCompression, boolean useHttpCompression,
-                                                 boolean sendParamsInBody, boolean withParams,
-                                                 String expectedContentEncoding, String expectedAcceptEncoding,
-                                                 boolean expectDecompressParam) {
+                                                 boolean serverCompression, boolean sendParamsInBody,
+                                                 boolean withParams, String expectedContentEncoding,
+                                                 String expectedAcceptEncoding, boolean expectDecompressParam,
+                                                 boolean expectHttpCompressionParam) {
         Map<String, Object> reqConfig = compressionConfig(clientCompression, useHttpCompression, sendParamsInBody);
+        reqConfig.put(ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getKey(), serverCompression);
         if (withParams) {
             reqConfig.put(HttpAPIClientHelper.KEY_STATEMENT_PARAMS, Collections.singletonMap("p1", "1"));
         }
@@ -401,18 +407,20 @@ public class HttpAPIClientHelperTest {
                 "SELECT {p1:Int32}").getDelegate();
 
         String setup = "clientCompression=" + clientCompression + ", useHttpCompression=" + useHttpCompression
-                + ", sendParamsInBody=" + sendParamsInBody + ", withParams=" + withParams;
+                + ", serverCompression=" + serverCompression + ", sendParamsInBody=" + sendParamsInBody
+                + ", withParams=" + withParams;
         assertEquals(headerValue(req, HttpHeaders.CONTENT_ENCODING), expectedContentEncoding,
                 "unexpected " + HttpHeaders.CONTENT_ENCODING + " for " + setup);
         assertEquals(req.getEntity().getContentEncoding(), expectedContentEncoding,
                 "the request body entity must declare the same encoding as the request for " + setup);
         assertEquals(headerValue(req, HttpHeaders.ACCEPT_ENCODING), expectedAcceptEncoding,
-                "response compression signalling must not depend on the request body form");
+                "response compression signalling must not depend on the request body form, for " + setup);
 
         String query = req.getRequestUri();
         assertEquals(query.contains(ClickHouseHttpProto.QPARAM_DECOMPRESS + "=1"), expectDecompressParam,
                 "unexpected " + ClickHouseHttpProto.QPARAM_DECOMPRESS + " parameter in " + query);
-        assertEquals(query.contains(ClickHouseHttpProto.QPARAM_ENABLE_HTTP_COMPRESSION + "=1"), useHttpCompression,
+        assertEquals(query.contains(ClickHouseHttpProto.QPARAM_ENABLE_HTTP_COMPRESSION + "=1"),
+                expectHttpCompressionParam,
                 "unexpected " + ClickHouseHttpProto.QPARAM_ENABLE_HTTP_COMPRESSION + " parameter in " + query);
     }
 

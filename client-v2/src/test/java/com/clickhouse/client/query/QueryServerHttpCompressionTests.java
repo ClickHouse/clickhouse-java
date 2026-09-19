@@ -1,6 +1,8 @@
 package com.clickhouse.client.query;
 
+import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
+import com.clickhouse.client.api.enums.CompressionAlgorithm;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QuerySettings;
 import org.apache.hc.core5.http.HttpHeaders;
@@ -45,6 +47,29 @@ public class QueryServerHttpCompressionTests extends QueryTests {
             List<Object> dataValue = dataset.stream().map(d -> d.get(colName)).collect(Collectors.toList());
             Assert.assertEquals(colValues, dataValue, "Failed for column " + colName);
         }
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "compressionAlgorithms")
+    public void testQueryWithCompressionAlgorithmAndHttpCompression(CompressionAlgorithm algorithm) throws Exception {
+        try (Client client = newClient()
+                .compressionAlgorithm(algorithm)
+                .compressClientRequest(true)
+                .build()) {
+            List<GenericRecord> records = client.queryAll("SELECT number, toString(number) AS str " +
+                    "FROM system.numbers LIMIT 1000");
+
+            Assert.assertEquals(records.size(), 1000);
+            Assert.assertEquals(records.get(999).getLong("number"), 999);
+            Assert.assertEquals(records.get(999).getString("str"), "999");
+        }
+    }
+
+    @DataProvider(name = "compressionAlgorithms")
+    public Object[][] compressionAlgorithms() {
+        return new Object[][]{
+                {CompressionAlgorithm.LZ4},
+                {CompressionAlgorithm.ZSTD},
+        };
     }
 
     @DataProvider(name = "testQueryCompressedProvider")

@@ -4,6 +4,7 @@ package com.clickhouse.client.api.query;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.Session;
+import com.clickhouse.client.api.enums.CompressionAlgorithm;
 import com.clickhouse.client.api.internal.CommonSettings;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.internal.ValidationUtils;
@@ -230,6 +231,20 @@ public class QuerySettings {
 
     public TimeZone getServerTimeZone() {
         return (TimeZone) settings.getOption(ClientConfigProperties.SERVER_TIMEZONE.getKey());
+    }
+
+    /**
+     * Algorithm of a compressed response body of this operation. The algorithm is requested with the HTTP
+     * content coding of the operation, so a compressed body always uses the algorithm set here.
+     * Whether the response is compressed is controlled by the compression flags of the client. Defaults
+     * to the algorithm of the client.
+     *
+     * @param algorithm - algorithm of a compressed body
+     * @return same instance of the settings
+     */
+    public QuerySettings compressionAlgorithm(CompressionAlgorithm algorithm) {
+        settings.setOption(ClientConfigProperties.COMPRESSION_ALGORITHM.getKey(), algorithm);
+        return this;
     }
 
     /**

@@ -1,6 +1,7 @@
 package com.clickhouse.client.api;
 
 
+import com.clickhouse.client.api.enums.CompressionAlgorithm;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
@@ -75,5 +76,39 @@ public class ClientConfigPropertiesTest {
         Map<String, Object> parsed = ClientConfigProperties.parseConfigMap(raw);
         Assert.assertEquals(parsed.get(ClientConfigProperties.SSL_CIPHER_SUITES.getKey()),
                 Arrays.asList("TLS_AES_256_GCM_SHA384", "TLS_AES_128_GCM_SHA256"));
+    }
+
+    @DataProvider(name = "compressionAlgorithms")
+    public static Object[][] compressionAlgorithms() {
+        return new Object[][]{
+                // raw client.compression_algorithm value -> expected algorithm
+                {"LZ4", CompressionAlgorithm.LZ4},
+                {"lz4", CompressionAlgorithm.LZ4},
+                {"ZSTD", CompressionAlgorithm.ZSTD},
+                {"zstd", CompressionAlgorithm.ZSTD},
+        };
+    }
+
+    @Test(groups = {"unit"}, dataProvider = "compressionAlgorithms")
+    public void testCompressionAlgorithmParsed(String raw, CompressionAlgorithm expected) {
+        Assert.assertEquals(ClientConfigProperties.COMPRESSION_ALGORITHM.parseValue(raw), expected);
+
+        Map<String, String> config = new HashMap<>();
+        config.put(ClientConfigProperties.COMPRESSION_ALGORITHM.getKey(), raw);
+        Assert.assertEquals(ClientConfigProperties.parseConfigMap(config)
+                .get(ClientConfigProperties.COMPRESSION_ALGORITHM.getKey()), expected);
+    }
+
+    @Test(groups = {"unit"})
+    public void testCompressionAlgorithmDefaultsToLz4() {
+        Assert.assertEquals(ClientConfigProperties.COMPRESSION_ALGORITHM.getDefObjVal(), CompressionAlgorithm.LZ4);
+        Assert.assertEquals(
+                ClientConfigProperties.COMPRESSION_ALGORITHM.getOrDefault(Collections.emptyMap()),
+                CompressionAlgorithm.LZ4);
+    }
+
+    @Test(groups = {"unit"}, expectedExceptions = IllegalArgumentException.class)
+    public void testUnknownCompressionAlgorithmRejected() {
+        ClientConfigProperties.COMPRESSION_ALGORITHM.parseValue("snappy");
     }
 }

@@ -11,6 +11,7 @@ import com.clickhouse.client.api.data_formats.RowBinaryWithNamesFormatReader;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.data_formats.internal.MapBackedRecord;
 import com.clickhouse.client.api.data_formats.internal.ProcessParser;
+import com.clickhouse.client.api.enums.CompressionAlgorithm;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.enums.ProxyType;
 import com.clickhouse.client.api.enums.SSLMode;
@@ -666,9 +667,30 @@ public class Client implements AutoCloseable {
         }
 
         /**
+         * Algorithm of a compressed request or response body. The algorithm is requested with the HTTP
+         * content-coding of the operation, so a compressed body always uses the algorithm set here and
+         * never one the server picks on its own. Default is {@link CompressionAlgorithm#LZ4}.
+         * <p>
+         * The algorithm selects only how a body is compressed. Whether a body is compressed is controlled by
+         * {@link #compressServerResponse(boolean)} and {@link #compressClientRequest(boolean)}.
+         * <p>
+         * A request body follows this algorithm only together with {@link #useHttpCompression(boolean)};
+         * the ClickHouse framing of a request compressed without it is always LZ4.
+         *
+         * @param algorithm - algorithm of a compressed body
+         * @return same instance of the builder
+         */
+        public Builder compressionAlgorithm(CompressionAlgorithm algorithm) {
+            ValidationUtils.checkNotNull(algorithm, "algorithm");
+            this.configuration.put(ClientConfigProperties.COMPRESSION_ALGORITHM.getKey(), algorithm.name());
+            return this;
+        }
+
+        /**
          * Configures the client to use HTTP compression. In this case compression is controlled by
-         * http headers. Client compression will set {@code Content-Encoding: lz4} header and server
-         * compression will set {@code Accept-Encoding: lz4} header. Default is false.
+         * http headers. Client compression will set the {@code Content-Encoding} header and server
+         * compression will set the {@code Accept-Encoding} header, both to the content coding of
+         * {@link #compressionAlgorithm(CompressionAlgorithm)}. Default is false.
          *
          * @param enabled - indicates if http compression is enabled
          * @return
