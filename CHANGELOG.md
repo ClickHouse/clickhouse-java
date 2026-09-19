@@ -171,6 +171,8 @@
 
 ### Bug Fixes 
 
+- **[jdbc-v2]** Fixed `ArrayResultSet#next()` leaving the cursor before-first for empty arrays or on the last row for
+  non-empty arrays after exhaustion. The cursor now moves to the after-last state when `next()` returns `false`.
 - **[jdbc-v2]** Added the non-reserved keywords `AGGREGATE`, `BOUNDED`, `EXTEND`, `HANDLER`, `IDLE`, `PROTOCOL`,
   `RECENT`, `TIMEOUT` and `UNORDERED` (ClickHouse `26.8+`; `IDLE`, `TIMEOUT` and `RECENT` come from the multi-word
   keywords `IDLE TIMEOUT` and `RECENT SAMPLES`) to the list of keywords allowed in identifier positions. The server
