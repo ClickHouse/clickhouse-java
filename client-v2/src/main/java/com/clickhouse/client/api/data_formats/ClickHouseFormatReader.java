@@ -53,8 +53,22 @@ public interface ClickHouseFormatReader extends AutoCloseable {
      */
     <T> T readValue(String colName);
 
+    /**
+     * Tells if the current row has a non-null value in the column with this name.
+     * An unknown column name holds no value, so the result is {@code false}.
+     *
+     * @param colName - column name
+     * @return - true if the current row has a value in that column
+     */
     boolean hasValue(String colName);
 
+    /**
+     * Tells if the current row has a non-null value in the column with this index (starting from 1).
+     * An index the current schema does not have holds no value, so the result is {@code false}.
+     *
+     * @param colIndex - column index starting from 1
+     * @return - true if the current row has a value in that column
+     */
     boolean hasValue(int colIndex);
 
     /**

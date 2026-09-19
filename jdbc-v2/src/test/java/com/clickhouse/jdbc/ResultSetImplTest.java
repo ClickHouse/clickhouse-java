@@ -1,15 +1,22 @@
 package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.data_formats.ClickHouseFormatReader;
 import com.clickhouse.client.api.data_formats.JacksonJsonParserFactory;
 import com.clickhouse.data.ClickHouseVersion;
 import org.testng.Assert;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
 import java.io.StringReader;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Proxy;
 import java.math.BigDecimal;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.sql.Array;
 import java.sql.Blob;
 import java.sql.Clob;
@@ -26,12 +33,17 @@ import java.sql.Statement;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
 import java.util.Properties;
+import java.util.TimeZone;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertTrue;
@@ -311,6 +323,58 @@ public class ResultSetImplTest extends JdbcIntegrationTest {
                 Assert.assertEquals(((Number) list.get(2)).intValue(), 3);
 
                 Assert.expectThrows(SQLException.class, () -> rs.getArray("arr"));
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testJsonEachRowUnknownLabelReadsAsNull() throws SQLException {
+        Properties properties = new Properties();
+        properties.setProperty(DriverProperties.JSON_PARSER_FACTORY.getKey(), JacksonJsonParserFactory.class.getName());
+        properties.setProperty(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), "JSONEachRow");
+        try (Connection conn = getJdbcConnection(properties); Statement stmt = conn.createStatement()) {
+            try (ResultSet rs = stmt.executeQuery("SELECT 'abc' AS name")) {
+                Assert.assertTrue(rs.next());
+
+                Assert.assertNull(rs.getString("no_such_column"));
+                Assert.assertTrue(rs.wasNull());
+                Assert.assertEquals(rs.getLong("no_such_column"), 0L);
+                Assert.assertTrue(rs.wasNull());
+
+                // contrast: a known label still reads the value
+                Assert.assertEquals(rs.getString("name"), "abc");
+                Assert.assertFalse(rs.wasNull());
+
+                // contrast: an index the result set does not have is still rejected
+                Assert.expectThrows(SQLException.class, () -> rs.getString(2));
+
+                // the getters that report an unknown label on the binary path report it the same
+                // way here: as an SQLException, not as a raw reader error
+                Assert.expectThrows(SQLException.class, () -> rs.getDate("no_such_column"));
+                Assert.expectThrows(SQLException.class, () -> rs.getTimestamp("no_such_column"));
+                Assert.expectThrows(SQLException.class, () -> rs.getObject("no_such_column"));
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testUnknownLabelReadsAsNull() throws SQLException {
+        try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
+            try (ResultSet rs = stmt.executeQuery("SELECT 'abc' AS name")) {
+                Assert.assertTrue(rs.next());
+
+                Assert.assertNull(rs.getString("no_such_column"));
+                Assert.assertTrue(rs.wasNull());
+                Assert.assertEquals(rs.getLong("no_such_column"), 0L);
+                Assert.assertTrue(rs.wasNull());
+
+                Assert.assertEquals(rs.getString("name"), "abc");
+                Assert.assertFalse(rs.wasNull());
+
+                Assert.expectThrows(SQLException.class, () -> rs.getString(2));
+                Assert.expectThrows(SQLException.class, () -> rs.getDate("no_such_column"));
+                Assert.expectThrows(SQLException.class, () -> rs.getTimestamp("no_such_column"));
+                Assert.expectThrows(SQLException.class, () -> rs.getObject("no_such_column"));
             }
         }
     }
@@ -646,5 +710,314 @@ public class ResultSetImplTest extends JdbcIntegrationTest {
                 }
             }
         }
+    }
+
+    @Test(groups = {"integration"})
+    public void testIndexedGettersReadByIndexOnly() throws SQLException {
+        runQuery("DROP TABLE IF EXISTS rs_indexed_getters");
+        runQuery("CREATE TABLE rs_indexed_getters (id Int64, s String, n Nullable(Int32), d Float64," +
+                " ts DateTime64(3, 'UTC'), dec Decimal(10, 2)) ENGINE = MergeTree ORDER BY (id)");
+        runQuery("INSERT INTO rs_indexed_getters VALUES (42, 'abc', NULL, 1.5, '2024-01-02 03:04:05.678', 12.34)");
+
+        try (Connection conn = getJdbcConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT * FROM rs_indexed_getters")) {
+            ResultSetImpl rsImpl = (ResultSetImpl) rs;
+            AtomicInteger lookupsByName = new AtomicInteger();
+            rsImpl.reader = readerCountingNameLookups(rsImpl.reader, lookupsByName);
+
+            assertTrue(rs.next());
+            assertEquals(rs.getLong(1), 42L);
+            assertEquals(rs.getObject(1), 42L);
+            assertEquals(rs.getString(2), "abc");
+            assertEquals(rs.getInt(3), 0);
+            assertTrue(rs.wasNull());
+            Assert.assertNull(rs.getObject(3));
+            assertTrue(rs.wasNull());
+            assertEquals(rs.getDouble(4), 1.5);
+            Assert.assertFalse(rs.wasNull());
+            // getTimestamp() renders the column value with the connection calendar (the JVM default
+            // zone), so the expected value is built the same way to hold in any JVM zone.
+            assertEquals(rs.getTimestamp(5), Timestamp.valueOf("2024-01-02 03:04:05.678"));
+            assertEquals(rs.getBigDecimal(6), new BigDecimal("12.34"));
+            assertEquals(rs.getObject(2, String.class), "abc");
+
+            assertEquals(lookupsByName.get(), 0,
+                    "Getters called by column index must not resolve values by column name");
+
+            // A label is resolved to a column index once, so the reader is used by index here as well.
+            assertEquals(rs.getLong("id"), 42L);
+            assertEquals(rs.getString("s"), "abc");
+            assertEquals(rs.getObject("n"), null);
+            assertEquals(lookupsByName.get(), 0,
+                    "Getters called by column label must resolve the label to an index and read by index");
+
+            // A column index the result set does not have is still rejected, and a label it does not
+            // have still reads as SQL NULL, as before reading by index.
+            Assert.assertThrows(SQLException.class, () -> rs.getLong(7));
+            Assert.assertThrows(SQLException.class, () -> rs.getLong(-1));
+            assertEquals(rs.getLong("no_such_column"), 0L);
+            assertTrue(rs.wasNull());
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testGettersOnClosedResultSetThrowSqlException() throws SQLException {
+        try (Connection conn = getJdbcConnection();
+             Statement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery("SELECT 42 AS id");
+            assertTrue(rs.next());
+            assertEquals(rs.getLong(1), 42L);
+            rs.close();
+
+            Assert.expectThrows(SQLException.class, () -> rs.getObject(1));
+            Assert.expectThrows(SQLException.class, () -> rs.getObject(1, new HashMap<>()));
+            Assert.expectThrows(SQLException.class, () -> rs.getObject(1, Integer.class));
+            Assert.expectThrows(SQLException.class, () -> rs.getLong(1));
+            Assert.expectThrows(SQLException.class, () -> rs.getUnicodeStream(1));
+            Assert.expectThrows(SQLException.class, () -> rs.getUnicodeStream("id"));
+            Assert.expectThrows(SQLException.class, () -> rs.getObject("id"));
+            Assert.expectThrows(SQLException.class, () -> rs.getString("id"));
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testGetUnicodeStreamByLabel() throws SQLException, IOException {
+        try (Connection conn = getJdbcConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT 'abc' AS s")) {
+            assertTrue(rs.next());
+
+            byte[] value = new byte[3];
+            assertEquals(rs.getUnicodeStream("s").read(value), 3);
+            assertEquals(new String(value, StandardCharsets.UTF_8), "abc");
+
+            SQLException e = Assert.expectThrows(SQLException.class, () -> rs.getUnicodeStream("no_such_column"));
+            assertTrue(e.getMessage().contains("no_such_column"),
+                    "Exception must name the unknown column label, but was: " + e.getMessage());
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testTypedGettersByIndexAndLabel() throws SQLException, IOException {
+        try (Connection conn = getJdbcConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT toDecimal64('12.3456', 4) AS dec," +
+                     " 'https://clickhouse.com/docs' AS url, 'abc' AS txt," +
+                     " toDateTime('2024-05-06 07:08:09', 'UTC') AS ts, toDate('2024-05-06') AS d," +
+                     " CAST(NULL AS Nullable(DateTime)) AS null_ts")) {
+            assertTrue(rs.next());
+
+            assertEquals(rs.getBigDecimal(1), new BigDecimal("12.3456"));
+            assertEquals(rs.getBigDecimal("dec"), new BigDecimal("12.3456"));
+
+            assertEquals(rs.getURL(2), new URL("https://clickhouse.com/docs"));
+            assertEquals(rs.getURL("url"), new URL("https://clickhouse.com/docs"));
+
+            assertEquals(rs.getNString(3), "abc");
+            assertEquals(rs.getNString("txt"), "abc");
+
+            assertEquals(readFully(rs.getNCharacterStream(3)), "abc");
+            assertEquals(readFully(rs.getNCharacterStream("txt")), "abc");
+
+            assertEquals(rs.getObject(3, new HashMap<>()), "abc");
+
+            // Without an explicit calendar the column value is rendered with the connection calendar,
+            // which uses the JVM default zone. The expected values are built the same way, so the
+            // assertions hold in any JVM zone.
+            assertEquals(rs.getObject(4, Timestamp.class), Timestamp.valueOf("2024-05-06 07:08:09"));
+            assertEquals(rs.getObject(5, Date.class), Date.valueOf("2024-05-06"));
+            // An explicit calendar replaces that zone, so the returned value is midnight UTC.
+            assertEquals(rs.getDate(5, Calendar.getInstance(TimeZone.getTimeZone("UTC"))).getTime(),
+                    Instant.parse("2024-05-06T00:00:00Z").toEpochMilli());
+
+            Assert.assertNull(rs.getTime(6, null));
+            assertTrue(rs.wasNull());
+        }
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "gettersOnUnconvertibleValue")
+    public void testGetterFailureIsReportedAsSqlException(String description, RsAccessor accessor) throws SQLException {
+        try (Connection conn = getJdbcConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT 'abc' AS txt")) {
+            assertTrue(rs.next());
+            try {
+                accessor.apply(rs);
+                Assert.fail(description + " must report the failure as an SQLException, but nothing was thrown");
+            } catch (SQLException expected) {
+                // the value of a String column cannot be converted, and the failure is reported to JDBC callers
+            } catch (Exception e) {
+                Assert.fail(description + " must report the failure as an SQLException, but was: " + e, e);
+            }
+        }
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "gettersOnOutOfRangeIndex")
+    public void testOutOfRangeIndexIsReportedAsSqlException(String format, Properties properties,
+                                                           String description, RsAccessor accessor) throws SQLException {
+        try (Connection conn = getJdbcConnection(properties);
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT 'abc' AS txt")) {
+            assertTrue(rs.next());
+            try {
+                accessor.apply(rs);
+                Assert.fail(format + " " + description + " must reject a column index the result set does not have");
+            } catch (SQLException expected) {
+                // an invalid column index is reported to JDBC callers, whatever the format
+            } catch (Exception e) {
+                Assert.fail(format + " " + description + " must report an invalid column index as an SQLException,"
+                        + " but was: " + e, e);
+            }
+        }
+    }
+
+    @DataProvider(name = "gettersOnOutOfRangeIndex")
+    public static Object[][] gettersOnOutOfRangeIndex() {
+        // the result set of the test query has one column, so every index below is invalid
+        int[] indexes = new int[]{2, 0, -1};
+        Object[][] formats = new Object[][]{
+                {"RowBinaryWithNamesAndTypes", new Properties()},
+                {"JSONEachRow", jsonEachRowProperties()},
+        };
+
+        List<Object[]> cases = new ArrayList<>();
+        for (Object[] format : formats) {
+            for (int index : indexes) {
+                cases.add(new Object[]{format[0], format[1], "getString(" + index + ")",
+                        (RsAccessor) rs -> rs.getString(index)});
+                cases.add(new Object[]{format[0], format[1], "getLong(" + index + ")",
+                        (RsAccessor) rs -> rs.getLong(index)});
+                cases.add(new Object[]{format[0], format[1], "getBytes(" + index + ")",
+                        (RsAccessor) rs -> rs.getBytes(index)});
+                cases.add(new Object[]{format[0], format[1], "getBinaryStream(" + index + ")",
+                        (RsAccessor) rs -> rs.getBinaryStream(index)});
+            }
+        }
+        return cases.toArray(new Object[0][]);
+    }
+
+    @Test(groups = {"integration"})
+    public void testByteGettersUnknownLabelReadsAsNull() throws SQLException {
+        for (Properties properties : new Properties[]{new Properties(), jsonEachRowProperties()}) {
+            try (Connection conn = getJdbcConnection(properties);
+                 Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery("SELECT 'abc' AS txt")) {
+                assertTrue(rs.next());
+
+                // an unknown label reads as SQL NULL, like the other label getters
+                Assert.assertNull(rs.getBytes("no_such_column"));
+                assertTrue(rs.wasNull());
+                Assert.assertNull(rs.getBinaryStream("no_such_column"));
+                assertTrue(rs.wasNull());
+            }
+        }
+
+        // on a closed result set the failure is reported to JDBC callers
+        Connection conn = getJdbcConnection();
+        Statement stmt = conn.createStatement();
+        ResultSet rs = stmt.executeQuery("SELECT 'abc' AS txt");
+        assertTrue(rs.next());
+        rs.close();
+        Assert.expectThrows(SQLException.class, () -> rs.getBytes("txt"));
+        Assert.expectThrows(SQLException.class, () -> rs.getBinaryStream("txt"));
+        stmt.close();
+        conn.close();
+    }
+
+    @Test(groups = {"integration"})
+    public void testByteGettersReadSqlNullAsNull() throws SQLException {
+        for (Properties properties : new Properties[]{new Properties(), jsonEachRowProperties()}) {
+            try (Connection conn = getJdbcConnection(properties);
+                 Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery("SELECT CAST(NULL AS Nullable(String)) AS txt, 'abc' AS present")) {
+                assertTrue(rs.next());
+
+                Assert.assertNull(rs.getBytes(1));
+                assertTrue(rs.wasNull());
+                Assert.assertNull(rs.getBinaryStream(1));
+                assertTrue(rs.wasNull());
+            }
+        }
+
+        // contrast: a column that has a value is unaffected
+        try (Connection conn = getJdbcConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT CAST(NULL AS Nullable(String)) AS txt, 'abc' AS present")) {
+            assertTrue(rs.next());
+            assertEquals(new String(rs.getBytes(2), StandardCharsets.UTF_8), "abc");
+            Assert.assertFalse(rs.wasNull());
+        }
+    }
+
+    private static Properties jsonEachRowProperties() {
+        Properties properties = new Properties();
+        properties.setProperty(DriverProperties.JSON_PARSER_FACTORY.getKey(), JacksonJsonParserFactory.class.getName());
+        properties.setProperty(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), "JSONEachRow");
+        return properties;
+    }
+
+    @DataProvider(name = "gettersOnUnconvertibleValue")
+    public static Object[][] gettersOnUnconvertibleValue() {
+        return new Object[][]{
+                {"getByte(int)", (RsAccessor) rs -> rs.getByte(1)},
+                {"getByte(String)", (RsAccessor) rs -> rs.getByte("txt")},
+                {"getShort(int)", (RsAccessor) rs -> rs.getShort(1)},
+                {"getShort(String)", (RsAccessor) rs -> rs.getShort("txt")},
+                {"getInt(int)", (RsAccessor) rs -> rs.getInt(1)},
+                {"getInt(String)", (RsAccessor) rs -> rs.getInt("txt")},
+                {"getLong(int)", (RsAccessor) rs -> rs.getLong(1)},
+                {"getLong(String)", (RsAccessor) rs -> rs.getLong("txt")},
+                {"getFloat(int)", (RsAccessor) rs -> rs.getFloat(1)},
+                {"getFloat(String)", (RsAccessor) rs -> rs.getFloat("txt")},
+                {"getDouble(int)", (RsAccessor) rs -> rs.getDouble(1)},
+                {"getDouble(String)", (RsAccessor) rs -> rs.getDouble("txt")},
+                {"getBigDecimal(int)", (RsAccessor) rs -> rs.getBigDecimal(1)},
+                {"getBigDecimal(String)", (RsAccessor) rs -> rs.getBigDecimal("txt")},
+                {"getBigDecimal(int, int)", (RsAccessor) rs -> rs.getBigDecimal(1, 2)},
+                {"getBigDecimal(String, int)", (RsAccessor) rs -> rs.getBigDecimal("txt", 2)},
+                {"getURL(int)", (RsAccessor) rs -> rs.getURL(1)},
+                {"getURL(String)", (RsAccessor) rs -> rs.getURL("txt")},
+                {"getTime(int, Calendar)", (RsAccessor) rs -> rs.getTime(1, null)},
+                {"getTime(String, Calendar)", (RsAccessor) rs -> rs.getTime("txt", null)},
+                {"getDate(int, Calendar)", (RsAccessor) rs -> rs.getDate(1, Calendar.getInstance())},
+                {"getDate(String, Calendar)", (RsAccessor) rs -> rs.getDate("txt", Calendar.getInstance())},
+        };
+    }
+
+    @FunctionalInterface
+    public interface RsAccessor {
+        Object apply(ResultSet rs) throws Exception;
+    }
+
+    private static String readFully(Reader reader) throws IOException {
+        try (Reader r = reader) {
+            StringBuilder value = new StringBuilder();
+            int c;
+            while ((c = r.read()) != -1) {
+                value.append((char) c);
+            }
+            return value.toString();
+        }
+    }
+
+    /**
+     * Wraps a reader and counts calls to accessors that take a column name, so a test can verify that
+     * index-based getters do not resolve values through column names.
+     */
+    private static ClickHouseFormatReader readerCountingNameLookups(ClickHouseFormatReader delegate,
+                                                                    AtomicInteger lookupsByName) {
+        return (ClickHouseFormatReader) Proxy.newProxyInstance(ResultSetImplTest.class.getClassLoader(),
+                new Class<?>[]{ClickHouseFormatReader.class}, (proxy, method, args) -> {
+                    Class<?>[] parameterTypes = method.getParameterTypes();
+                    if (parameterTypes.length > 0 && parameterTypes[0] == String.class) {
+                        lookupsByName.incrementAndGet();
+                    }
+                    try {
+                        return method.invoke(delegate, args);
+                    } catch (InvocationTargetException e) {
+                        throw e.getCause();
+                    }
+                });
     }
 }

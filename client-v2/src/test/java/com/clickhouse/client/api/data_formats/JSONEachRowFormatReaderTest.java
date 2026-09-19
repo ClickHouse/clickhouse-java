@@ -279,6 +279,24 @@ public class JSONEachRowFormatReaderTest {
     }
 
     @Test
+    public void testHasValueWithIndexOutsideSchema() throws Exception {
+        Map<String, Object> r = new LinkedHashMap<>();
+        r.put("present", "value");
+
+        try (JSONEachRowFormatReader reader = new JSONEachRowFormatReader(
+                new StubJsonParser(Collections.singletonList(r)))) {
+            reader.next();
+            // An index the schema does not have holds no value, like in the binary readers.
+            Assert.assertFalse(reader.hasValue(0));
+            Assert.assertFalse(reader.hasValue(-1));
+            Assert.assertFalse(reader.hasValue(Integer.MIN_VALUE));
+            Assert.assertFalse(reader.hasValue(2));
+            // contrast: an index the schema does have still reports its value
+            Assert.assertTrue(reader.hasValue(1));
+        }
+    }
+
+    @Test
     public void testCloseDelegatesToParser() throws Exception {
         StubJsonParser parser = new StubJsonParser(Collections.singletonList(row("id", 1)));
         JSONEachRowFormatReader reader = new JSONEachRowFormatReader(parser);

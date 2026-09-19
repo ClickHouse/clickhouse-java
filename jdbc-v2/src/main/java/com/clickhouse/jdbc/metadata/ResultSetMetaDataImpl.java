@@ -138,6 +138,24 @@ public class ResultSetMetaDataImpl implements java.sql.ResultSetMetaData, JdbcV2
             throw new SQLException("Column \"" + columnName + "\" does not exist.", ExceptionUtils.SQL_STATE_CLIENT_ERROR);
         }
 
+        return resolveColumnClass(binding, typeMap);
+    }
+
+    /**
+     * Index-based counterpart of {@link #resolveColumnClass(String, Map)}. Reading by column index avoids
+     * resolving the index to a column name first.
+     *
+     * @param column 1-based column index
+     * @param typeMap optional caller supplied type map (e.g. from {@code getObject(col, map)}); when {@code null}
+     *                or empty the column's default class is used
+     * @return target Java class, or {@code null} to indicate the value should be read as-is
+     * @throws SQLException if the column index is out of range
+     */
+    public Class<?> resolveColumnClass(int column, Map<String, Class<?>> typeMap) throws SQLException {
+        return resolveColumnClass(getColumnTypeBinding(column), typeMap);
+    }
+
+    private Class<?> resolveColumnClass(ColumnTypeBinding binding, Map<String, Class<?>> typeMap) {
         ClickHouseDataType dataType = binding.getColumn().getDataType();
         switch (dataType) {
             case Point:
