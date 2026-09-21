@@ -259,6 +259,8 @@ LIMIT 100;
 - **`Connection.close()`** closes the underlying `Client` and its HTTP pool — expected when returning to a pool.
 
 </common-pitfalls>
+
+See [integration-testing.md — Connecting](integration-testing.md#connecting) for tests that verify pool sizing (`max_open_connections`) and connection release under load.
 ---
 
 ## Step 2 — Authentication
@@ -353,6 +355,8 @@ public Connection createCustomHeadersConnection() throws SQLException {
 - **Credentials embedded in the JDBC URL** leak into logs and connection-pool config dumps — use `Properties`.
 
 </common-pitfalls>
+
+See [integration-testing.md — Configuration](integration-testing.md#configuration) for what to verify when testing authentication end-to-end (boundary/invalid values, certificate acceptance).
 ---
 
 ## Step 3 — Transport & connectivity (TLS, proxies, timeouts)
@@ -369,7 +373,7 @@ public Connection createCustomHeadersConnection() throws SQLException {
 | Trust store | `trust_store`, `key_store_password`, `key_store_type` |
 | HTTP proxy | `proxy_type=http`, `proxy_host`, `proxy_port`, `proxy_user`, `proxy_password` |
 
-See [examples/jdbc SSLExamples](../examples/jdbc/src/main/java/com/clickhouse/examples/jdbc/SSLExamples.java) and [authentication.md](authentication.md).
+See [examples/jdbc SSLExamples](../examples/jdbc/src/main/java/com/clickhouse/examples/jdbc/SSLExamples.java) and [authentication.md](authentication.md). See also [integration-testing.md — Test Environment](integration-testing.md#test-environment) for testing across protocols, hosts, and ClickHouse versions.
 
 ### Init configuration — server vs client settings
 
@@ -407,6 +411,8 @@ public boolean checkConnectionHealth(Connection conn, int timeoutSeconds) throws
 - **Proxy credentials omitted** on authenticated proxies produce opaque connection failures.
 
 </common-pitfalls>
+
+See [integration-testing.md — Connecting](integration-testing.md#connecting) for connection-timeout and concurrency test scenarios to cover.
 ---
 
 ## Step 4 — Formats under the hood
@@ -520,6 +526,8 @@ This hybrid approach allows you to use standard JDBC for simple CRUD and metadat
 - **Text INSERT overhead** — default SQL-based inserts are slower than binary streaming. Use the [Java Client](integration-client.md) for maximum throughput.
 
 </common-pitfalls>
+
+See [integration-testing.md — Fetching Data](integration-testing.md#fetching-data) and [Loading Data](integration-testing.md#loading-data) for data-format test scenarios to cover.
 ---
 
 ## Step 5 — Read operations & tuning
@@ -602,6 +610,8 @@ public void readSpecialTypes(ResultSet rs) throws SQLException {
 - **Some frameworks materialize all rows** even though the driver streams — watch memory.
 
 </common-pitfalls>
+
+See [integration-testing.md — Fetching Data](integration-testing.md#fetching-data) for read-path test scenarios to cover (data types, formats, failure handling).
 ---
 
 ## Step 6 — Write operations & tuning
@@ -683,7 +693,7 @@ public void insertWithPerStatementDedup(Connection conn, String token) throws SQ
 
 **2. Switch to the Java Client** for per-insert token control via `InsertSettings.setDeduplicationToken(...)`.
 
-See [integration-client.md — deduplication token](integration-client.md#idempotency--deduplication-token) for semantics and requirements.
+See [integration-client.md — deduplication token](integration-client.md#idempotency--deduplication-token) for semantics and requirements, and [integration-testing.md — Loading Data](integration-testing.md#loading-data) for how to verify the token is set correctly and honored.
 
 ### Best practices
 
@@ -901,3 +911,4 @@ For a complete sample demonstrating JDBC driver setup and telemetry in a Spring 
 - [authentication.md](authentication.md) — full authentication and TLS reference
 - [features.md](features.md) — compatibility contract
 - [type_mapping.md](../type_mapping.md) — JDBC type mapping recommendations
+- [integration-testing.md](integration-testing.md) — integration testing recommendations and practices

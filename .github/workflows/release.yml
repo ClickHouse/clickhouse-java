@@ -62,13 +62,6 @@ jobs:
           MAVEN_PASSWORD: ${{ secrets.SONATYPE_TOKEN }}
           MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: mvn -q --batch-mode -P release -DclickhouseVersion=${{ env.CH_VERSION }} clean deploy
-      - name: Release R2DBC 0.9.1
-        working-directory: clickhouse-r2dbc
-        env:
-          MAVEN_USERNAME: ${{ secrets.SONATYPE_TOKEN_USER }}
-          MAVEN_PASSWORD: ${{ secrets.SONATYPE_TOKEN }}
-          MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-        run: mvn -q --batch-mode -P release -Dr2dbc-spi.version=0.9.1.RELEASE -DclickhouseVersion=${{ env.CH_VERSION }} clean deploy
       - name: Create Pre-release on Github
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

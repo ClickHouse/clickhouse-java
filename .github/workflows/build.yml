@@ -372,10 +372,10 @@ jobs:
     needs: test-jdbc-driver
     strategy:
       matrix:
-        clickhouse: ["25.8", "26.3", "latest"]
+        clickhouse: ["25.8", "26.3", "26.8", "latest"]
         # grpc is not fully supported, and http_client and apache_http_client do not work in CI environment(due to limited threads?)
         protocol: ["http"]
-        r2dbc: ["1.0.0.RELEASE", "0.9.1.RELEASE"]
+        r2dbc: ["1.0.0.RELEASE"]
       fail-fast: false
     timeout-minutes: 10
     name: R2DBC ${{ matrix.r2dbc }} + CH ${{ matrix.clickhouse }} (${{ matrix.protocol }})
