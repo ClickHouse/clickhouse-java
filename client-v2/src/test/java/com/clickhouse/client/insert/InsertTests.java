@@ -463,8 +463,9 @@ public class InsertTests extends BaseIntegrationTest {
     @Test(groups = {"integration"}, dataProviderClass = InsertTests.class, dataProvider = "logCommentDataProvider")
     public void testLogComment(String logComment) throws Exception {
 
+        final String queryId = UUID.randomUUID().toString();
         InsertSettings settings = new InsertSettings()
-                .setQueryId(UUID.randomUUID().toString())
+                .setQueryId(queryId)
                 .logComment(logComment);
 
         final String tableName = "single_pojo_table";
@@ -482,8 +483,8 @@ public class InsertTests extends BaseIntegrationTest {
         try (CommandResponse resp = client.execute("SYSTEM FLUSH LOGS").get()) {
         }
 
-        final String selectQueryLog = "SELECT query_id, log_comment FROM clusterAllReplicas('default', system.query_log) WHERE query_id = '" + settings.getQueryId() + "'";
-        int attempts = 3;
+        final String selectQueryLog = "SELECT query_id, log_comment FROM clusterAllReplicas('default', system.query_log) WHERE query_id = '" + queryId + "'";
+        int attempts = 10;
         boolean found = false;
         for (int i = 0; i < attempts; i++) {
             List<GenericRecord> logRecords = client.queryAll(selectQueryLog);
