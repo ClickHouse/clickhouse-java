@@ -98,7 +98,8 @@ public class ArrayResultSet implements ResultSet {
 
     @Override
     public boolean next() throws SQLException {
-        if (pos + 1 >= length || length == 0) {
+        if (pos + 1 >= length) {
+            pos = length;
             return false;
         }
         pos++;
@@ -478,7 +479,7 @@ public class ArrayResultSet implements ResultSet {
 
     @Override
     public boolean isFirst() throws SQLException {
-        return pos == 0;
+        return length > 0 && pos == 0;
     }
 
     @Override
