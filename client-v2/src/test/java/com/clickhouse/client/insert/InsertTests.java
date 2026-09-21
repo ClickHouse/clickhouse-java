@@ -484,6 +484,7 @@ public class InsertTests extends BaseIntegrationTest {
 
         final String selectQueryLog = "SELECT query_id, log_comment FROM clusterAllReplicas('default', system.query_log) WHERE query_id = '" + settings.getQueryId() + "'";
         int attempts = 3;
+        boolean found = false;
         for (int i = 0; i < attempts; i++) {
             List<GenericRecord> logRecords = client.queryAll(selectQueryLog);
             if (logRecords.isEmpty()) {
@@ -491,8 +492,10 @@ public class InsertTests extends BaseIntegrationTest {
             }
             Assert.assertEquals(logRecords.get(0).getString("query_id"), settings.getQueryId());
             Assert.assertEquals(logRecords.get(0).getString("log_comment"), logComment == null ? "" : logComment);
-
+            found = true;
+            break;
         }
+        Assert.assertTrue(found);
     }
 
     @Test(groups = { "integration" })
