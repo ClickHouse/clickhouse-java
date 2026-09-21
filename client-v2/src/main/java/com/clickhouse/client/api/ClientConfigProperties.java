@@ -69,9 +69,19 @@ public enum ClientConfigProperties {
 
     SOCKET_OPERATION_TIMEOUT("socket_timeout", Integer.class, "0"),
 
-    SOCKET_RCVBUF_OPT("socket_rcvbuf", Integer.class, "804800"),
+    /**
+     * Socket receive buffer size in bytes (SO_RCVBUF). Not set by default: the operating system
+     * sizes and auto-tunes the buffer. Setting it disables that auto-tuning and is not recommended
+     * unless a measurement shows a benefit.
+     */
+    SOCKET_RCVBUF_OPT("socket_rcvbuf", Integer.class),
 
-    SOCKET_SNDBUF_OPT("socket_sndbuf",  Integer.class,"804800"),
+    /**
+     * Socket send buffer size in bytes (SO_SNDBUF). Not set by default: the operating system
+     * sizes and auto-tunes the buffer. Setting it disables that auto-tuning and is not recommended
+     * unless a measurement shows a benefit.
+     */
+    SOCKET_SNDBUF_OPT("socket_sndbuf", Integer.class),
 
     SOCKET_REUSEADDR_OPT("socket_reuseaddr", Boolean.class),
 
@@ -125,7 +135,7 @@ public enum ClientConfigProperties {
 
     RETRY_ON_FAILURE("retry", Integer.class, "3"),
 
-    INPUT_OUTPUT_FORMAT("format", ClickHouseFormat.class),
+    INPUT_OUTPUT_FORMAT("format", ClickHouseFormat.class, ClickHouseFormat.RowBinaryWithNamesAndTypes.name()),
 
     MAX_THREADS_PER_CLIENT("max_threads_per_client", Integer.class, "0"),
 
@@ -347,9 +357,20 @@ public enum ClientConfigProperties {
         }
 
         if (valueType.isEnum()) {
+            String configValue = value.trim();
+            if (configValue.isEmpty()) {
+                return null;
+            }
+            if (valueType.equals(ClickHouseFormat.class)) {
+                try {
+                    return ClickHouseFormat.fromString(configValue);
+                } catch (IllegalArgumentException e) {
+                    return configValue;
+                }
+            }
             Object[] constants = valueType.getEnumConstants();
             for (Object constant : constants) {
-                if (constant.toString().equals(value)) {
+                if (constant.toString().equalsIgnoreCase(configValue)) {
                     return constant;
                 }
             }
@@ -395,7 +416,9 @@ public enum ClientConfigProperties {
                     default:
                         parsedValue = config.parseValue(value);
                 }
-                parsedConfig.put(config.getKey(), parsedValue);
+                if (parsedValue != null) {
+                    parsedConfig.put(config.getKey(), parsedValue);
+                }
             }
         }
 

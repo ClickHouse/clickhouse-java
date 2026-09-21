@@ -3,11 +3,13 @@ package com.clickhouse.jdbc.metadata;
 import com.clickhouse.client.api.sql.SQLUtils;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
+import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.jdbc.ClientInfoProperties;
 import com.clickhouse.jdbc.ConnectionImpl;
 import com.clickhouse.jdbc.Driver;
 import com.clickhouse.jdbc.DriverProperties;
 import com.clickhouse.jdbc.JdbcV2Wrapper;
+import com.clickhouse.jdbc.StatementImpl;
 import com.clickhouse.jdbc.internal.DetachedResultSet;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.JdbcUtils;
@@ -91,6 +93,22 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         this.useCatalogs = useCatalogs;
         this.catalogPlaceholder = useCatalogs ? "'local' " : "''";
         this.jdbcUrl = url;
+    }
+
+    private Statement createStatement() throws SQLException {
+        Statement stmt = connection.createStatement();
+        if (stmt instanceof StatementImpl) {
+            ((StatementImpl) stmt).getLocalSettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
+        }
+        return stmt;
+    }
+
+    private PreparedStatement prepareStatement(String sql) throws SQLException {
+        PreparedStatement stmt = connection.prepareStatement(sql);
+        if (stmt instanceof StatementImpl) {
+            ((StatementImpl) stmt).getLocalSettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
+        }
+        return stmt;
     }
 
     @Override
@@ -735,7 +753,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                 "'' AS SPECIFIC_NAME " +
                 "LIMIT 0";
         try {
-            return connection.createStatement().executeQuery(sql);
+            return createStatement().executeQuery(sql);
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -766,7 +784,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                 "'' AS SPECIFIC_NAME " +
                 "LIMIT 0";
         try {
-            return connection.createStatement().executeQuery(sql);
+            return createStatement().executeQuery(sql);
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -1008,7 +1026,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                 " AND t.name LIKE ?"
                 + engineFilter;
 
-        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+        try (PreparedStatement stmt = prepareStatement(sql)) {
             stmt.setString(1, (schemaPattern == null ? "%" : schemaPattern));
             stmt.setString(2, (tableNamePattern == null ? "%" : tableNamePattern));
             try (ResultSet rs = stmt.executeQuery()) {
@@ -1031,7 +1049,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
     public ResultSet getSchemas() throws SQLException {
         // TODO: handle useCatalogs == true and return schema catalog name
         try {
-            return connection.createStatement().executeQuery("SELECT name AS TABLE_SCHEM, " + catalogPlaceholder + " AS TABLE_CATALOG FROM system.databases ORDER BY name");
+            return createStatement().executeQuery("SELECT name AS TABLE_SCHEM, " + catalogPlaceholder + " AS TABLE_CATALOG FROM system.databases ORDER BY name");
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -1046,7 +1064,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
     @Override
     public ResultSet getCatalogs() throws SQLException {
         try {
-            return connection.createStatement().executeQuery("SELECT 'local' AS TABLE_CAT "  + (useCatalogs ? "" : " WHERE 1 = 0"));
+            return createStatement().executeQuery("SELECT 'local' AS TABLE_CAT "  + (useCatalogs ? "" : " WHERE 1 = 0"));
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -1061,7 +1079,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
      */
     @Override
     public ResultSet getTableTypes() throws SQLException {
-        try (PreparedStatement stmt = connection.prepareStatement("SELECT arrayJoin(?) AS TABLE_TYPE ORDER BY TABLE_TYPE")) {
+        try (PreparedStatement stmt = prepareStatement("SELECT arrayJoin(?) AS TABLE_TYPE ORDER BY TABLE_TYPE")) {
             stmt.setObject(1, TABLE_TYPES_SQL_ARRAY);
             try (ResultSet rs = stmt.executeQuery()) {
                 return DetachedResultSet.createFromResultSet(rs, connection.getDefaultCalendar(), Collections.emptyList());
@@ -1105,7 +1123,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                 " AND table LIKE " + SQLUtils.enquoteLiteral(tableNamePattern == null ? "%" : tableNamePattern) +
                 " AND name LIKE " + SQLUtils.enquoteLiteral(columnNamePattern == null ? "%" : columnNamePattern) +
                 " ORDER BY TABLE_SCHEM, TABLE_NAME, ORDINAL_POSITION";
-        try (Statement statement = connection.createStatement(); ResultSet rs = statement.executeQuery(sql)) {
+        try (Statement statement = createStatement(); ResultSet rs = statement.executeQuery(sql)) {
             return DetachedResultSet.createFromResultSet(rs, connection.getDefaultCalendar(), GET_COLUMNS_RS_MUTATORS);
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
@@ -1149,7 +1167,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
     public ResultSet getColumnPrivileges(String catalog, String schema, String table, String columnNamePattern) throws SQLException {
         //Return an empty result set with the required columns
         try {
-            return connection.createStatement().executeQuery(
+            return createStatement().executeQuery(
                     "SELECT CAST(NULL as Nullable(String)) AS TABLE_CAT, " +
                     "CAST(NULL as Nullable(String)) AS TABLE_SCHEM, " +
                     "CAST(NULL as Nullable(String)) AS TABLE_NAME, " +
@@ -1168,7 +1186,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
     public ResultSet getTablePrivileges(String catalog, String schemaPattern, String tableNamePattern) throws SQLException {
         //Return an empty result set with the required columns
         try {
-            return connection.createStatement().executeQuery(
+            return createStatement().executeQuery(
                     "SELECT CAST(NULL as Nullable(String)) AS TABLE_CAT, " +
                     "CAST(NULL as Nullable(String)) AS TABLE_SCHEM, " +
                     "CAST(NULL as Nullable(String)) AS TABLE_NAME, " +
@@ -1186,7 +1204,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
     public ResultSet getBestRowIdentifier(String catalog, String schema, String table, int scope, boolean nullable) throws SQLException {
         //Return an empty result set with the required columns
         try {
-            return connection.createStatement().executeQuery(
+            return createStatement().executeQuery(
                     "SELECT CAST(NULL as Nullable(Int16)) AS SCOPE, " +
                     "CAST(NULL as Nullable(String)) AS COLUMN_NAME, " +
                     "CAST(NULL as Nullable(Int32)) AS DATA_TYPE, " +
@@ -1205,7 +1223,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
     public ResultSet getVersionColumns(String catalog, String schema, String table) throws SQLException {
         //Return an empty result set with the required columns
         try {
-            return connection.createStatement().executeQuery(
+            return createStatement().executeQuery(
                     "SELECT CAST(NULL as Nullable(Int16)) AS SCOPE, " +
                     "CAST(NULL as Nullable(String)) AS COLUMN_NAME, " +
                     "CAST(NULL as Nullable(Int32)) AS DATA_TYPE, " +
@@ -1235,7 +1253,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                     "AND system.tables.database ILIKE '" + (schema == null ? "%" : schema) + "' " +
                     "AND system.tables.name ILIKE '" + (table == null ? "%" : table) + "' " +
                     "ORDER BY COLUMN_NAME";
-            return connection.createStatement().executeQuery(sql);
+            return createStatement().executeQuery(sql);
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -1260,7 +1278,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                     "CAST(NULL as Nullable(String)) AS PK_NAME, " +
                     "CAST(NULL as Nullable(Int16)) AS DEFERRABILITY" +
                     " LIMIT 0";
-            return connection.createStatement().executeQuery(sql);
+            return createStatement().executeQuery(sql);
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -1270,7 +1288,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
     public ResultSet getExportedKeys(String catalog, String schema, String table) throws SQLException {
         // ClickHouse has no notion of foreign key. This method should return empty resultset
         try {
-            return connection.createStatement().executeQuery(
+            return createStatement().executeQuery(
                     "SELECT CAST(NULL as Nullable(String)) AS PKTABLE_CAT, " +
                     "CAST(NULL as Nullable(String)) AS PKTABLE_SCHEM, " +
                     "CAST(NULL as Nullable(String)) AS PKTABLE_NAME, " +
@@ -1310,7 +1328,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                     "CAST(NULL as Nullable(String)) AS PK_NAME, " +
                     "CAST(NULL as Nullable(Int16)) AS DEFERRABILITY" +
                     " LIMIT 0";
-            return connection.createStatement().executeQuery("SELECT " + columns);
+            return createStatement().executeQuery("SELECT " + columns);
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -1319,7 +1337,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
     @Override
     @SuppressWarnings({"squid:S2095"})
     public ResultSet getTypeInfo() throws SQLException {
-        try (Statement stmt = connection.createStatement(); ResultSet rs = stmt.executeQuery(DATA_TYPE_INFO_SQL)) {
+        try (Statement stmt = createStatement(); ResultSet rs = stmt.executeQuery(DATA_TYPE_INFO_SQL)) {
             return DetachedResultSet.createFromResultSet(rs, connection.getDefaultCalendar(), GET_TYPE_INFO_MUTATORS);
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
@@ -1458,6 +1476,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         mBuilder.put("MultiPolygon", new TypeLiteralInfo("[", "]"));
         mBuilder.put("LineString", new TypeLiteralInfo("[", "]"));
         mBuilder.put("MultiLineString", new TypeLiteralInfo("[", "]"));
+        mBuilder.put("MultiPoint", new TypeLiteralInfo("[", "]"));
 
         TYPE_LITERAL_INFO_MAP = mBuilder.buildOrThrow();
     }
@@ -1538,7 +1557,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                 "CAST(NULL as Nullable(Int64)) AS PAGES, " +
                 "CAST(NULL as Nullable(String)) AS FILTER_CONDITION " +
                     " LIMIT 0";
-            return connection.createStatement().executeQuery(sql);
+            return createStatement().executeQuery(sql);
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -1608,7 +1627,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
     public ResultSet getUDTs(String catalog, String schemaPattern, String typeNamePattern, int[] types) throws SQLException {
         //Return an empty result set with the required columns
         try {
-            return connection.createStatement().executeQuery("SELECT " +
+            return createStatement().executeQuery("SELECT " +
                     "CAST(NULL as Nullable(String)) AS TYPE_CAT, " +
                     "CAST(NULL as Nullable(String)) AS TYPE_SCHEM, " +
                     "CAST(NULL as Nullable(String)) AS TYPE_NAME, " +
@@ -1651,7 +1670,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
     public ResultSet getSuperTypes(String catalog, String schemaPattern, String typeNamePattern) throws SQLException {
         //Return an empty result set with the required columns
         try {
-            return connection.createStatement().executeQuery(
+            return createStatement().executeQuery(
                     "SELECT CAST(NULL as Nullable(String)) AS TYPE_CAT, "
                     + "CAST(NULL as Nullable(String)) AS TYPE_SCHEM, "
                     + "CAST(NULL as Nullable(String)) AS TYPE_NAME, "
@@ -1668,7 +1687,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
     public ResultSet getSuperTables(String catalog, String schemaPattern, String tableNamePattern) throws SQLException {
         //Return an empty result set with the required columns
         try {
-            return connection.createStatement().executeQuery(
+            return createStatement().executeQuery(
                     "SELECT "
                     + "CAST(NULL as Nullable(String)) AS TABLE_CAT, "
                     + "CAST(NULL as Nullable(String)) AS TABLE_SCHEM, "
@@ -1684,7 +1703,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
     public ResultSet getAttributes(String catalog, String schemaPattern, String typeNamePattern, String attributeNamePattern) throws SQLException {
         //Return an empty result set with the required columns
         try {
-            return connection.createStatement().executeQuery(
+            return createStatement().executeQuery(
                     "SELECT "
                     + "CAST(NULL as Nullable(String)) AS TYPE_CAT, "
                     + "CAST(NULL as Nullable(String)) AS TYPE_SCHEM, "
@@ -1778,7 +1797,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
     public ResultSet getSchemas(String catalog, String schemaPattern) throws SQLException {
         // TODO: handle useCatalogs == true and return schema catalog name
         try {
-            return connection.createStatement().executeQuery("SELECT name AS TABLE_SCHEM, " + catalogPlaceholder + " AS TABLE_CATALOG FROM system.databases " +
+            return createStatement().executeQuery("SELECT name AS TABLE_SCHEM, " + catalogPlaceholder + " AS TABLE_CATALOG FROM system.databases " +
                     "WHERE name LIKE '" + (schemaPattern == null ? "%" : schemaPattern) + "'");
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
@@ -1814,7 +1833,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
     @Override
     public ResultSet getClientInfoProperties() throws SQLException {
         try {
-            return connection.createStatement().executeQuery(CLIENT_INFO_PROPERTIES_SQL);
+            return createStatement().executeQuery(CLIENT_INFO_PROPERTIES_SQL);
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -1832,7 +1851,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                 "FROM system.functions " +
                 "WHERE name LIKE '" + (functionNamePattern == null ? "%" : functionNamePattern) + "'";
         try {
-            return connection.createStatement().executeQuery(sql);
+            return createStatement().executeQuery(sql);
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -1861,7 +1880,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                 "LIMIT 0";
 
         try {
-            return connection.createStatement().executeQuery(sql);
+            return createStatement().executeQuery(sql);
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -1885,7 +1904,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                 " LIMIT 0";
 
         try {
-            return connection.createStatement().executeQuery(sql);
+            return createStatement().executeQuery(sql);
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }

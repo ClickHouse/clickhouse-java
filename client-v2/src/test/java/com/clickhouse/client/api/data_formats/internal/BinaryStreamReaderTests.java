@@ -8,6 +8,7 @@ import com.clickhouse.data.format.BinaryStreamUtils;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -443,6 +444,132 @@ public class BinaryStreamReaderTests {
                 () -> qbitReader(new byte[0]).readQBitNative(column, 90000));
         Assert.assertTrue(ex.getMessage().contains("too large"),
                 "Expected an overflow rejection message, got: " + ex.getMessage());
+    }
+
+    @Test
+    public void testDynamicDecimalKeepsPrecisionAndScaleInsideArray() throws Exception {
+        // 0x2x <precision> <scale>: the precision and the scale belong to the type, so a parent
+        // encoding (here Array) must keep them, otherwise the value is read back unscaled.
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(ClickHouseDataType.Array.getBinTag());
+        baos.write(ClickHouseDataType.Decimal64.getBinTag());
+        BinaryStreamUtils.writeInt8(baos, 18); // precision
+        BinaryStreamUtils.writeInt8(baos, 4); // scale
+        BinaryStreamUtils.writeVarInt(baos, 2);
+        BinaryStreamUtils.writeInt64(baos, 12500);
+        BinaryStreamUtils.writeInt64(baos, -35000);
+        BinaryStreamUtils.writeInt32(baos, 4242);
+
+        BinaryStreamReader reader = dynamicReader(baos);
+        Object[] values = ((BinaryStreamReader.ArrayValue) reader.readValue(ClickHouseColumn.of("v", "Dynamic"))).getArrayOfObjects();
+        Assert.assertEquals(values, new Object[]{new BigDecimal("1.2500"), new BigDecimal("-3.5000")});
+        Assert.assertEquals(reader.readValue(ClickHouseColumn.of("guard", "Int32")), Integer.valueOf(4242));
+    }
+
+    @Test
+    public void testDynamicEnum8KeepsConstantsAndReadsThemSigned() throws Exception {
+        // The constants belong to the type as well, and an Enum8 constant is a signed byte.
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(ClickHouseDataType.Array.getBinTag());
+        baos.write(ClickHouseDataType.Enum8.getBinTag());
+        BinaryStreamUtils.writeVarInt(baos, 2);
+        BinaryStreamUtils.writeString(baos, "a'b");
+        BinaryStreamUtils.writeInt8(baos, -1);
+        BinaryStreamUtils.writeString(baos, "c");
+        BinaryStreamUtils.writeInt8(baos, 2);
+        BinaryStreamUtils.writeVarInt(baos, 2);
+        BinaryStreamUtils.writeInt8(baos, -1);
+        BinaryStreamUtils.writeInt8(baos, 2);
+        BinaryStreamUtils.writeInt32(baos, 4242);
+
+        BinaryStreamReader reader = dynamicReader(baos);
+        Object[] values = ((BinaryStreamReader.ArrayValue) reader.readValue(ClickHouseColumn.of("v", "Dynamic"))).getArrayOfObjects();
+        assertEnumValue(values[0], "a'b", -1);
+        assertEnumValue(values[1], "c", 2);
+        Assert.assertEquals(reader.readValue(ClickHouseColumn.of("guard", "Int32")), Integer.valueOf(4242));
+    }
+
+    @Test
+    public void testDynamicEnum16TakesConstantWidthFromTag() throws Exception {
+        // The width of a constant is defined by the tag (Enum16 -> Int16), not by the number of
+        // constants: an Enum16 with less than 128 constants desynchronizes the stream otherwise.
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(ClickHouseDataType.Array.getBinTag());
+        baos.write(ClickHouseDataType.Enum16.getBinTag());
+        BinaryStreamUtils.writeVarInt(baos, 2);
+        BinaryStreamUtils.writeString(baos, "a");
+        BinaryStreamUtils.writeInt16(baos, -1000);
+        BinaryStreamUtils.writeString(baos, "b");
+        BinaryStreamUtils.writeInt16(baos, 2000);
+        BinaryStreamUtils.writeVarInt(baos, 1);
+        BinaryStreamUtils.writeInt16(baos, -1000);
+        BinaryStreamUtils.writeInt32(baos, 4242);
+
+        BinaryStreamReader reader = dynamicReader(baos);
+        Object[] values = ((BinaryStreamReader.ArrayValue) reader.readValue(ClickHouseColumn.of("v", "Dynamic"))).getArrayOfObjects();
+        assertEnumValue(values[0], "a", -1000);
+        Assert.assertEquals(reader.readValue(ClickHouseColumn.of("guard", "Int32")), Integer.valueOf(4242));
+    }
+
+    @Test
+    public void testDynamicNestedConsumesElementTypeEncodings() throws Exception {
+        // Nested is encoded as a named tuple: every element name is followed by the type encoding
+        // of that element, which has to be consumed as well - including the parameters of that
+        // element type (here the precision and the scale of the decimal).
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(ClickHouseDataType.Nested.getBinTag());
+        BinaryStreamUtils.writeVarInt(baos, 2);
+        BinaryStreamUtils.writeString(baos, "a");
+        baos.write(ClickHouseDataType.Decimal64.getBinTag());
+        BinaryStreamUtils.writeInt8(baos, 18); // precision
+        BinaryStreamUtils.writeInt8(baos, 4); // scale
+        BinaryStreamUtils.writeString(baos, "b");
+        baos.write(ClickHouseDataType.String.getBinTag());
+        BinaryStreamUtils.writeVarInt(baos, 1);
+        BinaryStreamUtils.writeInt64(baos, 12500);
+        BinaryStreamUtils.writeString(baos, "x");
+        BinaryStreamUtils.writeInt32(baos, 4242);
+
+        BinaryStreamReader reader = dynamicReader(baos);
+        Object[] rows = ((BinaryStreamReader.ArrayValue) reader.readValue(ClickHouseColumn.of("v", "Dynamic"))).getArrayOfObjects();
+        Assert.assertEquals(rows.length, 1);
+        Assert.assertEquals((Object[]) rows[0], new Object[]{new BigDecimal("1.2500"), "x"});
+        Assert.assertEquals(reader.readValue(ClickHouseColumn.of("guard", "Int32")), Integer.valueOf(4242));
+    }
+
+    @Test
+    public void testDynamicVariantIsNotWrappedTwice() throws Exception {
+        // A variant rebuilt as Variant(Variant(...)) has a single element, so the discriminator
+        // selects the wrong alternative.
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(ClickHouseDataType.Array.getBinTag());
+        baos.write(ClickHouseDataType.Variant.getBinTag());
+        BinaryStreamUtils.writeVarInt(baos, 2);
+        baos.write(ClickHouseDataType.Int32.getBinTag());
+        baos.write(ClickHouseDataType.String.getBinTag());
+        BinaryStreamUtils.writeVarInt(baos, 2);
+        BinaryStreamUtils.writeInt8(baos, 1); // discriminator of String
+        BinaryStreamUtils.writeString(baos, "a");
+        BinaryStreamUtils.writeInt8(baos, 0); // discriminator of Int32
+        BinaryStreamUtils.writeInt32(baos, 1);
+        BinaryStreamUtils.writeInt32(baos, 4242);
+
+        BinaryStreamReader reader = dynamicReader(baos);
+        Object[] values = ((BinaryStreamReader.ArrayValue) reader.readValue(ClickHouseColumn.of("v", "Dynamic"))).getArrayOfObjects();
+        Assert.assertEquals(values, new Object[]{"a", 1});
+        Assert.assertEquals(reader.readValue(ClickHouseColumn.of("guard", "Int32")), Integer.valueOf(4242));
+    }
+
+    private static void assertEnumValue(Object actual, String expectedName, int expectedValue) {
+        BinaryStreamReader.EnumValue value = (BinaryStreamReader.EnumValue) actual;
+        Assert.assertEquals(value.getName(), expectedName);
+        Assert.assertEquals(value.intValue(), expectedValue);
+    }
+
+    private static BinaryStreamReader dynamicReader(ByteArrayOutputStream columnData) {
+        return new BinaryStreamReader(new ByteArrayInputStream(columnData.toByteArray()),
+                TimeZone.getTimeZone("UTC"), null, new BinaryStreamReader.CachingByteBufferAllocator(),
+                false, null, false);
     }
 
     private static BinaryStreamReader qbitReader(byte[] columnData) {

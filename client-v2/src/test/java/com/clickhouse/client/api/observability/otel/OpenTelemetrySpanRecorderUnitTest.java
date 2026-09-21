@@ -65,7 +65,7 @@ public class OpenTelemetrySpanRecorderUnitTest {
         span.end();
 
         SpanData exported = onlySpan();
-        Assert.assertEquals(exported.getName(), "query " + DATABASE);
+        Assert.assertEquals(exported.getName(), "QUERY " + DATABASE);
         Assert.assertEquals(exported.getKind(), SpanKind.CLIENT);
         Assert.assertEquals(exported.getInstrumentationScopeInfo().getName(),
                 OpenTelemetrySpanRecorder.INSTRUMENTATION_SCOPE_NAME);
@@ -84,9 +84,9 @@ public class OpenTelemetrySpanRecorderUnitTest {
         span.end();
 
         SpanData exported = onlySpan();
-        Assert.assertEquals(exported.getName(), "insert " + DATABASE + ".events");
+        Assert.assertEquals(exported.getName(), "INSERT " + DATABASE + ".events");
         Assert.assertEquals(exported.getKind(), SpanKind.CLIENT);
-        Assert.assertEquals(stringAttribute(exported, SpanAttribute.DB_OPERATION_NAME), "insert");
+        Assert.assertEquals(stringAttribute(exported, SpanAttribute.DB_OPERATION_NAME), "INSERT");
         Assert.assertEquals(stringAttribute(exported, SpanAttribute.DB_COLLECTION_NAME), "events");
         Assert.assertEquals(longAttribute(exported, SpanAttribute.DB_OPERATION_BATCH_SIZE), Long.valueOf(5L));
         Assert.assertNull(stringAttribute(exported, SpanAttribute.DB_QUERY_TEXT),
@@ -100,7 +100,7 @@ public class OpenTelemetrySpanRecorderUnitTest {
         span.end();
 
         SpanData exported = onlySpan();
-        Assert.assertEquals(exported.getName(), "insert " + DATABASE + ".events");
+        Assert.assertEquals(exported.getName(), "INSERT " + DATABASE + ".events");
         Assert.assertNull(longAttribute(exported, SpanAttribute.DB_OPERATION_BATCH_SIZE));
     }
 
@@ -113,7 +113,7 @@ public class OpenTelemetrySpanRecorderUnitTest {
         operationSpan.end();
 
         SpanData request = spanByName("POST");
-        SpanData operation = spanByName("query " + DATABASE);
+        SpanData operation = spanByName("QUERY " + DATABASE);
         Assert.assertEquals(request.getTraceId(), operation.getTraceId());
         Assert.assertEquals(request.getParentSpanId(), operation.getSpanId());
         Assert.assertEquals(request.getKind(), SpanKind.CLIENT);
@@ -135,7 +135,7 @@ public class OpenTelemetrySpanRecorderUnitTest {
         operationSpan.end();
         ambient.end();
 
-        SpanData operation = spanByName("query " + DATABASE);
+        SpanData operation = spanByName("QUERY " + DATABASE);
         Assert.assertEquals(operation.getTraceId(), ambient.getSpanContext().getTraceId());
         Assert.assertEquals(operation.getParentSpanId(), ambient.getSpanContext().getSpanId());
     }
@@ -323,7 +323,7 @@ public class OpenTelemetrySpanRecorderUnitTest {
         SpanData exported = onlySpan();
         Assert.assertEquals(exported.getInstrumentationScopeInfo().getName(), "application-scope");
         Assert.assertEquals(exported.getInstrumentationScopeInfo().getVersion(), "1.2.3");
-        Assert.assertEquals(exported.getName(), "query " + DATABASE);
+        Assert.assertEquals(exported.getName(), "QUERY " + DATABASE);
     }
 
     @Test
@@ -346,7 +346,7 @@ public class OpenTelemetrySpanRecorderUnitTest {
                 List<SpanData> exported = lateExporter.getFinishedSpanItems();
                 Assert.assertEquals(exported.size(), 1,
                         "a span must reach the SDK installed after the recorder was created");
-                Assert.assertEquals(exported.get(0).getName(), "query " + DATABASE);
+                Assert.assertEquals(exported.get(0).getName(), "QUERY " + DATABASE);
                 Assert.assertEquals(exported.get(0).getInstrumentationScopeInfo().getName(),
                         OpenTelemetrySpanRecorder.INSTRUMENTATION_SCOPE_NAME);
             } finally {
@@ -387,7 +387,7 @@ public class OpenTelemetrySpanRecorderUnitTest {
         Assert.assertEquals(longAttribute(request, SpanAttribute.DB_RESPONSE_STATUS_CODE), Long.valueOf(60L));
         Assert.assertEquals(longAttribute(request, SpanAttribute.HTTP_RESPONSE_STATUS_CODE), Long.valueOf(404L));
 
-        SpanData operation = spanByName("query " + DATABASE);
+        SpanData operation = spanByName("QUERY " + DATABASE);
         Assert.assertEquals(operation.getStatus().getStatusCode(), StatusCode.ERROR);
         Assert.assertEquals(stringAttribute(operation, SpanAttribute.ERROR_TYPE), ServerException.class.getName());
         Assert.assertEquals(longAttribute(operation, SpanAttribute.DB_RESPONSE_STATUS_CODE), Long.valueOf(60L));

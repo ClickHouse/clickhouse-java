@@ -482,6 +482,52 @@ public class QueryTests extends BaseIntegrationTest {
         }
     }
 
+    @DataProvider(name = "multiRowArrayCases")
+    Object[][] getMultiRowArrayCases() {
+        String nonUniform = "SELECT id, arr, tag FROM values("
+                + "'id UInt32, arr Array(Int32), tag Int32', "
+                + "(1, [10], 100), (2, [20, 21], 200), (3, [], 300), (4, [30, 31, 32], 400), (5, [40], 500)"
+                + ") ORDER BY id";
+        List<Object[]> nonUniformRows = Arrays.asList(
+                new Object[]{1L, Arrays.asList(10), 100},
+                new Object[]{2L, Arrays.asList(20, 21), 200},
+                new Object[]{3L, Collections.emptyList(), 300},
+                new Object[]{4L, Arrays.asList(30, 31, 32), 400},
+                new Object[]{5L, Arrays.asList(40), 500});
+
+        String uniform = "SELECT id, arr, tag FROM values("
+                + "'id UInt32, arr Array(Int32), tag Int32', "
+                + "(1, [10, 11], 100), (2, [20, 21], 200), (3, [30, 31], 300)"
+                + ") ORDER BY id";
+        List<Object[]> uniformRows = Arrays.asList(
+                new Object[]{1L, Arrays.asList(10, 11), 100},
+                new Object[]{2L, Arrays.asList(20, 21), 200},
+                new Object[]{3L, Arrays.asList(30, 31), 300});
+
+        return new Object[][]{
+                {ClickHouseFormat.Native, nonUniform, nonUniformRows},
+                {ClickHouseFormat.Native, uniform, uniformRows},
+                {ClickHouseFormat.RowBinaryWithNamesAndTypes, nonUniform, nonUniformRows},
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "multiRowArrayCases")
+    public void testReadingMultiRowArrays(ClickHouseFormat format, String sql, List<Object[]> expectedRows)
+            throws Exception {
+        QuerySettings settings = new QuerySettings().setFormat(format);
+        try (QueryResponse response = client.query(sql, settings).get()) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+            for (Object[] expected : expectedRows) {
+                Map<String, Object> record = reader.next();
+                Assert.assertNotNull(record, "Expected a row for id " + expected[0]);
+                Assert.assertEquals(record.get("id"), expected[0]);
+                Assert.assertEquals(((BinaryStreamReader.ArrayValue) record.get("arr")).asList(), expected[1]);
+                Assert.assertEquals(record.get("tag"), expected[2]);
+            }
+            Assert.assertNull(reader.next());
+        }
+    }
+
     @Test(groups = {"integration"})
     public void testBinaryStreamReader() throws Exception {
         final String table = "dynamic_schema_test_table";
@@ -2337,12 +2383,52 @@ public class QueryTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testSettingsNotChanged() throws Exception{
-        final QuerySettings settings = Mockito.spy(new QuerySettings());
-        try (QueryResponse response = client.query("select 1 FORMAT JSONEachRow", settings).get()) {
+        final QuerySettings settings = Mockito.spy(new QuerySettings().setFormat(ClickHouseFormat.JSONEachRow));
+        try (QueryResponse response = client.query("select 1", settings).get()) {
             Mockito.verify(settings, Mockito.times(1)).getAllSettings();
             Mockito.verifyNoMoreInteractions(settings);
-            Assert.assertNull(settings.getFormat());
+            Assert.assertEquals(settings.getFormat(), ClickHouseFormat.JSONEachRow);
             Assert.assertEquals(response.getFormat(), ClickHouseFormat.JSONEachRow);
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testFormatSelectionPrecedence() throws Exception {
+        // 1. Explicit QuerySettings format overrides client default
+        QuerySettings settingsFormat = new QuerySettings().setFormat(ClickHouseFormat.JSONEachRow);
+        try (QueryResponse response = client.query("SELECT 1 AS num", settingsFormat).get()) {
+            Assert.assertEquals(response.getFormat(), ClickHouseFormat.JSONEachRow);
+        }
+
+        // 2. Default client format is RowBinaryWithNamesAndTypes
+        try (QueryResponse response = client.query("SELECT 1 AS num").get()) {
+            Assert.assertEquals(response.getFormat(), ClickHouseFormat.RowBinaryWithNamesAndTypes);
+        }
+
+        // 3. Client configured with format set to null or empty string allows query SQL FORMAT clause to take effect
+        try (Client nullFormatClient = newClient()
+                .queryFormat(null)
+                .build()) {
+            try (QueryResponse response = nullFormatClient.query("SELECT 1 AS num FORMAT JSONEachRow").get()) {
+                Assert.assertEquals(response.getFormat(), ClickHouseFormat.JSONEachRow);
+            }
+        }
+
+        try (Client emptyFormatClient = newClient()
+                .queryFormat("")
+                .build()) {
+            try (QueryResponse response = emptyFormatClient.query("SELECT 1 AS num FORMAT JSONEachRow").get()) {
+                Assert.assertEquals(response.getFormat(), ClickHouseFormat.JSONEachRow);
+            }
+        }
+
+        // 4. Client configured via queryFormat(...) with lowercase or custom format string
+        try (Client customFormatClient = newClient()
+                .queryFormat("csv")
+                .build()) {
+            try (QueryResponse response = customFormatClient.query("SELECT 1 AS num").get()) {
+                Assert.assertEquals(response.getFormat(), ClickHouseFormat.CSV);
+            }
         }
     }
 

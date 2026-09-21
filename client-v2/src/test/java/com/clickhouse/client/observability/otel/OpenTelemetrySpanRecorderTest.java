@@ -83,7 +83,7 @@ public class OpenTelemetrySpanRecorderTest extends BaseIntegrationTest {
             Assert.assertEquals(response.getMetrics().getOperationType(), OperationType.QUERY);
         }
 
-        SpanData operation = spanByName("query " + database);
+        SpanData operation = spanByName("QUERY " + database);
         Assert.assertEquals(operation.getKind(), SpanKind.CLIENT);
         Assert.assertEquals(stringAttribute(operation, SpanAttribute.DB_SYSTEM_NAME), "clickhouse");
         Assert.assertEquals(stringAttribute(operation, SpanAttribute.DB_NAMESPACE), database);
@@ -119,7 +119,7 @@ public class OpenTelemetrySpanRecorderTest extends BaseIntegrationTest {
             Assert.fail("Unexpected exception: " + e);
         }
 
-        SpanData operation = spanByName("query " + database);
+        SpanData operation = spanByName("QUERY " + database);
         Assert.assertEquals(operation.getStatus().getStatusCode(), StatusCode.ERROR);
         Assert.assertEquals(stringAttribute(operation, SpanAttribute.ERROR_TYPE), ServerException.class.getName());
         Assert.assertEquals(longAttribute(operation, SpanAttribute.DB_RESPONSE_STATUS_CODE), Long.valueOf(60L));
@@ -142,8 +142,8 @@ public class OpenTelemetrySpanRecorderTest extends BaseIntegrationTest {
             Assert.assertEquals(response.getMetrics().getOperationType(), OperationType.INSERT);
         }
 
-        SpanData operation = spanByName("insert " + database + "." + TABLE);
-        Assert.assertEquals(stringAttribute(operation, SpanAttribute.DB_OPERATION_NAME), "insert");
+        SpanData operation = spanByName("INSERT " + database + "." + TABLE);
+        Assert.assertEquals(stringAttribute(operation, SpanAttribute.DB_OPERATION_NAME), "INSERT");
         Assert.assertEquals(stringAttribute(operation, SpanAttribute.DB_COLLECTION_NAME), TABLE);
         Assert.assertEquals(longAttribute(operation, SpanAttribute.DB_OPERATION_BATCH_SIZE), Long.valueOf(1L));
         Assert.assertEquals(longAttribute(operation, SpanAttribute.CLICKHOUSE_RESPONSE_WRITTEN_ROWS), Long.valueOf(1L));
@@ -165,7 +165,7 @@ public class OpenTelemetrySpanRecorderTest extends BaseIntegrationTest {
             Assert.assertEquals(response.getMetrics().getOperationType(), OperationType.INSERT);
         }
 
-        SpanData operation = spanByName("insert " + database + "." + TABLE);
+        SpanData operation = spanByName("INSERT " + database + "." + TABLE);
         Assert.assertEquals(longAttribute(operation, SpanAttribute.CLICKHOUSE_RESPONSE_WRITTEN_ROWS), Long.valueOf(2L));
         Assert.assertNotNull(longAttribute(operation, SpanAttribute.CLICKHOUSE_RESPONSE_WRITTEN_BYTES));
         Assert.assertNull(longAttribute(operation, SpanAttribute.DB_RESPONSE_RETURNED_ROWS));

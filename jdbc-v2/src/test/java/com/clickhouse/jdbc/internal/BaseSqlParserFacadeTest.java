@@ -157,6 +157,82 @@ public abstract class BaseSqlParserFacadeTest {
         };
     }
 
+    @Test(dataProvider = "testValuesListPositionsDP")
+    public void testValuesListPositions(String sql, boolean positionsExpected) {
+        ParsedPreparedStatement parsed = parser.parsePreparedStatement(sql);
+        assertTrue(parsed.isInsert(), "Should be of insert type");
+
+        int start = parsed.getAssignValuesListStartPosition();
+        int stop = parsed.getAssignValuesListStopPosition();
+        if (parsed.getAssignValuesGroups() == 1 && start > -1 && stop > -1) {
+            assertTrue(stop > start, "Values list should stop after it starts, but got [" + start + ", " + stop + "]");
+            assertTrue(stop < sql.length(), "Values list should stop within the statement, but got " + stop
+                    + " for a statement of " + sql.length() + " characters");
+            assertEquals(sql.charAt(start), '(', "Values list should start with an opening parenthesis");
+            assertEquals(sql.charAt(stop), ')', "Values list should end with a closing parenthesis");
+
+            int[] paramPositions = parsed.getParamPositions();
+            for (int i = 0; i < parsed.getArgCount(); i++) {
+                assertTrue(paramPositions[i] > start && paramPositions[i] < stop, "Parameter " + (i + 1)
+                        + " at position " + paramPositions[i] + " should be inside the values list '"
+                        + sql.substring(start, stop + 1) + "'");
+            }
+        }
+
+        if (javaCcBackend) {
+            assertEquals(start > -1 && stop > -1, positionsExpected,
+                    "Values list positions should " + (positionsExpected ? "" : "not ") + "be reported");
+        }
+    }
+
+    @Test(dataProvider = "testInsertWithUnsupportedValuesListDP")
+    public void testInsertWithUnsupportedValuesList(String sql) {
+        ParsedPreparedStatement parsed = parser.parsePreparedStatement(sql);
+        assertTrue(parsed.isInsert(), "Should be of insert type");
+
+        int start = parsed.getAssignValuesListStartPosition();
+        int stop = parsed.getAssignValuesListStopPosition();
+        assertEquals(start > -1, stop > -1, "Values list start and stop positions should be both set or both unset");
+        if (start > -1) {
+            assertTrue(stop > start, "Values list should stop after it starts");
+            assertEquals(sql.charAt(start), '(', "Values list should start with an opening parenthesis");
+            assertEquals(sql.charAt(stop), ')', "Values list should end with a closing parenthesis");
+        } else {
+            assertNotEquals(parsed.getAssignValuesGroups(), 1, "A values list of unknown extent should not be "
+                    + "reported as a single complete group: consumers of a single group, like the RowBinary "
+                    + "writer, take only the bound parameters and drop the literals of the list");
+        }
+    }
+
+    @DataProvider
+    public static Object[][] testInsertWithUnsupportedValuesListDP() {
+        return new Object[][] {
+                { "INSERT INTO t VALUES ($$?$$, ?)" },
+                { "INSERT INTO t VALUES ($$a@b$$, ?)" },
+                { "INSERT INTO t VALUES ($$a@b$$, ?);" },
+                { "INSERT INTO t VALUES (?, )" },
+                { "INSERT INTO t VALUES (@@, ?)" },
+                { "INSERT INTO t VALUES (1, ?), (@@, ?)" },
+                { "INSERT INTO t VALUES (?, 'a' 'b')" },
+        };
+    }
+
+    @Test(dataProvider = "testInsertValuesListPositionsDP")
+    public void testInsertValuesListPositions(String sql, int start, int stop) {
+        ParsedPreparedStatement parsed = parser.parsePreparedStatement(sql);
+        assertEquals(parsed.getAssignValuesListStartPosition(), start, "Values list start position does not match");
+        assertEquals(parsed.getAssignValuesListStopPosition(), stop, "Values list stop position does not match");
+    }
+
+    @DataProvider
+    public static Object[][] testInsertValuesListPositionsDP() {
+        return new Object[][] {
+                { "INSERT INTO t VALUES (?, ?)", 21, 26 },
+                { "INSERT INTO t (a, b) VALUES (1, ?)", 28, 33 },
+                { "INSERT INTO t VALUES ($$x$$, ?)", 21, 30 },
+        };
+    }
+
     @Test(dataProvider = "testValuesListOfUnsupportedSyntaxDP")
     public void testValuesListOfUnsupportedSyntax(String sql, boolean parseable, int valueGroups, int args) {
         ParsedPreparedStatement parsed = parser.parsePreparedStatement(sql);
@@ -191,6 +267,31 @@ public abstract class BaseSqlParserFacadeTest {
                     + " at position " + paramPositions[i] + " should be inside the values list '"
                     + sql.substring(start, stop + 1) + "'");
         }
+    }
+
+    @DataProvider
+    public static Object[][] testValuesListPositionsDP() {
+        return new Object[][] {
+                { "INSERT INTO t (a, b) VALUES (1, ?)", true },
+                { "INSERT INTO t (a, b) VALUES (1, ?);", true },
+                { "INSERT INTO t (a, b) VALUES ('a)b', ?)", true },
+                { "INSERT INTO t (a, b) VALUES (1 /* ) */, ?)", true },
+                { "INSERT INTO t (a, b) VALUES (1 -- )\n, ?)", true },
+                { "INSERT INTO t (a, b) VALUES (1 // )\n, ?)", true },
+                { "INSERT INTO t (a, b) VALUES (1 # )\n, ?)", true },
+                { "INSERT INTO t (a, b) VALUES (1 #! )\n, ?)", true },
+                { "INSERT INTO t (a, b) VALUES (1 --\n, ?)", true },
+                { "INSERT INTO t (a, b) VALUES (1 /* ( */, ?)", true },
+                { "INSERT INTO t (a, b) VALUES (1 /* ? */, ?)", true },
+                { "INSERT INTO t (a, b) VALUES (1, ? /* ) */)", true },
+                { "INSERT INTO t (a, b) VALUES (toDate({d '2024-01-01'}), ?)", true },
+                { "INSERT INTO t (a, b) VALUES (toDateTime({ts '2024-01-01 00:00:00'}) /* ) */, ?)", false },
+                { "INSERT INTO t (a, b) VALUES (toDateTime({ts '2024-01-01 00:00:00'}), ?)", false },
+                { "INSERT INTO t (a, b) VALUES (toTime({t '10:20:30'}), ?)", false },
+                { "INSERT INTO t (a, b) VALUES (toInt32({d:Int32}), ?)", false },
+                { "INSERT INTO t (a, b) VALUES (?, toDate({d  '2024-01-01'}))", false },
+                { "INSERT INTO t (a, b) VALUES (?, toString({tt 'temp'}))", false },
+        };
     }
 
     @DataProvider
@@ -330,8 +431,7 @@ public abstract class BaseSqlParserFacadeTest {
     @Test(dataProvider = "antlr4HeredocStatementsDP")
     public void testHeredocStatementsAntlr4Only(String sql, boolean insert, String expectedTable,
                                                 String expectedValuesList, int expectedArgCount) {
-        // The JavaCC lexer has no heredoc token yet, so these expectations only hold for the
-        // ANTLR4 backends.
+        // These expectations are pinned for the ANTLR4 backends only.
         if (javaCcBackend) {
             return;
         }
@@ -348,6 +448,130 @@ public abstract class BaseSqlParserFacadeTest {
                             stmt.getAssignValuesListStopPosition() + 1), expectedValuesList,
                     "Values list mismatch for: " + sql);
         }
+    }
+
+    @Test(dataProvider = "heredocStatementsDP")
+    public void testHeredocStatements(String sql, boolean insert, String expectedTable, String expectedValuesList) {
+        ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
+        Assert.assertFalse(stmt.isHasErrors(), "Query should parse without errors: " + sql);
+        Assert.assertEquals(stmt.isInsert(), insert, "Insert type mismatch for: " + sql);
+        Assert.assertEquals(stmt.isHasResultSet(), !insert, "Result set flag mismatch for: " + sql);
+        Assert.assertEquals(stmt.getTable(), expectedTable, "Table name mismatch for: " + sql);
+        if (expectedValuesList == null) {
+            Assert.assertEquals(stmt.getAssignValuesListStartPosition(), -1, "Should have no values list: " + sql);
+        } else {
+            Assert.assertEquals(sql.substring(stmt.getAssignValuesListStartPosition(),
+                            stmt.getAssignValuesListStopPosition() + 1), expectedValuesList,
+                    "Values list mismatch for: " + sql);
+        }
+    }
+
+    @DataProvider
+    public static Object[][] heredocStatementsDP() {
+        return new Object[][] {
+                // A heredoc body is opaque: characters that are not valid SQL tokens on their own
+                // must not break the statement classification
+                {"INSERT INTO t VALUES ($$a!b$$, 1)", true, "t", "($$a!b$$, 1)"},
+                {"INSERT INTO t VALUES ($$a&b$$, 1)", true, "t", "($$a&b$$, 1)"},
+                {"INSERT INTO t VALUES ($$a|b$$, 1)", true, "t", "($$a|b$$, 1)"},
+                {"INSERT INTO t VALUES ($$a~b$$, 1)", true, "t", "($$a~b$$, 1)"},
+                {"INSERT INTO t VALUES ($$a@b$$, 1)", true, "t", "($$a@b$$, 1)"},
+                // Tagged form and a body with whitespace
+                {"INSERT INTO t (c1, c2) VALUES ($tag_1$a!b$tag_1$, 1)", true, "t", "($tag_1$a!b$tag_1$, 1)"},
+                {"INSERT INTO t VALUES ($$a b$$, 1)", true, "t", "($$a b$$, 1)"},
+                // A single '$' in the body is data, not a tag delimiter (the server reads
+                // $$a$b$$ as a$b), so the statement must keep its classification
+                {"INSERT INTO t VALUES ($$a$b$$, 1)", true, "t", "($$a$b$$, 1)"},
+                {"INSERT INTO t VALUES ($tag$a$b$tag$, 1)", true, "t", "($tag$a$b$tag$, 1)"},
+                {"SELECT $$a$b$$ AS x FROM t", false, "t", null},
+                // Parentheses and commas in a body must not shift the values list positions
+                {"INSERT INTO t VALUES ($$a(b,c)$$, 1)", true, "t", "($$a(b,c)$$, 1)"},
+                // Two heredocs in one values list are two separate literals
+                {"INSERT INTO t VALUES ($$a!b$$, $$c!d$$)", true, "t", "($$a!b$$, $$c!d$$)"},
+                // A heredoc is a value expression anywhere a string literal is accepted
+                {"SELECT $$a!b$$ AS x FROM t", false, "t", null},
+                // Contrast: an unterminated tag is not a heredoc and stays an identifier
+                {"SELECT $foo$bar FROM t", false, "t", null},
+                {"SELECT a$b FROM t", false, "t", null},
+                // Contrast: a quoted string literal keeps its existing handling
+                {"INSERT INTO t VALUES ('a!b', 1)", true, "t", "('a!b', 1)"},
+                // Multiline bodies: a heredoc is the only ClickHouse string that can hold raw line
+                // breaks, so neither the line break nor what follows it may end the literal
+                {"INSERT INTO t VALUES ($$line1\nline2$$, 1)", true, "t", "($$line1\nline2$$, 1)"},
+                {"INSERT INTO t VALUES ($tag$line1\nline2$tag$, 1)", true, "t", "($tag$line1\nline2$tag$, 1)"},
+                {"INSERT INTO t VALUES ($$line1\r\nline2$$, 1)", true, "t", "($$line1\r\nline2$$, 1)"},
+                {"INSERT INTO t VALUES ($$a!b\nc|d$$, 1)", true, "t", "($$a!b\nc|d$$, 1)"},
+                {"INSERT INTO t\nVALUES\n($$a\nb$$,\n1)", true, "t", "($$a\nb$$,\n1)"},
+                // A comment opener inside a multiline body is data, not a comment
+                {"INSERT INTO t VALUES ($$-- still data\nmore data$$, 1)", true, "t",
+                        "($$-- still data\nmore data$$, 1)"},
+                {"INSERT INTO t VALUES ($$/* still data\n*/$$, 1)", true, "t", "($$/* still data\n*/$$, 1)"},
+                {"SELECT $$line1\nline2$$ AS x FROM t", false, "t", null},
+        };
+    }
+
+    @Test(dataProvider = "malformedHeredocStatementsDP")
+    public void testMalformedHeredocStatementsAreHandledGracefully(String sql) {
+        // Invalid heredoc strings (unterminated, mismatched or empty tags) must not make the parser
+        // throw: the driver relies on the returned statement to decide how to run the query. The
+        // backends classify these differently, so only the shared contract is pinned here.
+        ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
+        Assert.assertNotNull(stmt, "Parser should return a statement for: " + sql);
+        int start = stmt.getAssignValuesListStartPosition();
+        int stop = stmt.getAssignValuesListStopPosition();
+        if (start >= 0 || stop >= 0) {
+            Assert.assertTrue(start >= 0 && stop >= start && stop < sql.length(),
+                    "Values list positions should address the SQL or stay unset, got start=" + start
+                            + " stop=" + stop + " for: " + sql);
+        }
+    }
+
+    @DataProvider
+    public static Object[][] malformedHeredocStatementsDP() {
+        return new Object[][] {
+                // Unterminated heredoc: the closing tag never arrives
+                {"INSERT INTO t VALUES ($$abc, 1)"},
+                {"INSERT INTO t VALUES ($tag$abc, 1)"},
+                {"SELECT $$abc"},
+                {"SELECT $tag$"},
+                {"SELECT $$"},
+                // A single unpaired dollar cannot close a heredoc
+                {"INSERT INTO t VALUES ($$abc$, 1)"},
+                // Mismatched opening and closing tags
+                {"INSERT INTO t VALUES ($tag$abc$other$, 1)"},
+                // A tag cannot hold whitespace, so this is not a heredoc at all
+                {"INSERT INTO t VALUES ($ $a$ $, 1)"},
+                // Two heredocs with no separator between them
+                {"INSERT INTO t VALUES ($$a!b$$$$c!d$$, 1)"},
+                {"SELECT $$abc$$$$def"},
+                // The statement is cut off inside the values list
+                {"INSERT INTO t VALUES ($$a!b$$"},
+        };
+    }
+
+    @Test(dataProvider = "javaCcHeredocStatementsDP")
+    public void testHeredocStatementsJavaCcOnly(String sql, String expectedValuesList) {
+        // The ANTLR4 grammars do not accept these two heredoc bodies yet, so the expectations only
+        // hold for the JavaCC backend.
+        if (!javaCcBackend) {
+            return;
+        }
+        ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
+        Assert.assertFalse(stmt.isHasErrors(), "Query should parse without errors: " + sql);
+        Assert.assertTrue(stmt.isInsert(), "Should be an INSERT: " + sql);
+        Assert.assertEquals(sql.substring(stmt.getAssignValuesListStartPosition(),
+                        stmt.getAssignValuesListStopPosition() + 1), expectedValuesList,
+                "Values list mismatch for: " + sql);
+    }
+
+    @DataProvider
+    public static Object[][] javaCcHeredocStatementsDP() {
+        return new Object[][] {
+                // A statement separator inside a heredoc body must not split the statement
+                {"INSERT INTO t VALUES ($$a;b$$, 1)", "($$a;b$$, 1)"},
+                // Empty body
+                {"INSERT INTO t VALUES ($$$$, 1)", "($$$$, 1)"},
+        };
     }
 
     @DataProvider
@@ -438,6 +662,58 @@ public abstract class BaseSqlParserFacadeTest {
         Assert.assertEquals(actualColumns, expectedColumns, "Insert column names mismatch for: " + sql);
     }
 
+    @Test(dataProvider = "insertTargetFunctionDP")
+    public void testInsertTargetTableFunctionIsReportedAsFunction(String sql, boolean expectedUseFunction,
+                                                                 int expectedValuesGroups) {
+        ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
+        Assert.assertFalse(stmt.isHasErrors(), "Query should parse without errors: " + sql);
+        Assert.assertTrue(stmt.isInsert(), "Should be an INSERT: " + sql);
+        Assert.assertEquals(stmt.isUseFunction(), expectedUseFunction, "useFunction mismatch for: " + sql);
+        Assert.assertEquals(stmt.getAssignValuesGroups(), expectedValuesGroups,
+                "Values group count mismatch for: " + sql);
+    }
+
+    @DataProvider
+    public static Object[][] insertTargetFunctionDP() {
+        return new Object[][] {
+                // An INSERT whose target is a table function has no plain table behind it
+                {"INSERT INTO FUNCTION null('id UInt32') VALUES (?)", true, 1},
+                {"INSERT INTO TABLE FUNCTION null('id UInt32') VALUES (?)", true, 1},
+                {"INSERT INTO FUNCTION remoteSecure('h', 'db', 't', 'u', 'p') (id, name) VALUES (?, ?)", true, 1},
+                {"INSERT INTO FUNCTION s3('url', 'key', 'secret', 'CSV') SELECT * FROM t", true, 0},
+                {"insert into function null('id UInt32') values (?)", true, 1},
+                {"INSERT INTO\n TABLE FUNCTION null('id UInt32')\n VALUES (?)", true, 1},
+                {"INSERT INTO /* target */ FUNCTION null('id UInt32') VALUES (?)", true, 1},
+                // Contrast: plain table targets, including a table literally named "function"
+                {"INSERT INTO t VALUES (?)", false, 1},
+                {"INSERT INTO TABLE t VALUES (?)", false, 1},
+                {"INSERT INTO db.t VALUES (?)", false, 1},
+                {"INSERT INTO function VALUES (?)", false, 1},
+                {"INSERT INTO TABLE function VALUES (?)", false, 1},
+                {"INSERT INTO function (id) VALUES (?)", false, 1},
+                // Contrast: a function inside the values list is already reported as a function
+                {"INSERT INTO t VALUES (now(), ?)", true, 1},
+        };
+    }
+
+    @Test(dataProvider = "insertTargetTableNameDP")
+    public void testInsertPlainTableTargetKeepsTableName(String sql, String expectedTable) {
+        ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
+        Assert.assertFalse(stmt.isHasErrors(), "Query should parse without errors: " + sql);
+        Assert.assertEquals(stmt.getTable(), expectedTable, "Table name mismatch for: " + sql);
+    }
+
+    @DataProvider
+    public static Object[][] insertTargetTableNameDP() {
+        return new Object[][] {
+                {"INSERT INTO t VALUES (?)", "t"},
+                {"INSERT INTO TABLE t VALUES (?)", "t"},
+                {"INSERT INTO db.t VALUES (?)", "db.t"},
+                {"INSERT INTO function VALUES (?)", "function"},
+                {"INSERT INTO TABLE function VALUES (?)", "function"},
+        };
+    }
+
     @Test(dataProvider = "testCreateStmtDP")
     public void testCreateStatement(String sql) {
         ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
@@ -510,6 +786,80 @@ public abstract class BaseSqlParserFacadeTest {
                 {"WITH a AS (SELECT ?), (WITH ? as b1 SELECT 3, b1) AS b SELECT b, * FROM a", 2},
                 {"WITH a AS (SELECT 2), (WITH 'a' as b1 SELECT 3, b1) AS b, c AS (SELECT 4) SELECT b, * FROM a, c", 0},
 
+        };
+    }
+
+    @Test(dataProvider = "testCommentsAndHeredocsDP")
+    public void testCommentsAndHeredocs(String sql, int args) {
+        // The ANTLR4_PARAMS_PARSER backend collects placeholders from the grammar, whose lexer has no
+        // token for '//' comments and heredocs, so it is not covered by this scan. The other backends
+        // must agree with the server on which '?' is a placeholder.
+        if (grammarParamsBackend) {
+            return;
+        }
+        ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
+        Assert.assertEquals(stmt.getArgCount(), args, "Args mismatch for: " + sql);
+    }
+
+    @DataProvider
+    public static Object[][] testCommentsAndHeredocsDP() {
+        return new Object[][] {
+                // '//' line comments
+                {"SELECT 1 // ?", 0},
+                {"SELECT 1 //", 0},
+                {"SELECT ? // ?\n, ?", 2},
+                {"SELECT 1 // ? -- ? /* ? */ $$?$$\n, ?", 1},
+                // an empty line comment ends at its own newline, so later placeholders are still counted
+                {"SELECT ? //\n, ?", 2},
+                {"SELECT ? //\n// ?\n, ?", 2},
+                {"SELECT ? //\n?", 2},
+                {"SELECT ? --\n, ?", 2},
+                {"SELECT ? -- ?\n--\n, ?", 2},
+                {"SELECT ? #\n, ?", 2},
+                {"SELECT ? #!\n, ?", 2},
+                {"SELECT ? //\n--\n#\n, ?", 2},
+                {"//\nSELECT ?", 1},
+                // a comment that is never terminated still ends the scan
+                {"SELECT ? //\n", 1},
+                {"SELECT ? --", 1},
+                // a comment marker inside a string, a heredoc or a block comment does not start a comment
+                {"SELECT '--\n' AS v, ?", 1},
+                {"SELECT $$//\n$$ AS v, ?", 1},
+                {"SELECT ? /* --\n */, ?", 2},
+                // heredocs (dollar quoted strings)
+                {"SELECT $$?$$ AS v", 0},
+                {"SELECT $tag$ ? $tag$ AS v", 0},
+                {"SELECT $1$ ? $1$ AS v", 0},
+                {"SELECT $$$$ AS v, ?", 1},
+                {"SELECT $$a$b$$ AS v, ?", 1},
+                {"SELECT $t$ ?\n -- ?\n // ?\n /* ? */ $t$ AS v, ?", 1},
+                {"SELECT $$?$$, ?, $$?$$", 1},
+                {"SELECT $$it's ?$$ AS v, ?", 1},
+                {"SELECT $$ /* ? $$ AS v, ?", 1},
+                // '//' and heredoc markers that are not comments or heredocs
+                {"SELECT '// ?' AS v, ?", 1},
+                {"SELECT '$$?$$' AS v, ?", 1},
+                {"SELECT -- '// ?'\n?", 1},
+                {"SELECT /* $$?$$ */ ?", 1},
+                {"SELECT 4 / 2 AS v, ?", 1},
+                {"SELECT ? AS a$b, ? AS c$d, 3", 2},
+                {"SELECT ? AS a$x$, ? AS b$x$", 2},
+                {"SELECT 1 AS a$x$, ?", 1},
+                // a dollar sign is an identifier character too, so a pair of them inside a name does not
+                // open a heredoc, even when the same character sequence occurs again later
+                {"SELECT ? AS a$$b$, ? AS x$$b$", 2},
+                {"SELECT a$$b$, ?, x$$b$ FROM t", 1},
+                {"SELECT ? AS a$$b$$c, ? AS x$$b$$c", 2},
+                {"SELECT ? AS a$$b$", 1},
+                // an identifier ending with a dollar sign does not swallow the heredoc that follows it
+                {"SELECT 1 AS a$$b$, $$?$$ AS v, ?", 1},
+                {"SELECT 1 AS a$$b$,$$?$$ AS v, ?", 1},
+                {"SELECT $$ ? AS v, ?", 2},
+                // already supported comment styles keep working
+                {"SELECT 1 -- ?", 0},
+                {"SELECT 1 # ?", 0},
+                {"SELECT 1 #! ?", 0},
+                {"SELECT /* ? /* ? */ ? */ ?", 1},
         };
     }
 

@@ -624,6 +624,11 @@ public class HttpAPIClientHelper {
 
         final HttpEntity httpEntity;
         if (useMultipart) {
+            // a multipart body is always sent as-is, so the request must not declare a content encoding - the
+            // server would fail to decompress the plain body. Removed after addHeaders() to also drop an
+            // encoding set by the application with `http_header_*`.
+            req.removeHeaders(HttpHeaders.CONTENT_ENCODING);
+
             MultipartEntityBuilder multipartEntityBuilder = MultipartEntityBuilder.create();
             addStatementParams(requestConfig, multipartEntityBuilder::addTextBody);
             multipartEntityBuilder.addTextBody(ClickHouseHttpProto.QPARAM_QUERY_STMT, body);
@@ -872,10 +877,16 @@ public class HttpAPIClientHelper {
     private void addHeaders(HttpPost req, Map<String, Object> requestConfig) {
         setHeader(req, HttpHeaders.CONTENT_TYPE, CONTENT_TYPE.getMimeType());
         if (requestConfig.containsKey(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey())) {
-            setHeader(
-                req,
-                ClickHouseHttpProto.HEADER_FORMAT,
-                    ((ClickHouseFormat) requestConfig.get(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey())).name());
+            Object formatObj = requestConfig.get(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey());
+            if (formatObj != null) {
+                String formatStr = formatObj instanceof String ? formatObj.toString() : ((ClickHouseFormat)formatObj).name();
+                if (ClientUtils.isNotBlank(formatStr)) {
+                    setHeader(
+                        req,
+                        ClickHouseHttpProto.HEADER_FORMAT,
+                        formatStr);
+                }
+            }
         }
         if (requestConfig.containsKey(ClientConfigProperties.QUERY_ID.getKey())) {
             setHeader(

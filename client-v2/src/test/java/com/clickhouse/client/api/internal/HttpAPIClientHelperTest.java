@@ -11,9 +11,13 @@ import com.clickhouse.client.api.transport.internal.TransportRequest;
 import net.jpountz.lz4.LZ4Factory;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.io.BasicHttpClientConnectionManager;
 import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
 import org.apache.hc.core5.http.ClassicHttpResponse;
+import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.HttpHeaders;
+import org.apache.hc.core5.http.io.SocketConfig;
 import org.apache.hc.core5.http.message.BasicHeader;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedConstruction;
@@ -185,6 +189,43 @@ public class HttpAPIClientHelperTest {
     }
 
     /**
+     * Socket buffer sizes are left to the operating system unless the application configures them: an
+     * unconfigured buffer must stay at the transport default (0 = not applied to the socket), while a
+     * configured one must reach the socket configuration.
+     */
+    @Test(dataProvider = "socketBufferSizes")
+    public void testSocketBufferSizesAppliedOnlyWhenConfigured(Integer rcvBufSize, Integer sndBufSize,
+                                                               int expectedRcvBufSize, int expectedSndBufSize) {
+        Map<String, Object> config = new HashMap<>();
+        if (rcvBufSize != null) {
+            config.put(ClientConfigProperties.SOCKET_RCVBUF_OPT.getKey(), rcvBufSize);
+        }
+        if (sndBufSize != null) {
+            config.put(ClientConfigProperties.SOCKET_SNDBUF_OPT.getKey(), sndBufSize);
+        }
+        config.put(ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey(), 3000);
+
+        SocketConfig socketConfig = captureSocketConfig(config);
+
+        assertEquals(socketConfig.getRcvBufSize(), expectedRcvBufSize,
+                "receive buffer size must be applied only when configured");
+        assertEquals(socketConfig.getSndBufSize(), expectedSndBufSize,
+                "send buffer size must be applied only when configured");
+        // contrast: a socket option that is set must still reach the socket configuration
+        assertEquals(socketConfig.getSoTimeout().toMilliseconds(), 3000);
+    }
+
+    @DataProvider(name = "socketBufferSizes")
+    private static Object[][] socketBufferSizes() {
+        return new Object[][]{
+                {null, null, 0, 0},
+                {100_000, null, 100_000, 0},
+                {null, 200_000, 0, 200_000},
+                {100_000, 200_000, 100_000, 200_000},
+        };
+    }
+
+    /**
      * VERIFY_CA validates the certificate chain but skips hostname verification (the connection hostname may
      * legitimately differ), so - like TRUST - it must install a permissive verifier. This pins the second
      * mode that opts out of hostname verification, distinct from the TRUST path.
@@ -328,6 +369,125 @@ public class HttpAPIClientHelperTest {
     }
 
     /**
+     * A multipart body (statement parameters sent as form data) is never compressed, so the request must not
+     * declare a content encoding - the server would try to decompress the plain body and fail with
+     * LZ4_DECODER_FAILED. A request that is not multipart, and response compression, keep their signalling.
+     */
+    @DataProvider(name = "requestCompressionSignalling")
+    public static Object[][] requestCompressionSignalling() {
+        return new Object[][] {
+                // clientCompression, useHttpCompression, sendParamsInBody, withParams,
+                //         contentEncoding, acceptEncoding, decompressParam
+                {true, true, true, true, null, "lz4", false},
+                {true, true, true, false, "lz4", "lz4", false}, // no parameters -> not a multipart request
+                {true, true, false, true, "lz4", "lz4", false},
+                {false, true, true, true, null, "lz4", false},
+                {true, false, true, true, null, null, false},
+                {true, false, false, true, null, null, true},
+        };
+    }
+
+    @Test(dataProvider = "requestCompressionSignalling")
+    public void testRequestCompressionSignalling(boolean clientCompression, boolean useHttpCompression,
+                                                 boolean sendParamsInBody, boolean withParams,
+                                                 String expectedContentEncoding, String expectedAcceptEncoding,
+                                                 boolean expectDecompressParam) {
+        Map<String, Object> reqConfig = compressionConfig(clientCompression, useHttpCompression, sendParamsInBody);
+        if (withParams) {
+            reqConfig.put(HttpAPIClientHelper.KEY_STATEMENT_PARAMS, Collections.singletonMap("p1", "1"));
+        }
+
+        HttpPost req = newHelper().createRequest(new HttpEndpoint("localhost", 8123, false, "/"), reqConfig,
+                "SELECT {p1:Int32}").getDelegate();
+
+        String setup = "clientCompression=" + clientCompression + ", useHttpCompression=" + useHttpCompression
+                + ", sendParamsInBody=" + sendParamsInBody + ", withParams=" + withParams;
+        assertEquals(headerValue(req, HttpHeaders.CONTENT_ENCODING), expectedContentEncoding,
+                "unexpected " + HttpHeaders.CONTENT_ENCODING + " for " + setup);
+        assertEquals(req.getEntity().getContentEncoding(), expectedContentEncoding,
+                "the request body entity must declare the same encoding as the request for " + setup);
+        assertEquals(headerValue(req, HttpHeaders.ACCEPT_ENCODING), expectedAcceptEncoding,
+                "response compression signalling must not depend on the request body form");
+
+        String query = req.getRequestUri();
+        assertEquals(query.contains(ClickHouseHttpProto.QPARAM_DECOMPRESS + "=1"), expectDecompressParam,
+                "unexpected " + ClickHouseHttpProto.QPARAM_DECOMPRESS + " parameter in " + query);
+        assertEquals(query.contains(ClickHouseHttpProto.QPARAM_ENABLE_HTTP_COMPRESSION + "=1"), useHttpCompression,
+                "unexpected " + ClickHouseHttpProto.QPARAM_ENABLE_HTTP_COMPRESSION + " parameter in " + query);
+    }
+
+    @DataProvider(name = "contentEncodingHeaderNames")
+    public static Object[][] contentEncodingHeaderNames() {
+        return new Object[][] {{HttpHeaders.CONTENT_ENCODING}, {"content-encoding"}};
+    }
+
+    /**
+     * A content encoding set by the application through {@code http_header_*} cannot make the plain multipart
+     * body compressed either, so it must not reach the server, whatever the header is spelled like.
+     */
+    @Test(dataProvider = "contentEncodingHeaderNames")
+    public void testCustomContentEncodingHeaderRemovedForMultipartRequest(String headerName) {
+        Map<String, Object> reqConfig = compressionConfig(false, false, true);
+        reqConfig.put(HttpAPIClientHelper.KEY_STATEMENT_PARAMS, Collections.singletonMap("p1", "1"));
+        reqConfig.put(ClientConfigProperties.HTTP_HEADER_PREFIX + headerName, "lz4");
+
+        HttpPost req = newHelper().createRequest(new HttpEndpoint("localhost", 8123, false, "/"), reqConfig,
+                "SELECT {p1:Int32}").getDelegate();
+
+        assertNull(headerValue(req, HttpHeaders.CONTENT_ENCODING),
+                "a custom " + headerName + " must be removed from a multipart request");
+    }
+
+    /**
+     * A request that is not multipart is unaffected: a content encoding set by the application through
+     * {@code http_header_*} still reaches the server.
+     */
+    @Test(dataProvider = "contentEncodingHeaderNames")
+    public void testCustomContentEncodingHeaderKeptForRequestWithoutParams(String headerName) {
+        Map<String, Object> reqConfig = compressionConfig(false, false, true);
+        reqConfig.put(ClientConfigProperties.HTTP_HEADER_PREFIX + headerName, "lz4");
+
+        HttpPost req = newHelper().createRequest(new HttpEndpoint("localhost", 8123, false, "/"), reqConfig,
+                "SELECT 1").getDelegate();
+
+        assertEquals(headerValue(req, HttpHeaders.CONTENT_ENCODING), "lz4",
+                "a custom " + headerName + " must be kept on a request that is not multipart");
+    }
+
+    /**
+     * Data is streamed into the request body, so an insert is never a multipart request and keeps compressing
+     * its body even when the client is configured to send statement parameters in the body.
+     */
+    @Test
+    public void testDataRequestKeepsContentEncodingWhenParamsInBodyEnabled() {
+        Map<String, Object> reqConfig = compressionConfig(true, true, true);
+
+        HttpPost req = newHelper().createRequest(new HttpEndpoint("localhost", 8123, false, "/"), reqConfig,
+                out -> out.write(1)).getDelegate();
+
+        assertEquals(headerValue(req, HttpHeaders.CONTENT_ENCODING), "lz4",
+                "an insert body is compressed, so the request must declare the content encoding");
+    }
+
+    private static HttpAPIClientHelper newHelper() {
+        return HttpAPIClientHelperFactory.newHelper(new HashMap<>(), LZ4Factory.fastestInstance());
+    }
+
+    private static Map<String, Object> compressionConfig(boolean clientCompression, boolean useHttpCompression,
+                                                         boolean sendParamsInBody) {
+        Map<String, Object> reqConfig = new HashMap<>();
+        reqConfig.put(ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey(), clientCompression);
+        reqConfig.put(ClientConfigProperties.USE_HTTP_COMPRESSION.getKey(), useHttpCompression);
+        reqConfig.put(ClientConfigProperties.HTTP_SEND_PARAMS_IN_BODY.getKey(), sendParamsInBody);
+        return reqConfig;
+    }
+
+    private static String headerValue(HttpPost req, String name) {
+        Header header = req.getFirstHeader(name);
+        return header == null ? null : header.getValue();
+    }
+
+    /**
      * A server error is logged at WARN only for an unknown status code (the switch's default branch). Known
      * error paths emit no server-error WARN: readError surfaces an exception-code error, a mapped code (502)
      * throws a descriptive exception, and 200 is not an error.
@@ -468,6 +628,19 @@ public class HttpAPIClientHelperTest {
             helper.createHttpClient(true, sslConfig);
         }
         return constructorArgs;
+    }
+
+    private static SocketConfig captureSocketConfig(Map<String, Object> configuration) {
+        Map<String, Object> config = new HashMap<>(configuration);
+        config.put(ClientConfigProperties.CONNECTION_POOL_ENABLED.getKey(), Boolean.FALSE);
+        HttpAPIClientHelper helper = HttpAPIClientHelperFactory.newHelper(new HashMap<>(), LZ4Factory.fastestJavaInstance());
+        try (MockedConstruction<BasicHttpClientConnectionManager> mocked =
+                     mockConstruction(BasicHttpClientConnectionManager.class)) {
+            helper.createHttpClient(false, config);
+            ArgumentCaptor<SocketConfig> socketConfig = ArgumentCaptor.forClass(SocketConfig.class);
+            verify(mocked.constructed().get(0)).setSocketConfig(socketConfig.capture());
+            return socketConfig.getValue();
+        }
     }
 
     private static String[] baseSupportedCipherSuites(CustomSSLConnectionFactory factory) throws Exception {

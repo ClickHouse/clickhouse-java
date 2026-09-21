@@ -73,7 +73,9 @@ public final class ClickHouseSqlUtils {
                 // Appended 06/26/2026
                 "ENUM", "HYPOTHETICAL", "WHATIF",
                 // Appended 07/21/2026
-                "ANALYZE", "AT", "MANIFEST", "RESERVATION"
+                "ANALYZE", "AT", "MANIFEST", "RESERVATION",
+                // Appended 09/10/2026
+                "AGGREGATE", "BOUNDED", "EXTEND", "HANDLER", "IDLE", "PROTOCOL", "RECENT", "TIMEOUT", "UNORDERED"
             );
     }
 

@@ -697,7 +697,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             Instant i = Instant.ofEpochMilli(value / 1000L);
             LocalDateTime dt = LocalDateTime.ofInstant(i, conn.getServerTimeZone().toZoneId());
             try (PreparedStatement ps = conn.prepareStatement("insert into test_issue_612 values(trim(?),?)")) {
-                ps.setLong(2, value);
+                ps.setObject(2, dt);
                 ps.setObject(1, id);
                 ps.execute();
                 ps.setObject(1, UUID.randomUUID());

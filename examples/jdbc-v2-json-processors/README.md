@@ -81,13 +81,13 @@ Each read call in `run()` follows the same three-step shape:
 2. **Customize if needed** — only inside the subclass, by overriding the
    protected hook.
 3. **Execute** — `readAll(label, factoryClass)` opens a fresh connection
-   with `JSON_PARSER_FACTORY=<FQN>`, runs the `SELECT ... FORMAT JSONEachRow`
-   and iterates the `ResultSet`.
+   with `JSON_PARSER_FACTORY=<FQN>` and `format=JSONEachRow`, runs the
+   `SELECT ... FORMAT JSONEachRow` and iterates the `ResultSet`.
 
-Because JDBC selects `JSONEachRow` through SQL text, set the JSON output
-server settings explicitly on the connection when numeric accessors are used:
+Configure the format and JSON output server settings explicitly on the connection:
 
 ```java
+props.setProperty(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), "JSONEachRow");
 props.setProperty(ClientConfigProperties.serverSetting("output_format_json_quote_64bit_integers"), "0");
 props.setProperty(ClientConfigProperties.serverSetting("output_format_json_quote_64bit_floats"), "0");
 props.setProperty(ClientConfigProperties.serverSetting("output_format_json_quote_decimals"), "0");

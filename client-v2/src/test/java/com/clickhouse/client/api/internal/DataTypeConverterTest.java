@@ -177,6 +177,24 @@ public class DataTypeConverterTest {
                 "[[1.0, 2.0, 3.0]]");
     }
 
+    @Test
+    public void testVariantTwoDimensionalGeoToString() {
+        DataTypeConverter converter = new DataTypeConverter();
+        double[][] value = new double[][] {{1D, 2D}, {3D, 4D}};
+
+        // every two dimensional geo type is written as a point sequence
+        assertEquals(converter.convertToString(value, ClickHouseColumn.of("field", "Variant(String, Ring)")),
+                "[(1.0,2.0),(3.0,4.0)]");
+        assertEquals(converter.convertToString(value, ClickHouseColumn.of("field", "Variant(String, LineString)")),
+                "[(1.0,2.0),(3.0,4.0)]");
+        assertEquals(converter.convertToString(value, ClickHouseColumn.of("field", "Variant(String, MultiPoint)")),
+                "[(1.0,2.0),(3.0,4.0)]");
+
+        // no variant matches the two dimensional shape, thus the value keeps the plain array form
+        assertEquals(converter.convertToString(value, ClickHouseColumn.of("field", "Variant(String, Polygon)")),
+                "[[1.0, 2.0], [3.0, 4.0]]");
+    }
+
     @DataProvider(name = "queryParameters")
     public static Object[][] queryParameters() {
         return new Object[][] {

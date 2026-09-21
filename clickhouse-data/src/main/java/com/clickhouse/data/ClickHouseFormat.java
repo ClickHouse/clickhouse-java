@@ -104,6 +104,29 @@ public enum ClickHouseFormat {
     XML(false, true, false, false, false); // https://clickhouse.com/docs/en/interfaces/formats/#xml
 
     /**
+     * Finds ClickHouseFormat matching the given format name (case-insensitive).
+     *
+     * @param format format name, can be null or empty
+     * @return ClickHouseFormat or null if format is null or empty
+     * @throws IllegalArgumentException if format is unknown
+     */
+    public static ClickHouseFormat fromString(String format) {
+        if (format == null) {
+            return null;
+        }
+        String trimmed = format.trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+        for (ClickHouseFormat f : values()) {
+            if (f.name().equalsIgnoreCase(trimmed)) {
+                return f;
+            }
+        }
+        throw new IllegalArgumentException("No enum constant " + ClickHouseFormat.class.getName() + "." + trimmed);
+    }
+
+    /**
      * Gets format based on given file name.
      *
      * @param file file name

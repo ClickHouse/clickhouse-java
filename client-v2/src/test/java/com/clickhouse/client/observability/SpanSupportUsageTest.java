@@ -31,7 +31,7 @@ public class SpanSupportUsageTest {
         QuerySettings settings = new QuerySettings().setDatabase("db1").setQueryId("q1");
         RecordingSpan span = new RecordingSpan();
 
-        Assert.assertEquals(support.querySpanName(settings), "query db1");
+        Assert.assertEquals(support.querySpanName(settings), "QUERY db1");
         support.fillQueryAttributes(span, settings, "SELECT 1", null);
         support.recordFailure(span, new IllegalStateException("boom"));
 
@@ -49,14 +49,14 @@ public class SpanSupportUsageTest {
         RecordingSpan operationSpan = new RecordingSpan();
         RecordingSpan requestSpan = new RecordingSpan();
 
-        Assert.assertEquals(support.insertSpanName(settings, "t1"), "insert db1.t1");
+        Assert.assertEquals(support.insertSpanName(settings, "t1"), "INSERT db1.t1");
         support.fillInsertAttributes(operationSpan, settings, "t1", 3, null);
         Assert.assertEquals(support.requestSpanName(), "POST");
         support.fillRequestAttributes(requestSpan, "localhost", 8123);
         support.recordHttpStatus(requestSpan, 200);
 
         Assert.assertEquals(operationSpan.attributes.get(SpanAttribute.DB_COLLECTION_NAME.getKey()), "t1");
-        Assert.assertEquals(operationSpan.attributes.get(SpanAttribute.DB_OPERATION_NAME.getKey()), "insert");
+        Assert.assertEquals(operationSpan.attributes.get(SpanAttribute.DB_OPERATION_NAME.getKey()), "INSERT");
         Assert.assertEquals(operationSpan.attributes.get(SpanAttribute.DB_OPERATION_BATCH_SIZE.getKey()), 3);
         Assert.assertEquals(requestSpan.attributes.get(SpanAttribute.HTTP_REQUEST_METHOD.getKey()), "POST");
         Assert.assertEquals(requestSpan.attributes.get(SpanAttribute.SERVER_ADDRESS.getKey()), "localhost");
@@ -87,7 +87,7 @@ public class SpanSupportUsageTest {
             }
         };
 
-        Assert.assertEquals(support.querySpanName(new QuerySettings().setDatabase("db1")), "custom:query db1");
+        Assert.assertEquals(support.querySpanName(new QuerySettings().setDatabase("db1")), "custom:QUERY db1");
     }
 
     @Test
@@ -115,7 +115,7 @@ public class SpanSupportUsageTest {
 
         CapturedSpan captured = recorder.operationSpan();
         Assert.assertSame(captured, span);
-        Assert.assertEquals(captured.getName(), "query db1");
+        Assert.assertEquals(captured.getName(), "QUERY db1");
         Assert.assertEquals(captured.getAttribute(SpanAttribute.DB_SYSTEM_NAME), "clickhouse");
         Assert.assertEquals(captured.getAttribute(SpanAttribute.DB_QUERY_TEXT), "SELECT 1");
         Assert.assertEquals(captured.getAttribute(SpanAttribute.CLICKHOUSE_QUERY_ID), "q1");

@@ -3043,6 +3043,68 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
         }
     }
 
+    private static final String MULTI_POINT_UNSUPPORTED_VERSIONS = "(,26.7]";
+
+    @Test(groups = { "integration" })
+    public void testGeoMultiPoint() throws Exception {
+        if (ClickHouseVersion.of(getServerVersion()).check(MULTI_POINT_UNSUPPORTED_VERSIONS)) {
+            return;
+        }
+
+        final Double[][] row = new Double[][] {
+                {10.123456789, 11.123456789},
+                {12.123456789, 13.123456789},
+                {14.123456789, 15.123456789},
+        };
+
+        final double[][] expected = new double[][] {
+                {10.123456789, 11.123456789},
+                {12.123456789, 13.123456789},
+                {14.123456789, 15.123456789},
+        };
+
+        try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
+            final String table = "test_geo_multi_point";
+            stmt.executeUpdate("DROP TABLE IF EXISTS " + table);
+            stmt.executeUpdate("CREATE TABLE " + table
+                    + " (rowId Int32, geom MultiPoint, marker Float64) ENGINE = MergeTree ORDER BY rowId");
+
+            try (PreparedStatement pstmt =
+                         conn.prepareStatement("INSERT INTO " + table + " VALUES (?, ?, ?)")) {
+                pstmt.setInt(1, 1);
+                pstmt.setObject(2, conn.createArrayOf("Array(Point)", row));
+                pstmt.setDouble(3, 42D);
+                pstmt.executeUpdate();
+            }
+            stmt.executeUpdate("INSERT INTO " + table
+                    + " VALUES (2, readWKTMultiPoint('MULTIPOINT(10.123456789 11.123456789, "
+                    + "12.123456789 13.123456789, 14.123456789 15.123456789)'), 42)");
+
+            try (ResultSet rs = stmt.executeQuery("SELECT * FROM " + table + " ORDER BY rowId")) {
+                int geomColumn = 2;
+                ResultSetMetaData rsMd = rs.getMetaData();
+                assertEquals(rsMd.getColumnTypeName(geomColumn), ClickHouseDataType.MultiPoint.name());
+                assertEquals(rsMd.getColumnType(geomColumn), Types.ARRAY);
+                assertEquals(rsMd.getColumnClassName(geomColumn), Array.class.getName());
+
+                int rows = 0;
+                while (rs.next()) {
+                    rows++;
+                    assertEquals(rs.getInt(1), rows);
+                    Object asObject = rs.getObject(geomColumn);
+                    assertTrue(asObject instanceof double[][]);
+                    assertTrue(Arrays.deepEquals((double[][]) asObject, expected));
+                    Array asArray = rs.getArray(geomColumn);
+                    assertEquals(asArray.getArray(), row);
+                    assertEquals(asArray.getBaseTypeName(), ClickHouseDataType.MultiPoint.name());
+                    assertEquals(asArray.getBaseType(), Types.ARRAY);
+                    assertEquals(rs.getDouble(3), 42D);
+                }
+                assertEquals(rows, 2);
+            }
+        }
+    }
+
     @Test(groups = { "integration" })
     public void testGeoMultiLineString() throws Exception {
         final Double[][][] row = new Double[][][] {
