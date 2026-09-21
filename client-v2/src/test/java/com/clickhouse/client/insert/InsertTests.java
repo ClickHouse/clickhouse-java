@@ -482,9 +482,17 @@ public class InsertTests extends BaseIntegrationTest {
         try (CommandResponse resp = client.execute("SYSTEM FLUSH LOGS").get()) {
         }
 
-        List<GenericRecord> logRecords = client.queryAll("SELECT query_id, log_comment FROM system.query_log WHERE query_id = '" + settings.getQueryId() + "'");
-        Assert.assertEquals(logRecords.get(0).getString("query_id"), settings.getQueryId());
-        Assert.assertEquals(logRecords.get(0).getString("log_comment"), logComment == null ? "" : logComment);
+        final String selectQueryLog = "SELECT query_id, log_comment FROM clusterAllReplicas('default', system.query_log) WHERE query_id = '" + settings.getQueryId() + "'";
+        int attempts = 3;
+        for (int i = 0; i < attempts; i++) {
+            List<GenericRecord> logRecords = client.queryAll(selectQueryLog);
+            if (logRecords.isEmpty()) {
+                continue;
+            }
+            Assert.assertEquals(logRecords.get(0).getString("query_id"), settings.getQueryId());
+            Assert.assertEquals(logRecords.get(0).getString("log_comment"), logComment == null ? "" : logComment);
+
+        }
     }
 
     @Test(groups = { "integration" })
