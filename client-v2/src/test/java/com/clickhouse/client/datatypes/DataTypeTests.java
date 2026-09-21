@@ -11,6 +11,7 @@ import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertSettings;
+import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.NullValueException;
@@ -85,6 +86,7 @@ public class DataTypeTests extends BaseIntegrationTest {
                 .setPassword(ClickHouseServerForTest.getPassword())
                 .compressClientRequest(useClientCompression)
                 .useHttpCompression(useHttpCompression)
+                .serverSetting(ServerSettings.ASYNC_INSERT, "0") // tests produce small part and result seen not immediately. tmp fix
                 .build();
     }
 
