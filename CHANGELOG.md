@@ -15,6 +15,17 @@
   an internal type (`com.clickhouse.client.api.internal.ClientStatisticsHolder`), so application code is not expected
   to call it. (https://github.com/ClickHouse/clickhouse-java/issues/2974)
 
+- **[client-v2, jdbc-v2]** The socket buffer options `socket_rcvbuf` and `socket_sndbuf` have no default value anymore.
+  They were set to 804800 bytes for every connection, which replaced the buffer size the operating system would choose
+  and disabled its auto-tuning; the value was also capped by the operating system limits, so on many systems it had no
+  effect. Now the options are applied only when the application sets them (`Client.Builder#setSocketRcvbuf`,
+  `Client.Builder#setSocketSndbuf`, or the properties of the same name), and the operating system sizes and tunes the
+  buffers otherwise. Setting them is not recommended unless a measurement shows a benefit. An application that relies on
+  the previous size can restore it by setting both options to 804800.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3121)
+
+- **[r2dbc]** Pre `1.0.0` is not supported anymore because R2DBC API reached stable `1.0.0` version.  
+
 ### New Features
 
 - **[migration-helpers]** Added `migration-helpers` module containing `ConfigurationMigrationHelper` and
@@ -167,6 +178,8 @@
   unknown. `RECURSIVE` is now accepted after `WITH` by both the JavaCC and the ANTLR4 grammars, and stays usable as
   an ordinary identifier (column, alias, table or CTE name).
   (https://github.com/ClickHouse/clickhouse-java/issues/3122)
+- **[jdbc-v2]** Fixed `ArrayResultSet#next()` leaving the cursor before-first for empty arrays or on the last row for
+  non-empty arrays after exhaustion. The cursor now moves to the after-last state when `next()` returns `false`.
 - **[jdbc-v2]** Added the non-reserved keywords `AGGREGATE`, `BOUNDED`, `EXTEND`, `HANDLER`, `IDLE`, `PROTOCOL`,
   `RECENT`, `TIMEOUT` and `UNORDERED` (ClickHouse `26.8+`; `IDLE`, `TIMEOUT` and `RECENT` come from the multi-word
   keywords `IDLE TIMEOUT` and `RECENT SAMPLES`) to the list of keywords allowed in identifier positions. The server
