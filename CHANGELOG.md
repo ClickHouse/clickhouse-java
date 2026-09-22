@@ -38,6 +38,8 @@
   the previous size can restore it by setting both options to 804800.
   (https://github.com/ClickHouse/clickhouse-java/issues/3121)
 
+- **[r2dbc]** Pre `1.0.0` is not supported anymore because R2DBC API reached stable `1.0.0` version.  
+
 ### New Features
 
 - **[migration-helpers]** Added `migration-helpers` module containing `ConfigurationMigrationHelper` and
@@ -190,6 +192,8 @@
   `Accept-Encoding`, so the client reads the algorithm it asked for; see the breaking-changes entry above.
   (https://github.com/ClickHouse/clickhouse-java/issues/3105)
 
+- **[jdbc-v2]** Fixed `ArrayResultSet#next()` leaving the cursor before-first for empty arrays or on the last row for
+  non-empty arrays after exhaustion. The cursor now moves to the after-last state when `next()` returns `false`.
 - **[jdbc-v2]** Added the non-reserved keywords `AGGREGATE`, `BOUNDED`, `EXTEND`, `HANDLER`, `IDLE`, `PROTOCOL`,
   `RECENT`, `TIMEOUT` and `UNORDERED` (ClickHouse `26.8+`; `IDLE`, `TIMEOUT` and `RECENT` come from the multi-word
   keywords `IDLE TIMEOUT` and `RECENT SAMPLES`) to the list of keywords allowed in identifier positions. The server
