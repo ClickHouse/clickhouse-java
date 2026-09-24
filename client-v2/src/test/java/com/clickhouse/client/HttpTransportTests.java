@@ -1,7 +1,15 @@
 package com.clickhouse.client;
 
-import com.clickhouse.client.api.*;
 import com.clickhouse.client.api.ClickHouseException;
+import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.ClientFaultCause;
+import com.clickhouse.client.api.ClientMisconfigurationException;
+import com.clickhouse.client.api.ConnectionInitiationException;
+import com.clickhouse.client.api.ConnectionReuseStrategy;
+import com.clickhouse.client.api.ServerException;
+import com.clickhouse.client.api.Session;
 import com.clickhouse.client.api.command.CommandResponse;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
@@ -11,7 +19,11 @@ import com.clickhouse.client.api.enums.SSLMode;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
-import com.clickhouse.client.api.internal.*;
+import com.clickhouse.client.api.internal.DataTypeConverter;
+import com.clickhouse.client.api.internal.HttpAPIClientHelper;
+import com.clickhouse.client.api.internal.HttpAPIClientHelperFactory;
+import com.clickhouse.client.api.internal.ServerSettings;
+import com.clickhouse.client.api.internal.ValidationUtils;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
@@ -36,7 +48,11 @@ import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.net.URIBuilder;
 import org.bouncycastle.asn1.x500.X500Name;
-import org.bouncycastle.asn1.x509.*;
+import org.bouncycastle.asn1.x509.BasicConstraints;
+import org.bouncycastle.asn1.x509.Extension;
+import org.bouncycastle.asn1.x509.GeneralName;
+import org.bouncycastle.asn1.x509.GeneralNames;
+import org.bouncycastle.asn1.x509.KeyUsage;
 import org.bouncycastle.cert.X509v3CertificateBuilder;
 import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
 import org.bouncycastle.cert.jcajce.JcaX509ExtensionUtils;
@@ -62,13 +78,35 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.*;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.KeyStore;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.SecureRandom;
+import java.security.Security;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.Date;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -78,6 +116,9 @@ import java.util.regex.Pattern;
 import java.util.zip.GZIPOutputStream;
 
 import static com.github.tomakehurst.wiremock.stubbing.Scenario.STARTED;
+import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertNotEquals;
+import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.fail;
 
@@ -1563,33 +1604,6 @@ public class HttpTransportTests extends BaseIntegrationTest {
     }
 
     @Test(groups = { "integration" })
-    public void testJWTWithCloud() throws Exception {
-        if (!isCloud()) {
-            return; // only for cloud
-        }
-        final String jwt = System.getenv("CLIENT_JWT");
-        final String host = System.getenv("JWT_TEST_HOST");
-        Assert.assertTrue(jwt != null && !jwt.trim().isEmpty(), "CLIENT_JWT is not set.");
-        Assert.assertTrue(host != null && !host.trim().isEmpty(), "JWT_TEST_HOST is not set");
-        Assert.assertFalse(jwt.contains("\n") || jwt.contains("-----"), "JWT should be single string ready for HTTP header");
-        try (Client client = new Client.Builder()
-                .addEndpoint(Protocol.HTTP, host, 8443, true)
-                .setUsername("default")
-                .compressClientRequest(false)
-                .setDefaultDatabase("default")
-                .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1")
-                .useBearerTokenAuth(jwt).build()) {
-            try {
-                List<GenericRecord> response = client.queryAll("SELECT user(), now()");
-                System.out.println("response: " + response.get(0).getString(1) + " time: " + response.get(0).getString(2));
-            } catch (Exception e) {
-                e.printStackTrace();
-                throw e;
-            }
-        }
-    }
-
-    @Test(groups = { "integration" })
     public void testWithDefaultTimeouts() {
         if (isCloud()) {
             return; // mocked server
@@ -2790,5 +2804,23 @@ public class HttpTransportTests extends BaseIntegrationTest {
         }
         Assert.fail("no query_log record proving the query was interrupted (query_id=" + queryId
                 + ", seen types: [" + seenTypes + "])");
+    }
+
+    @Test(groups = {"integration"})
+    public void testStickyReplica() {
+        final String replicaKey = UUID.randomUUID().toString();
+        QuerySettings stickyReplica = new QuerySettings().httpHeader(ClickHouseHttpProto.HEADER_REPLICA_TAG, replicaKey);
+
+        String prevHostname = null;
+        for (int i = 0; i < 10; i++) {
+            try (Client client = newClient().build()) {
+                GenericRecord hostname1 = client.queryAll("SELECT hostname()", stickyReplica).get(0);
+                if (prevHostname == null) {
+                    prevHostname = hostname1.getString(1);
+                } else {
+                    assertEquals(hostname1.getString(1), prevHostname, "Failed to reach same replica on " + i + " iteration.");
+                }
+            }
+        }
     }
 }

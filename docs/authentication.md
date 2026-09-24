@@ -69,6 +69,15 @@ client.updateAccessToken("Bearer new_access_token"); // -> Authorization: Bearer
 > Note: as with username/password, a client built without an access token cannot
 > be promoted to token-based authentication at runtime.
 
+### JWT Authentication (ClickHouse Cloud)
+
+> **Main Documentation:** See [JWT Authentication in ClickHouse Cloud](https://clickhouse.com/docs/concepts/features/security/external-authenticators/jwt) and [clickhouse-docs/client.mdx#jwt-authentication](clickhouse-docs/client.mdx#jwt-authentication).
+
+- **Cloud-Only Feature:** JWT authentication is exclusive to **ClickHouse Cloud**. ClickHouse Cloud dynamically creates **ephemeral users** derived from claims embedded in each token.
+- **User-to-Service Authentication:** JWT authentication is designed for **user-to-service** authentication mainly.
+- **Service-to-Service Recommendation:** Using JWT for **service-to-service** communication is **not recommended** because JWT tokens have a short lifespan and require frequent refreshing.
+- **Runtime Refresh:** In Java Client V2, tokens can be updated at runtime on an existing `Client` instance using `client.updateBearerToken(newJwtToken)`. In JDBC, there is no standard JDBC mechanism to update tokens on active connections.
+
 ---
 
 ## 3. Mutual TLS (mTLS) / Client Certificates

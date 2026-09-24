@@ -268,6 +268,15 @@ public Client.Builder createBaseClient() {
 
 For a non-`Bearer` scheme, use `setAccessToken(...)` — the value is sent verbatim, so include the scheme yourself. Runtime updates: `updateBearerToken(...)` (adds prefix) and `updateAccessToken(...)` (verbatim).
 
+#### JWT Authentication (ClickHouse Cloud)
+
+> **Main Documentation:** See [JWT Authentication in ClickHouse Cloud](https://clickhouse.com/docs/concepts/features/security/external-authenticators/jwt).
+
+- **Cloud-Only Feature:** JWT authentication is a **ClickHouse Cloud-only** feature. ClickHouse Cloud dynamically creates **ephemeral users** derived from claims embedded in each token.
+- **User-to-Service Authentication:** JWT authentication is intended for **user-to-service** authentication (e.g., authenticating end users or application sessions).
+- **Service-to-Service Recommendation:** Using JWT for **service-to-service** communication is **not recommended** because JWT tokens have a short lifespan and require frequent refreshing. Traditional username/password credentials or long-lived tokens are preferred for service-to-service workloads.
+- **Runtime Token Refresh API:** If token refresh is required on long-lived client instances, the client provides runtime update methods: `client.updateBearerToken(newJwtToken)` (adds `Bearer ` prefix) or `client.updateAccessToken(newRawToken)` (sent verbatim). See [Step 9 — Runtime credentials & Access Tokens](#runtime-credentials--access-tokens) for details.
+
 **Note**: realtime credentials update would work well with runtime configuration update but would not work for multi-tenant setup. Multi tenant application should organize exclusive access to client 
 while handling tenant operation to avoid cross-talk problem. Separate client instance per tenant must be used when each tenant has own database.
 
@@ -358,6 +367,8 @@ The mechanism follows from how the server and any fronting infrastructure are co
 
 Runtime rotation via `updateUserAndPassword` / `updateBearerToken` updates the credentials of the **already-selected** mechanism; it throws `ClientMisconfigurationException` rather than switching to a different mechanism.
 
+See [integration-testing.md — Configuration](integration-testing.md#configuration) for what to verify when testing authentication end-to-end (boundary/invalid values, certificate acceptance).
+
 ---
 
 ## Step 3 — Transport & connectivity (TLS, proxies, timeouts)
@@ -374,7 +385,7 @@ Runtime rotation via `updateUserAndPassword` / `updateBearerToken` updates the c
 | Trust store (JKS/PKCS12) | `setSSLTrustStore(...)`, `setSSLTrustStorePassword(...)` |
 | HTTP proxy | `setProxy(ProxyType.HTTP, host, port)`, `setProxyCredentials(user, password)` |
 
-See [SSLExamples](../examples/client-v2/src/main/java/com/clickhouse/examples/client_v2/SSLExamples.java) for a runnable walkthrough and [authentication.md](authentication.md) for full details.
+See [SSLExamples](../examples/client-v2/src/main/java/com/clickhouse/examples/client_v2/SSLExamples.java) for a runnable walkthrough and [authentication.md](authentication.md) for full details. See also [integration-testing.md — Test Environment](integration-testing.md#test-environment) for testing across protocols, hosts, and ClickHouse versions.
 
 ### Init configuration — timeouts
 
@@ -383,6 +394,7 @@ Timeouts are critical parameters that directly impact application stability unde
 - **Connection timeout** (`.setConnectTimeout()`): The TCP connect timeout. Setting this value too low can cause failures when the application and server are in different geographical regions. Additionally, connection timeouts are closely tied to the connection pool: if the application issues concurrent requests that exceed the available pool size, it may manifest as a connection timeout because no free connections are present.
 - **Socket timeout** (`.setSocketTimeout()`): The timeout for underlying socket read/write operations. While it applies strictly to socket activity, it is vital because it dictates how long the client will wait for long-running queries to return data. If your workload involves heavy analytical queries, you may need a very long socket timeout. However, the trade-off of a long socket timeout is the increased risk of encountering stale or silently dropped connections.
 - **TCP keepalive**: Can be enabled to mitigate stale connections, though the host operating system's settings may ultimately override it. System-level TCP keepalive defaults are often several hours; configuring a shorter keepalive period makes sense for long-running operations. Keep in mind that executing extremely long operations over the public internet remains inherently risky.
+- **Socket buffers** (`.setSocketRcvbuf()`, `.setSocketSndbuf()`): Not set by default, so the operating system sizes the socket buffers and auto-tunes them for the connection. Setting a fixed size turns that auto-tuning off and is additionally capped by the operating system limits, so a large value may have no effect. Configure these options only when a measurement shows a benefit for your workload.
 
 > **Note on runtime configuration:** You can optionally override the default network timeout on a per-operation basis using `QuerySettings.setNetworkTimeout(long timeout, ChronoUnit unit)`. This allows you to set stricter boundaries on specific queries without altering the client-wide defaults.
 
@@ -411,6 +423,8 @@ Key use cases include:
 > **Timeouts too aggressive** for heavy analytical queries cause spurious failures — align `socket_timeout` with expected query duration or use per-operation network timeouts.
 > 
 > **Proxy credentials omitted** on authenticated proxies produce opaque connection failures.
+
+See [integration-testing.md — Connecting](integration-testing.md#connecting) for connection-timeout and concurrency test scenarios to cover.
 ---
 
 ## Step 4 — Connections Configuration
@@ -419,7 +433,7 @@ In the Java Client a "connection" is an **HTTP connection borrowed from the inte
 
 ### Connection limit (`max_open_connections`)
 
-The pool size depends on your workload — specifically on its **concurrency**, not on how much data it moves. What matters is **how many operations run at the same time**, not the number of rows or bytes any single operation transfers. A pool of 20 connections serves at most 20 simultaneous operations regardless of whether each returns one row or a million. This is the single setting you actually tune. The table below will help to estimate rough number. Having slightly bigger number than actualy needed is not a problem because unused connections will be garbage collected. It is recommended to perform a load testing with one application instance to detect if estimated number works. 
+The pool size depends on your workload — specifically on its **concurrency**, not on how much data it moves. What matters is **how many operations run at the same time**, not the number of rows or bytes any single operation transfers. A pool of 20 connections serves at most 20 simultaneous operations regardless of whether each returns one row or a million. This is the single setting you actually tune. The table below will help to estimate rough number. Having slightly bigger number than actualy needed is not a problem because unused connections will be garbage collected. It is recommended to perform a load testing with one application instance to detect if estimated number works — see [integration-testing.md — Load Testing](integration-testing.md#load-testing) for how to design that test. 
 Connection limit may acts as a backpreasure for incomming requests if they get blocked by DB access. When request backlog grows it may also slowdowns whole application so it is very important to find a balance between concurrent operations and their execution time. Be aware that in most applications allocated memory is freed only at the end of request.  
 
 
@@ -479,6 +493,8 @@ public Client.Builder createBaseClient() {
 > **Stale connection errors (`NoHttpResponseException`):** Occurs when idle pooled connections are closed by server/proxy timeouts. Resolve by configuring `setKeepAliveTimeout` to be less than the server keep-alive duration.
 > 
 > **CONSTRAINT:** Always `close()` the client at shutdown to avoid leaking the pool and its threads.
+
+See [integration-testing.md — Connecting](integration-testing.md#connecting) for tests that verify pool sizing (`max_open_connections`) and connection release under load.
 ---
 
 ## Step 5 — Data formats, readers & writers
@@ -702,6 +718,8 @@ See the [Error model](#error-model) for the exception hierarchy and how to unwra
 | Server aborted an excessively heavy query | `ServerException` code `159` (`TIMEOUT_EXCEEDED`) | The query exceeded `max_execution_time`. Raise the limit or optimize the query; do not retry unconditionally. |
 | Transport connect/read timeout | `DataTransferException` / timeout | Often transient. A read is idempotent, so re-running the whole query is safe. |
 | Connection dropped **mid-stream** (after you began iterating) | `DataTransferException` while reading | You cannot resume from the middle — some rows were already consumed. Close the `QueryResponse` and re-run the entire query. Make consumers tolerant of re-reading from the start. |
+
+See [integration-testing.md — Fetching Data](integration-testing.md#fetching-data) for read-path test scenarios to cover (data types, formats, failure handling).
 ---
 
 ## Step 7 — Write operations & tuning
@@ -857,6 +875,7 @@ public void insertWithDeduplication(Client client, InputStream dataStream, Strin
 - Assign a **stable** token per logical batch (file name, Kafka offset, job ID).
 - Use it for retry-safe pipelines and at-least-once sources (Kafka, SQS, file reprocessing).
 - Requires a `MergeTree` engine with deduplication configured. See [`InsertTests.testInsertSettingsDeduplicationToken`](../client-v2/src/test/java/com/clickhouse/client/insert/InsertTests.java).
+- See [integration-testing.md — Loading Data](integration-testing.md#loading-data) for how to verify the deduplication token is set correctly and honored.
 
 ### Errors & how to handle them
 
@@ -950,6 +969,8 @@ Field-to-column matching is controlled by [`ColumnToMethodMatchingStrategy`](../
 ### Runtime credentials & Access Tokens
 
 ClickHouse supports authentication via access tokens (e.g., JWTs) instead of traditional username/password credentials. This is common in cloud deployments or when using an authentication proxy.
+
+> **JWT Authentication Note:** JWT authentication is a **ClickHouse Cloud-only feature** intended for **user-to-service authentication**. Using JWT for **service-to-service** communication is **not recommended** due to short token lifespans and the requirement to refresh tokens. If token refreshing is necessary, use `client.updateBearerToken(...)`. For complete details, see [JWT Authentication in ClickHouse Cloud](https://clickhouse.com/docs/concepts/features/security/external-authenticators/jwt) and [clickhouse-docs/client.mdx#jwt-authentication](clickhouse-docs/client.mdx#jwt-authentication).
 
 You can configure token authentication when building the client:
 
@@ -1109,3 +1130,4 @@ public void executeQueryWithErrorHandling(Client client, String sql) throws Exce
 - [integration-ops.md](integration-ops.md) — operations and observability guide
 - [authentication.md](authentication.md) — full authentication and TLS reference (referenced from Steps 2–3)
 - [features.md](features.md) — compatibility contract (referenced from Step 5)
+- [integration-testing.md](integration-testing.md) — integration testing recommendations and practices
