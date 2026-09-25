@@ -171,6 +171,14 @@
 
 ### Bug Fixes 
 
+- **[client-v2, jdbc-v2]** Fixed a column type with a `JSON` element that is followed by a parameterized type, for
+  example `Tuple(JSON, FixedString(3))`, being parsed wrongly. `JSON` is valid with and without a parameter list, and
+  the parser looked for the opening bracket of that list anywhere after the keyword, so it took the brackets of the
+  next element for the parameters of the `JSON` element. Everything up to those brackets was consumed, which dropped
+  the elements between them, or failed with `Unknown data type: <parameter>` when the following type had more than one
+  parameter, for example `Tuple(JSON, Decimal(10, 2))`. Reading such a column, and `Client#getTableSchema` of a table
+  that has one, failed or returned an incomplete type. A parameter list is now recognized only when it immediately
+  follows the `JSON` keyword. (https://github.com/ClickHouse/clickhouse-java/issues/3098)
 - **[jdbc-v1]** Fixed `WITH RECURSIVE <name> AS (...)` failing to parse. The JavaCC grammar did not know the
   `RECURSIVE` keyword, so it was taken for the name of the first common table expression and the statement was
   rejected. The query itself still ran, because the driver falls back to sending the original SQL, but every

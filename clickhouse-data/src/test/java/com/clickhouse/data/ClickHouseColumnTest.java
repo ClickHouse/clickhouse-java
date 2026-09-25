@@ -3,6 +3,7 @@ package com.clickhouse.data;
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -545,6 +546,98 @@ public class ClickHouseColumnTest {
                 {"JSON(max_dynamic_paths=3, stat.name String, SKIP REGEXP '^-.*')", 1,  Arrays.asList("stat.name")},
                 {"JSON(max_dynamic_paths=3,SKIP REGEXP '^-.*',SKIP ff,   flags Array(Array(Array(Int8))), SKIP alt_count)", 1, Arrays.asList("flags")},
                 {"JSON(max_dynamic_types=3,max_dynamic_paths=3, SKIP REGEXP '^-.*',SKIP ff,   flags Array(Array(Array(Int8))), SKIP alt_count)", 2, Arrays.asList("flags")},
+        };
+    }
+
+    @Test(groups = { "unit" }, dataProvider = "jsonElementProvider")
+    public void testJSONElementInContainer(String typeName, String[] expectedElementTypes) {
+        ClickHouseColumn column = ClickHouseColumn.of("v", typeName);
+
+        Assert.assertEquals(column.getOriginalTypeName(), typeName);
+        assertElementTypes(column, expectedElementTypes);
+    }
+
+    @Test(groups = { "unit" })
+    public void testJSONElementInNestedContainer() {
+        ClickHouseColumn tuple = ClickHouseColumn.of("v", "Tuple(Tuple(JSON, FixedString(3)), Int32)");
+        assertElementTypes(tuple, "Tuple(JSON, FixedString(3))", "Int32");
+        assertElementTypes(tuple.getNestedColumns().get(0), "JSON", "FixedString(3)");
+
+        ClickHouseColumn map = ClickHouseColumn.of("v", "Map(String, Tuple(JSON, Decimal(10, 2)))");
+        assertElementTypes(map, "String", "Tuple(JSON, Decimal(10, 2))");
+        assertElementTypes(map.getValueInfo(), "JSON", "Decimal(10, 2)");
+
+        ClickHouseColumn array = ClickHouseColumn.of("v", "Array(Tuple(JSON, FixedString(3)))");
+        assertElementTypes(array.getArrayBaseColumn(), "JSON", "FixedString(3)");
+
+        ClickHouseColumn json = ClickHouseColumn.of("v", "JSON(a JSON, b FixedString(3))");
+        Assert.assertEquals(json.getJsonPredefinedPaths().keySet(), new HashSet<>(Arrays.asList("a", "b")));
+    }
+
+    @Test(groups = { "unit" })
+    public void testJSONColumnInColumnList() {
+        List<ClickHouseColumn> columns = ClickHouseColumn.parse("a JSON, b FixedString(3)");
+
+        Assert.assertEquals(columns.size(), 2);
+        Assert.assertEquals(columns.get(0).getColumnName(), "a");
+        Assert.assertEquals(columns.get(0).getDataType(), ClickHouseDataType.JSON);
+        Assert.assertEquals(columns.get(1).getColumnName(), "b");
+        Assert.assertEquals(columns.get(1).getDataType(), ClickHouseDataType.FixedString);
+    }
+
+    private static void assertElementTypes(ClickHouseColumn column, String... expectedElementTypes) {
+        List<ClickHouseColumn> nestedColumns = column.getNestedColumns();
+        Assert.assertEquals(nestedColumns.size(), expectedElementTypes.length,
+                "element count mismatch for " + column.getOriginalTypeName());
+        for (int i = 0; i < expectedElementTypes.length; i++) {
+            Assert.assertEquals(nestedColumns.get(i).getOriginalTypeName(), expectedElementTypes[i]);
+        }
+    }
+
+    @DataProvider(name = "jsonElementProvider")
+    private static Object[][] jsonElementProvider() {
+        return new Object[][] {
+                // a parameter list belongs to JSON only when it immediately follows the keyword
+                { "Tuple(JSON, FixedString(3))", new String[] { "JSON", "FixedString(3)" } },
+                { "Tuple(JSON, Decimal(10, 2))", new String[] { "JSON", "Decimal(10, 2)" } },
+                { "Tuple(JSON, FixedString(3), Int32)", new String[] { "JSON", "FixedString(3)", "Int32" } },
+                { "Tuple(Int32, JSON, FixedString(3))", new String[] { "Int32", "JSON", "FixedString(3)" } },
+                { "Tuple(j JSON, s FixedString(3))", new String[] { "JSON", "FixedString(3)" } },
+                { "Tuple(JSON(max_dynamic_paths=8), FixedString(3))",
+                        new String[] { "JSON(max_dynamic_paths=8)", "FixedString(3)" } },
+                { "Tuple(JSON(a String), Decimal(10, 2))", new String[] { "JSON(a String)", "Decimal(10, 2)" } },
+                { "Nested(a JSON, b FixedString(3))", new String[] { "JSON", "FixedString(3)" } },
+                // unaffected shapes: JSON last, or followed by a type without parameters
+                { "Tuple(Int32, JSON)", new String[] { "Int32", "JSON" } },
+                { "Tuple(JSON, Int32)", new String[] { "JSON", "Int32" } },
+                { "Tuple(JSON(max_dynamic_paths=8), Int32)",
+                        new String[] { "JSON(max_dynamic_paths=8)", "Int32" } },
+        };
+    }
+
+    @Test(groups = { "unit" }, dataProvider = "jsonParametersProvider")
+    public void testJSONElementKeepsOwnParameters(String typeName, int parameters, List<String> predefinedPaths) {
+        ClickHouseColumn jsonColumn = ClickHouseColumn.of("v", typeName).getNestedColumns().get(0);
+
+        Assert.assertEquals(jsonColumn.getDataType(), ClickHouseDataType.JSON);
+        Assert.assertEquals(jsonColumn.getParameters().size(), parameters, "parameters count mismatch");
+        Assert.assertEquals(jsonColumn.getNestedColumns().size(), predefinedPaths.size(),
+                "predefined paths count mismatch");
+        for (String path : predefinedPaths) {
+            Assert.assertNotNull(jsonColumn.getJsonPredefinedPaths().get(path), "missing predefined path: " + path);
+        }
+    }
+
+    @DataProvider(name = "jsonParametersProvider")
+    private static Object[][] jsonParametersProvider() {
+        return new Object[][] {
+                { "Tuple(JSON, FixedString(3))", 0, Collections.emptyList() },
+                { "Tuple(JSON(), FixedString(3))", 0, Collections.emptyList() },
+                { "Tuple(JSON(stat.name String, count Int32), FixedString(3))", 0,
+                        Arrays.asList("stat.name", "count") },
+                { "Tuple(JSON(max_dynamic_paths=3, stat.name String, SKIP alt_count), Decimal(10, 2))", 1,
+                        Arrays.asList("stat.name") },
+                { "Tuple(JSON (stat.name String), FixedString(3))", 0, Arrays.asList("stat.name") },
         };
     }
 
