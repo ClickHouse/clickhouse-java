@@ -2315,19 +2315,26 @@ public class DataTypeTests extends BaseIntegrationTest {
         final String ring = "[(toFloat64(number * 10 + 1), toFloat64(number * 10 + 2)),"
                 + " (toFloat64(number * 10 + 3), toFloat64(number * 10 + 4))]";
         return new Object[][] {
-                {"Point", "(toFloat64(number * 2 + 1), toFloat64(number * 2 + 2))::Point",
+                {"Point", ClickHouseDataType.Point,
+                        "(toFloat64(number * 2 + 1), toFloat64(number * 2 + 2))::Point",
                         new Object[] {pointOf(0), pointOf(1), pointOf(2)}, null},
-                {"Ring", ring + "::Ring", new Object[] {ringOf(0), ringOf(1), ringOf(2)}, null},
-                {"LineString", ring + "::LineString", new Object[] {ringOf(0), ringOf(1), ringOf(2)}, null},
-                {"MultiPoint", ring + "::MultiPoint", new Object[] {ringOf(0), ringOf(1), ringOf(2)},
-                        MULTI_POINT_UNSUPPORTED_VERSIONS},
-                {"Polygon", "[" + ring + "]::Polygon",
+                {"Ring", ClickHouseDataType.Ring, ring + "::Ring",
+                        new Object[] {ringOf(0), ringOf(1), ringOf(2)}, null},
+                {"LineString", ClickHouseDataType.LineString, ring + "::LineString",
+                        new Object[] {ringOf(0), ringOf(1), ringOf(2)}, null},
+                {"MultiPoint", ClickHouseDataType.MultiPoint, ring + "::MultiPoint",
+                        new Object[] {ringOf(0), ringOf(1), ringOf(2)}, MULTI_POINT_UNSUPPORTED_VERSIONS},
+                {"Polygon", ClickHouseDataType.Polygon, "[" + ring + "]::Polygon",
                         new Object[] {polygonOf(0), polygonOf(1), polygonOf(2)}, null},
-                {"MultiLineString", "[" + ring + "]::MultiLineString",
+                {"MultiLineString", ClickHouseDataType.MultiLineString, "[" + ring + "]::MultiLineString",
                         new Object[] {polygonOf(0), polygonOf(1), polygonOf(2)}, null},
-                {"MultiPolygon", "[[" + ring + "]]::MultiPolygon",
+                {"MultiPolygon", ClickHouseDataType.MultiPolygon, "[[" + ring + "]]::MultiPolygon",
                         new Object[] {multiPolygonOf(0), multiPolygonOf(1), multiPolygonOf(2)}, null},
-                {"Ring, empty value", "if(number = 1, CAST([] AS Ring), " + ring + "::Ring)",
+                // The CAST wraps the whole if(): the common type of the two branches is
+                // Array(Tuple(Float64, Float64)) on some server versions, so only an outer CAST makes
+                // the column a Ring everywhere.
+                {"Ring, empty value", ClickHouseDataType.Ring,
+                        "CAST(if(number = 1, [], " + ring + ") AS Ring)",
                         new Object[] {ringOf(0), new double[0][], ringOf(2)}, null},
         };
     }
@@ -2349,8 +2356,8 @@ public class DataTypeTests extends BaseIntegrationTest {
     }
 
     @Test(groups = {"integration"}, dataProvider = "geoTypes")
-    public void testGeoTypesReadInEveryBinaryFormat(String typeName, String expression, Object[] expected,
-            String unsupportedVersions) throws Exception {
+    public void testGeoTypesReadInEveryBinaryFormat(String typeName, ClickHouseDataType expectedType,
+            String expression, Object[] expected, String unsupportedVersions) throws Exception {
         if (unsupportedVersions != null && isVersionMatch(unsupportedVersions)) {
             return;
         }
@@ -2364,6 +2371,11 @@ public class DataTypeTests extends BaseIntegrationTest {
             String label = typeName + " in " + format;
             try (QueryResponse response = client.query(sql, new QuerySettings().setFormat(format)).get()) {
                 ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+                // The server decides the type of the expression, so pin it: a version that returns
+                // Array(Tuple(Float64, Float64)) here would read a different code path and leave the
+                // geo one untested.
+                Assert.assertEquals(reader.getSchema().getColumnByName("geom").getDataType(), expectedType,
+                        label);
                 int rows = 0;
                 while (reader.next() != null) {
                     Object value = reader.readValue("geom");
