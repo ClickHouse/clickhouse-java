@@ -171,6 +171,12 @@
 
 ### Bug Fixes 
 
+- **[client-v2]** Fixed reading a `Nullable` column in the `Native` format failing with `Failed to read block ...
+  End of stream reached before reading all data`, or returning values of the wrong rows. The reader consumed a null
+  marker before every value, which is the RowBinary layout. `Native` is columnar: it stores a null map of one byte
+  per row before the values of the whole column, and a null row still has a placeholder value. The markers were
+  therefore taken from the value bytes and the column was read out of alignment. The null map is now read as a
+  block. (https://github.com/ClickHouse/clickhouse-java/issues/3137)
 - **[jdbc-v1]** Fixed `WITH RECURSIVE <name> AS (...)` failing to parse. The JavaCC grammar did not know the
   `RECURSIVE` keyword, so it was taken for the name of the first common table expression and the statement was
   rejected. The query itself still ran, because the driver falls back to sending the original SQL, but every

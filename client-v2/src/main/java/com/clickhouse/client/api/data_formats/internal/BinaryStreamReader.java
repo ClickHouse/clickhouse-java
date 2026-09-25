@@ -116,9 +116,28 @@ public class BinaryStreamReader {
         return readValue(column, typeHint, binaryStringSupport);
     }
 
-    @SuppressWarnings("unchecked")
+    /**
+     * Reads a value of a {@code Nullable} column whose null marker is stored apart from the value. The Native
+     * format keeps the null flags of a {@code Nullable} column in a columnar null map that precedes the values
+     * of the whole block, so the marker must not be consumed here; in RowBinary every value carries its own
+     * marker and {@link #readValue(ClickHouseColumn)} consumes it.
+     * @param column - column information
+     * @return value
+     * @param <T> - target type of the value
+     * @throws IOException when IO error occurs
+     */
+    public <T> T readValueWithoutNullMarker(ClickHouseColumn column) throws IOException {
+        return readValue(column, null, binaryStringSupport, false);
+    }
+
     private <T> T readValue(ClickHouseColumn column, Class<?> typeHint, boolean stringAsBytes) throws IOException {
-        if (column.isNullable()) {
+        return readValue(column, typeHint, stringAsBytes, true);
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> T readValue(ClickHouseColumn column, Class<?> typeHint, boolean stringAsBytes,
+                            boolean readNullMarker) throws IOException {
+        if (readNullMarker && column.isNullable()) {
             int isNull = readByteOrEOF(input);
             if (isNull == 1) { // is Null?
                 return null;

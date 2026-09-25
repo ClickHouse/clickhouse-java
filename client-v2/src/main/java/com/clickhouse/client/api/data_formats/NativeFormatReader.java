@@ -121,6 +121,29 @@ public class NativeFormatReader extends AbstractBinaryFormatReader {
                     values.add(binaryStreamReader.readArrayItem(column.getNestedColumns().get(0), len));
                     prevOffset = offsets[j];
                 }
+            } else if (column.isNullable() && !column.isLowCardinality()) {
+                // Native encodes a Nullable column as a null map of nRows bytes followed by the values of
+                // all rows; a row marked as null still has a placeholder value in the values section.
+                // RowBinary, in contrast, prefixes every value with its own marker - that marker is what
+                // readValue() consumes, so it must not be read here.
+                values = new ArrayList<>(nRows);
+                boolean[] nulls = new boolean[nRows];
+                for (int j = 0; j < nRows; j++) {
+                    nulls[j] = binaryStreamReader.readByte() == 1;
+                }
+                // Nothing (the type of a bare NULL) has no value bytes in RowBinary, but Native still writes
+                // one placeholder byte per row, so it has to be consumed here.
+                boolean nothing = column.getDataType() == ClickHouseDataType.Nothing;
+                for (int j = 0; j < nRows; j++) {
+                    Object value;
+                    if (nothing) {
+                        binaryStreamReader.readByte();
+                        value = null;
+                    } else {
+                        value = binaryStreamReader.readValueWithoutNullMarker(column);
+                    }
+                    values.add(nulls[j] ? null : value);
+                }
             } else {
                 values = new ArrayList<>(nRows);
                 for (int j = 0; j < nRows; j++) {
