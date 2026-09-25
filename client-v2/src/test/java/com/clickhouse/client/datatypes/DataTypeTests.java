@@ -2103,6 +2103,35 @@ public class DataTypeTests extends BaseIntegrationTest {
         };
     }
 
+    @Test(groups = {"integration"})
+    public void testTupleWithJSONElement() throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
+        final String table = "test_tuple_with_json";
+        final String tupleType = "Tuple(Int32, JSON, FixedString(3))";
+
+        client.execute("DROP TABLE IF EXISTS " + table).get().close();
+        client.execute(tableDefinition(table, "rowId Int32", "value " + tupleType),
+                (CommandSettings) new CommandSettings()
+                        .serverSetting("enable_json_type", "1")
+                        .serverSetting("allow_experimental_json_type", "1")).get().close();
+        client.execute("INSERT INTO " + table + " VALUES (1, (7, '{\"a\": 1}', 'abc'))").get().close();
+
+        TableSchema schema = client.getTableSchema(table);
+        Assert.assertEquals(schema.getColumnByName("value").getOriginalTypeName(), tupleType);
+        Assert.assertEquals(schema.getColumnByName("value").getNestedColumns().size(), 3);
+
+        GenericRecord row = client.queryAll("SELECT value, rowId FROM " + table).get(0);
+        Object[] tuple = (Object[]) row.getObject("value");
+        Assert.assertEquals(tuple.length, 3);
+        Assert.assertEquals(tuple[0], 7);
+        Assert.assertEquals(tuple[1], Collections.singletonMap("a", 1L));
+        Assert.assertEquals(tuple[2], "abc");
+        Assert.assertEquals(row.getInteger("rowId"), 1);
+    }
+
     @Test(groups = {"integration"}, dataProvider = "testDataTypesAsStringDP")
     public void testDataTypesAsString(String sql, String[] expectedStrValues) throws Exception {
 
