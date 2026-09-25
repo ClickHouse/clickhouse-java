@@ -41,7 +41,7 @@ public class MetricsTest extends BaseIntegrationTest {
         meterRegistry.clear();
         Metrics.globalRegistry.clear();
     }
-    
+
     @Test(groups = {"integration"}, enabled = true)
     public void testRegisterMetrics() throws Exception {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);

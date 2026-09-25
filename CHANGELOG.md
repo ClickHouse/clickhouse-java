@@ -721,6 +721,13 @@ of `NULL` was not set and read. (https://github.com/ClickHouse/clickhouse-java/i
   and `getObject(column, Object.class)` and the no-type `getObject(column)` overloads now return a decoded `String`
   instead of the internal holder.
 
+## 0.9.9
+
+### Bug Fixes 
+
+- **[client-v2]** `ServerException` with code `159 Execution Timeout` is retried unconditionally. After the fix this
+error treated as non-retriable. 
+
 ## 0.9.8
 
 ### Improvements 

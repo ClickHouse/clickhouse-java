@@ -710,6 +710,25 @@ public class ClientTests extends BaseIntegrationTest {
     }
 
     @Test(groups = {"integration"})
+    public void testExecutionTimeout() throws Exception{
+        final String query = "SELECT count(), sum(sipHash64(number)) " +
+                "FROM numbers(1000000000) " +
+                "SETTINGS max_threads = 1;";
+
+        long startTime = System.currentTimeMillis();
+        int maxExecTime = 4000;
+        try (Client client = newClient().serverSetting("max_execution_time",  String.valueOf(TimeUnit.MILLISECONDS.toSeconds(maxExecTime))).build();
+             QueryResponse response = client.query(query).get()) {
+
+        } catch (ServerException e) {
+            long queryTime = System.currentTimeMillis() - startTime;
+            System.out.println(queryTime + " - query time");
+            Assert.assertTrue(Math.abs(queryTime - maxExecTime) < 1000);
+            Assert.assertEquals(e.getCode(), ServerException.EXECUTION_TIMEOUT);
+        }
+    }
+
+    @Test(groups = {"integration"})
     public void testHostnameWithUnderscore() throws Exception {
 
         try (Client client = new Client.Builder().addEndpoint("http://localhost_db:8123")
