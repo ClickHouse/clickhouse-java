@@ -6,6 +6,10 @@ import java.util.regex.Pattern;
 public class SQLUtils {
     /**
      * Escapes and quotes a string literal for use in SQL queries.
+     * ClickHouse honours backslash escape sequences inside single-quoted strings, so a backslash
+     * is escaped by doubling it before the single quotes are doubled. Without that, a literal
+     * backslash-t in the input would reach the server as a TAB, and a trailing backslash would
+     * escape the closing quote.
      *
      * @param str the string to be quoted, cannot be null
      * @return the quoted and escaped string
@@ -15,12 +19,14 @@ public class SQLUtils {
         if (str == null) {
             throw new IllegalArgumentException("Input string cannot be null");
         }
-        return "'" + str.replace("'", "''") + "'";
+        return "'" + str.replace("\\", "\\\\").replace("'", "''") + "'";
     }
 
     /**
      * Escapes and quotes an SQL identifier (e.g., table or column name) by enclosing it in double quotes.
-     * Any existing double quotes in the identifier are escaped by doubling them.
+     * Any existing double quotes in the identifier are escaped by doubling them, and backslashes are
+     * escaped by doubling them as well, since ClickHouse also honours backslash escapes inside
+     * double-quoted identifiers.
      *
      * @param identifier the identifier to be quoted, cannot be null
      * @param quotesRequired if false, the identifier will only be quoted if it contains special characters
@@ -35,7 +41,7 @@ public class SQLUtils {
         if (!quotesRequired && !needsQuoting(identifier)) {
             return identifier;
         }
-        return "\"" + identifier.replace("\"", "\"\"") + "\"";
+        return "\"" + identifier.replace("\\", "\\\\").replace("\"", "\"\"") + "\"";
     }
     
     /**
