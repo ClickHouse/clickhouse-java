@@ -4,17 +4,13 @@ import com.clickhouse.benchmark.data.DataSet;
 import com.clickhouse.benchmark.data.FileDataSet;
 import com.clickhouse.benchmark.data.SimpleDataSet;
 import com.clickhouse.benchmark.data.SyntheticDataSet;
-import com.clickhouse.client.ClickHouseClient;
-import com.clickhouse.client.ClickHouseCredentials;
-import com.clickhouse.client.ClickHouseNode;
-import com.clickhouse.client.ClickHouseNodeSelector;
-import com.clickhouse.client.ClickHouseProtocol;
-import com.clickhouse.client.ClickHouseResponse;
+import com.clickhouse.client.*;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.query.GenericRecord;
+import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.data.ClickHouseDataProcessor;
 import com.clickhouse.data.ClickHouseFormat;
@@ -23,12 +19,7 @@ import com.clickhouse.data.ClickHouseRecord;
 import com.clickhouse.data.format.ClickHouseRowBinaryProcessor;
 import com.clickhouse.jdbc.ClickHouseDriver;
 import com.clickhouse.jdbc.DriverProperties;
-import org.openjdk.jmh.annotations.Level;
-import org.openjdk.jmh.annotations.Param;
-import org.openjdk.jmh.annotations.Scope;
-import org.openjdk.jmh.annotations.Setup;
-import org.openjdk.jmh.annotations.State;
-import org.openjdk.jmh.annotations.TearDown;
+import org.openjdk.jmh.annotations.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,63 +28,50 @@ import java.io.InputStream;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.sql.Connection;
-import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Properties;
+import java.util.*;
 
-import static com.clickhouse.benchmark.TestEnvironment.DB_NAME;
-import static com.clickhouse.benchmark.TestEnvironment.cleanupEnvironment;
-import static com.clickhouse.benchmark.TestEnvironment.getPassword;
-import static com.clickhouse.benchmark.TestEnvironment.getServer;
-import static com.clickhouse.benchmark.TestEnvironment.getUsername;
-import static com.clickhouse.benchmark.TestEnvironment.isCloud;
-import static com.clickhouse.benchmark.TestEnvironment.setupEnvironment;
+import static com.clickhouse.benchmark.TestEnvironment.*;
 
 @State(Scope.Benchmark)
 public class BenchmarkBase {
     private static final Logger LOGGER = LoggerFactory.getLogger(BenchmarkBase.class);
     protected ClickHouseClient clientV1;
     protected Client clientV2;
-    protected static Connection jdbcV1;
-    protected static Connection jdbcV2;
+    protected ClickHouseClient clientV1Compressed;
+    protected Client clientV2Compressed;
+    protected Connection jdbcV1RowBinary;
+    protected Connection jdbcV2RowBinary;
+    protected Connection jdbcV1Compressed;
+    protected Connection jdbcV2Compressed;
+    protected Connection jdbcV2CompressedText;
+
+    private List<AutoCloseable> closeables = new ArrayList<>();
 
     @Setup(Level.Iteration)
     public void setUpIteration() {
-        LOGGER.info("BenchmarkBase::setUpIteration");
-        clientV1 = getClientV1();
-        clientV2 = getClientV2();
-        jdbcV1 = getJdbcV1();
-        jdbcV2 = getJdbcV2();
+        LOGGER.info("BenchmarkBase::setUpIteration: pid: " + ProcessHandle.current().pid());
+        clientV1 = getClientV1(false);
+        clientV2 = getClientV2IncludeDb(false);
+        clientV1Compressed = getClientV1(true);
+        clientV2Compressed = getClientV2IncludeDb(true);
+        jdbcV1RowBinary = getJdbcV1(false);
+        jdbcV2RowBinary = getJdbcV2(false, true);
+        jdbcV1Compressed = getJdbcV1(true);
+        jdbcV2Compressed = getJdbcV2(true, true);
+        jdbcV2CompressedText = getJdbcV2(true, false);
+        closeables = Arrays.asList(clientV1, clientV2, jdbcV1RowBinary, jdbcV2RowBinary, jdbcV1Compressed,
+                jdbcV2Compressed, jdbcV2CompressedText);
     }
 
     @TearDown(Level.Iteration)
     public void tearDownIteration() {
         LOGGER.info("BenchmarkBase::tearDownIteration");
-        if (clientV1 != null) {
-            clientV1.close();
-            clientV1 = null;
-        }
-        if (clientV2 != null) {
-            clientV2.close();
-            clientV2 = null;
-        }
-        if (jdbcV1 != null) {
+        for (AutoCloseable closeable : closeables) {
             try {
-                jdbcV1.close();
-            } catch (SQLException e) {
-                LOGGER.error(e.getMessage());
+                closeable.close();
+            } catch (Exception e) {
+                LOGGER.error("failed to close", e);
             }
-            jdbcV1 = null;
-        }
-        if (jdbcV2 != null) {
-            try {
-                jdbcV2.close();
-            } catch (SQLException e) {
-                LOGGER.error(e.getMessage());
-            }
-            jdbcV2 = null;
         }
     }
 
@@ -154,6 +132,8 @@ public class BenchmarkBase {
             LOGGER.info("Loading data from file " + dataState.datasetSourceName + " with limit " + dataState.limit);
             dataState.dataSet = new FileDataSet(dataState.datasetSourceName.substring("file://".length()), dataState.limit);
         }
+        System.out.println("Dataset " + dataState.dataSet.getName() + ": " + dataState.dataSet.getSize() + " rows, "
+                + dataState.dataSet.getSizeInBytes(dataState.dataSet.getFormat()) + " bytes");
         initializeTables(dataState);
     }
 
@@ -191,7 +171,7 @@ public class BenchmarkBase {
         return runQuery(query, true);
     }
     public static List<GenericRecord> runQuery(String query, boolean useDatabase) {
-        try (Client client = getClientV2(useDatabase)) {
+        try (Client client = getClientV2(useDatabase, true)) {
             return client.queryAll(query);
         }
     }
@@ -202,7 +182,7 @@ public class BenchmarkBase {
 
 
     public static void syncQuery(String tableName) {
-        if (isCloud()) {
+        if (isCluster()) {
             LOGGER.debug("Syncing: {}", tableName);
             runQuery(getSyncQuery(tableName));
         }
@@ -220,7 +200,7 @@ public class BenchmarkBase {
     }
 
     public static void insertData(String tableName, InputStream dataStream, ClickHouseFormat format) {
-        try (Client client = getClientV2();
+        try (Client client = getClientV2IncludeDb(false);
              InsertResponse ignored = client.insert(tableName, dataStream, format).get()) {
             syncQuery(tableName);
             List<GenericRecord> count = runQuery(getSelectCountQuery(tableName));
@@ -244,51 +224,55 @@ public class BenchmarkBase {
         return true;
     }
 
-    protected static ClickHouseClient getClientV1() {
+    protected static ClickHouseClient getClientV1(boolean serverCompression) {
         // We get a new client so that closing won't affect other subsequent calls
         return ClickHouseClient.builder()
+                .option(ClickHouseClientOption.COMPRESS, serverCompression)
                 .defaultCredentials(ClickHouseCredentials.fromUserAndPassword(getUsername(), getPassword()))
                 .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
                 .build();
     }
-    protected static Client getClientV2() {
-        return getClientV2(true);
+    protected static Client getClientV2IncludeDb(boolean serverCompression) {
+        return getClientV2(true, serverCompression);
     }
-    protected static Client getClientV2(boolean includeDb) {
+    protected static Client getClientV2(boolean includeDb, boolean serverCompression) {
         ClickHouseNode node = getServer();
         //We get a new client so that closing won't affect other subsequent calls
         return new Client.Builder()
-                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isCloud())
+                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isSsl())
                 .setUsername(getUsername())
                 .setPassword(getPassword())
                 .setMaxRetries(0)
+                .compressServerResponse(serverCompression)
                 .setDefaultDatabase(includeDb ? DB_NAME : "default")
                 .build();
     }
-    private static String jdbcURLV1(boolean isCloud) {
+    private static String jdbcURLV1(boolean ssl) {
         ClickHouseNode node = getServer();
-        if (isCloud) {
+        if (ssl) {
             return String.format("jdbc:clickhouse://%s:%s?clickhouse.jdbc.v1=true&ssl=true", node.getHost(), node.getPort());
         } else
             return String.format("jdbc:clickhouse://%s:%s?clickhouse.jdbc.v1=true", node.getHost(), node.getPort());
     }
 
-    private static String jdbcURLV2(boolean isCloud) {
+    private static String jdbcURLV2(boolean ssl) {
         ClickHouseNode node = getServer();
-        if (isCloud) {
+        if (ssl) {
             return String.format("jdbc:clickhouse:https://%s:%s?ssl=true", node.getHost(), node.getPort());
         } else
             return String.format("jdbc:clickhouse://%s:%s", node.getHost(), node.getPort());
     }
 
-    protected static Connection getJdbcV1() {
+    protected static Connection getJdbcV1(boolean isCompressed) {
         Properties properties = new Properties();
         properties.put(ClickHouseDefaults.USER.getKey(), getUsername());
         properties.put(ClickHouseDefaults.PASSWORD.getKey(), getPassword());
         properties.put(ClickHouseDefaults.DATABASE.getKey(), DB_NAME);
-
+        if (isCompressed) {
+            properties.put(ClickHouseClientOption.DECOMPRESS.getKey(), "1");
+        }
         Connection jdbcV1 = null;
-        String jdbcURL = jdbcURLV1(isCloud());
+        String jdbcURL = jdbcURLV1(isSsl());
         LOGGER.warn("JDBC URL V1: " + jdbcURL);
         try {
             jdbcV1 = new ClickHouseDriver().connect(jdbcURL, properties);
@@ -298,15 +282,20 @@ public class BenchmarkBase {
         return jdbcV1;
     }
 
-    protected static Connection getJdbcV2() {
+    protected static Connection getJdbcV2(boolean isCompressed, boolean isRowBinary) {
         Properties properties = new Properties();
         properties.put(ClientConfigProperties.USER.getKey(), getUsername());
         properties.put(ClientConfigProperties.PASSWORD.getKey(), getPassword());
-        properties.put(DriverProperties.BETA_ROW_BINARY_WRITER.getKey(), "true");
+        properties.put(DriverProperties.BETA_ROW_BINARY_WRITER.getKey(), String.valueOf(isRowBinary));
+        if (isCompressed) {
+            properties.put(ClientConfigProperties.COMPRESS_CLIENT_REQUEST.getKey(), "true");
+            properties.put(ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getKey(), "true");
+        }
+        properties.put(ClientConfigProperties.CLIENT_NETWORK_BUFFER_SIZE.getKey(), String.valueOf(10 * 1024 * 1024));
         properties.put(ClientConfigProperties.DATABASE.getKey(), DB_NAME);
 
         Connection jdbcV2 = null;
-        String jdbcURL = jdbcURLV2(isCloud());
+        String jdbcURL = jdbcURLV2(isSsl());
         LOGGER.warn("JDBC URL V2: " + jdbcURL);
 
         try {
@@ -322,7 +311,7 @@ public class BenchmarkBase {
     public static void loadClickHouseRecords(DataState dataState) {
         syncQuery(dataState.tableNameFilled);
 
-        try (ClickHouseClient clientV1 = getClientV1();
+        try (ClickHouseClient clientV1 = getClientV1(false);
              ClickHouseResponse response = clientV1.read(getServer())
                      .query(getSelectQuery(dataState.tableNameFilled))
                      .format(ClickHouseFormat.RowBinaryWithNamesAndTypes)

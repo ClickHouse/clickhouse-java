@@ -29,12 +29,22 @@ public class JDBCQuery extends BenchmarkBase {
 
     @Benchmark
     public void selectJDBCV1(DataState dataState, Blackhole blackhole) throws SQLException {
-        selectData(jdbcV1, dataState, blackhole);
+        selectData(jdbcV1RowBinary, dataState, blackhole);
     }
 
     @Benchmark
     public void selectJDBCV2(DataState dataState, Blackhole blackhole) throws SQLException {
-        selectData(jdbcV2, dataState, blackhole);
+        selectData(jdbcV2RowBinary, dataState, blackhole);
+    }
+
+    @Benchmark
+    public void selectJDBCV1Compressed(DataState dataState, Blackhole blackhole) throws SQLException {
+        selectData(jdbcV1Compressed, dataState, blackhole);
+    }
+
+    @Benchmark
+    public void selectJDBCV2Compressed(DataState dataState, Blackhole blackhole) throws SQLException {
+        selectData(jdbcV2Compressed, dataState, blackhole);
     }
 
     void selectDataUseNames(Connection connection, DataState dataState, Blackhole blackhole) throws SQLException {
@@ -43,7 +53,32 @@ public class JDBCQuery extends BenchmarkBase {
              ResultSet rs = stmt.executeQuery(sql)) {
             while (rs.next()) {
                 for (ClickHouseColumn col : dataState.dataSet.getSchema().getColumns()) {
-                    blackhole.consume(rs.getObject(col.getColumnName()));
+                    switch (col.getDataType()) {
+                        case Int8:
+                        case UInt8:
+                        case Int16:
+                        case UInt16:
+                        case Int32:
+                        case UInt32:
+                            blackhole.consume(rs.getLong(col.getColumnName()));
+                            break;
+                        case Date:
+                        case Date32:
+                            blackhole.consume(rs.getDate(col.getColumnName()));
+                            break;
+                        case DateTime:
+                        case DateTime32:
+                        case DateTime64:
+                            // slower than just getObject
+                            blackhole.consume(rs.getTimestamp(col.getColumnName()));
+                            break;
+                        case String:
+                        case FixedString:
+                            blackhole.consume(rs.getString(col.getColumnName()));
+                            break;
+                        default:
+                            blackhole.consume(rs.getObject(col.getColumnName()));
+                    }
                 }
             }
         }
@@ -51,11 +86,12 @@ public class JDBCQuery extends BenchmarkBase {
 
     @Benchmark
     public void selectJDBCV1UseNames(DataState dataState, Blackhole blackhole) throws SQLException {
-        selectDataUseNames(jdbcV1, dataState, blackhole);
+        selectDataUseNames(jdbcV1RowBinary, dataState, blackhole);
     }
 
     @Benchmark
     public void selectJDBCV2UseName(DataState dataState, Blackhole blackhole) throws SQLException {
-        selectDataUseNames(jdbcV2, dataState, blackhole);
+        selectDataUseNames(jdbcV2RowBinary, dataState, blackhole);
     }
+
 }
