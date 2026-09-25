@@ -309,7 +309,6 @@ jobs:
 
   test-jdbc-driver:
     runs-on: ubuntu-latest
-    needs: test-java-client
     strategy:
       matrix:
         clickhouse: ["25.8", "26.3", "latest"]
