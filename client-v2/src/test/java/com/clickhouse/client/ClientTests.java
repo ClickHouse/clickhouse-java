@@ -722,7 +722,6 @@ public class ClientTests extends BaseIntegrationTest {
 
         } catch (ServerException e) {
             long queryTime = System.currentTimeMillis() - startTime;
-            System.out.println(queryTime + " - query time");
             Assert.assertTrue(Math.abs(queryTime - maxExecTime) < 1000);
             Assert.assertEquals(e.getCode(), ServerException.EXECUTION_TIMEOUT);
         }
