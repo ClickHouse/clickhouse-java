@@ -1939,6 +1939,32 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
         }
     }
 
+    @DataProvider(name = "queriesWithCommentedParameters")
+    private Object[][] getQueriesWithCommentedParameters() {
+        return new Object[][] {
+                { "-- filter by ? and ?\nselect ? as a, ? as b" },
+                { "/* filter by ? and ? */ select ? as a, ? as b" },
+                { "select ? as a, ? as b -- and ?" },
+        };
+    }
+
+    @Test(groups = "integration", dataProvider = "queriesWithCommentedParameters")
+    public void testQueryWithParametersInComments(String sql) throws SQLException {
+        try (ClickHouseConnection conn = newConnection(new Properties());
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+            Assert.assertEquals(stmt.getParameterMetaData().getParameterCount(), 2);
+
+            stmt.setInt(1, 1);
+            stmt.setInt(2, 2);
+            try (ResultSet rs = stmt.executeQuery()) {
+                Assert.assertTrue(rs.next(), "Should have one row");
+                Assert.assertEquals(rs.getInt("a"), 1);
+                Assert.assertEquals(rs.getInt("b"), 2);
+                Assert.assertFalse(rs.next(), "Should have only one row");
+            }
+        }
+    }
+
     @Test(groups = "integration")
     public void testInsertWithFormat() throws SQLException {
         Properties props = new Properties();
