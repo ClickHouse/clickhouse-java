@@ -106,6 +106,12 @@ public class NativeFormatReader extends AbstractBinaryFormatReader {
                         + "strided, wrapped in Nullable/LowCardinality, or nested inside another type "
                         + "(e.g. Array/Tuple/Map), is not decoded. Use a RowBinary format "
                         + "(e.g. RowBinaryWithNamesAndTypes) to read such QBit values");
+            } else if (isGeo(column)) {
+                // Native writes a geo column column-major: a Point as the two Float64 sub-columns of its
+                // tuple, and every other geo type as cumulative offsets followed by the flattened elements
+                // of the level below. The per-row decoders reached through readValue() read the RowBinary
+                // layout instead, which scrambles a Point block and desynchronizes the columns that follow.
+                values = binaryStreamReader.readGeoNative(column, nRows);
             } else if (column.isArray()) {
                 // Native encodes an Array column as nRows cumulative offsets followed by the
                 // flattened elements; each row's element count is the delta between consecutive
@@ -158,6 +164,28 @@ public class NativeFormatReader extends AbstractBinaryFormatReader {
             case Float32:
             case Float64:
             case BFloat16:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /**
+     * Returns {@code true} for a geo column ({@code Point}, {@code Ring}, {@code LineString},
+     * {@code MultiPoint}, {@code Polygon}, {@code MultiLineString} or {@code MultiPolygon}). Geo types
+     * are their own data types rather than {@code Array}/{@code Tuple}, so they do not reach the
+     * columnar branches of {@link #readBlock} on their own and need their own Native decoder
+     * ({@link BinaryStreamReader#readGeoNative(ClickHouseColumn, int)}).
+     */
+    private static boolean isGeo(ClickHouseColumn column) {
+        switch (column.getDataType()) {
+            case Point:
+            case Ring:
+            case LineString:
+            case MultiPoint:
+            case Polygon:
+            case MultiLineString:
+            case MultiPolygon:
                 return true;
             default:
                 return false;

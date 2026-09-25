@@ -171,6 +171,14 @@
 
 ### Bug Fixes 
 
+- **[client-v2]** Fixed geo columns (`Point`, `Ring`, `LineString`, `MultiPoint`, `Polygon`, `MultiLineString`,
+  `MultiPolygon`) being misread from the `Native` format. The reader decoded a geo column row by row with the
+  RowBinary decoders, while `Native` writes it column-major: a `Point` block came back with its coordinates
+  scrambled across rows and no error, and every other geo type desynchronized the block and failed with
+  `Non-empty typeName is required`. A geo column is now decoded from the Native layout - the two `Float64`
+  sub-columns of a point, and cumulative offsets plus the flattened elements for the array levels - and returns
+  the same values as `RowBinaryWithNamesAndTypes`, which is unchanged.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3088)
 - **[jdbc-v1]** Fixed `WITH RECURSIVE <name> AS (...)` failing to parse. The JavaCC grammar did not know the
   `RECURSIVE` keyword, so it was taken for the name of the first common table expression and the statement was
   rejected. The query itself still ran, because the driver falls back to sending the original SQL, but every
