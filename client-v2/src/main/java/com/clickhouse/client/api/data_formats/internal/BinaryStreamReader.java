@@ -30,6 +30,7 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -1174,6 +1175,112 @@ public class BinaryStreamReader {
             value[i] = readGeoPolygon();
         }
         return value;
+    }
+
+    /**
+     * Reads a whole geo column of a Native block. Native is columnar: a {@code Point}
+     * (= {@code Tuple(Float64, Float64)}) is written as all X coordinates followed by all Y
+     * coordinates, and every other geo type is an array whose level is written as cumulative
+     * {@code UInt64} offsets followed by the flattened elements of the next level. The row-wise
+     * decoders ({@link #readGeoPoint()} and friends) read the RowBinary layout instead and cannot
+     * be used for a Native block.
+     *
+     * @param column geo column
+     * @param nRows  number of rows in the block
+     * @return one value per row, in the same shape the RowBinary decoders return: {@code double[]}
+     *         for a point, {@code double[][]} for a ring, {@code double[][][]} for a polygon and
+     *         {@code double[][][][]} for a multipolygon
+     * @throws IOException when IO error occurs
+     */
+    public List<Object> readGeoNative(ClickHouseColumn column, int nRows) throws IOException {
+        Object[] values;
+        switch (column.getDataType()) {
+            case Point:
+                values = readGeoPointsNative(nRows);
+                break;
+            case Ring:
+            case LineString:
+            case MultiPoint:
+                values = readGeoRingsNative(nRows);
+                break;
+            case Polygon:
+            case MultiLineString:
+                values = readGeoPolygonsNative(nRows);
+                break;
+            case MultiPolygon:
+                values = readGeoMultiPolygonsNative(nRows);
+                break;
+            default:
+                throw new ClientException("Not a geo column: " + column.getOriginalTypeName());
+        }
+
+        List<Object> result = new ArrayList<>(nRows);
+        Collections.addAll(result, values);
+        return result;
+    }
+
+    /**
+     * Reads {@code nPoints} points of a Native geo column: all X coordinates, then all Y coordinates.
+     */
+    private double[][] readGeoPointsNative(int nPoints) throws IOException {
+        double[][] points = new double[nPoints][2];
+        for (int i = 0; i < nPoints; i++) {
+            points[i][0] = readDoubleLE();
+        }
+        for (int i = 0; i < nPoints; i++) {
+            points[i][1] = readDoubleLE();
+        }
+        return points;
+    }
+
+    private double[][][] readGeoRingsNative(int nRings) throws IOException {
+        return groupByGeoOffsetsNative(this::readGeoPointsNative, nRings);
+    }
+
+    private double[][][][] readGeoPolygonsNative(int nPolygons) throws IOException {
+        return groupByGeoOffsetsNative(this::readGeoRingsNative, nPolygons);
+    }
+
+    private double[][][][][] readGeoMultiPolygonsNative(int nMultiPolygons) throws IOException {
+        return groupByGeoOffsetsNative(this::readGeoPolygonsNative, nMultiPolygons);
+    }
+
+    /**
+     * Reads one array level of a Native geo column: {@code nGroups} cumulative {@code UInt64} offsets,
+     * then the flattened elements of the level below, which are then split back into groups.
+     */
+    private <T> T[][] groupByGeoOffsetsNative(GeoLevelReader<T> elementReader, int nGroups) throws IOException {
+        long[] offsets = new long[nGroups];
+        long prevOffset = 0;
+        for (int i = 0; i < nGroups; i++) {
+            long offset = readLongLE();
+            if (offset < prevOffset || offset > Integer.MAX_VALUE) {
+                throw new ClientException("Invalid offset in a Native geo column: expected a non-decreasing"
+                        + " offset not greater than " + Integer.MAX_VALUE + ", got " + offset + " after "
+                        + prevOffset);
+            }
+            offsets[i] = offset;
+            prevOffset = offset;
+        }
+
+        T[] elements = elementReader.read(nGroups == 0 ? 0 : Math.toIntExact(offsets[nGroups - 1]));
+        return splitByGeoOffsetsNative(elements, offsets);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> T[][] splitByGeoOffsetsNative(T[] elements, long[] offsets) {
+        T[][] groups = (T[][]) Array.newInstance(elements.getClass(), offsets.length);
+        int prevOffset = 0;
+        for (int i = 0; i < offsets.length; i++) {
+            int offset = Math.toIntExact(offsets[i]);
+            groups[i] = Arrays.copyOfRange(elements, prevOffset, offset);
+            prevOffset = offset;
+        }
+        return groups;
+    }
+
+    private interface GeoLevelReader<T> {
+        T[] read(int count) throws IOException;
     }
 
     /**
