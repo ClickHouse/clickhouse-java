@@ -1,25 +1,31 @@
 # ClickHouse JDBC Integration Guide
 
-This guide is a **step-by-step integration path** for the **JDBC Driver V2** (`jdbc-v2`, published as `com.clickhouse:clickhouse-jdbc`). It is written to be used as context for building an application or a downstream integration spec: each step states the decisions you must make, how to configure them, and the common pitfalls to avoid.
+## Preface 
 
-**Prerequisites:** Read [integration-common.md](integration-common.md) to understand the JDBC trade-offs before committing to this path.
+This document describes usage of  **JDBC Driver V2** (`jdbc-v2`, published as `com.clickhouse:clickhouse-jdbc`). Here you will find information about different aspects of ClickHouse JDBC Driver integration (authentication, configuration, operations, etc) and about internal logic and mechanics of the driver. Treat this document as a guide of how to use driver for different use cases. Library documentation, however, stays single source of truth.
 
 
-> **Architecture in one line.** Every JDBC `Connection` wraps a `client-v2` [`Client`](../client-v2/src/main/java/com/clickhouse/client/api/Client.java) internally. JDBC is not a separate protocol stack — it is a `java.sql.*` façade over the Java Client.
->
-> ```
-> Application → ConnectionImpl → Client → HTTP pool → ClickHouse
-> ```
+**Important:** Please read [integration-index.md](integration-index.md) to get over overview of `clickhouse-java` project as library and its components.
 
-> **Configuration philosophy.** This guide names only the properties relevant to each step. The exhaustive lists live in [`DriverProperties`](../jdbc-v2/src/main/java/com/clickhouse/jdbc/DriverProperties.java), [`ClientConfigProperties`](../client-v2/src/main/java/com/clickhouse/client/api/ClientConfigProperties.java), and the official docs. Configuration splits into two groups:
-> - **Init configuration** — set once via the JDBC URL or `Properties`: endpoint, connection pool size, authentication, TLS. Covered in Steps 1–3.
-> - **Operation configuration** — set per statement or as connection defaults: fetch size, timeouts, batch behavior, dedup tokens. Covered in Steps 4–6.
->
-> Property routing (see [`DriverProperties`](../jdbc-v2/src/main/java/com/clickhouse/jdbc/DriverProperties.java)): if a property is a JDBC-specific driver property it is handled by the driver; **all other properties are forwarded to `ClientConfigProperties`**.
+### Architecture in one line 
 
-## Artifacts
+Every JDBC `Connection` wraps a `client-v2` [`Client`](../client-v2/src/main/java/com/clickhouse/client/api/Client.java) internally. JDBC is not a separate protocol stack — it is a `java.sql.*` facade over the Java Client.
 
-The driver is published to Maven Central as **`com.clickhouse:clickhouse-jdbc`**. 
+```
+    Application -> ConnectionImpl -> (Client + HTTP pool) -> ClickHouse
+```
+
+### Configuration References 
+
+This guide names only the properties relevant to each step. The exhaustive lists live in [`DriverProperties`](../jdbc-v2/src/main/java/com/clickhouse/jdbc/DriverProperties.java), [`ClientConfigProperties`](../client-v2/src/main/java/com/clickhouse/client/api/ClientConfigProperties.java), and the official docs. Configuration splits into two groups:
+- **Init configuration** — set once via the JDBC URL or `Properties`: endpoint, connection pool size, authentication, TLS. Covered in Steps 1–3.
+- **Operation configuration** — set per statement or as connection defaults: fetch size, timeouts, batch behavior, dedup tokens. Covered in Steps 4–6. 
+
+- Property routing (see [`DriverProperties`](../jdbc-v2/src/main/java/com/clickhouse/jdbc/DriverProperties.java)): if a property is a JDBC-specific driver property it is handled by the driver; **all other properties are forwarded to `ClientConfigProperties`**.
+
+### Maven Artifacts
+
+The driver is published to Maven Central as [**`com.clickhouse:clickhouse-jdbc`**](https://mvnrepository.com/artifact/com.clickhouse/clickhouse-jdbc).
 
 Two distributions are published under the same artifact:
 
@@ -28,76 +34,25 @@ Two distributions are published under the same artifact:
 
 ---
 
-## Development Environment 
-
-### Java Version
-
-The ClickHouse JDBC driver requires **Java 8 or newer**. All mainline development and testing are validated on recent LTS versions (Java 8, 11, 17, and 21 as available). We recommend using up-to-date LTS releases, as feature coverage, TLS support, and performance are best with newer runtimes.
-
-### Local ClickHouse for Development
-
-For local development and rapid prototyping, you can run ClickHouse in a container with minimal setup:
-
-```sh
-docker run --rm -d -p 8123:8123 --name clickhouse-server clickhouse/clickhouse-server:latest
-```
-
-This launches a fresh ClickHouse server, with the HTTP API available at `localhost:8123`. The default database is `default` and no password is required for the default user (`default`). This is ideal for smoke tests, schema exploration, and validating basic integration.
-
-You can also use any recent [official ClickHouse binary](https://clickhouse.com/docs/en/getting-started/install/) or use Docker Compose for more complex setups.
-
-> **Note:** Local environments are best for initial integration, experiments, and CI pipelines — not for realistic scale, performance, or operational requirements.
-
-### ClickHouse Cloud (Recommended for Production-like Integration)
-
-While local ClickHouse is excellent for early development, **we strongly recommend using [ClickHouse Cloud](https://clickhouse.com/cloud/)** for end-to-end integration and before considering your application production ready.
-
-ClickHouse Cloud environments mirror real-world production settings:
-
-- Managed authentication, scaling, secure TLS endpoints
-- Production-like network performance and stability
-- Long-running, stateful databases without the churn or "works on my machine" surprises
-
-Using ClickHouse Cloud during integration helps uncover configuration or authentication nuances, avoid brittle local-only assumptions, and validates your app against true cloud operations. All features described in this guide are supported equally, and connection examples are identical — just provide your cloud hostname, port, and TLS-enabled URL in the JDBC connection string.
-
-> **Best practice:** Validate your integration against ClickHouse Cloud regularly, especially before feature launches and release cutoffs.
-
-### Summary
-
-- **Local ClickHouse**: Fast, simple; best for initial trials and interactive development.
-- **ClickHouse Cloud**: Closest to real-world production, surfaces integration and operational issues early, and ensures all JDBC (and client) features work as expected.
-
-For more, see the [ClickHouse Cloud docs](https://clickhouse.com/docs/en/cloud/) and the [official integrations guide](https://clickhouse.com/docs/en/integrations/java/).
-
-
-
 ## Integration path at a glance
 
-Work through these steps in order. The "Common Pitfalls" notes tell you what breaks if you skip one.
+Integration can be done in several step. Please read through all of them to get full information about library capabilities and specific behavior.
 
-| # | Milestone | Core decision |
-|---|-----------|---------------|
-| 1 | [Instantiation strategy](#step-1--instantiation-strategy) | Connection lifecycle, pooling, and workload identification |
-| 2 | [Authentication](#step-2--authentication) | Which auth mechanism and how to configure it via URL/Properties |
+| # | Step                                                                             | Core decision |
+|---|----------------------------------------------------------------------------------|---------------|
+| 1 | [Instantiation strategy](#step-1--instantiation-strategy)                        | Connection lifecycle, pooling, and workload identification |
+| 2 | [Authentication](#step-2--authentication)                                        | Which auth mechanism and how to configure it via URL/Properties |
 | 3 | [Transport & connectivity](#step-3--transport--connectivity-tls-proxies-timeouts) | TLS/mTLS, proxies, timeouts, health checks |
-| 4 | [Formats under the hood](#step-4--formats-under-the-hood) | What the driver does internally; when JDBC is not enough |
-| 5 | [Read operations & tuning](#step-5--read-operations--tuning) | `ResultSet` streaming; type mapping; heavy-read tuning |
-| 6 | [Write operations & tuning](#step-6--write-operations--tuning) | Batch vs RowBinary beta; heavy-ingest tuning; idempotency |
-| 7 | [Metadata & schema discovery](#step-7--metadata--schema-discovery) | `DatabaseMetaData`, `ResultSetMetaData`, type mapping |
+| 4 | [Formats under the hood](#step-4--formats-under-the-hood)                        | What the driver does internally; when JDBC is not enough |
+| 5 | [Read operations & tuning](#step-5--read-operations--tuning)                     | `ResultSet` streaming; type mapping; heavy-read tuning |
+| 6 | [Write operations & tuning](#step-6--write-operations--tuning)                   | Batch vs RowBinary beta; heavy-ingest tuning; idempotency |
+| 7 | [Metadata & schema discovery](#step-7--metadata--schema-discovery)               | `DatabaseMetaData`, `ResultSetMetaData`, type mapping |
 
 ---
 
 ## Step 1 — Instantiation strategy
 
 **Goal:** decide the lifecycle of a JDBC `Connection` and how you pool connections.
-
-This is important to mention about user provided configuration when system is transparent about connection properties. Build an adoption layer between connector and JDBC driver properties to 
-decouple your system from changes in JDBC driver. Having such adoption layer helps also with migration to new version and resolving compatibility issues. Always separate your application or 
-connector configuration from JDBC driver. It may be very problematic in future to resolve name collisions and handle upgrades. It is very important to document how JDBC driver 
-can be configured by user and where to find driver configuration references. 
-
-**Security Note** Always validate input for configuration. JDBC verifies it own configuration but some values can be semantically invalid. For example, do not let to reconfigure client name.
- 
 
 ### What the JDBC objects are
 
@@ -110,17 +65,11 @@ can be configured by user and where to find driver configuration references.
 | `ResultSet` | [`ResultSetImpl`](../jdbc-v2/src/main/java/com/clickhouse/jdbc/ResultSetImpl.java) | Row-by-row streaming of query results |
 | `Driver` | [`Driver`](../jdbc-v2/src/main/java/com/clickhouse/jdbc/Driver.java) | Registers `jdbc:clickhouse:` and `jdbc:ch:` URLs |
 
-### Decisions
+### Configuration
 
-| Question | Recommended answer |
-|----------|--------------------|
-| How many connections? | **One per concurrent thread of work**, obtained from a pool. |
-| Short- or long-lived? | Let a **connection pool** (HikariCP, DBCP, container-managed) manage lifetime; borrow and return. |
-| Thread-safe? | **No** — `Connection` is *not* thread-safe. **CONSTRAINT:** Never share one across threads. |
-| Own pool needed? | **Yes** — **CONSTRAINT:** Use a standard JDBC connection pool. Each `Connection` still owns an HTTP pool via its internal `Client`. |
+JDBC interactions start with creating a `Connection` object via `Driver.connect()` and there are only two ways to configure connection and other components: pass a `Properties` or add to connection URL (see format below).
 
-### JDBC URL format
-
+**JDBC URL format**:
 ```
 jdbc:clickhouse://[host][:port][/[path/]database][?param=value&...]
 jdbc:clickhouse:https://host:8443/mydb?ssl=true
@@ -139,6 +88,36 @@ public Connection createConnection() throws SQLException {
 
 Prefer `Properties` over embedding credentials in the URL. URL/Properties parsing is handled by [`JdbcConfiguration`](../jdbc-v2/src/main/java/com/clickhouse/jdbc/internal/JdbcConfiguration.java); programmatic setup is available via [`DataSourceImpl`](../jdbc-v2/src/main/java/com/clickhouse/jdbc/DataSourceImpl.java).
 
+#### User configuration
+
+When application expects external user to provide connection configuration then building an adoption layer between application and JDBC driver properties is needed to  decouple your system from changes in JDBC driver. Having such layer helps also with migration to new version and resolving compatibility issues. Always separate your application or connector configuration from JDBC driver. It may be very problematic in future to resolve name collisions and handle upgrades. It is very important to document how JDBC driver can be configured by user and where to find driver configuration references.
+
+**Security Note** Always validate input for configuration. JDBC verifies it own configuration but some values can be semantically invalid. For example, do not let to reconfigure client name.
+
+### Server and Client Settings
+
+Both forward through URL/Properties:
+
+```java
+public Connection createConfiguredConnection() throws SQLException {
+    Properties props = new Properties();
+    props.setProperty("user", "default");
+    props.setProperty(com.clickhouse.jdbc.DriverProperties.serverSetting("max_execution_time"), "60");   // server setting
+    props.setProperty("max_open_connections", "20");  // client setting
+    return DriverManager.getConnection(
+        "jdbc:clickhouse://localhost:8123/default", props);
+}
+```
+
+Client expect that server settings has prefix `clickhouse_setting_` in name and
+handles them separately. Client (therefore JDBC Driver) will throw an exception then unknown parameter is passed.
+
+Per-statement server settings:
+- Available via `Statement` method like `Statement.setQueryTimeout(...)`.
+- Can be in SQL `SETTINGS` clause (makes SQL not portable).
+- Can be set by unwrapping `Statement` to library class and using `com.clickhouse.jdbc.StatementImpl.getLocalSettings`.
+
+
 ### Init configuration — pool sizing and threading
 
 Because each `Connection` wraps a `Client` with its own HTTP pool, the client-level `max_open_connections` (default 10) forwards through. Two layers of pooling exist:
@@ -148,7 +127,7 @@ Because each `Connection` wraps a `Client` with its own HTTP pool, the client-le
 
 ### Workload identification & client name
 
-In production environments, a single ClickHouse cluster is often shared across diverse workloads: user-facing web services, streaming ingestion pipelines, ETL batch jobs, BI reporting dashboards (e.g., Superset, Tableau, Grafana), and ad-hoc analytics. When queries fail, time out, or consume excessive memory (`MEMORY_LIMIT_EXCEEDED`), identifying the originating application or workload is essential for fast troubleshooting, root-cause analysis, and resource attribution.
+In production environments, a single ClickHouse cluster is often shared across diverse workloads: user-facing web services, streaming ingestion pipelines, ETL batch jobs, BI reporting dashboards (e.g., Superset, Tableau, Grafana), and ad-hoc analytics. When queries fail, time out, or consume excessive memory (`MEMORY_LIMIT_EXCEEDED`), identifying the originating application or workload is essential for fast troubleshooting, root-cause analysis, and resource attribution. Besides it gives very good statistics about usage.
 
 #### Setting client name
 
@@ -312,6 +291,16 @@ LIMIT 100;
 </common-pitfalls>
 
 See [integration-testing.md — Connecting](integration-testing.md#connecting) for tests that verify pool sizing (`max_open_connections`) and connection release under load.
+
+### Decisions
+
+| Question | Recommended answer |
+|----------|--------------------|
+| How many connections? | **One per concurrent thread of work**, obtained from a pool. |
+| Short- or long-lived? | Let a **connection pool** (HikariCP, DBCP, container-managed) manage lifetime; borrow and return. |
+| Thread-safe? | **No** — `Connection` is *not* thread-safe. **CONSTRAINT:** Never share one across threads. |
+| Own pool needed? | **Yes** — **CONSTRAINT:** Use a standard JDBC connection pool. Each `Connection` still owns an HTTP pool via its internal `Client`. |
+
 ---
 
 ## Step 2 — Authentication
@@ -390,14 +379,6 @@ public Connection createCustomHeadersConnection() throws SQLException {
 }
 ```
 
-### Decisions
-
-| Question | Guidance |
-|----------|----------|
-| Which mechanism? | Password for most deployments; `access_token`/`bearer_token` for gateway-fronted or cloud setups; mTLS for certificate-based zero-trust; custom headers for API gateways. |
-| Credentials in URL or Properties? | **Properties** — keeps secrets out of URLs and logs. |
-| Behind an auth proxy? | Prefer token auth (Option B) or custom headers via `http_header_<NAME>` (Option D). |
-
 ### Common Pitfalls
 
 <common-pitfalls>
@@ -408,6 +389,15 @@ public Connection createCustomHeadersConnection() throws SQLException {
 </common-pitfalls>
 
 See [integration-testing.md — Configuration](integration-testing.md#configuration) for what to verify when testing authentication end-to-end (boundary/invalid values, certificate acceptance).
+
+### Decisions
+
+| Question | Guidance |
+|----------|----------|
+| Which mechanism? | Password for most deployments; `access_token`/`bearer_token` for gateway-fronted or cloud setups; mTLS for certificate-based zero-trust; custom headers for API gateways. |
+| Credentials in URL or Properties? | **Properties** — keeps secrets out of URLs and logs. |
+| Behind an auth proxy? | Prefer token auth (Option B) or custom headers via `http_header_<NAME>` (Option D). |
+
 ---
 
 ## Step 3 — Transport & connectivity (TLS, proxies, timeouts)
@@ -416,32 +406,15 @@ See [integration-testing.md — Configuration](integration-testing.md#configurat
 
 ### TLS / mTLS / proxies
 
-| Scenario | Property / URL parameter |
-|----------|--------------------------|
-| Enable HTTPS | `ssl=true` + port 8443 |
-| Self-signed server cert | `sslrootcert=/path/to/ca.crt` |
-| Client certificate (mTLS) | `sslcert`, `ssl_key`, `ssl_authentication=true` |
-| Trust store | `trust_store`, `key_store_password`, `key_store_type` |
+| Scenario | Property / URL parameter                                                     |
+|----------|------------------------------------------------------------------------------|
+| Enable HTTPS | `ssl=true` + port 8443 or use `https` in connection URL                      |
+| Self-signed server cert | `sslrootcert=/path/to/ca.crt`                                                |
+| Client certificate (mTLS) | `sslcert`, `ssl_key`, `ssl_authentication=true`                              |
+| Trust store | `trust_store`, `key_store_password`, `key_store_type`                        |
 | HTTP proxy | `proxy_type=http`, `proxy_host`, `proxy_port`, `proxy_user`, `proxy_password` |
 
 See [examples/jdbc SSLExamples](../examples/jdbc/src/main/java/com/clickhouse/examples/jdbc/SSLExamples.java) and [authentication.md](authentication.md). See also [integration-testing.md — Test Environment](integration-testing.md#test-environment) for testing across protocols, hosts, and ClickHouse versions.
-
-### Init configuration — server vs client settings
-
-Both forward through URL/Properties:
-
-```java
-public Connection createConfiguredConnection() throws SQLException {
-    Properties props = new Properties();
-    props.setProperty("user", "default");
-    props.setProperty("max_execution_time", "60");   // server setting
-    props.setProperty("max_open_connections", "20");  // client setting
-    return DriverManager.getConnection(
-        "jdbc:clickhouse://localhost:8123/default", props);
-}
-```
-
-Per-statement server settings: use `Statement.setQueryTimeout(...)` or an SQL `SETTINGS` clause.
 
 ### Health check
 
@@ -455,7 +428,8 @@ public boolean checkConnectionHealth(Connection conn, int timeoutSeconds) throws
 }
 ```
 
-
+**Note** 
+This check can be used to wake up idle ClickHouse Cloud instance. 
 
 ### Common Pitfalls
 
@@ -490,7 +464,7 @@ The response format can be configured using the `format` connection property (`C
 - On ClickHouse 26.8+, the request format header sent by the driver (`X-ClickHouse-Format`) takes priority over a `FORMAT` clause written in the SQL query string.
 - By default, the driver sends `format=RowBinaryWithNamesAndTypes`.
 - To read JSON in JDBC, the recommended approach is setting `format=JSONEachRow` in connection properties along with `jdbc_json_parser_factory`.
-- Setting `format=` (empty string) or `null` is an **expert-only setting**:
+- Setting `format=` (empty string) or `null` to do not send anything:
   - Setting `format=` omits the `X-ClickHouse-Format` request header, allowing explicit SQL `FORMAT` clauses written in query strings to take effect.
   - **Caveat:** For any statement without an explicit SQL `FORMAT` clause, the server falls back to its `default_format` (`TabSeparated`). Because JDBC `ResultSet` only consumes `RowBinaryWithNamesAndTypes` and `JSONEachRow`, such queries fail with a `SQLException`.
   - `DatabaseMetaData` operations (e.g. `getTables()`, `getColumns()`) are not affected by the `format` property: they pin `RowBinaryWithNamesAndTypes` on the statements they run internally.
@@ -534,6 +508,8 @@ public void readJsonEachRowResultSet(Connection conn) throws Exception {
     }
 }
 ```
+
+See also example [application in repo](../examples/jdbc-v2-json-processors).
 
 ### When JDBC's format contract is not enough
 
@@ -631,14 +607,14 @@ public void readSpecialTypes(ResultSet rs) throws SQLException {
 
 ### Operation configuration — tuning heavy reads
 
-| Setting | Property / method | Notes |
-|---------|-------------------|-------|
-| Response compression | `compress=true` (default) | Server-side LZ4 |
-| Max execution time | `max_execution_time` | Server-side query timeout |
-| Max result rows | `jdbc_use_max_result_rows=true` | Enforce server `max_result_rows` |
-| Query timeout | `Statement.setQueryTimeout(seconds)` | JDBC-level timeout |
+| Setting | Property / method | Notes                              |
+|---------|-------------------|------------------------------------|
+| Response compression | `compress=true` (default) | Server-side LZ4 / ZSTD             |
+| Max execution time | `max_execution_time` | Server-side query timeout          |
+| Max result rows | `jdbc_use_max_result_rows=true` | Enforce server `max_result_rows`   |
+| Query timeout | `Statement.setQueryTimeout(seconds)` | JDBC-level timeout                 |
 | Result-set auto-close | `jdbc_resultset_auto_close=true` (default) | Close previous result on new query |
-| Fetch size | `Statement.setFetchSize(n)` | Streaming batch-size hint |
+| Fetch size | `Statement.setFetchSize(n)` | Streaming batch-size hint          |
 
 **Tip:** enforce row limits in SQL (`LIMIT n`). With `jdbc_use_max_result_rows` disabled, the driver stops reading at the limit but the server may still send remaining data.
 
@@ -827,7 +803,7 @@ See below for how to detect and handle schema mismatch errors specifically.
 
 #### Schema mismatch
 
-When working with a ClickHouse cluster, you may encounter errors if the table schema changes unexpectedly between queries or ingestions. While most JDBC applications escape this because generated SQL typically matches the current schema, dynamic ingestion workflows or custom binary writers (like RowBinary insert streams) are particularly sensitive.
+When working with a ClickHouse cluster, you may encounter errors if the table schema changes unexpectedly between queries or ingestion. While most JDBC applications escape this because generated SQL typically matches the current schema, dynamic ingestion workflows or custom binary writers (like RowBinary insert streams) are particularly sensitive.
 
 **Typical error:**  
 A schema change — such as adding, removing, or altering a column — can result in ingestion failures with errors like:
