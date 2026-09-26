@@ -484,7 +484,7 @@ withClause
 
 // CTE statement
 cteClause
-    : WITH (cteUnboundCol | namedQuery) (COMMA (cteUnboundCol | namedQuery))*
+    : WITH RECURSIVE? (cteUnboundCol | namedQuery) (COMMA (cteUnboundCol | namedQuery))*
     ;
 
 
@@ -1436,6 +1436,7 @@ keyword
     | RANGE
     | READONLY
     | REALM
+    | RECURSIVE
     | REFRESH
     | REGEXP
     | RELOAD
@@ -1710,6 +1711,7 @@ keywordForAlias
     | RANGE
     | READONLY
     | REALM
+    | RECURSIVE
     | REFRESH
     | REGEXP
     | REMOVE

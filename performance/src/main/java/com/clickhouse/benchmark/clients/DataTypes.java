@@ -35,7 +35,7 @@ public class DataTypes extends BenchmarkBase {
     public void setUpIteration(DataState dataState) {
         super.setUpIteration();
 
-        try (Client c = getClientV2(); QueryResponse r = c.query("SELECT * FROM " + dataState.tableNameFilled, new QuerySettings()
+        try (Client c = getClientV2IncludeDb(false); QueryResponse r = c.query("SELECT * FROM " + dataState.tableNameFilled, new QuerySettings()
                 .setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes)).get()) {
             dataState.datasetAsRowBinaryWithNamesAndTypes = ByteBuffer.wrap(r.getInputStream().readAllBytes());
             LOGGER.info("Loaded {} from dataset", dataState.datasetAsRowBinaryWithNamesAndTypes.capacity());

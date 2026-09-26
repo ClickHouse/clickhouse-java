@@ -32,7 +32,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  PREFERRED_LTS_VERSION: "25.8"
+  PREFERRED_LTS_VERSION: "26.8"
 
 jobs:
   compile:
@@ -54,7 +54,7 @@ jobs:
           java-version: 21
           cache: "maven"
       - name: Build and install libraries
-        run: mvn --batch-mode --no-transfer-progress --show-version --strict-checksums --threads 2 -Dmaven.wagon.rto=30000 -Dj8 -DskipITs install
+        run: mvn --batch-mode --no-transfer-progress --show-version --strict-checksums --threads 2 -Dmaven.wagon.rto=30000 -Dj8 -DskipITs -DclickhouseVersion=$PREFERRED_LTS_VERSION install
       - name: Copy Artifacts to Build dir
         run: |
           mkdir clickhouse-jdbc-artifacts
@@ -309,7 +309,6 @@ jobs:
 
   test-jdbc-driver:
     runs-on: ubuntu-latest
-    needs: test-java-client
     strategy:
       matrix:
         clickhouse: ["25.8", "26.3", "latest"]
