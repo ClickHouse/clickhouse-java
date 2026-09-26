@@ -54,14 +54,15 @@ public class ClickHouseLZ4InputStream extends InputStream {
             return 0;
         }
 
-        int readBytes = 0;
-        do {
-            int remaining = Math.min(len - readBytes, buffer.remaining());
-            buffer.get(b, off + readBytes, remaining);
-            readBytes += remaining;
-        } while (readBytes < len && refill() != -1);
-
-        return readBytes == 0 ? -1 : readBytes;
+        while (!buffer.hasRemaining()) {
+            if (refill() == -1) {
+                return -1;
+            }
+        }
+        // Return decoded bytes before trying another block, which may end in a transport error.
+        int readBytes = Math.min(len, buffer.remaining());
+        buffer.get(b, off, readBytes);
+        return readBytes;
     }
 
 
