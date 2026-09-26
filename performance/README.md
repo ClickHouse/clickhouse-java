@@ -71,9 +71,21 @@ Other options:
   - "q" - QueryClient - query operation benchmarks
   - "ci" - ConcurrentInsertClient - concurrent version of insert benchmarks
   - "cq" - ConcurrentQueryClient - concurrent version of query benchmarks
-  - "lz" - Compression - compression related benchmarks
+  - "lz" - Compression - LZ4 output stream benchmarks (no server involved)
+  - "comp" - Compression - query/insert compression matrix of clients, methods, algorithms and formats (see below)
   - "writer" - Serializer - serialization only logic benchmarks
   - "reader" - DeSerilalizer - deserialization only logic benchmarks
   - "mixed" - MixedWorkload 
   - "jq" - JDBCQuery - query operations using JDBC 
   - "ji" - JDBCInsert - insert operation using JDBC
+
+Compression matrix filters (used with `-b comp` or `-b all`, each defaults to all values):
+- "-cc" - clients: `v1,v2`
+- "-cm" - compression methods: `http` (`Content-Encoding`/`Accept-Encoding`), `native` (ClickHouse block compression, `use_http_compression = false`)
+- "-ca" - algorithms: `lz4,zstd,snappy,brotli`
+- "-cf" - formats: `RowBinaryWithNamesAndTypes,JSONEachRow` (any ClickHouse format name, e.g. `RowBinary`, is accepted)
+
+Ex.: `-b comp -cc v2 -cm http -ca zstd,lz4 -cf JSONEachRow`.
+
+Combinations a client doesn't support are skipped: V1 sends LZ4 only natively and other algorithms only over HTTP,
+V2 native mode is LZ4 only, V2 can't compress requests with brotli, and snappy works with neither client.

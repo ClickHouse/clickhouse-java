@@ -236,16 +236,18 @@ public class BenchmarkBase {
         return getClientV2(true, serverCompression);
     }
     protected static Client getClientV2(boolean includeDb, boolean serverCompression) {
-        ClickHouseNode node = getServer();
         //We get a new client so that closing won't affect other subsequent calls
+        return getClientV2Builder(includeDb, serverCompression).build();
+    }
+    protected static Client.Builder getClientV2Builder(boolean includeDb, boolean serverCompression) {
+        ClickHouseNode node = getServer();
         return new Client.Builder()
                 .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isSsl())
                 .setUsername(getUsername())
                 .setPassword(getPassword())
                 .setMaxRetries(0)
                 .compressServerResponse(serverCompression)
-                .setDefaultDatabase(includeDb ? DB_NAME : "default")
-                .build();
+                .setDefaultDatabase(includeDb ? DB_NAME : "default");
     }
     private static String jdbcURLV1(boolean ssl) {
         ClickHouseNode node = getServer();
