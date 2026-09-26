@@ -23,7 +23,7 @@ public class Serializers extends BenchmarkBase {
         try {
             ClickHouseOutputStream chos = ClickHouseOutputStream.of(empty);
             ClickHouseDataProcessor p = dataState.dataSet.getClickHouseDataProcessor();
-            ClickHouseSerializer[] serializers = p.getSerializers(getClientV1().getConfig(), p.getColumns());
+            ClickHouseSerializer[] serializers = p.getSerializers(getClientV1(false).getConfig(), p.getColumns());
             for (ClickHouseRecord record : dataState.dataSet.getClickHouseRecords()) {
                 for (int i = 0; i < serializers.length; i++) {
                     serializers[i].serialize(record.getValue(i), chos);
