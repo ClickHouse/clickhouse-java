@@ -320,7 +320,7 @@ public class StatementTest extends JdbcIntegrationTest {
 
                 assertEquals(updateCount, expectedUpdateCount);
 
-                try (ResultSet rs = stmt.executeQuery("SELECT count() FROM " + getDatabase() + "." + tableName)) {
+                try (ResultSet rs = stmt.executeQuery("SELECT count() FROM clusterAllReplicas('default', " + getDatabase() + "." + tableName + ")")) {
                     assertTrue(rs.next());
                     int count = rs.getInt(1);
                     if (expectedSelectCount == -1) {
