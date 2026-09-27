@@ -618,6 +618,19 @@ public void readSpecialTypes(ResultSet rs) throws SQLException {
 
 **Tip:** enforce row limits in SQL (`LIMIT n`). With `jdbc_use_max_result_rows` disabled, the driver stops reading at the limit but the server may still send remaining data.
 
+### Read Specific Features 
+
+#### `FINAL`
+
+There is a need sometime to use [`FINAL`](https://clickhouse.com/docs/reference/statements/select/from#final-modifier) modifier for select a query without modifying this query (common for tools accepting raw SQL from user). In this case server setting `final=1` should be set via connection configuration or before executing statement (see [Server  and Client Settings](#Server-and-Client-Settings)
+
+#### Sequential Consistency 
+
+When reading data from cluster it may happen that `SELECT` reaches replica that has not replicated recently written data. In such cases queries can have setting `select_sequential_consistency = 1` . For more information see [documentation](https://clickhouse.com/docs/get-started/migrate/postgres/appendix#sequential-consistency). 
+
+**Warning** 
+Avoid using this option until absolutely needed. This setting puts pressure on inter-server communication and will slow down other operations. 
+
 ### Best practices
 
 <best-practices>
@@ -627,6 +640,7 @@ public void readSpecialTypes(ResultSet rs) throws SQLException {
 - **Prefer `PreparedStatement`** for repeated / parameterized queries.
 - **Map large integers**: `jdbc_type_mappings=UInt64=java.math.BigInteger`.
 - **Use `getObject(column, Class)`** for `java.time` types instead of legacy getters.
+- **Off load data processing from read** when reading big chunks of data. Server may timeout on write if read is too slow.  
 
 </best-practices>
 ### Common Pitfalls
@@ -738,11 +752,9 @@ This leverages the JDBC driver's RowBinary streaming (when `beta.row_binary_for_
 > 
 > **Caution:** Remember that with async insert, success response means "data accepted for processing" — not yet "written." Use `wait_async_insert=1` to wait for commit, and deduplication tokens if retrying inserts to avoid duplicates.
 
-
 ### Idempotency — deduplication token
 
 JDBC does not expose `insert_deduplication_token` as a first-class API. Three ways to use it:
-
 
 **SQL `SETTINGS` clause** (per statement):
 
@@ -831,28 +843,30 @@ A schema change — such as adding, removing, or altering a column — can resul
 ```java
 import com.clickhouse.client.ServerException;
 
-try {
-    // ... ingestion code ...
-} catch (SQLException ex) {
-    Throwable cause = ex.getCause();
-    if (cause instanceof ServerException) {
-        ServerException serverEx = (ServerException) cause;
-        // ClickHouse code 33: UNABLE TO READ ALL DATA (schema mismatch)
-        if (serverEx.getErrorCode() == 33 ) {
-            // Possible table schema mismatch
-            // 1. Reload schema via DatabaseMetaData or DESCRIBE TABLE
-            // 2. Update SQL or RowBinary mapping as needed
-            // 3. Retry with updated logic
+void writeData(List<Data> data, TableSchema schema) {
+    try {
+        // ... ingestion code ... using schema
+    } catch (SQLException ex) {
+        Throwable cause = ex.getCause();
+        if (cause instanceof ServerException) {
+            ServerException serverEx = (ServerException) cause;
+            // ClickHouse code 33: UNABLE TO READ ALL DATA (schema mismatch)
+            if (serverEx.getErrorCode() == 33) {
+                // Possible table schema mismatch
+                // 1. Reload schema via DatabaseMetaData or DESCRIBE TABLE
+                // 2. Update SQL or RowBinary mapping as needed
+                // 3. Retry with updated logic
+            } else {
+                throw ex; // not a schema mismatch
+            }
         } else {
-            throw ex; // not a schema mismatch
+            throw ex; // Cannot determine server error code
         }
-    } else {
-        throw ex; // Cannot determine server error code
     }
 }
 ```
 
-> **Note:** Always ensure your application's data shape matches the target table exactly when using RowBinary or similar binary ingestion APIs. If your code holds a schema cache, invalidate it and fetch the up-to-date schema on a Code 33 error before retrying.
+> **Note:** Always ensure your application's data schema matches the target table one exactly when using RowBinary or similar binary ingestion APIs. If your code holds a schema cache, invalidate it and fetch the up-to-date schema on a Code 33 error before retrying.
 
 See [ClickHouse error codes documentation](https://clickhouse.com/docs/en/operations/error-codes/) for more on Code 33 and related scenarios.
 
@@ -874,8 +888,8 @@ See [ClickHouse error codes documentation](https://clickhouse.com/docs/en/operat
 - **Batching complex INSERT shapes** (`INSERT SELECT`, multi-table) is unsupported — use `Statement`.
 - **Retrying without a dedup token** on MergeTree can create duplicates.
 - **Maximum ingest throughput** is not JDBC's strength — the [Java Client](integration-client.md) stream insert is faster.
-
 </common-pitfalls>
+
 ---
 
 ## Step 7 — Metadata & schema discovery
@@ -965,8 +979,8 @@ For schema-driven POJO binding and binary format writers, use the [Java Client i
 <common-pitfalls>
 - **JDBC metadata may not reflect every ClickHouse type nuance** — use `getColumnTypeName()` for the native string.
 - **Default type mappings** may not match your expectations for large integers or complex types — override with `jdbc_type_mappings`.
-
 </common-pitfalls>
+
 ---
 
 ## JDBC-specific features
@@ -1030,14 +1044,17 @@ You can enable Client V2 operational metrics (durations, counts, retries) for JD
 
 ```java
 // Configure via JDBC URL parameter
-String url = "jdbc:clickhouse://localhost:8123/default?jdbc_metrics_recorder=com.clickhouse.client.api.observability.micrometer.MicrometerMetricsRecorder";
 
-// Or set via java.util.Properties
-Properties properties = new Properties();
-properties.setProperty("jdbc_metrics_recorder", "com.clickhouse.client.api.observability.micrometer.MicrometerMetricsRecorder");
+import java.sql.Connection;
+import java.sql.SQLException;
 
-try (Connection conn = DriverManager.getConnection(url, properties)) {
-    // JDBC operations report operation metrics to Micrometer's globalRegistry
+Connection createConnection(String host) throws SQLException {
+    final String url = "jdbc:clickhouse://" + host + "/default?jdbc_metrics_recorder=com.clickhouse.client.api.observability.micrometer.MicrometerMetricsRecorder";
+
+    // Or set via java.util.Properties
+    Properties properties = new Properties();
+    properties.setProperty("jdbc_metrics_recorder", "com.clickhouse.client.api.observability.micrometer.MicrometerMetricsRecorder");
+    return DriverManager.getConnection(url, properties);
 }
 ```
 
