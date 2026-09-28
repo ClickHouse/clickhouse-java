@@ -1,8 +1,10 @@
 package com.clickhouse.client.api.internal;
 
+import com.clickhouse.client.api.CompressionMethod;
 import net.jpountz.lz4.LZ4Factory;
 import org.apache.commons.compress.compressors.lz4.FramedLZ4CompressorInputStream;
 import org.apache.commons.compress.compressors.lz4.FramedLZ4CompressorOutputStream;
+import org.apache.hc.client5.http.ClientProtocolException;
 import org.apache.hc.core5.function.Supplier;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpEntity;
@@ -27,10 +29,12 @@ class CompressedBlockEntity implements HttpEntity {
 
     private final boolean clientCompression;
 
-    private LZ4Factory lz4Factory = null;
+    private final LZ4Factory lz4Factory;
+
+    private final CompressionMethod compressionMethod;
 
     CompressedBlockEntity(HttpEntity httpEntity, boolean useHttpCompression, boolean serverCompression, boolean clientCompression,
-                          int bufferSize, boolean isResponse, LZ4Factory lz4Factory) {
+                          int bufferSize, boolean isResponse, LZ4Factory lz4Factory, CompressionMethod compressMethod) {
         this.httpEntity = httpEntity;
         this.useHttpCompression = useHttpCompression;
         this.bufferSize = bufferSize;
@@ -38,6 +42,7 @@ class CompressedBlockEntity implements HttpEntity {
         this.clientCompression = clientCompression;
         this.isResponse = isResponse;
         this.lz4Factory = lz4Factory;
+        this.compressionMethod = compressMethod;
     }
 
     @Override
@@ -81,7 +86,16 @@ class CompressedBlockEntity implements HttpEntity {
             if (useHttpCompression) {
                 compressingStream = new FramedLZ4CompressorOutputStream(outStream);
             } else {
-                compressingStream = new ClickHouseLZ4OutputStream(outStream, lz4Factory.fastCompressor(), bufferSize);
+                switch (compressionMethod) {
+                    case LZ4:
+                        compressingStream = new CompressedBlockOutputStream.LZ4OutputStream(outStream, lz4Factory.fastCompressor(), bufferSize);
+                        break;
+                    case ZSTD:
+                        compressingStream = new CompressedBlockOutputStream.ZSTDOutputStream(outStream, bufferSize);
+                        break;
+                    default:
+                        throw new ClientProtocolException("bug: unsupported compression method " + compressionMethod);
+                }
             }
 
             try {

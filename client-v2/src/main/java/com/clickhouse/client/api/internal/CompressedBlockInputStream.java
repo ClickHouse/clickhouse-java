@@ -16,19 +16,19 @@ import java.nio.ByteBuffer;
 
 public class CompressedBlockInputStream extends InputStream {
 
-    private static Logger LOG = LoggerFactory.getLogger(CompressedBlockInputStream.class);
+    private static final Logger LOG = LoggerFactory.getLogger(CompressedBlockInputStream.class);
     private final LZ4FastDecompressor decompressor;
 
     private final InputStream in;
 
     private ByteBuffer buffer;
 
-    private byte[] tmpBuffer = new byte[1];
+    private final byte[] tmpBuffer = new byte[1];
 
 
     public CompressedBlockInputStream(InputStream in, LZ4FastDecompressor decompressor, int bufferSize) {
         super();
-        LOG.debug("Using LZ4 decompressor with buffer size {}", bufferSize);
+        LOG.debug("Using decompressor with buffer size {}", bufferSize);
         this.decompressor = decompressor;
         this.in = in;
         this.buffer = ByteBuffer.allocate(bufferSize);
