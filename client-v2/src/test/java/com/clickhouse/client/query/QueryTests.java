@@ -9,6 +9,7 @@ import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.CompressionMethod;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
@@ -104,19 +105,22 @@ public class QueryTests extends BaseIntegrationTest {
 
     private boolean useHttpCompression = false;
 
+    private CompressionMethod compressionMethod;
+
     private boolean usePreallocatedBuffers = false;
 
     QueryTests(){
     }
 
-    public QueryTests(boolean useServerCompression, boolean useHttpCompression) {
-        this(useServerCompression, useHttpCompression, false);
+    public QueryTests(boolean useServerCompression, boolean useHttpCompression, CompressionMethod compressionMethod) {
+        this(useServerCompression, useHttpCompression, false, compressionMethod);
     }
 
-    public QueryTests(boolean useServerCompression, boolean useHttpCompression, boolean usePreallocatedBuffers) {
+    public QueryTests(boolean useServerCompression, boolean useHttpCompression, boolean usePreallocatedBuffers, CompressionMethod compressionMethod) {
         this.useServerCompression = useServerCompression;
         this.useHttpCompression = useHttpCompression;
         this.usePreallocatedBuffers = usePreallocatedBuffers;
+        this.compressionMethod = compressionMethod;
     }
 
     @BeforeMethod(groups = {"integration"})
