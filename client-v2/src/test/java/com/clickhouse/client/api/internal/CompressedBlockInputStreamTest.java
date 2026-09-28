@@ -7,12 +7,12 @@ import net.jpountz.lz4.LZ4Factory;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
-public class ClickHouseLZ4InputStreamTest {
+public class CompressedBlockInputStreamTest {
 
     @Test
     public void reportsActualByteCountsForTruncatedHeader() {
         byte[] truncatedHeader = new byte[10];
-        ClickHouseLZ4InputStream input = new ClickHouseLZ4InputStream(
+        CompressedBlockInputStream input = new CompressedBlockInputStream(
                 new ByteArrayInputStream(truncatedHeader),
                 LZ4Factory.fastestJavaInstance().fastDecompressor(),
                 8192);

@@ -448,8 +448,8 @@ public class HttpAPIClientHelper {
                 break;
             } catch (ClientException e) {
                 // Invalid LZ4 Magic
-                if (body instanceof ClickHouseLZ4InputStream) {
-                    ClickHouseLZ4InputStream stream = (ClickHouseLZ4InputStream) body;
+                if (body instanceof CompressedBlockInputStream) {
+                    CompressedBlockInputStream stream = (CompressedBlockInputStream) body;
                     body = stream.getInputStream();
                     byte[] lzHeader = stream.getHeaderBuffer(); // Here is read part of original body
                     offset = Math.min(lzHeader.length, buffer.length);
@@ -479,8 +479,8 @@ public class HttpAPIClientHelper {
                 rBytes = body.read(buffer);
             } catch (ClientException e) {
                 // Invalid LZ4 Magic
-                if (body instanceof ClickHouseLZ4InputStream) {
-                    ClickHouseLZ4InputStream stream = (ClickHouseLZ4InputStream) body;
+                if (body instanceof CompressedBlockInputStream) {
+                    CompressedBlockInputStream stream = (CompressedBlockInputStream) body;
                     body = stream.getInputStream();
                     byte[] headerBuffer = stream.getHeaderBuffer();
                     System.arraycopy(headerBuffer, 0, buffer, 0, headerBuffer.length);
@@ -1029,7 +1029,7 @@ public class HttpAPIClientHelper {
             return new CompressedEntity(httpEntity, false, CompressorStreamFactory.getSingleton());
         } else if (clientCompression && !appCompressedData) {
             int buffSize = ClientConfigProperties.COMPRESSION_LZ4_UNCOMPRESSED_BUF_SIZE.getOrDefault(requestConfig);
-            return new LZ4Entity(httpEntity, useHttpCompression, false, true,
+            return new CompressedBlockEntity(httpEntity, useHttpCompression, false, true,
                     buffSize, false, lz4Factory);
         } else {
             return httpEntity;
@@ -1048,7 +1048,7 @@ public class HttpAPIClientHelper {
         // data compression
         if (serverCompression && !(httpStatus == HttpStatus.SC_FORBIDDEN || httpStatus == HttpStatus.SC_UNAUTHORIZED)) {
             int buffSize = ClientConfigProperties.COMPRESSION_LZ4_UNCOMPRESSED_BUF_SIZE.getOrDefault(requestConfig);
-            return new LZ4Entity(httpEntity, useHttpCompression, true, false, buffSize, true, lz4Factory);
+            return new CompressedBlockEntity(httpEntity, useHttpCompression, true, false, buffSize, true, lz4Factory);
         }
 
         return httpEntity;

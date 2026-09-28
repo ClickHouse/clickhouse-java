@@ -82,14 +82,14 @@ public class ClickHouseLZ4OutputStream extends OutputStream {
     public void flush() throws IOException {
         if (inBuffer.position() > 0) {
             compressedBuffer.clear();
-            compressedBuffer.put(16, ClickHouseLZ4InputStream.MAGIC);
+            compressedBuffer.put(16, CompressedBlockInputStream.MAGIC);
             int uncompressedLen = inBuffer.position();
             inBuffer.flip();
             int compressed = compressor.compress(inBuffer, 0, uncompressedLen, compressedBuffer, 25,
                     compressedBuffer.remaining() - 25);
             int compressedSizeWithHeader = compressed + 9;
-            ClickHouseLZ4InputStream.setInt32(compressedBuffer.array(), 17, compressedSizeWithHeader); // compressed size with header
-            ClickHouseLZ4InputStream.setInt32(compressedBuffer.array(), 21, uncompressedLen); // uncompressed size
+            CompressedBlockInputStream.setInt32(compressedBuffer.array(), 17, compressedSizeWithHeader); // compressed size with header
+            CompressedBlockInputStream.setInt32(compressedBuffer.array(), 21, uncompressedLen); // uncompressed size
             long[] hash = ClickHouseCityHash.cityHash128(compressedBuffer.array(), 16, compressedSizeWithHeader);
             setInt64(compressedBuffer.array(), 0, hash[0]);
             setInt64(compressedBuffer.array(), 8, hash[1]);
