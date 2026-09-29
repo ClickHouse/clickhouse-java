@@ -65,12 +65,11 @@ public class CompressedBlockInputStream extends InputStream {
         return readBytes == 0 ? -1 : readBytes;
     }
 
-
-    static final byte MAGIC = (byte) 0x82;
     static final byte MAGIC_LZ4 = (byte) 0x82;
     static final byte MAGIC_ZSTD_3 = (byte) 0x90;
     static final byte MAGIC_NONE = (byte) 0x02;
     static final int HEADER_LENGTH = 25;
+    static final int MAGIC_NUM_POS = 16;
 
     final byte[] headerBuff = new byte[HEADER_LENGTH];
 
@@ -111,7 +110,7 @@ public class CompressedBlockInputStream extends InputStream {
             return -1;
         }
 
-        byte magicNumber = headerBuff[16];
+        byte magicNumber = headerBuff[MAGIC_NUM_POS];
         switch (magicNumber) {
             case MAGIC_LZ4:
             case MAGIC_ZSTD_3:

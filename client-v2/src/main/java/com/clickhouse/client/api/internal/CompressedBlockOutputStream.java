@@ -125,8 +125,8 @@ public abstract class CompressedBlockOutputStream extends OutputStream {
 
         @Override
         protected int compressData(ByteBuffer inBuffer, int uncompressedLen, ByteBuffer compressedBuffer, ByteBuffer buffer) {
-            return compressor.compress(inBuffer, 0, uncompressedLen, compressedBuffer, 25,
-                    compressedBuffer.remaining() - 25);
+            return compressor.compress(inBuffer, 0, uncompressedLen, compressedBuffer, CompressedBlockInputStream.HEADER_LENGTH,
+                    compressedBuffer.remaining() - CompressedBlockInputStream.HEADER_LENGTH);
         }
 
         @Override
@@ -137,14 +137,17 @@ public abstract class CompressedBlockOutputStream extends OutputStream {
 
     public static class ZSTDOutputStream extends CompressedBlockOutputStream {
 
+        private static final int COMPRESSION_LEVEL = 3;
+
         public ZSTDOutputStream(OutputStream out, int bufferSize) {
             super(out, bufferSize);
         }
 
         @Override
         protected int compressData(ByteBuffer inBuffer, int uncompressedLen, ByteBuffer compressedBuffer, ByteBuffer buffer) {
-            return (int) Zstd.compressByteArray(compressedBuffer.array(), 25, compressedBuffer.remaining() - 25,
-                    inBuffer.array(), 0, uncompressedLen, 3);
+            return (int) Zstd.compressByteArray(compressedBuffer.array(), CompressedBlockInputStream.HEADER_LENGTH,
+                    compressedBuffer.remaining() - CompressedBlockInputStream.HEADER_LENGTH,
+                    inBuffer.array(), 0, uncompressedLen, COMPRESSION_LEVEL);
         }
 
         @Override

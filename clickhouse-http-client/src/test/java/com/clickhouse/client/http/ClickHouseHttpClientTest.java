@@ -103,8 +103,9 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
 
     @Override
     protected Map<ClickHouseOption, Serializable> getClientOptions() {
-        return Collections.singletonMap(ClickHouseHttpOption.CONNECTION_PROVIDER,
-                HttpConnectionProvider.HTTP_URL_CONNECTION);
+        Map<ClickHouseOption, Serializable> options = new HashMap<>(super.getClientOptions());
+        options.put(ClickHouseHttpOption.CONNECTION_PROVIDER, HttpConnectionProvider.HTTP_URL_CONNECTION);
+        return options;
     }
 
     @Test(groups = { "integration" })
