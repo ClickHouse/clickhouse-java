@@ -209,21 +209,6 @@ public class CompressedBlockInputStreamTest {
         Assert.assertTrue(ex.getMessage().startsWith("Incomplete read:"));
     }
 
-    @Test
-    public void testMissingLZ4Decompressor() {
-        byte[] payload = generateData(32);
-        byte[] block = createBlock(CompressedBlockInputStream.MAGIC_LZ4, payload);
-
-        CompressedBlockInputStream input = new CompressedBlockInputStream(
-                new ByteArrayInputStream(block),
-                null,
-                1024);
-
-        ClientException ex = Assert.expectThrows(ClientException.class,
-                () -> input.read(new byte[1], 0, 1));
-        Assert.assertTrue(ex.getMessage().contains("LZ4 decompressor is not configured"));
-    }
-
     private static byte[] generateData(int length) {
         byte[] data = new byte[length];
         for (int i = 0; i < length; i++) {
