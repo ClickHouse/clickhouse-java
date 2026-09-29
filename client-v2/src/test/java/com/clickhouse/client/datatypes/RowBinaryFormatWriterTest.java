@@ -576,6 +576,47 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
         writeTest(tableName, tableCreate, rows);
     }
 
+    @DataProvider(name = "stringValuesForUInt64AndUUID")
+    private Object[][] stringValuesForUInt64AndUUID() {
+        String uuid = "61f0c404-5cb3-11e7-907b-a6006ad3dba0";
+        return new Object[][] {
+                {"UInt64", "18446744073709551615", "18446744073709551615"},
+                {"Map(UInt64, Int32)", singleEntryMap("9223372036854775808", 1), "{9223372036854775808:1}"},
+                {"UUID", uuid, uuid},
+                {"Nullable(UUID)", uuid, uuid},
+                {"Array(UUID)", Collections.singletonList(uuid), "['" + uuid + "']"},
+                {"Tuple(Int32, Nullable(UUID), Float64)", Arrays.asList(1, uuid, 0.25d), "(1,'" + uuid + "',0.25)"},
+                {"Map(UUID, Int32)", singleEntryMap(uuid, 1), "{'" + uuid + "':1}"},
+        };
+    }
+
+    @Test (groups = { "integration" }, dataProvider = "stringValuesForUInt64AndUUID")
+    public void writeStringIntoUInt64AndUUIDTest(String columnType, Object value, String expected) throws Exception {
+        String tableName = "rowBinaryFormatWriterTest_stringUInt64UUID_" + UUID.randomUUID().toString().replace('-', '_');
+        initTable(tableName,
+                "CREATE TABLE \"" + tableName + "\" (id Int32, c " + columnType + ", tail Float64) Engine = MergeTree ORDER BY id",
+                new CommandSettings());
+        TableSchema schema = client.getTableSchema(tableName);
+        ClickHouseFormat format = ClickHouseFormat.RowBinaryWithDefaults;
+
+        try (InsertResponse response = client.insert(tableName, out -> {
+            RowBinaryFormatWriter w = new RowBinaryFormatWriter(out, schema, format);
+            w.setValue(schema.nameToColumnIndex("id"), 1);
+            w.setValue(schema.nameToColumnIndex("c"), value);
+            w.setValue(schema.nameToColumnIndex("tail"), 0.5d);
+            w.commitRow();
+        }, format, settings).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS)) {
+        }
+
+        List<GenericRecord> records = client.queryAll(
+                "SELECT id, toString(c) AS c, tail FROM \"" + tableName + "\" ORDER BY id");
+        Assert.assertEquals(records.size(), 1);
+        GenericRecord row = records.get(0);
+        Assert.assertEquals(row.getInteger("id"), 1);
+        Assert.assertEquals(row.getString("c"), expected);
+        Assert.assertEquals(row.getDouble("tail"), 0.5d);
+    }
+
     @Test (groups = { "integration" })
     public void writeBinaryStringsTest() throws Exception {
         String tableName = "rowBinaryFormatWriterTest_writeBinaryStringsTests_" + UUID.randomUUID().toString().replace('-', '_');

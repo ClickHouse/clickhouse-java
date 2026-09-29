@@ -171,6 +171,9 @@
 
 ### Bug Fixes 
 
+- **[client-v2]** Fixed writing a `String` value into a `UUID` column (also as an `Array`/`Tuple` element or a `Map`
+  key) failing with `ClassCastException`. The string is now parsed with `UUID.fromString`; a string it cannot parse is
+  rejected on the client with an `IllegalArgumentException`. (https://github.com/ClickHouse/clickhouse-java/issues/3132)
 - **[client-v2]** Fixed geo columns (`Point`, `Ring`, `LineString`, `MultiPoint`, `Polygon`, `MultiLineString`,
   `MultiPolygon`) being misread from the `Native` format. The reader decoded a geo column row by row with the
   RowBinary decoders, while `Native` writes it column-major: a `Point` block came back with its coordinates
