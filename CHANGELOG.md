@@ -26,6 +26,11 @@
 
 - **[r2dbc]** Pre `1.0.0` is not supported anymore because R2DBC API reached stable `1.0.0` version.  
 
+- **[jdbc-v2]** `DatabaseMetaData#getTables` now returns `null` in `REMARKS` (table comment) and `TYPE_SCHEM` by
+  default, because metadata is read with `SHOW` statements (see the `jdbc_metadata_use_show_statements` entry in New
+  Features). Set `jdbc_metadata_use_show_statements=false` to get the table comments.
+  (https://github.com/ClickHouse/clickhouse-java/issues/2907)
+
 ### New Features
 
 - **[migration-helpers]** Added `migration-helpers` module containing `ConfigurationMigrationHelper` and
@@ -168,6 +173,15 @@
   as `(INDEX, VALUE)` pairs where each `VALUE` is the tuple. (https://github.com/ClickHouse/clickhouse-java/issues/2477)
 - **[client-v2, jdbc-v2]** Added logging on previously-silent error and diagnostic paths (no functional or
   public-API change). (https://github.com/ClickHouse/clickhouse-java/issues/2969)
+- **[jdbc-v2]** `DatabaseMetaData#getSchemas`, `#getTables` and `#getColumns` now read metadata with `SHOW DATABASES`,
+  `SHOW TABLES` and `DESCRIBE TABLE` instead of the `system.databases`, `system.tables` and `system.columns` tables.
+  The server does not show some tables in the system tables by default (for example, tables of `DataLakeCatalog`
+  databases), so tools that use `DatabaseMetaData` did not find them. The new driver property
+  `jdbc_metadata_use_show_statements` (default `true`) selects the implementation; set it to `false` to use the system
+  tables. With the `SHOW` statements, `getTables()` returns `null` in `REMARKS` (table comment) and `TYPE_SCHEM`;
+  `getColumns()` sends one `DESCRIBE TABLE` query for each table that matches and skips a table that was dropped
+  meanwhile, that the user cannot describe, or whose data lake metadata cannot be read. All other columns and values
+  are the same. (https://github.com/ClickHouse/clickhouse-java/issues/2907)
 
 ### Bug Fixes 
 

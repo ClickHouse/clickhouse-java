@@ -160,6 +160,17 @@ public enum DriverProperties {
      */
     METRICS_RECORDER("jdbc_metrics_recorder", null),
 
+    /**
+     * Makes {@link java.sql.DatabaseMetaData#getSchemas()}, {@link java.sql.DatabaseMetaData#getSchemas(String, String)},
+     * {@link java.sql.DatabaseMetaData#getTables} and {@link java.sql.DatabaseMetaData#getColumns} read metadata with
+     * {@code SHOW DATABASES}, {@code SHOW TABLES} and {@code DESCRIBE TABLE} instead of {@code system.databases},
+     * {@code system.tables} and {@code system.columns}. These statements also return tables that the system tables
+     * hide by default, for example tables of {@code DataLakeCatalog} databases. With these statements
+     * {@code getTables()} returns {@code null} in {@code REMARKS} and {@code TYPE_SCHEM}.
+     * Default: true
+     */
+    METADATA_USE_SHOW_STATEMENTS("jdbc_metadata_use_show_statements", String.valueOf(Boolean.TRUE)),
+
     ;
 
 
