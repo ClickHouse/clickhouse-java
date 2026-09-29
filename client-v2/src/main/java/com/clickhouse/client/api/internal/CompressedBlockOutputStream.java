@@ -21,15 +21,12 @@ public abstract class CompressedBlockOutputStream extends OutputStream {
 
     private final ByteBuffer compressedBuffer;
 
-    private static final int HEADER_LEN = 15; // 9 bytes for header, 6 bytes for checksum
-
-
     public CompressedBlockOutputStream(OutputStream out, int bufferSize) {
         super();
         LOG.debug("Using compressor with buffer size {}", bufferSize);
         this.inBuffer = ByteBuffer.allocate(bufferSize);
         this.out = out;
-        this.compressedBuffer = ByteBuffer.allocate(bufferSize + HEADER_LEN);
+        this.compressedBuffer = ByteBuffer.allocate(bufferSize + CompressedBlockInputStream.HEADER_LENGTH);
     }
 
     @Override
