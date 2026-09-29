@@ -1267,6 +1267,10 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         return DetachedResultSet.createFromRecords(records, GET_TABLES_COLUMNS, connection.getDefaultCalendar());
     }
 
+    // The rows are in the JDBC order (TABLE_SCHEM, TABLE_NAME, ORDINAL_POSITION) without a sort: the server sorts the
+    // result of SHOW DATABASES and SHOW TABLES by name, and DESCRIBE returns the columns in table order.
+    // The query contains only identifiers escaped by quoteIdentifier().
+    @SuppressWarnings({"squid:S2077"})
     private ResultSet getColumnsWithShowStatements(String schemaPattern, String tableNamePattern,
                                                    String columnNamePattern) throws SQLException {
         Predicate<String> columnNameMatcher = likeMatcher(columnNamePattern);
@@ -1312,6 +1316,9 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         return DetachedResultSet.createFromRecords(records, GET_COLUMNS_COLUMNS, connection.getDefaultCalendar());
     }
 
+    // Returns the names sorted by name (the server sorts the result of SHOW DATABASES). The query contains only the
+    // pattern escaped by likeLiteral().
+    @SuppressWarnings({"squid:S2077"})
     private List<String> showDatabases(String schemaPattern) throws SQLException {
         List<String> databases = new ArrayList<>();
         if (schemaPattern != null && schemaPattern.isEmpty()) {

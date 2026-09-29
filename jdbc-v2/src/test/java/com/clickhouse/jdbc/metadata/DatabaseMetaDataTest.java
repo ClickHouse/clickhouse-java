@@ -651,6 +651,9 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
                 {(MetadataCall) md -> md.getColumns(null, db, tables, null), false, true},
                 {(MetadataCall) md -> md.getColumns(null, db + "%", "metadata\\_show\\_statements%", null), false, true},
                 {(MetadataCall) md -> md.getColumns(null, db, table, ""), false, false},
+                {(MetadataCall) md -> md.getColumns(null, db, "metadata\\_show\\_statements odd.'%", "odd \"col\"%"), false, true},
+                {(MetadataCall) md -> md.getColumns(null, "%' OR '1'='1", "%", null), false, false},
+                {(MetadataCall) md -> md.getTables(null, db, "metadata\\_show\\_statements odd.'%", null), true, true},
                 {(MetadataCall) md -> md.getTables(null, db, tables, null), true, true},
                 {(MetadataCall) md -> md.getTables(null, db + "%", "metadata\\_show\\_statements%", null), true, true},
                 {(MetadataCall) md -> md.getTables(null, db, tables, new String[]{"VIEW", "MATERIALIZED VIEW"}), true, true},
@@ -763,6 +766,27 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
                 assertFalse(rs.next());
             }
         }
+    }
+
+    @DataProvider(name = "showStatementsFlags")
+    public Object[][] showStatementsFlags() {
+        return new Object[][] {{"true"}, {"false"}};
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "showStatementsFlags")
+    public void testGetSchemasOrderedBySchemaName(String flag) throws Exception {
+        Properties props = new Properties();
+        props.setProperty(DriverProperties.METADATA_USE_SHOW_STATEMENTS.getKey(), flag);
+        List<String> schemas = new ArrayList<>();
+        try (Connection conn = getJdbcConnection(props); ResultSet rs = conn.getMetaData().getSchemas()) {
+            while (rs.next()) {
+                schemas.add(rs.getString("TABLE_SCHEM"));
+            }
+        }
+        assertTrue(schemas.containsAll(Arrays.asList(getDatabase(), "system")), schemas.toString());
+        List<String> sortedSchemas = new ArrayList<>(schemas);
+        Collections.sort(sortedSchemas);
+        assertEquals(schemas, sortedSchemas);
     }
 
     @DataProvider(name = "showStatementsFlagForRestrictedUser")
