@@ -10,6 +10,7 @@ import org.testcontainers.clickhouse.ClickHouseContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
 
 import java.net.InetSocketAddress;
+import java.net.URI;
 import java.time.Duration;
 import java.util.Collections;
 
@@ -25,50 +26,75 @@ public class TestEnvironment {
 
 
     //Environment Variables
-    public static boolean isCloud() {
-        return System.getenv("CLICKHOUSE_HOST") != null;
+    // Set CLICKHOUSE_URL to point the benchmarks at an existing remote ClickHouse
+    // server (ClickHouse Cloud or any self-hosted instance), e.g.:
+    //   https://default:my-password@abc123.clickhouse.cloud:8443?cluster=true
+    //   http://default@localhost:8123
+    // The scheme selects HTTP vs HTTPS/SSL, and credentials come from the URL's
+    // user-info (username[:password]). When unset, a local Docker container is
+    // started automatically instead.
+    //
+    // The optional "cluster" query parameter (default false) tells the benchmarks
+    // whether the remote server is part of a replicated cluster (e.g. ClickHouse
+    // Cloud) and therefore needs a SYSTEM SYNC REPLICA after writes. Leave it
+    // unset/false for a plain standalone remote server, whose tables aren't
+    // replicated and would reject that statement.
+    private static URI getRemoteUrl() {
+        String url = System.getenv("CLICKHOUSE_URL");
+        return url == null ? null : URI.create(url);
+    }
+    public static boolean isRemote() {
+        return getRemoteUrl() != null;
+    }
+    public static boolean isSsl() {
+        URI url = getRemoteUrl();
+        return url != null && "https".equalsIgnoreCase(url.getScheme());
+    }
+    public static boolean isCluster() {
+        URI url = getRemoteUrl();
+        String query = url == null ? null : url.getQuery();
+        if (query == null) {
+            return false;
+        }
+        for (String param : query.split("&")) {
+            String[] kv = param.split("=", 2);
+            if (kv.length == 2 && kv[0].equalsIgnoreCase("cluster")) {
+                return Boolean.parseBoolean(kv[1]);
+            }
+        }
+        return false;
     }
     public static String getHost() {
-        String host = System.getenv("CLICKHOUSE_HOST");
-        if (host == null) {
-            host = container.getHost();
-        }
-
-        return host;
+        URI url = getRemoteUrl();
+        return url != null ? url.getHost() : container.getHost();
     }
     public static int getPort() {
-        String port = System.getenv("CLICKHOUSE_PORT");
-        if (port == null) {
-            if (isCloud()) {//Default handling for ClickHouse Cloud
-                port = "8443";
-            } else {
-                port = String.valueOf(container.getMappedPort(8123));
-            }
+        URI url = getRemoteUrl();
+        if (url != null) {
+            return url.getPort() != -1 ? url.getPort() : (isSsl() ? 8443 : 8123);
         }
-
-        return Integer.parseInt(port);
-    }
-    public static String getPassword() {
-        String password = System.getenv("CLICKHOUSE_PASSWORD");
-        if (password == null) {
-            if (isCloud()) {
-                password = System.getenv("CLICKHOUSE_PASSWORD");
-            } else {
-                password = container.getPassword();
-            }
-        }
-        return password;
+        return container.getMappedPort(8123);
     }
     public static String getUsername() {
-        String username = System.getenv("CLICKHOUSE_USERNAME");
-        if (username == null) {
-            if (isCloud()) {
-                username = "default";
-            } else {
-                username = container.getUsername();
-            }
+        URI url = getRemoteUrl();
+        if (url == null) {
+            return container.getUsername();
         }
-        return username;
+        String userInfo = url.getUserInfo();
+        if (userInfo == null) {
+            return "default";
+        }
+        int sep = userInfo.indexOf(':');
+        return sep == -1 ? userInfo : userInfo.substring(0, sep);
+    }
+    public static String getPassword() {
+        URI url = getRemoteUrl();
+        if (url == null) {
+            return container.getPassword();
+        }
+        String userInfo = url.getUserInfo();
+        int sep = userInfo == null ? -1 : userInfo.indexOf(':');
+        return sep == -1 ? null : userInfo.substring(sep + 1);
     }
     public static ClickHouseNode getServer() {
         return serverNode;
@@ -79,8 +105,8 @@ public class TestEnvironment {
     public static void setupEnvironment() {
         LOGGER.info("Initializing ClickHouse test environment...");
 
-        if (isCloud()) {
-            LOGGER.info("Using ClickHouse Cloud");
+        if (isRemote()) {
+            LOGGER.info("Using remote ClickHouse server at {}:{}", getHost(), getPort());
             container = null;
         } else {
             LOGGER.info("Using ClickHouse Docker container");
@@ -95,7 +121,7 @@ public class TestEnvironment {
         serverNode = ClickHouseNode.builder(ClickHouseNode.builder().build())
                 .address(ClickHouseProtocol.HTTP, new InetSocketAddress(getHost(), getPort()))
                 .credentials(ClickHouseCredentials.fromUserAndPassword(getUsername(), getPassword()))
-                .options(Collections.singletonMap(ClickHouseClientOption.SSL.getKey(), isCloud() ? "true" : "false"))
+                .options(Collections.singletonMap(ClickHouseClientOption.SSL.getKey(), isSsl() ? "true" : "false"))
                 .database(DB_NAME)
                 .build();
         createDatabase();
@@ -103,7 +129,7 @@ public class TestEnvironment {
 
     public static void cleanupEnvironment() {
         LOGGER.info("Cleaning up ClickHouse test environment...");
-        if (isCloud()) {
+        if (isRemote()) {
             dropDatabase();
         }
 

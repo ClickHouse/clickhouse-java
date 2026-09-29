@@ -18,6 +18,9 @@
         <ch.jdbc.revision>0.11.0-rc1-SNAPSHOT</ch.jdbc.revision>
         <jmh.version>1.37</jmh.version>
         <testcontainers.version>2.0.2</testcontainers.version>
+        <zstd-jni.version>1.5.7-6</zstd-jni.version>
+        <brotli.version>0.1.2</brotli.version>
+        <brotli4j.version>1.12.0</brotli4j.version>
 
         <antrun-plugin.version>3.1.0</antrun-plugin.version>
         <assembly-plugin.version>3.6.0</assembly-plugin.version>
@@ -92,6 +95,23 @@
             <artifactId>clickhouse-jdbc</artifactId>
             <version>${ch.jdbc.revision}</version>
             <classifier>all</classifier>
+        </dependency>
+
+        <!-- Compression codecs are optional in the client and not bundled into the "all" jar -->
+        <dependency>
+            <groupId>com.github.luben</groupId>
+            <artifactId>zstd-jni</artifactId>
+            <version>${zstd-jni.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.brotli</groupId>
+            <artifactId>dec</artifactId>
+            <version>${brotli.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.aayushatharva.brotli4j</groupId>
+            <artifactId>brotli4j</artifactId>
+            <version>${brotli4j.version}</version>
         </dependency>
 
     </dependencies>
