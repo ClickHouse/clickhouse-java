@@ -40,6 +40,14 @@ public interface DataSet {
 
     List<byte[]> getBytesList(ClickHouseFormat format);
 
+    default long getSizeInBytes(ClickHouseFormat format) {
+        long total = 0;
+        for (byte[] bytes : getBytesList(format)) {
+            total += bytes.length;
+        }
+        return total;
+    }
+
     List<Map<String, Object>> getRows();
 
     List<ClickHouseRecord> getClickHouseRecords();

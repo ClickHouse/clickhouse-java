@@ -9,11 +9,7 @@ import com.clickhouse.data.ClickHouseDataProcessor;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseRecord;
 import com.clickhouse.data.ClickHouseSerializer;
-import org.openjdk.jmh.annotations.Benchmark;
-import org.openjdk.jmh.annotations.Level;
-import org.openjdk.jmh.annotations.Scope;
-import org.openjdk.jmh.annotations.State;
-import org.openjdk.jmh.annotations.TearDown;
+import org.openjdk.jmh.annotations.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,6 +25,7 @@ public class InsertClient extends BenchmarkBase {
     public void verifyRowsInsertedAndCleanup(DataState dataState) {
         boolean success;
         int count = 0;
+
         do {
             success = verifyCount(dataState.tableNameEmpty, dataState.dataSet.getSize());
             if (!success) {
@@ -47,7 +44,7 @@ public class InsertClient extends BenchmarkBase {
         truncateTable(dataState.tableNameEmpty);
     }
 
-    @Benchmark
+//    @Benchmark
     public void insertV1(DataState dataState) {
         try {
             ClickHouseFormat format = dataState.dataSet.getFormat();
@@ -68,7 +65,7 @@ public class InsertClient extends BenchmarkBase {
         }
     }
 
-    @Benchmark
+//    @Benchmark
     public void insertV2(DataState dataState) {
         try {
             ClickHouseFormat format = dataState.dataSet.getFormat();
@@ -85,7 +82,7 @@ public class InsertClient extends BenchmarkBase {
         }
     }
 
-    @Benchmark
+//    @Benchmark
     public void insertV1Compressed(DataState dataState) {
         try {
             ClickHouseFormat format = dataState.dataSet.getFormat();
@@ -107,7 +104,7 @@ public class InsertClient extends BenchmarkBase {
         }
     }
 
-    @Benchmark
+//    @Benchmark
     public void insertV2Compressed(DataState dataState) {
         try {
             ClickHouseFormat format = dataState.dataSet.getFormat();
@@ -125,7 +122,7 @@ public class InsertClient extends BenchmarkBase {
         }
     }
 
-    @Benchmark
+//    @Benchmark
     public void insertV1RowBinary(DataState dataState) {
         try {
             ClickHouseFormat format = ClickHouseFormat.RowBinary;
@@ -168,6 +165,57 @@ public class InsertClient extends BenchmarkBase {
                 out.flush();
 
             }, format, new InsertSettings()).get()) {
+                response.getWrittenRows();
+            }
+        } catch (Exception e) {
+            LOGGER.error("Error: ", e);
+        }
+    }
+
+    @Benchmark
+    public void insertV2RowBinaryWithHttpCompression(DataState dataState) {
+        try {
+            final ClickHouseFormat format = ClickHouseFormat.RowBinary;
+            try (InsertResponse response = clientV2.insert(dataState.tableNameEmpty, out -> {
+                RowBinaryFormatWriter w = new RowBinaryFormatWriter(out, dataState.dataSet.getSchema(), format);
+                for (List<Object> row : dataState.dataSet.getRowsOrdered()) {
+                    int index = 1;
+                    for (Object value : row) {
+                        w.setValue(index, value);
+                        index++;
+                    }
+                    w.commitRow();
+                }
+                out.flush();
+
+            }, format, new InsertSettings()
+                    .compressClientRequest(true)
+                    .useHttpCompression(true)).get()) {
+                response.getWrittenRows();
+            }
+        } catch (Exception e) {
+            LOGGER.error("Error: ", e);
+        }
+    }
+
+    @Benchmark
+    public void insertV2RowBinaryWithCompression(DataState dataState) {
+        try {
+            final ClickHouseFormat format = ClickHouseFormat.RowBinary;
+            try (InsertResponse response = clientV2.insert(dataState.tableNameEmpty, out -> {
+                RowBinaryFormatWriter w = new RowBinaryFormatWriter(out, dataState.dataSet.getSchema(), format);
+                for (List<Object> row : dataState.dataSet.getRowsOrdered()) {
+                    int index = 1;
+                    for (Object value : row) {
+                        w.setValue(index, value);
+                        index++;
+                    }
+                    w.commitRow();
+                }
+                out.flush();
+
+            }, format, new InsertSettings()
+                    .compressClientRequest(true)).get()) {
                 response.getWrittenRows();
             }
         } catch (Exception e) {

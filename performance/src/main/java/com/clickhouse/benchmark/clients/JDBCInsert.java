@@ -51,13 +51,27 @@ public class JDBCInsert extends BenchmarkBase {
     }
 
     @Benchmark
-    public void insertJDBCV1(DataState dataState) throws SQLException {
-        insetData(jdbcV1, dataState);
+    public void insertJDBCRowBinaryV1(DataState dataState) throws SQLException {
+        insetData(jdbcV1RowBinary, dataState);
     }
 
     @Benchmark
-    public void insertJDBCV2(DataState dataState) throws SQLException {
-        insetData(jdbcV2, dataState);
+    public void insertJDBCRowBinaryV2(DataState dataState) throws SQLException {
+        insetData(jdbcV2RowBinary, dataState);
     }
 
+    @Benchmark
+    public void insertJDBCRowBinaryCompressedV1(DataState dataState) throws SQLException {
+        insetData(jdbcV1Compressed, dataState);
+    }
+
+    @Benchmark
+    public void insertJDBCRowBinaryCompressedV2(DataState dataState) throws SQLException {
+        insetData(jdbcV2Compressed, dataState);
+    }
+
+    @Benchmark
+    public void insertJDBCTextCompressedV2(DataState dataState) throws SQLException {
+        insetData(jdbcV2CompressedText, dataState);
+    }
 }
