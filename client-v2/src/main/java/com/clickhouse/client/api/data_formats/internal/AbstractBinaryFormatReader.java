@@ -72,6 +72,7 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
     private ClickHouseColumn[] columns;
     private Map[] convertions;
     private boolean hasNext = true;
+    private RuntimeException nextReadException;
     private boolean initialState = true; // reader is in initial state, no records have been read yet
     private long row = -1; // before first row
     private long lastNextCallTs; // for exception to detect slow reader
@@ -227,6 +228,9 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public boolean hasNext() {
+        if (nextReadException != null) {
+            throw nextReadException;
+        }
         if (initialState) {
             readNextRecord();
         }
@@ -265,6 +269,9 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
 
     @Override
     public Map<String, Object> next() {
+        if (nextReadException != null) {
+            throw nextReadException;
+        }
         if (!hasNext) {
             return null;
         }
@@ -274,12 +281,12 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                 Object[] tmp = currentRecord;
                 currentRecord = nextRecord;
                 nextRecord = tmp;
-                readNextRecord();
+                prefetchNextRecord();
                 return new RecordWrapper(currentRecord, schema);
             } else {
                 try {
                     if (readRecord(currentRecord)) {
-                        readNextRecord();
+                        prefetchNextRecord();
                         return new RecordWrapper(currentRecord, schema);
                     } else {
                         currentRecord = null;
@@ -292,6 +299,15 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
             }
         } finally {
             lastNextCallTs = System.currentTimeMillis();
+        }
+    }
+
+    private void prefetchNextRecord() {
+        try {
+            readNextRecord();
+        } catch (RuntimeException e) {
+            // The current row is complete; report a lookahead failure only when the caller advances again.
+            nextReadException = e;
         }
     }
 

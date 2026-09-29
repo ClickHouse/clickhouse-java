@@ -1,6 +1,7 @@
 package com.clickhouse.client.api.data_formats.internal;
 
 import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.query.NullValueException;
 import com.clickhouse.data.ClickHouseColumn;
@@ -280,7 +281,7 @@ public class BinaryStreamReader {
                 default:
                     throw new IllegalArgumentException("Unsupported data type: " + actualColumn.getDataType());
             }
-        } catch (EOFException e) {
+        } catch (EOFException | ServerException e) {
             throw e;
         } catch (Exception e) {
             log.debug("Failed to read value for column {}, {}", column.getColumnName(), e.getLocalizedMessage());
