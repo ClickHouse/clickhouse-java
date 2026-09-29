@@ -177,6 +177,14 @@
   per row before the values of the whole column, and a null row still has a placeholder value. The markers were
   therefore taken from the value bytes and the column was read out of alignment. The null map is now read as a
   block. (https://github.com/ClickHouse/clickhouse-java/issues/3137)
+- **[client-v2]** Fixed geo columns (`Point`, `Ring`, `LineString`, `MultiPoint`, `Polygon`, `MultiLineString`,
+  `MultiPolygon`) being misread from the `Native` format. The reader decoded a geo column row by row with the
+  RowBinary decoders, while `Native` writes it column-major: a `Point` block came back with its coordinates
+  scrambled across rows and no error, and every other geo type desynchronized the block and failed with
+  `Non-empty typeName is required`. A geo column is now decoded from the Native layout - the two `Float64`
+  sub-columns of a point, and cumulative offsets plus the flattened elements for the array levels - and returns
+  the same values as `RowBinaryWithNamesAndTypes`, which is unchanged.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3088)
 - **[client-v2, jdbc-v2]** Fixed a column type with a `JSON` element that is followed by a parameterized type, for
   example `Tuple(JSON, FixedString(3))`, being parsed wrongly. `JSON` is valid with and without a parameter list, and
   the parser looked for the opening bracket of that list anywhere after the keyword, so it took the brackets of the
