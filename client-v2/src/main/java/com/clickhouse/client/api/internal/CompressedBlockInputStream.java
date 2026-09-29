@@ -149,8 +149,7 @@ public class CompressedBlockInputStream extends InputStream {
 
         switch (magicNumber) {
             case MAGIC_LZ4: {
-                ByteBuffer blockBuff = ByteBuffer.wrap(block, offset, remaining);
-                decompressor.decompress(blockBuff, offset, buffer, 0, uncompressedSize);
+                decompressor.decompress(block, offset, buffer.array(), 0, uncompressedSize);
                 break;
             }
             case MAGIC_ZSTD_3: {
@@ -159,7 +158,7 @@ public class CompressedBlockInputStream extends InputStream {
             }
             case MAGIC_NONE:
                 // block is not compressed - just put it.
-                buffer.put(block, 0, uncompressedSize);
+                System.arraycopy(block, offset, buffer.array(), 0, uncompressedSize);
                 break;
             default:
                 throw new ClientException("bug: Should not reach here");
