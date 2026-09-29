@@ -1130,6 +1130,9 @@ public class HttpAPIClientHelper {
         // there are some db retryable error codes
         if (ex instanceof ServerException || ex.getCause() instanceof ServerException) {
             ServerException se = (ServerException) (ex instanceof ServerException ? ex : ex.getCause());
+            if (se.getCode() == ServerException.EXECUTION_TIMEOUT) {
+                return retryCauses.contains(ClientFaultCause.ServerTimeoutExceeded);
+            }
             return se.isRetryable() && retryCauses.contains(ClientFaultCause.ServerRetryable);
         }
 
