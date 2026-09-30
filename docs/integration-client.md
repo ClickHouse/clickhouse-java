@@ -1,14 +1,16 @@
 # ClickHouse Java Client Integration Guide
 
-This guide is a **step-by-step, end-to-end integration path** for the **Java Client V2** (`client-v2`). It is written to be used as context for building an application or a downstream integration spec: each step states the decisions you must make, how to configure them, and the common pitfalls to avoid. It is self-contained — you can work through it from the empty project to a running read/write path without other prerequisites.
+This guide is a **end-to-end integration path** for the **Java Client V2** (`client-v2`). It is written to be used as context for building an application or a downstream integration spec: each step states the decisions you must make, how to configure them, and the common pitfalls to avoid. It is self-contained — you can work through it from the empty project to a running read/write path without other prerequisites.
 
-> **Configuration philosophy.** This guide names only the properties relevant to each step. It does not repeat the exhaustive property list — that lives in [`ClientConfigProperties`](../client-v2/src/main/java/com/clickhouse/client/api/ClientConfigProperties.java) and the official docs. Configuration splits into two groups:
-> - **Init configuration** — set once when the client is built: endpoint, connection pool size, async mode, authentication. Covered in Steps 1–4.
-> - **Operation configuration** — set per request or as client defaults: formats, buffer sizes, timeouts, retries, dedup tokens. Covered in Steps 5–7.
+### Configuration References
 
-## Artifacts
+This guide names only the properties relevant to each step. The exhaustive lists live in [`ClientConfigProperties`](../client-v2/src/main/java/com/clickhouse/client/api/ClientConfigProperties.java), and the official docs. Configuration splits into two groups:
+- **Init configuration** — set once using [Client.Builder](/client-v2/src/main/java/com/clickhouse/client/api/Client.java) methods: endpoint, connection pool size, authentication, TLS. Covered in Steps 1–4.
+- **Operation configuration** — set via `com.clickhouse.client.api.Client` method like `com.clickhouse.client.api.Client.Builder.setAccessToken`.
 
-The client is published to Maven Central as **`com.clickhouse:client-v2`**. Browse versions and copy a ready-made dependency snippet for any build system (Maven, Gradle, sbt, Ivy, ...) from the [Maven Central page](https://central.sonatype.com/artifact/com.clickhouse/client-v2).
+### Maven Artifacts
+
+The client is published to Maven Central as `com.clickhouse:client-v2`:  https://central.sonatype.com/artifact/com.clickhouse/client-v2.
 
 Two distributions are published under the same artifact:
 
@@ -45,16 +47,15 @@ Work through these steps in order. Each one is a decision point; the "Common Pit
 
 **Goal:** decide how many `Client` instances exist, how long they live, and how the internal connection pool is sized.
 
-### What a `Client` is
 
-The [`Client`](https://javadoc.io/doc/com.clickhouse/client-v2/latest/com/clickhouse/client/api/Client.html) is the single entry point for all operations. It owns:
+The [com.clickhouse.client.api.Client](/client-v2/src/main/java/com/clickhouse/client/api/Client.java) is library interface object for most interactions with it:
+- Read and Write operations
+- Getting a table schema 
+- Registering POJO for use in insert operations
+- Manipulating active session 
+- Updating user credentials 
 
-- An HTTP connection pool (Apache HttpClient)
-- Endpoint configuration and retry policy
-- A table schema cache
-- The POJO serialization/deserialization registry
-- Optional client-wide session and settings defaults
-
+This object is constructed using a `Client.Builder`:
 ```java
 import com.clickhouse.client.api.Client;
 
@@ -76,13 +77,20 @@ public Client createAnalyticsDBClient(Client.Builder baseClient) {
 }
 ```
 
-### Instantiation Strategy
+### Instantiation and Life Cycle Strategies
 
-- **Share a single instance:** A single, shared `Client` instance suits most use cases. It is thread-safe and designed to be reused across your application.
-- **Long-lived lifecycle:** Build the client once at startup and close it once at shutdown. Creating a new client per request or operation is an anti-pattern because initialization takes time to set up internal structures (like the connection pool and schema cache), which adds latency to your requests.
-- **Serverless functions:** For serverless environments (like AWS Lambda), initialize the client outside the function handler so it can be reused across invocations.
-- **Warm-up (optional):** Calling `client.ping()` at startup can help initialize the connectivity part and verify the endpoint before serving live traffic, though it is not strictly required. It may also require to wakeup cloud instance.
-- **Caching:** The application is responsible for holding the reference to the `Client` instance (e.g., via dependency injection or a singleton). The library does not provide a global static cache.
+- **Shared single instance:** to make request in the same domain and security context. Usually long living. For example, data sync job.
+- **Short-lived instance:** to make multiple operations within one application request for a single user.   
+
+> In ClickHouse Cloud instances can enter suspended mode when idle. Make sure to have a "wake-up" call using `Client#ping()`. Using suspended mode useful to reduce cost
+> by not running instance when it is almost idle.
+
+Application should take care of: 
+- `Client` instances caching if needed. Library doesn't hold reference to instantiated `Client` objects
+- Closing client when it is not needed. 
+- Separating `Client` instances of different tenants.
+
+> Even client init is a lightweight operation avoid make it in hot path. For example, prefer caching instances if working in multi-tenant environment
 
 ### Workload identification & client name
 
@@ -220,9 +228,7 @@ LIMIT 100;
 
 ## Step 2 — Authentication
 
-**Goal:** configure the authentication mechanism the ClickHouse deployment requires. The mechanism is dictated by the server and any fronting infrastructure, not chosen freely; the task is to identify it and configure it correctly.
-
-> **CONSTRAINT:** Configure exactly one mechanism. Different method cannot be mixed to avoid configuration errors.
+**Goal:** choose exactly one primary authentication mechanism and pass it through the JDBC URL or `Properties`. The driver forwards these to the underlying client, whose `CredentialsManager` rejects mixed mechanisms.
 
 ### Option A — Basic (username + password)
 
@@ -248,8 +254,7 @@ void updateClientCredentials(AppConfiguration appConf) {
 } 
 ```
 
-**Note**: realtime credentials update would work well with runtime configuration update but would not work for multi-tenant setup. Multi tenant application should organize exclusive access to client 
-while handling tenant operation to avoid cross-talk problem. Separate client instance per tenant must be used when each tenant has own database.
+**Note**: realtime credentials update would work well with runtime configuration update but would not work for multi-tenant setup. Multi tenant application should organize exclusive access to client  while handling tenant operation to avoid cross-talk problem. Separate client instance per tenant must be used when each tenant has own database.
 
 ### Option B — Token / bearer
 
@@ -353,7 +358,7 @@ public Client createAnalyticsClient(Client.Builder baseClient) {
 
 > **Note on Client Name:** How the client name surfaces in `system.query_log` depends on the protocol used. For HTTP connections (used by Java Client V2), it appears in the `http_user_agent` column. The `client_name` column in `system.query_log` is populated only for native TCP connections. See [Workload identification & client name](#workload-identification--client-name) for full details and query log troubleshooting queries.
 
-### Identifying the required mechanism
+### Decisions
 
 The mechanism follows from how the server and any fronting infrastructure are configured:
 
@@ -387,14 +392,13 @@ See [integration-testing.md — Configuration](integration-testing.md#configurat
 
 See [SSLExamples](../examples/client-v2/src/main/java/com/clickhouse/examples/client_v2/SSLExamples.java) for a runnable walkthrough and [authentication.md](authentication.md) for full details. See also [integration-testing.md — Test Environment](integration-testing.md#test-environment) for testing across protocols, hosts, and ClickHouse versions.
 
-### Init configuration — timeouts
+### Operation Timeouts
 
-Timeouts are critical parameters that directly impact application stability under load and over long distances:
+Timeouts are critical parameters that directly impact application stability under load and over long run time:
 
-- **Connection timeout** (`.setConnectTimeout()`): The TCP connect timeout. Setting this value too low can cause failures when the application and server are in different geographical regions. Additionally, connection timeouts are closely tied to the connection pool: if the application issues concurrent requests that exceed the available pool size, it may manifest as a connection timeout because no free connections are present.
+- **Connection timeout** (`.setConnectTimeout()`): timeout for establishing connection. Setting this value too low can cause failures when the application and server are in different geographical regions. Additionally, connection timeouts are closely tied to the connection pool: if the application issues concurrent requests that exceed the available pool size, it may manifest as a connection timeout because no free connections are present.
 - **Socket timeout** (`.setSocketTimeout()`): The timeout for underlying socket read/write operations. While it applies strictly to socket activity, it is vital because it dictates how long the client will wait for long-running queries to return data. If your workload involves heavy analytical queries, you may need a very long socket timeout. However, the trade-off of a long socket timeout is the increased risk of encountering stale or silently dropped connections.
 - **TCP keepalive**: Can be enabled to mitigate stale connections, though the host operating system's settings may ultimately override it. System-level TCP keepalive defaults are often several hours; configuring a shorter keepalive period makes sense for long-running operations. Keep in mind that executing extremely long operations over the public internet remains inherently risky.
-- **Socket buffers** (`.setSocketRcvbuf()`, `.setSocketSndbuf()`): Not set by default, so the operating system sizes the socket buffers and auto-tunes them for the connection. Setting a fixed size turns that auto-tuning off and is additionally capped by the operating system limits, so a large value may have no effect. Configure these options only when a measurement shows a benefit for your workload.
 
 > **Note on runtime configuration:** You can optionally override the default network timeout on a per-operation basis using `QuerySettings.setNetworkTimeout(long timeout, ChronoUnit unit)`. This allows you to set stricter boundaries on specific queries without altering the client-wide defaults.
 
@@ -430,6 +434,10 @@ See [integration-testing.md — Connecting](integration-testing.md#connecting) f
 ## Step 4 — Connections Configuration
 
 In the Java Client a "connection" is an **HTTP connection borrowed from the internal pool**, not a long-lived database session. Each operation borrows a connection, sends a request, streams the response, and returns the connection to the pool.
+
+### Sockets Configuration
+
+- **Socket buffers** (`.setSocketRcvbuf()`, `.setSocketSndbuf()`): Not set by default, so the operating system sizes the socket buffers and auto-tunes them for the connection. Setting a fixed size turns that auto-tuning off and is additionally capped by the operating system limits, so a large value may have no effect. Configure these options only when a measurement shows a benefit for your workload.
 
 ### Connection limit (`max_open_connections`)
 
@@ -496,6 +504,83 @@ public Client.Builder createBaseClient() {
 
 See [integration-testing.md — Connecting](integration-testing.md#connecting) for tests that verify pool sizing (`max_open_connections`) and connection release under load.
 ---
+
+### Retry Policy
+
+The `Client` has built-in support for retrying requests that fail due to *transient* conditions, such as network timeouts or server unavailability. The retry strategy is controlled by configuration properties, which can be set at the client or per-request level. 
+
+**Stale Connection:** when connection in the pool is not used for a long time server can close it and next request that uses such a connection will fail. Usually it is `NoHttpResponse` error. Use `ClientFaultCause.NoHttpResponse` to retry on such errors. Usually TCP keepalive doesn't solve the problem because TCP will not check connection in hours and OS configuration would be needed to change this time period.
+
+**Configuring Retries:**
+
+| Property (Builder method) | Purpose | Default |
+|---------------------------|---------|---------|
+| `retry` (`.setRetryOnFailure(int)`) | Maximum number of automatic retries for retriable failures (not user/SQL errors). | `3` |
+| `client_retry_on_failures` (`.setRetryOnFailureFor(List<ClientFaultCause>)`) | Fine-grained control of which failure types to retry. See below. | `NoHttpResponse`, `ConnectTimeout`, `ConnectionRequestTimeout`, `ServerRetryable` |
+
+Example:
+
+```java
+import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.ClientFaultCause;
+
+public Client.Builder createResilientClient() {
+    return new Client.Builder()
+        .addEndpoint("http://localhost:8123")
+        .setRetryOnFailure(5)
+        .setRetryOnFailureFor(
+            ClientFaultCause.NoHttpResponse,       // stale connection problem
+            ClientFaultCause.ConnectTimeout,       // server did not accept connection
+            ClientFaultCause.ServerRetryable       // transient HTTP 5xx errors, server overload
+        );
+}
+```
+
+#### Handling ServerException and Retriable Errors
+
+Failed requests (e.g., a rejected query or a server-side error) throw a `ServerException`. Not all failures are safe to retry—retries make sense for *transient* problems, but not for syntax errors, quota violations, or authorization failures.
+
+To determine whether an error is retriable, use the `isRetriable()` method on `ServerException`:
+
+```java
+import com.clickhouse.client.api.ServerException;
+
+void doSync() {
+    try {
+        // ... client request ...
+    } catch (ServerException e) {
+        if (e.isRetriable()) {
+            // Retry logic: safe to reattempt
+            // (Most users should use the client's built-in retry mechanism instead)
+        } else {
+            // Not retriable: fail/abort or escalate
+        }
+    }
+}
+```
+
+**What is considered retriable?**
+
+- Server-side errors classified as *transient*: HTTP 502/503/504 responses, server overload, shutdown, resource limits that may be cleared after delay.
+- Connection-level issues: `NoHttpResponse` (dropped/stale pooled connection), `ConnectTimeout`, etc.
+
+See [`ClientFaultCause`](../client-v2/src/main/java/com/clickhouse/client/api/ClientFaultCause.java) for the full set.
+
+> **Note:** Retries are never triggered for application errors (bad SQL, type mismatch), authentication failures, or client-side value validation errors.
+
+#### Tuning retry logic
+
+- Use a higher retry count in long-running ingestion or ETL jobs, but stick to fewer retries for user-facing APIs (to avoid delays).
+- You may override `retry` and `client_retry_on_failures` **per query** via `setOption("retry", ...)` and `setOption("client_retry_on_failures", ...)`.
+
+#### Negative test: Making sure unrecoverable errors are not retried
+
+If you want to test that application errors *do not* trigger a retry, deliberately send a bad SQL and check that only a single attempt is made.
+
+---
+
+For further details and advanced configuration, see [ClientConfigProperties.java](../client-v2/src/main/java/com/clickhouse/client/api/ClientConfigProperties.java).
+
 
 ## Step 5 — Data formats, readers & writers
 
