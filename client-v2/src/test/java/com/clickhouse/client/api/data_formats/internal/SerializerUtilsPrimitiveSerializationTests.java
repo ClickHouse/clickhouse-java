@@ -111,6 +111,21 @@ public class SerializerUtilsPrimitiveSerializationTests {
                 () -> serializeSingleValue("Float64", new Object()));
     }
 
+    @Test(dataProvider = "invalidStringValues", expectedExceptions = IllegalArgumentException.class)
+    public void testSerializeStringRejectsInvalidValue(String type, String value) throws IOException {
+        serializeSingleValue(type, value);
+    }
+
+    @DataProvider(name = "invalidStringValues")
+    private Object[][] invalidStringValues() {
+        return new Object[][] {
+                {"UInt64", "-1"},
+                {"UInt64", "18446744073709551616"},
+                {"UUID", "not-a-uuid"},
+                {"UUID", ""},
+        };
+    }
+
     @Test
     public void testSerializeBFloat16RoundTripAllValues() throws IOException {
         // Exhaustively round-trip every one of the 2^16 BFloat16 bit patterns. For pattern b the

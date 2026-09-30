@@ -1,6 +1,7 @@
 package com.clickhouse.client.api.internal;
 
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.ClientFaultCause;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.enums.SSLMode;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
@@ -365,6 +366,36 @@ public class HttpAPIClientHelperTest {
         HttpAPIClientHelper helper = HttpAPIClientHelperFactory.newHelper(new HashMap<>(), LZ4Factory.fastestInstance());
         // Empty request settings -> default client_retry_on_failures, which includes ServerRetryable.
         assertEquals(helper.shouldRetry(ex, new HashMap<>()), expectedRetry);
+    }
+
+    @DataProvider(name = "serverTimeoutExceededRetryCases")
+    public static Object[][] serverTimeoutExceededRetryCases() {
+        ServerException timeout = new ServerException(ServerException.EXECUTION_TIMEOUT, "TIMEOUT_EXCEEDED", 500, "q1");
+        ServerException tooManyQueries = new ServerException(202, "TOO_MANY_SIMULTANEOUS_QUERIES", 500, "q2");
+        List<ClientFaultCause> timeoutOnly = Collections.singletonList(ClientFaultCause.ServerTimeoutExceeded);
+        List<ClientFaultCause> retryableOnly = Collections.singletonList(ClientFaultCause.ServerRetryable);
+        return new Object[][]{
+                {null, timeout, false},
+                {timeoutOnly, timeout, true},
+                {timeoutOnly, new RuntimeException("transport failure", timeout), true},
+                {retryableOnly, timeout, false},
+                {retryableOnly, new RuntimeException("transport failure", timeout), false},
+                {timeoutOnly, tooManyQueries, false},
+                {retryableOnly, tooManyQueries, true},
+                {Arrays.asList(ClientFaultCause.ServerRetryable, ClientFaultCause.ServerTimeoutExceeded), timeout, true},
+                {Arrays.asList(ClientFaultCause.None, ClientFaultCause.ServerTimeoutExceeded), timeout, false},
+        };
+    }
+
+    @Test(dataProvider = "serverTimeoutExceededRetryCases")
+    public void testShouldRetryServerTimeoutExceeded(List<ClientFaultCause> retryCauses, Throwable ex,
+                                                     boolean expectedRetry) {
+        HttpAPIClientHelper helper = HttpAPIClientHelperFactory.newHelper(new HashMap<>(), LZ4Factory.fastestInstance());
+        Map<String, Object> requestSettings = new HashMap<>();
+        if (retryCauses != null) {
+            requestSettings.put(ClientConfigProperties.CLIENT_RETRY_ON_FAILURE.getKey(), retryCauses);
+        }
+        assertEquals(helper.shouldRetry(ex, requestSettings), expectedRetry);
     }
 
     /**

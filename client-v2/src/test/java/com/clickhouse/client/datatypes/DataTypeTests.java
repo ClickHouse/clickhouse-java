@@ -51,6 +51,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -2103,6 +2104,35 @@ public class DataTypeTests extends BaseIntegrationTest {
         };
     }
 
+    @Test(groups = {"integration"})
+    public void testTupleWithJSONElement() throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
+        final String table = "test_tuple_with_json";
+        final String tupleType = "Tuple(Int32, JSON, FixedString(3))";
+
+        client.execute("DROP TABLE IF EXISTS " + table).get().close();
+        client.execute(tableDefinition(table, "rowId Int32", "value " + tupleType),
+                (CommandSettings) new CommandSettings()
+                        .serverSetting("enable_json_type", "1")
+                        .serverSetting("allow_experimental_json_type", "1")).get().close();
+        client.execute("INSERT INTO " + table + " VALUES (1, (7, '{\"a\": 1}', 'abc'))").get().close();
+
+        TableSchema schema = client.getTableSchema(table);
+        Assert.assertEquals(schema.getColumnByName("value").getOriginalTypeName(), tupleType);
+        Assert.assertEquals(schema.getColumnByName("value").getNestedColumns().size(), 3);
+
+        GenericRecord row = client.queryAll("SELECT value, rowId FROM " + table).get(0);
+        Object[] tuple = (Object[]) row.getObject("value");
+        Assert.assertEquals(tuple.length, 3);
+        Assert.assertEquals(tuple[0], 7);
+        Assert.assertEquals(tuple[1], Collections.singletonMap("a", 1L));
+        Assert.assertEquals(tuple[2], "abc");
+        Assert.assertEquals(row.getInteger("rowId"), 1);
+    }
+
     @Test(groups = {"integration"}, dataProvider = "testDataTypesAsStringDP")
     public void testDataTypesAsString(String sql, String[] expectedStrValues) throws Exception {
 
@@ -2307,6 +2337,86 @@ public class DataTypeTests extends BaseIntegrationTest {
         Assert.assertTrue(Arrays.deepEquals((double[][]) records.get(1).getObject("geom"), ring));
         Assert.assertEquals(records.get(0).getDouble("marker"), 42D);
         Assert.assertEquals(records.get(1).getDouble("marker"), 42D);
+    }
+
+    @DataProvider(name = "geoTypes")
+    public static Object[][] geoTypes() {
+        final String ring = "[(toFloat64(number * 10 + 1), toFloat64(number * 10 + 2)),"
+                + " (toFloat64(number * 10 + 3), toFloat64(number * 10 + 4))]";
+        return new Object[][] {
+                {"Point", ClickHouseDataType.Point,
+                        "(toFloat64(number * 2 + 1), toFloat64(number * 2 + 2))::Point",
+                        new Object[] {pointOf(0), pointOf(1), pointOf(2)}, null},
+                {"Ring", ClickHouseDataType.Ring, ring + "::Ring",
+                        new Object[] {ringOf(0), ringOf(1), ringOf(2)}, null},
+                {"LineString", ClickHouseDataType.LineString, ring + "::LineString",
+                        new Object[] {ringOf(0), ringOf(1), ringOf(2)}, null},
+                {"MultiPoint", ClickHouseDataType.MultiPoint, ring + "::MultiPoint",
+                        new Object[] {ringOf(0), ringOf(1), ringOf(2)}, MULTI_POINT_UNSUPPORTED_VERSIONS},
+                {"Polygon", ClickHouseDataType.Polygon, "[" + ring + "]::Polygon",
+                        new Object[] {polygonOf(0), polygonOf(1), polygonOf(2)}, null},
+                {"MultiLineString", ClickHouseDataType.MultiLineString, "[" + ring + "]::MultiLineString",
+                        new Object[] {polygonOf(0), polygonOf(1), polygonOf(2)}, null},
+                {"MultiPolygon", ClickHouseDataType.MultiPolygon, "[[" + ring + "]]::MultiPolygon",
+                        new Object[] {multiPolygonOf(0), multiPolygonOf(1), multiPolygonOf(2)}, null},
+                // The CAST wraps the whole if(): the common type of the two branches is
+                // Array(Tuple(Float64, Float64)) on some server versions, so only an outer CAST makes
+                // the column a Ring everywhere.
+                {"Ring, empty value", ClickHouseDataType.Ring,
+                        "CAST(if(number = 1, [], " + ring + ") AS Ring)",
+                        new Object[] {ringOf(0), new double[0][], ringOf(2)}, null},
+        };
+    }
+
+    private static double[] pointOf(int row) {
+        return new double[] {row * 2 + 1D, row * 2 + 2D};
+    }
+
+    private static double[][] ringOf(int row) {
+        return new double[][] {{row * 10 + 1D, row * 10 + 2D}, {row * 10 + 3D, row * 10 + 4D}};
+    }
+
+    private static double[][][] polygonOf(int row) {
+        return new double[][][] {ringOf(row)};
+    }
+
+    private static double[][][][] multiPolygonOf(int row) {
+        return new double[][][][] {polygonOf(row)};
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "geoTypes")
+    public void testGeoTypesReadInEveryBinaryFormat(String typeName, ClickHouseDataType expectedType,
+            String expression, Object[] expected, String unsupportedVersions) throws Exception {
+        if (unsupportedVersions != null && isVersionMatch(unsupportedVersions)) {
+            return;
+        }
+
+        // The geo column sits between two fixed-width columns and the block holds several rows, so a
+        // column read with the wrong layout shows up as wrong values and as a desynchronized marker.
+        String sql = "SELECT toInt32(number) AS rowId, " + expression + " AS geom, toInt32(42) AS marker"
+                + " FROM numbers(" + expected.length + ") ORDER BY rowId";
+        for (ClickHouseFormat format : new ClickHouseFormat[] {ClickHouseFormat.Native,
+                ClickHouseFormat.RowBinaryWithNamesAndTypes}) {
+            String label = typeName + " in " + format;
+            try (QueryResponse response = client.query(sql, new QuerySettings().setFormat(format)).get()) {
+                ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+                // The server decides the type of the expression, so pin it: a version that returns
+                // Array(Tuple(Float64, Float64)) here would read a different code path and leave the
+                // geo one untested.
+                Assert.assertEquals(reader.getSchema().getColumnByName("geom").getDataType(), expectedType,
+                        label);
+                int rows = 0;
+                while (reader.next() != null) {
+                    Object value = reader.readValue("geom");
+                    Assert.assertEquals(reader.getInteger("rowId"), rows, label);
+                    Assert.assertTrue(Objects.deepEquals(value, expected[rows]),
+                            label + " row " + rows + ": " + Arrays.deepToString(new Object[] {value}));
+                    Assert.assertEquals(reader.getInteger("marker"), 42, label);
+                    rows++;
+                }
+                Assert.assertEquals(rows, expected.length, label);
+            }
+        }
     }
 
     @Test(groups = {"integration"})
