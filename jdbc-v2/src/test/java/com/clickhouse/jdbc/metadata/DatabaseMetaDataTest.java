@@ -633,7 +633,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
 
     private static final String SHOW_STATEMENTS_TABLE = "metadata_show_statements";
 
-    private static final String SHOW_STATEMENTS_ODD_TABLE = SHOW_STATEMENTS_TABLE + " odd.'\"\\`name";
+    private static final String SHOW_STATEMENTS_ODD_TABLE = SHOW_STATEMENTS_TABLE + " odd.'\"\\`?name";
 
     private static String quoteIdentifier(String name) {
         return '`' + name.replace("\\", "\\\\").replace("`", "\\`") + '`';
@@ -688,7 +688,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
             stmt.executeUpdate("CREATE MATERIALIZED VIEW " + SHOW_STATEMENTS_TABLE + "_mv ENGINE = MergeTree ORDER BY id " +
                     "AS SELECT id, s FROM " + SHOW_STATEMENTS_TABLE);
             stmt.executeUpdate("CREATE TABLE " + quoteIdentifier(SHOW_STATEMENTS_ODD_TABLE) + " (id Int32, " +
-                    quoteIdentifier("odd \"col\"\\") + " String) ENGINE = MergeTree ORDER BY id");
+                    quoteIdentifier("odd \"col\"?\\") + " String) ENGINE = MergeTree ORDER BY id");
         }
 
         Properties systemTablesProps = new Properties();

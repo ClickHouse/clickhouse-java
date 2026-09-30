@@ -5,7 +5,7 @@ import org.testng.annotations.Test;
 
 import static org.testng.Assert.assertEquals;
 
-public class DatabaseMetaDataImplLikeMatcherTest {
+public class ShowStatementsMetaDataLikeMatcherTest {
 
     @DataProvider(name = "likePatterns")
     public Object[][] likePatterns() {
@@ -37,7 +37,7 @@ public class DatabaseMetaDataImplLikeMatcherTest {
 
     @Test(groups = {"unit"}, dataProvider = "likePatterns")
     public void testLikeMatcher(String pattern, String value, boolean expected) {
-        assertEquals(DatabaseMetaDataImpl.likeMatcher(pattern).test(value), expected,
+        assertEquals(ShowStatementsMetaData.likeMatcher(pattern).test(value), expected,
                 "'" + value + "' LIKE '" + pattern + "'");
     }
 }
