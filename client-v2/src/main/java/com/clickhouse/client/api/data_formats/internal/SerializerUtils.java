@@ -743,7 +743,7 @@ public class SerializerUtils {
                 serializeTime64(stream, value);
                 break;
             case UUID:
-                BinaryStreamUtils.writeUuid(stream, (UUID) value);
+                BinaryStreamUtils.writeUuid(stream, value instanceof String ? UUID.fromString((String) value) : (UUID) value);
                 break;
             case Enum8:
             case Enum16:

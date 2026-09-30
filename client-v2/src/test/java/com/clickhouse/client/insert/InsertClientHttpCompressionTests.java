@@ -1,5 +1,6 @@
 package com.clickhouse.client.insert;
 
+import com.clickhouse.client.api.CompressionMethod;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.metrics.OperationMetrics;
@@ -20,7 +21,7 @@ import static org.testng.Assert.assertEquals;
 public class InsertClientHttpCompressionTests extends InsertTests {
 
     public InsertClientHttpCompressionTests() {
-        super(true, true);
+        super(true, true, CompressionMethod.ZSTD);
     }
 
 

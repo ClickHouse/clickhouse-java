@@ -6,6 +6,7 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientFaultCause;
 import com.clickhouse.client.api.DataStreamWriter;
 import com.clickhouse.client.api.ServerException;
@@ -21,6 +22,7 @@ import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.github.tomakehurst.wiremock.WireMockServer;
+import com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder;
 import com.github.tomakehurst.wiremock.client.WireMock;
 import com.github.tomakehurst.wiremock.common.ConsoleNotifier;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
@@ -38,6 +40,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -229,6 +232,146 @@ public class TransportBaseTests extends BaseIntegrationTest {
 
         Assert.assertEquals(mockServer.findAll(WireMock.postRequestedFor(WireMock.anyUrl())).size(), 1,
                 "[" + operation + "] retries are disabled, no retry expected");
+    }
+
+    @DataProvider(name = "timeoutExceededRetryProvider")
+    public static Object[][] timeoutExceededRetryProvider() {
+        List<Object[]> cases = new ArrayList<>();
+        for (Object[] op : operationProvider()) {
+            cases.add(new Object[]{op[0], op[1], new ClientFaultCause[0], false});
+            cases.add(new Object[]{op[0], op[1], new ClientFaultCause[]{ClientFaultCause.ServerTimeoutExceeded}, true});
+            cases.add(new Object[]{op[0], op[1], new ClientFaultCause[]{ClientFaultCause.ServerRetryable}, false});
+        }
+        return cases.toArray(new Object[0][]);
+    }
+
+    /**
+     * Server error {@code TIMEOUT_EXCEEDED} is retried only when {@link ClientFaultCause#ServerTimeoutExceeded}
+     * is among the retry causes. It is not in the default list and {@link ClientFaultCause#ServerRetryable}
+     * does not cover it.
+     */
+    @Test(groups = {"integration"}, dataProvider = "timeoutExceededRetryProvider")
+    public void testTimeoutExceededRetriedOnlyForItsFaultCause(String operation,
+                                                               ThrowingFunction<Client, Void> function,
+                                                               ClientFaultCause[] retryOn, boolean expectRetry) {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
+        WireMockServer mockServer = startMockServer();
+        mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                .inScenario("Timeout")
+                .whenScenarioStateIs(STARTED)
+                .willSetStateTo("Recovered")
+                .willReturn(timeoutExceededResponse()).build());
+        mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                .inScenario("Timeout")
+                .whenScenarioStateIs("Recovered")
+                .willReturn(WireMock.aResponse()
+                        .withStatus(HttpStatus.SC_OK)
+                        .withHeader("X-ClickHouse-Summary",
+                                "{ \"read_bytes\": \"10\", \"read_rows\": \"1\"}")).build());
+
+        Integer errorCode = null;
+        try (Client client = mockServerClient(mockServer, 1, retryOn)) {
+            function.apply(client);
+        } catch (ServerException e) {
+            errorCode = e.getCode();
+        } catch (Exception e) {
+            Assert.fail("[" + operation + "] unexpected exception type", e);
+        } finally {
+            mockServer.stop();
+        }
+
+        Assert.assertEquals(mockServer.findAll(WireMock.postRequestedFor(WireMock.anyUrl())).size(),
+                expectRetry ? 2 : 1, "[" + operation + "] unexpected number of attempts");
+        Assert.assertEquals(errorCode, expectRetry ? null : ServerException.EXECUTION_TIMEOUT,
+                "[" + operation + "] unexpected outcome");
+    }
+
+    @DataProvider(name = "perOperationTimeoutRetryProvider")
+    public static Object[][] perOperationTimeoutRetryProvider() {
+        ClientFaultCause[] clientDefault = new ClientFaultCause[0];
+        ClientFaultCause[] clientWithTimeout = {ClientFaultCause.ServerRetryable, ClientFaultCause.ServerTimeoutExceeded};
+        List<Object[]> cases = new ArrayList<>();
+        for (Object[] op : operationsWithRetryCauses(Collections.singletonList(ClientFaultCause.ServerTimeoutExceeded))) {
+            cases.add(new Object[]{op[0], op[1], clientDefault, true});
+        }
+        for (Object[] op : operationsWithRetryCauses(Collections.singletonList(ClientFaultCause.ServerRetryable))) {
+            cases.add(new Object[]{op[0], op[1], clientWithTimeout, false});
+        }
+        return cases.toArray(new Object[0][]);
+    }
+
+    private static Object[][] operationsWithRetryCauses(List<ClientFaultCause> retryCauses) {
+        String key = ClientConfigProperties.CLIENT_RETRY_ON_FAILURE.getKey();
+        ThrowingFunction<Client, Void> query = (client) -> {
+            try (QueryResponse response = client.query("SELECT 1",
+                    new QuerySettings().setOption(key, retryCauses)).get(30, TimeUnit.SECONDS)) {
+                return null;
+            }
+        };
+        ThrowingFunction<Client, Void> streamInsert = (client) -> {
+            try (InsertResponse response = client.insert("table01",
+                    new ByteArrayInputStream("1\t2\t3\n".getBytes()), ClickHouseFormat.TSV,
+                    new InsertSettings().setOption(key, retryCauses)).get(30, TimeUnit.SECONDS)) {
+                return null;
+            }
+        };
+        ThrowingFunction<Client, Void> pojoInsert = (client) -> {
+            client.register(InsertablePojo.class, new TableSchema("table01", null, "default",
+                    Collections.singletonList(ClickHouseColumn.of("id", "Int32"))));
+            try (InsertResponse response = client.insert("table01",
+                    Collections.singletonList(new InsertablePojo(1)),
+                    new InsertSettings().setOption(key, retryCauses)).get(30, TimeUnit.SECONDS)) {
+                return null;
+            }
+        };
+        return new Object[][]{
+                {"query", query},
+                {"insert-stream", streamInsert},
+                {"insert-pojo", pojoInsert}
+        };
+    }
+
+    /**
+     * Retry causes in operation settings replace the client ones, so one operation can enable or disable the retry
+     * of {@code TIMEOUT_EXCEEDED} independently of the client configuration.
+     */
+    @Test(groups = {"integration"}, dataProvider = "perOperationTimeoutRetryProvider")
+    public void testTimeoutExceededRetryCausesPerOperation(String operation,
+                                                           ThrowingFunction<Client, Void> function,
+                                                           ClientFaultCause[] clientRetryOn, boolean expectRetry) {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
+        WireMockServer mockServer = startMockServer();
+        mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                .willReturn(timeoutExceededResponse()).build());
+
+        int maxRetries = 2;
+        try (Client client = mockServerClient(mockServer, maxRetries, clientRetryOn)) {
+            function.apply(client);
+            Assert.fail("[" + operation + "] expected TIMEOUT_EXCEEDED error");
+        } catch (ServerException e) {
+            Assert.assertEquals(e.getCode(), ServerException.EXECUTION_TIMEOUT);
+        } catch (Exception e) {
+            Assert.fail("[" + operation + "] unexpected exception type", e);
+        } finally {
+            mockServer.stop();
+        }
+
+        Assert.assertEquals(mockServer.findAll(WireMock.postRequestedFor(WireMock.anyUrl())).size(),
+                expectRetry ? maxRetries + 1 : 1, "[" + operation + "] unexpected number of attempts");
+    }
+
+    private static ResponseDefinitionBuilder timeoutExceededResponse() {
+        return WireMock.aResponse()
+                .withStatus(HttpStatus.SC_INTERNAL_SERVER_ERROR)
+                .withHeader("X-ClickHouse-Exception-Code", String.valueOf(ServerException.EXECUTION_TIMEOUT))
+                .withBody("Code: 159. DB::Exception: Timeout exceeded: elapsed 1.000 sec., maximum: 0.001 sec. "
+                        + "(TIMEOUT_EXCEEDED)");
     }
 
     /**

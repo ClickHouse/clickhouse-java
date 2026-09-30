@@ -122,6 +122,20 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
             this.schema = client.getDefaultDatabase();
             this.defaultQuerySettings = new QuerySettings();
 
+            String defaultQuerySettingsProp = config.getDriverProperty(DriverProperties.DEFAULT_QUERY_SETTINGS.getKey(), null);
+            if (defaultQuerySettingsProp != null) {
+                ClientConfigProperties.toKeyValuePairs(defaultQuerySettingsProp)
+                        .forEach((k, v) -> this.defaultQuerySettings.serverSetting(k, v));
+            }
+            Map<String, String> clientProps = config.getClientProperties();
+            for (Map.Entry<String, String> entry : clientProps.entrySet()) {
+                if (entry.getKey() != null && entry.getValue() != null) {
+                    if (entry.getKey().startsWith(ClientConfigProperties.SERVER_SETTING_PREFIX)) {
+                        this.defaultQuerySettings.setOption(entry.getKey(), entry.getValue());
+                    }
+                }
+            }
+
             this.metadata = new DatabaseMetaDataImpl(this, false, url);
             this.defaultCalendar = Calendar.getInstance();
 

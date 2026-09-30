@@ -9,6 +9,7 @@ import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.CompressionMethod;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
@@ -104,19 +105,22 @@ public class QueryTests extends BaseIntegrationTest {
 
     private boolean useHttpCompression = false;
 
+    private CompressionMethod compressionMethod;
+
     private boolean usePreallocatedBuffers = false;
 
     QueryTests(){
     }
 
-    public QueryTests(boolean useServerCompression, boolean useHttpCompression) {
-        this(useServerCompression, useHttpCompression, false);
+    public QueryTests(boolean useServerCompression, boolean useHttpCompression, CompressionMethod compressionMethod) {
+        this(useServerCompression, useHttpCompression, false, compressionMethod);
     }
 
-    public QueryTests(boolean useServerCompression, boolean useHttpCompression, boolean usePreallocatedBuffers) {
+    public QueryTests(boolean useServerCompression, boolean useHttpCompression, boolean usePreallocatedBuffers, CompressionMethod compressionMethod) {
         this.useServerCompression = useServerCompression;
         this.useHttpCompression = useHttpCompression;
         this.usePreallocatedBuffers = usePreallocatedBuffers;
+        this.compressionMethod = compressionMethod;
     }
 
     @BeforeMethod(groups = {"integration"})
@@ -523,6 +527,75 @@ public class QueryTests extends BaseIntegrationTest {
                 Assert.assertEquals(record.get("id"), expected[0]);
                 Assert.assertEquals(((BinaryStreamReader.ArrayValue) record.get("arr")).asList(), expected[1]);
                 Assert.assertEquals(record.get("tag"), expected[2]);
+            }
+            Assert.assertNull(reader.next());
+        }
+    }
+
+    @DataProvider(name = "nullableColumnCases")
+    Object[][] getNullableColumnCases() {
+        String nonNullStrings = "SELECT id, val, tag FROM values("
+                + "'id UInt32, val Nullable(String), tag Int32', "
+                + "(1, 'alpha', 100), (2, 'beta', 200), (3, 'gamma', 300)) ORDER BY id";
+        String mixedStrings = "SELECT id, val, tag FROM values("
+                + "'id UInt32, val Nullable(String), tag Int32', "
+                + "(1, 'alpha', 100), (2, NULL, 200), (3, 'gamma', 300)) ORDER BY id";
+        String allNullStrings = "SELECT id, val, tag FROM values("
+                + "'id UInt32, val Nullable(String), tag Int32', "
+                + "(1, NULL, 100), (2, NULL, 200), (3, NULL, 300)) ORDER BY id";
+        String mixedInts = "SELECT id, val, tag FROM values("
+                + "'id UInt32, val Nullable(Int32), tag Int32', "
+                + "(1, 11, 100), (2, NULL, 200), (3, 33, 300)) ORDER BY id";
+        String mixedDecimals = "SELECT id, val, tag FROM values("
+                + "'id UInt32, val Nullable(Decimal(9, 2)), tag Int32', "
+                + "(1, 1.25, 100), (2, NULL, 200), (3, 3.75, 300)) ORDER BY id";
+        String mixedUuids = "SELECT id, val, tag FROM values("
+                + "'id UInt32, val Nullable(UUID), tag Int32', "
+                + "(1, '00000000-0000-0000-0000-000000000001', 100), (2, NULL, 200), "
+                + "(3, '00000000-0000-0000-0000-000000000003', 300)) ORDER BY id";
+        String bareNulls = "SELECT id, NULL AS val, tag FROM values("
+                + "'id UInt32, tag Int32', (1, 100), (2, 200), (3, 300)) ORDER BY id";
+        String plainStrings = "SELECT id, val, tag FROM values("
+                + "'id UInt32, val String, tag Int32', "
+                + "(1, 'alpha', 100), (2, '', 200), (3, 'gamma', 300)) ORDER BY id";
+
+        List<Object> strings = Arrays.asList("alpha", "beta", "gamma");
+        List<Object> mixedStringValues = Arrays.asList("alpha", null, "gamma");
+        List<Object> nulls = Arrays.asList(null, null, null);
+        List<Object> mixedIntValues = Arrays.asList(11, null, 33);
+        List<Object> mixedDecimalValues = Arrays.asList(new BigDecimal("1.25"), null, new BigDecimal("3.75"));
+        List<Object> mixedUuidValues = Arrays.asList(
+                UUID.fromString("00000000-0000-0000-0000-000000000001"), null,
+                UUID.fromString("00000000-0000-0000-0000-000000000003"));
+        List<Object> plainStringValues = Arrays.asList("alpha", "", "gamma");
+
+        return new Object[][]{
+                {ClickHouseFormat.Native, nonNullStrings, strings},
+                {ClickHouseFormat.Native, mixedStrings, mixedStringValues},
+                {ClickHouseFormat.Native, allNullStrings, nulls},
+                {ClickHouseFormat.Native, mixedInts, mixedIntValues},
+                {ClickHouseFormat.Native, mixedDecimals, mixedDecimalValues},
+                {ClickHouseFormat.Native, mixedUuids, mixedUuidValues},
+                {ClickHouseFormat.Native, bareNulls, nulls},
+                {ClickHouseFormat.Native, plainStrings, plainStringValues},
+                {ClickHouseFormat.RowBinaryWithNamesAndTypes, mixedStrings, mixedStringValues},
+                {ClickHouseFormat.RowBinaryWithNamesAndTypes, mixedInts, mixedIntValues},
+                {ClickHouseFormat.RowBinaryWithNamesAndTypes, mixedUuids, mixedUuidValues},
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "nullableColumnCases")
+    public void testReadingNullableColumns(ClickHouseFormat format, String sql, List<Object> expectedValues)
+            throws Exception {
+        QuerySettings settings = new QuerySettings().setFormat(format);
+        try (QueryResponse response = client.query(sql, settings).get()) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+            for (int i = 0; i < expectedValues.size(); i++) {
+                Map<String, Object> record = reader.next();
+                Assert.assertNotNull(record, "Expected a row at index " + i);
+                Assert.assertEquals(record.get("id"), (long) (i + 1));
+                Assert.assertEquals(record.get("val"), expectedValues.get(i));
+                Assert.assertEquals(record.get("tag"), (i + 1) * 100);
             }
             Assert.assertNull(reader.next());
         }
