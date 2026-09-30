@@ -24,6 +24,11 @@
   the previous size can restore it by setting both options to 804800.
   (https://github.com/ClickHouse/clickhouse-java/issues/3121)
 
+- **[client-v2, jdbc-v2]** Server error `159` (`TIMEOUT_EXCEEDED`) is not retried by default anymore. It has its own
+  retry cause, `ClientFaultCause.ServerTimeoutExceeded`, which `ServerRetryable` does not include and which is not in
+  the default `client_retry_on_failures` list. Add `ServerTimeoutExceeded` to the list to retry this error.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3072)
+
 - **[r2dbc]** Pre `1.0.0` is not supported anymore because R2DBC API reached stable `1.0.0` version.  
 
 ### New Features

@@ -8,6 +8,8 @@ public class ServerException extends ClickHouseException {
 
     public static final int UNKNOWN_SETTING = 115;
 
+    public static final int EXECUTION_TIMEOUT = 159;
+
     private final int code;
 
     private final int transportProtocolCode;
