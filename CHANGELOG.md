@@ -33,6 +33,10 @@
 
 ### New Features
 
+- **[client-v2,jdbc-v2]** Added ZSTD compression support for Block compression stream. Previously only
+LZ4 was supported in this case. Note: Added ZSTD library and native libraries to `-all` JDBC package because it is 
+now required to work with server. (https://github.com/ClickHouse/clickhouse-java/issues/3105). 
+
 - **[migration-helpers]** Added `migration-helpers` module containing `ConfigurationMigrationHelper` and
   `ConfigPropertyCache` to convert configuration properties and connection URLs from v1 (0.7.1) format to v2 (0.9.8+)
   format (automatically prefixing ClickHouse server settings with `clickhouse_setting_`, custom headers with

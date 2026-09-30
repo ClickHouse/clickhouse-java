@@ -160,7 +160,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
     protected abstract Class<? extends ClickHouseClient> getClientClass();
 
     protected Map<ClickHouseOption, Serializable> getClientOptions() {
-        return Collections.emptyMap();
+        return Collections.singletonMap(ClickHouseClientOption.CUSTOM_SETTINGS, "network_compression_method=lz4");
     }
 
     protected ClickHouseClientBuilder initClient(ClickHouseClientBuilder builder) {
@@ -168,15 +168,89 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
     }
 
     protected ClickHouseClient getClient(ClickHouseConfig... configs) {
-        return initClient(ClickHouseClient.builder()).config(new ClickHouseConfig(configs))
+        Map<ClickHouseOption, Serializable> defaultOptions = new HashMap<>(getClientOptions());
+        ClickHouseConfig baseConfig = new ClickHouseConfig(defaultOptions);
+        List<ClickHouseConfig> list = new ArrayList<>();
+        list.add(baseConfig);
+        if (configs != null) {
+            Collections.addAll(list, configs);
+        }
+        return initClient(ClickHouseClient.builder().options(defaultOptions)).config(new ClickHouseConfig(list))
                 .nodeSelector(ClickHouseNodeSelector.of(getProtocol())).build();
     }
 
     protected ClickHouseClient getSecureClient(ClickHouseConfig... configs) {
-        return initClient(ClickHouseClient.builder())
-                .config(new ClickHouseConfig(configs))
+        Map<ClickHouseOption, Serializable> defaultOptions = new HashMap<>(getClientOptions());
+        ClickHouseConfig baseConfig = new ClickHouseConfig(defaultOptions);
+        List<ClickHouseConfig> list = new ArrayList<>();
+        list.add(baseConfig);
+        if (configs != null) {
+            Collections.addAll(list, configs);
+        }
+        return initClient(ClickHouseClient.builder().options(defaultOptions))
+                .config(new ClickHouseConfig(list))
                 .nodeSelector(ClickHouseNodeSelector.of(getProtocol()))
                 .build();
+    }
+
+    private ClickHouseNode addCustomSettings(ClickHouseNode node) {
+        if (node == null) {
+            return null;
+        }
+        String key = ClickHouseClientOption.CUSTOM_SETTINGS.getKey();
+        String setting = "network_compression_method=lz4";
+        String existing = node.getOptions().get(key);
+        if (existing != null && !existing.isEmpty()) {
+            if (!existing.contains("network_compression_method")) {
+                setting = existing + "," + setting;
+            } else {
+                setting = existing;
+            }
+        }
+        String httpKey = "custom_http_params";
+        String httpSetting = "network_compression_method=lz4";
+        String httpExisting = node.getOptions().get(httpKey);
+        if (httpExisting != null && !httpExisting.isEmpty()) {
+            if (!httpExisting.contains("network_compression_method")) {
+                httpSetting = httpExisting + "," + httpSetting;
+            } else {
+                httpSetting = httpExisting;
+            }
+        }
+        return ClickHouseNode.builder(node)
+                .addOption(key, setting)
+                .addOption(httpKey, httpSetting)
+                .build();
+    }
+
+    @Override
+    protected ClickHouseNode getSecureServer(ClickHouseProtocol protocol) {
+        return addCustomSettings(super.getSecureServer(protocol));
+    }
+
+    @Override
+    protected ClickHouseNode getSecureServer(ClickHouseProtocol protocol, ClickHouseNode base) {
+        return addCustomSettings(super.getSecureServer(protocol, base));
+    }
+
+    @Override
+    protected ClickHouseNode getServer(ClickHouseProtocol protocol) {
+        return addCustomSettings(super.getServer(protocol));
+    }
+
+    @Override
+    protected ClickHouseNode getServer(ClickHouseProtocol protocol, ClickHouseNode base) {
+        return addCustomSettings(super.getServer(protocol, base));
+    }
+
+    @Override
+    protected ClickHouseNode getServer(ClickHouseProtocol protocol, int port) {
+        return addCustomSettings(super.getServer(protocol, port));
+    }
+
+    @Override
+    protected ClickHouseNode getServer(ClickHouseProtocol protocol, Map<String, String> options) {
+        return addCustomSettings(super.getServer(protocol, options));
     }
 
     protected ClickHouseNode getSecureServer(ClickHouseNode base) {

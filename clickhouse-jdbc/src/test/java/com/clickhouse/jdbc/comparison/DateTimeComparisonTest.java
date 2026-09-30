@@ -36,7 +36,7 @@ public class DateTimeComparisonTest extends JdbcIntegrationTest {
             info.putAll(properties);
         }
 
-        return new ClickHouseConnectionImpl(getJDBCEndpointString(), info);
+        return new ClickHouseConnectionImpl(getJDBCEndpointString(), addCustomSettings(info));
     }
 
     public Connection getJdbcConnectionV2(Properties properties) throws SQLException {

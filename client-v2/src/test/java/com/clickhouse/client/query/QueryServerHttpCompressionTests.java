@@ -1,5 +1,6 @@
 package com.clickhouse.client.query;
 
+import com.clickhouse.client.api.CompressionMethod;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QuerySettings;
@@ -14,7 +15,7 @@ import java.util.stream.Collectors;
 
 public class QueryServerHttpCompressionTests extends QueryTests {
     QueryServerHttpCompressionTests() {
-        super(true, true);
+        super(true, true, CompressionMethod.ZSTD);
     }
 
 

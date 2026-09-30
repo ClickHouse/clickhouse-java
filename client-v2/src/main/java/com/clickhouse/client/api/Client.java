@@ -1333,6 +1333,16 @@ public class Client implements AutoCloseable {
             return this;
         }
 
+        /**
+         * Compression method used by client when sending data to server.
+         * @param method - method to use for compression (ex.: LZ4, ZSTD)
+         * @return this instance of builder
+         */
+        public Builder compressionMethod(CompressionMethod method) {
+            this.configuration.put(ClientConfigProperties.COMPRESSION_METHOD.getKey(), method.name());
+            return this;
+        }
+
         public Client build() {
             // check if endpoint are empty. so can not initiate client
             if (this.endpoints.isEmpty()) {

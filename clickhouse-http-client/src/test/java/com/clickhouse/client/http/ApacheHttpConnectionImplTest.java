@@ -74,8 +74,9 @@ public class ApacheHttpConnectionImplTest extends ClickHouseHttpClientTest {
 
     @Override
     protected Map<ClickHouseOption, Serializable> getClientOptions() {
-        return Collections.singletonMap(ClickHouseHttpOption.CONNECTION_PROVIDER,
-                HttpConnectionProvider.APACHE_HTTP_CLIENT);
+        Map<ClickHouseOption, Serializable> options = new HashMap<>(super.getClientOptions());
+        options.put(ClickHouseHttpOption.CONNECTION_PROVIDER, HttpConnectionProvider.APACHE_HTTP_CLIENT);
+        return options;
     }
 
     @Test(groups = { "unit" }, dataProvider = "replicaTags")
@@ -351,7 +352,7 @@ public class ApacheHttpConnectionImplTest extends ClickHouseHttpClientTest {
         proxy.addStubMapping(WireMock.post(WireMock.anyUrl())
                 .willReturn(WireMock.aResponse().proxiedFrom(targetURI.build().toString())).build());
 
-        Map<ClickHouseOption, Serializable> baseOptions = new HashMap<>();
+        Map<ClickHouseOption, Serializable> baseOptions = new HashMap<>(getClientOptions());
         baseOptions.put(ClickHouseClientOption.PROXY_PORT, proxyPort);
         baseOptions.put(ClickHouseClientOption.PROXY_HOST, "localhost");
         baseOptions.put(ClickHouseClientOption.PROXY_TYPE, ClickHouseProxyType.HTTP);

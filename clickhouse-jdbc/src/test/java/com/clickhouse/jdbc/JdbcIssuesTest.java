@@ -24,7 +24,7 @@ public class JdbcIssuesTest extends JdbcIntegrationTest {
         prop.setProperty("decompress", "true");
         prop.setProperty("decompress_algorithm", "lz4");
         String url = String.format("jdbc:ch:%s", getEndpointString(true));
-        ClickHouseDataSource dataSource = new ClickHouseDataSource(url, prop);
+        ClickHouseDataSource dataSource = new ClickHouseDataSource(url, addCustomSettings(prop));
         String columnNames = "event_id";
         String columnValues = "('event_id String')";
         String sql = String.format("INSERT INTO %s (%s) SELECT %s FROM input %s", TABLE_NAME, columnNames, columnNames, columnValues);
@@ -59,7 +59,7 @@ public class JdbcIssuesTest extends JdbcIntegrationTest {
         prop.setProperty("decompress", "true");
         prop.setProperty("decompress_algorithm", "lz4");
         String url = String.format("jdbc:ch:%s", getEndpointString(true));
-        ClickHouseDataSource dataSource = new ClickHouseDataSource(url, prop);
+        ClickHouseDataSource dataSource = new ClickHouseDataSource(url, addCustomSettings(prop));
         String columnNames = "event_id";
         String columnValues = "('event_id String')";
         String sql = String.format("INSERT INTO %s (%s) SELECT %s FROM input %s", TABLE_NAME, columnNames, columnNames, columnValues);
@@ -93,7 +93,7 @@ public class JdbcIssuesTest extends JdbcIntegrationTest {
         prop.setProperty("decompress", "true");
         prop.setProperty("decompress_algorithm", "lz4");
         String url = String.format("jdbc:ch:%s", getEndpointString(true));
-        ClickHouseDataSource dataSource = new ClickHouseDataSource(url, prop);
+        ClickHouseDataSource dataSource = new ClickHouseDataSource(url, addCustomSettings(prop));
         String columnNames = "event_id, num01,event_id_01 ";
         String columnValues = "('event_id String, num01 Int8, event_id_01 String')";
         String sql = String.format("INSERT INTO %s (%s) SELECT %s FROM input %s", TABLE_NAME, columnNames, columnNames, columnValues);
@@ -126,7 +126,7 @@ public class JdbcIssuesTest extends JdbcIntegrationTest {
     public void testIssue1373() throws SQLException {
         String TABLE_NAME = "issue_1373";
         String url = String.format("jdbc:ch:%s", getEndpointString(true));
-        ClickHouseDataSource dataSource = new ClickHouseDataSource(url, new Properties());
+        ClickHouseDataSource dataSource = new ClickHouseDataSource(url, addCustomSettings(new Properties()));
         String columnNames = "event_id, num01,event_id_01 ";
         String columnValues = "('event_id String, num01 Int8, event_id_01 String')";
         String sql = String.format("INSERT INTO %s (%s) SELECT %s FROM input %s", TABLE_NAME, columnNames, columnNames, columnValues);
