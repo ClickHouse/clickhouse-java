@@ -1262,10 +1262,16 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                     "FROM system.tables " +
                     "ARRAY JOIN arrayZip(splitByChar(',', primary_key), arrayEnumerate(splitByChar(',', primary_key))) as c " +
                     "WHERE system.tables.primary_key <> '' " +
-                    "AND system.tables.database ILIKE '" + (schema == null ? "%" : schema) + "' " +
-                    "AND system.tables.name ILIKE '" + (table == null ? "%" : table) + "' " +
+                    "AND system.tables.database ILIKE ? " +
+                    "AND system.tables.name ILIKE ? " +
                     "ORDER BY COLUMN_NAME";
-            return createStatement().executeQuery(sql);
+            try (PreparedStatement stmt = prepareStatement(sql)) {
+                stmt.setString(1, schema == null ? "%" : schema);
+                stmt.setString(2, table == null ? "%" : table);
+                try (ResultSet rs = stmt.executeQuery()) {
+                    return DetachedResultSet.createFromResultSet(rs, connection.getDefaultCalendar(), Collections.emptyList());
+                }
+            }
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -1808,9 +1814,13 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
     @Override
     public ResultSet getSchemas(String catalog, String schemaPattern) throws SQLException {
         // TODO: handle useCatalogs == true and return schema catalog name
-        try {
-            return createStatement().executeQuery("SELECT name AS TABLE_SCHEM, " + catalogPlaceholder + " AS TABLE_CATALOG FROM system.databases " +
-                    "WHERE name LIKE '" + (schemaPattern == null ? "%" : schemaPattern) + "'");
+        String sql = "SELECT name AS TABLE_SCHEM, " + catalogPlaceholder + " AS TABLE_CATALOG FROM system.databases " +
+                "WHERE name LIKE ?";
+        try (PreparedStatement stmt = prepareStatement(sql)) {
+            stmt.setString(1, schemaPattern == null ? "%" : schemaPattern);
+            try (ResultSet rs = stmt.executeQuery()) {
+                return DetachedResultSet.createFromResultSet(rs, connection.getDefaultCalendar(), Collections.emptyList());
+            }
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -1861,9 +1871,12 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                 "CAST(" + java.sql.DatabaseMetaData.functionResultUnknown + " AS Int16) AS FUNCTION_TYPE, " +
                 "name AS SPECIFIC_NAME " +
                 "FROM system.functions " +
-                "WHERE name LIKE '" + (functionNamePattern == null ? "%" : functionNamePattern) + "'";
-        try {
-            return createStatement().executeQuery(sql);
+                "WHERE name LIKE ?";
+        try (PreparedStatement stmt = prepareStatement(sql)) {
+            stmt.setString(1, functionNamePattern == null ? "%" : functionNamePattern);
+            try (ResultSet rs = stmt.executeQuery()) {
+                return DetachedResultSet.createFromResultSet(rs, connection.getDefaultCalendar(), Collections.emptyList());
+            }
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
