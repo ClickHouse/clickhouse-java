@@ -77,7 +77,7 @@
     - name: column_types
       expected: ["UInt64", "UInt64"]
 - name: explain_stmt_01
-  query: EXPLAIN SELECT 1
+  query: EXPLAIN AST SELECT 1
   tables:
     events: datasets/empty_table
   checks:
