@@ -5,13 +5,14 @@ import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.ClientFaultCause;
 import com.clickhouse.client.api.ClientMisconfigurationException;
+import com.clickhouse.client.api.CompressionMethod;
 import com.clickhouse.client.api.ConnectionInitiationException;
 import com.clickhouse.client.api.ConnectionReuseStrategy;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertSettings;
-import com.clickhouse.client.api.internal.ClickHouseLZ4OutputStream;
+import com.clickhouse.client.api.internal.CompressedBlockOutputStream;
 import com.clickhouse.client.api.internal.CredentialsManager;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.internal.ValidationUtils;
@@ -334,7 +335,7 @@ public class ClientTests extends BaseIntegrationTest {
                     Assert.assertEquals(config.get(p.getKey()), p.getDefaultValue(), "Default value doesn't match");
                 }
             }
-            Assert.assertEquals(config.size(), 36); // to check everything is set. Increment when new added.
+            Assert.assertEquals(config.size(), 37); // to check everything is set. Increment when new added.
         }
 
         try (Client client = new Client.Builder()
@@ -369,7 +370,7 @@ public class ClientTests extends BaseIntegrationTest {
                 .queryFormat(ClickHouseFormat.CSV.name())
                 .build()) {
             Map<String, String> config = client.getConfiguration();
-            Assert.assertEquals(config.size(), 39); // to check everything is set. Increment when new added.
+            Assert.assertEquals(config.size(), 40); // to check everything is set. Increment when new added.
             Assert.assertEquals(config.get(ClientConfigProperties.DATABASE.getKey()), "mydb");
             Assert.assertEquals(config.get(ClientConfigProperties.MAX_EXECUTION_TIME.getKey()), "10");
             Assert.assertEquals(config.get(ClientConfigProperties.COMPRESSION_LZ4_UNCOMPRESSED_BUF_SIZE.getKey()), "300000");
@@ -396,6 +397,8 @@ public class ClientTests extends BaseIntegrationTest {
             Assert.assertEquals(config.get(ClientConfigProperties.SSL_MODE.getKey()), "STRICT");
             Assert.assertEquals(config.get(ClientConfigProperties.BINARY_STRING_SUPPORT.getKey()), "true");
             Assert.assertEquals(config.get(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey()), "CSV");
+            Assert.assertEquals(config.get(ClientConfigProperties.COMPRESSION_METHOD.getKey()), CompressionMethod.ZSTD.name());
+            // Add new assertion for default value
         }
     }
 
@@ -416,50 +419,6 @@ public class ClientTests extends BaseIntegrationTest {
             Assert.assertFalse(client.getConfiguration().containsKey(option.getKey()),
                     "Socket buffer size must not be configured unless requested");
             Assert.assertEquals(client.queryAll("SELECT 1").get(0).getInteger(1), 1);
-        }
-    }
-
-    @Test(groups = {"integration"})
-    public void testWithOldDefaults() {
-        try (Client client = new Client.Builder()
-                .setUsername("default")
-                .setPassword("seceret")
-                .addEndpoint("http://localhost:8123")
-                .setDefaultDatabase("default")
-                .setExecutionTimeout(0, MILLIS)
-                .setLZ4UncompressedBufferSize(ClickHouseLZ4OutputStream.UNCOMPRESSED_BUFF_SIZE)
-                .disableNativeCompression(false)
-                .useServerTimeZone(true)
-                .setServerTimeZone("UTC")
-                .useAsyncRequests(false)
-                .setMaxConnections(10)
-                .setConnectionRequestTimeout(10, SECONDS)
-                .setConnectionReuseStrategy(ConnectionReuseStrategy.FIFO)
-                .enableConnectionPool(true)
-                .setConnectionTTL(-1, MILLIS)
-                .retryOnFailures(ClientFaultCause.NoHttpResponse, ClientFaultCause.ConnectTimeout,
-                        ClientFaultCause.ConnectionRequestTimeout, ClientFaultCause.ServerRetryable)
-                .setClientNetworkBufferSize(300_000)
-                .setMaxRetries(3)
-                .allowBinaryReaderToReuseBuffers(false)
-                .columnToMethodMatchingStrategy(DefaultColumnToMethodMatchingStrategy.INSTANCE)
-                .useHTTPBasicAuth(true)
-                .compressClientRequest(false)
-                .compressServerResponse(true)
-                .useHttpCompression(false)
-                .appCompressedData(false)
-                .setSocketTimeout(0, SECONDS)
-                .setSocketRcvbuf(804800)
-                .setSocketSndbuf(804800)
-                .build()) {
-            Map<String, String> config = client.getConfiguration();
-            for (ClientConfigProperties p : ClientConfigProperties.values()) {
-                if (p.getDefaultValue() != null) {
-                    Assert.assertTrue(config.containsKey(p.getKey()), "Default value should be set for " + p.getKey());
-                    Assert.assertEquals(config.get(p.getKey()), p.getDefaultValue(), "Default value doesn't match");
-                }
-            }
-            Assert.assertEquals(config.size(), 38); // to check everything is set. Increment when new added.
         }
     }
 

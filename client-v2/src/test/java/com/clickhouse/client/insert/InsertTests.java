@@ -70,14 +70,17 @@ public class InsertTests extends BaseIntegrationTest {
 
     private boolean useHttpCompression = false;
 
+    private CompressionMethod compressionMethod = CompressionMethod.LZ4;
+
     static final int EXECUTE_CMD_TIMEOUT = 10; // seconds
 
     InsertTests() {
     }
 
-    public InsertTests(boolean useClientCompression, boolean useHttpCompression) {
+    public InsertTests(boolean useClientCompression, boolean useHttpCompression, CompressionMethod compressionMethod) {
         this.useClientCompression = useClientCompression;
         this.useHttpCompression = useHttpCompression;
+        this.compressionMethod = compressionMethod;
     }
 
     @BeforeMethod(groups = { "integration" })
@@ -104,6 +107,7 @@ public class InsertTests extends BaseIntegrationTest {
                 .setPassword(ClickHouseServerForTest.getPassword())
                 .compressClientRequest(useClientCompression)
                 .useHttpCompression(useHttpCompression)
+                .compressionMethod(compressionMethod)
                 .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
                 .serverSetting(ServerSettings.ASYNC_INSERT, "0")
                 .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1")
