@@ -171,6 +171,9 @@
 
 ### Bug Fixes 
 
+- **[client-v2]** Fixed writing a `String` value into a `UUID` column (also as an `Array`/`Tuple` element or a `Map`
+  key) failing with `ClassCastException`. The string is now parsed with `UUID.fromString`; a string it cannot parse is
+  rejected on the client with an `IllegalArgumentException`. (https://github.com/ClickHouse/clickhouse-java/issues/3132)
 - **[client-v2]** Fixed reading a `Nullable` column in the `Native` format failing with `Failed to read block ...
   End of stream reached before reading all data`, or returning values of the wrong rows. The reader consumed a null
   marker before every value, which is the RowBinary layout. `Native` is columnar: it stores a null map of one byte
