@@ -719,7 +719,7 @@ public class ClientTests extends BaseIntegrationTest {
         int maxExecTime = 4000;
         try (Client client = newClient().serverSetting("max_execution_time",  String.valueOf(TimeUnit.MILLISECONDS.toSeconds(maxExecTime))).build();
              QueryResponse response = client.query(query).get()) {
-
+            Assert.fail("Exception expected");
         } catch (ServerException e) {
             long queryTime = System.currentTimeMillis() - startTime;
             Assert.assertTrue(Math.abs(queryTime - maxExecTime) < 1000);
