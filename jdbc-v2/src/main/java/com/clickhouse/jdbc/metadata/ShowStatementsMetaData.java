@@ -354,7 +354,7 @@ final class ShowStatementsMetaData {
      * characters, {@code _} matches one character and {@code \} escapes the next character. A {@code null} pattern
      * matches everything.
      */
-    static Predicate<String> likeMatcher(String pattern) {
+    private static Predicate<String> likeMatcher(String pattern) {
         if (pattern == null) {
             return value -> true;
         }
