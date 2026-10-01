@@ -180,6 +180,10 @@ now required to work with server. (https://github.com/ClickHouse/clickhouse-java
 
 ### Bug Fixes 
 
+- **[client-v2,jdbc-v2]** - Replaced slow HTTP LZ4 compression with compressing stream from 
+`lz4-java` library. Client uses Apache Compress to handle HTTP compression (because it has 
+convenient factory for many compressions methods. However, Apache Compress uses slow LZ4 implementation what causes very slow inserts. Now `lz4-java` used for insert. Query still slow but will be fix in future releases (need refactoring and custom implementation to solve it). Using `ZSTD` for queries should solve the issue.(https://github.com/ClickHouse/clickhouse-java/issues/2273). 
+
 - **[client-v2]** Fixed writing a `String` value into a `UUID` column (also as an `Array`/`Tuple` element or a `Map`
   key) failing with `ClassCastException`. The string is now parsed with `UUID.fromString`; a string it cannot parse is
   rejected on the client with an `IllegalArgumentException`. (https://github.com/ClickHouse/clickhouse-java/issues/3132)
