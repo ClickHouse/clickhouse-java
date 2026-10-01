@@ -180,6 +180,13 @@ now required to work with server. (https://github.com/ClickHouse/clickhouse-java
 
 ### Bug Fixes 
 
+- **[jdbc-v2]** Fixed an `INSERT ... VALUES` statement whose values list holds a literal, an expression (e.g. `? + 1`)
+  or, with the `JAVACC` parser, a JDBC escape sequence or a query parameter, being written with the RowBinary writer
+  when `beta.row_binary_for_simple_insert` is enabled. The writer takes one bound value per column, so the bound values
+  were shifted to other columns: the statement failed with a misleading error, or stored wrong data with no error. The
+  parsers did not report such values: the `JAVACC` parser discarded the result of its values-list check, and the
+  `ANTLR4` parsers reported only function calls. Now the writer is used only for a values list of `?` placeholders,
+  and other statements use the standard `PreparedStatement` path. (https://github.com/ClickHouse/clickhouse-java/issues/3083)
 - **[client-v2]** Fixed writing a `String` value into a `UUID` column (also as an `Array`/`Tuple` element or a `Map`
   key) failing with `ClassCastException`. The string is now parsed with `UUID.fromString`; a string it cannot parse is
   rejected on the client with an `IllegalArgumentException`. (https://github.com/ClickHouse/clickhouse-java/issues/3132)
