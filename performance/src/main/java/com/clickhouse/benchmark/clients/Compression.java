@@ -6,7 +6,7 @@ import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
-import com.clickhouse.client.api.internal.ClickHouseLZ4OutputStream;
+import com.clickhouse.client.api.internal.CompressedBlockOutputStream;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.config.ClickHouseClientOption;
@@ -78,7 +78,7 @@ public class Compression extends BenchmarkBase {
     public void CompressingOutputStreamV2(DataState dataState) {
         DataSet dataSet = dataState.dataSet;
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
-             ClickHouseLZ4OutputStream out = new ClickHouseLZ4OutputStream(baos,
+             CompressedBlockOutputStream out = new CompressedBlockOutputStream.LZ4OutputStream(baos,
                      factory.fastCompressor(), COMPRESS_BUFFER_SIZE)) {
             for (byte[] bytes : dataSet.getBytesList(dataSet.getFormat())) {
                 out.write(bytes);
