@@ -24,6 +24,11 @@
   the previous size can restore it by setting both options to 804800.
   (https://github.com/ClickHouse/clickhouse-java/issues/3121)
 
+- **[client-v2, jdbc-v2]** Server error `159` (`TIMEOUT_EXCEEDED`) is not retried by default anymore. It has its own
+  retry cause, `ClientFaultCause.ServerTimeoutExceeded`, which `ServerRetryable` does not include and which is not in
+  the default `client_retry_on_failures` list. Add `ServerTimeoutExceeded` to the list to retry this error.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3072)
+
 - **[r2dbc]** Pre `1.0.0` is not supported anymore because R2DBC API reached stable `1.0.0` version.  
 
 - **[jdbc-v2]** `DatabaseMetaData#getTables` now returns `null` in `REMARKS` (table comment) and `TYPE_SCHEM` by
@@ -32,6 +37,10 @@
   (https://github.com/ClickHouse/clickhouse-java/issues/2907)
 
 ### New Features
+
+- **[client-v2,jdbc-v2]** Added ZSTD compression support for Block compression stream. Previously only
+LZ4 was supported in this case. Note: Added ZSTD library and native libraries to `-all` JDBC package because it is 
+now required to work with server. (https://github.com/ClickHouse/clickhouse-java/issues/3105). 
 
 - **[migration-helpers]** Added `migration-helpers` module containing `ConfigurationMigrationHelper` and
   `ConfigPropertyCache` to convert configuration properties and connection URLs from v1 (0.7.1) format to v2 (0.9.8+)
@@ -185,6 +194,15 @@
 
 ### Bug Fixes 
 
+- **[client-v2]** Fixed writing a `String` value into a `UUID` column (also as an `Array`/`Tuple` element or a `Map`
+  key) failing with `ClassCastException`. The string is now parsed with `UUID.fromString`; a string it cannot parse is
+  rejected on the client with an `IllegalArgumentException`. (https://github.com/ClickHouse/clickhouse-java/issues/3132)
+- **[client-v2]** Fixed reading a `Nullable` column in the `Native` format failing with `Failed to read block ...
+  End of stream reached before reading all data`, or returning values of the wrong rows. The reader consumed a null
+  marker before every value, which is the RowBinary layout. `Native` is columnar: it stores a null map of one byte
+  per row before the values of the whole column, and a null row still has a placeholder value. The markers were
+  therefore taken from the value bytes and the column was read out of alignment. The null map is now read as a
+  block. (https://github.com/ClickHouse/clickhouse-java/issues/3137)
 - **[client-v2]** Fixed geo columns (`Point`, `Ring`, `LineString`, `MultiPoint`, `Polygon`, `MultiLineString`,
   `MultiPolygon`) being misread from the `Native` format. The reader decoded a geo column row by row with the
   RowBinary decoders, while `Native` writes it column-major: a `Point` block came back with its coordinates
@@ -763,6 +781,16 @@ of `NULL` was not set and read. (https://github.com/ClickHouse/clickhouse-java/i
   columns when `binary_string_support` is enabled. `getObject(column, byte[].class)` now returns the exact raw bytes,
   and `getObject(column, Object.class)` and the no-type `getObject(column)` overloads now return a decoded `String`
   instead of the internal holder.
+
+## 0.9.9
+
+### Bug Fixes 
+
+- **[client-v2]** `ServerException` with code `159 Execution Timeout` is retried unconditionally. After the fix this
+error treated as non-retriable. (part of https://github.com/ClickHouse/clickhouse-java/issues/2637)
+- **[jdbc-v2]** Fixes `Statement#setQueryTimeout`. By default, client executes query in calling thread and future timeout 
+has no effect. Fix makes `setQueryTimeout` to set `max_execution_time` server setting in this case to overcome limitation.
+  (https://github.com/ClickHouse/clickhouse-java/issues/2637)
 
 ## 0.9.8
 

@@ -715,7 +715,7 @@ See the [Error model](#error-model) for the exception hierarchy and how to unwra
 | Failure | Surfaces as | Handling |
 |---------|-------------|----------|
 | Bad SQL, unknown column, placeholder type mismatch, missing table | `ServerException` (e.g. code `60` table-not-found) | **Not retryable** — a retry produces the same error. Inspect `getCode()` and fix the query. |
-| Server aborted an excessively heavy query | `ServerException` code `159` (`TIMEOUT_EXCEEDED`) | The query exceeded `max_execution_time`. Raise the limit or optimize the query; do not retry unconditionally. |
+| Server aborted an excessively heavy query | `ServerException` code `159` (`TIMEOUT_EXCEEDED`) | The query exceeded `max_execution_time`. Raise the limit or optimize the query; do not retry unconditionally. The client does not retry it by default; add the `ServerTimeoutExceeded` fault cause to `client_retry_on_failures` to retry it. |
 | Transport connect/read timeout | `DataTransferException` / timeout | Often transient. A read is idempotent, so re-running the whole query is safe. |
 | Connection dropped **mid-stream** (after you began iterating) | `DataTransferException` while reading | You cannot resume from the middle — some rows were already consumed. Close the `QueryResponse` and re-run the entire query. Make consumers tolerant of re-reading from the start. |
 
@@ -1109,7 +1109,7 @@ public void executeQueryWithErrorHandling(Client client, String sql) throws Exce
 }
 ```
 
-> **On built-in retries.** `ServerException.isRetryable()` marks transient server codes (timeouts, network, memory-limit, too-many-parts, ...) and the client's own `retry` policy already re-sends those. Do not add a second retry loop on top without accounting for it. Retries behave very differently for reads vs writes — see the per-operation "Errors & how to handle them" sections for the details (in particular, an insert retry must re-send the whole payload).
+> **On built-in retries.** `ServerException.isRetryable()` marks transient server codes (timeouts, network, memory-limit, too-many-parts, ...) and the client's own `retry` policy already re-sends those, except server error `159` (`TIMEOUT_EXCEEDED`), which is re-sent only when `client_retry_on_failures` contains `ServerTimeoutExceeded`. Do not add a second retry loop on top without accounting for it. Retries behave very differently for reads vs writes — see the per-operation "Errors & how to handle them" sections for the details (in particular, an insert retry must re-send the whole payload).
 
 ## References
 

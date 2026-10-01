@@ -610,6 +610,89 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
         }
     }
 
+    /**
+     * A {@link DatabaseMetaData} lookup that takes a schema pattern and an object-name pattern.
+     * Used to run the same assertions over the metadata methods that filter on caller-supplied
+     * patterns.
+     */
+    @FunctionalInterface
+    private interface MetaDataPatternCall {
+        ResultSet apply(DatabaseMetaData dbmd, String schemaPattern, String namePattern) throws SQLException;
+    }
+
+    @DataProvider(name = "metadataPatternArguments")
+    public static Object[][] metadataPatternArguments() {
+        final String schemaWithQuote = QUOTED_NAME_SCHEMA;
+        final String tableWithQuote = QUOTED_NAME_TABLE;
+        final String injection = "nomatch' OR '1'='1";
+
+        MetaDataPatternCall getSchemas = (dbmd, schemaPattern, namePattern) -> dbmd.getSchemas(null, schemaPattern);
+        MetaDataPatternCall getPrimaryKeys = (dbmd, schemaPattern, namePattern) -> dbmd.getPrimaryKeys(null, schemaPattern, namePattern);
+        MetaDataPatternCall getFunctions = (dbmd, schemaPattern, namePattern) -> dbmd.getFunctions(null, null, namePattern);
+
+        return new Object[][] {
+                // A name that legally contains a single quote must be matched, not rejected as a syntax error.
+                { "getSchemas", getSchemas, schemaWithQuote, null, 1 },
+                { "getPrimaryKeys", getPrimaryKeys, schemaWithQuote, tableWithQuote, 1 },
+                // No function name contains a quote, so the only thing to assert is that it does not throw.
+                { "getFunctions", getFunctions, null, "to'Int", 0 },
+                // The pattern must stay a value: it must not close the literal and inject a predicate.
+                { "getSchemas", getSchemas, injection, null, 0 },
+                { "getPrimaryKeys", getPrimaryKeys, injection, null, 0 },
+                { "getFunctions", getFunctions, null, injection, 0 },
+        };
+    }
+
+    /**
+     * Regression test: these methods used to concatenate the caller's pattern straight into the SQL
+     * text, so a pattern containing a single quote either failed with SYNTAX_ERROR or was parsed as
+     * SQL and changed the result set.
+     */
+    @Test(groups = { "integration" }, dataProvider = "metadataPatternArguments")
+    public void testMetadataPatternIsUsedAsValueNotSql(String method, MetaDataPatternCall call,
+                                                       String schemaPattern, String namePattern,
+                                                       int expectedRows) throws Exception {
+        if ("getFunctions".equals(method) && ClickHouseVersion.of(getServerVersion()).check("(,23.8]")) {
+            throw new SkipException("getFunctions is broken before 23.9 - see testGetFunctions");
+        }
+
+        try (Connection conn = getJdbcConnection()) {
+            createQuotedNameFixture(conn);
+            try {
+                DatabaseMetaData dbmd = conn.getMetaData();
+                int rows = 0;
+                try (ResultSet rs = call.apply(dbmd, schemaPattern, namePattern)) {
+                    while (rs.next()) {
+                        rows++;
+                    }
+                }
+                assertEquals(rows, expectedRows, method + " returned the wrong number of rows for schemaPattern="
+                        + schemaPattern + ", namePattern=" + namePattern);
+            } finally {
+                dropQuotedNameFixture(conn);
+            }
+        }
+    }
+
+    /** Deliberately contains a single quote, and no {@code _} so that LIKE matches it exactly. */
+    private static final String QUOTED_NAME_SCHEMA = "mdquotea'b";
+
+    private static final String QUOTED_NAME_TABLE = "t'1";
+
+    private static void createQuotedNameFixture(Connection conn) throws SQLException {
+        try (Statement stmt = conn.createStatement()) {
+            stmt.executeUpdate("DROP DATABASE IF EXISTS `mdquotea'b`");
+            stmt.executeUpdate("CREATE DATABASE `mdquotea'b`");
+            stmt.executeUpdate("CREATE TABLE `mdquotea'b`.`t'1` (id Int32, v String) ENGINE MergeTree ORDER BY id");
+        }
+    }
+
+    private static void dropQuotedNameFixture(Connection conn) throws SQLException {
+        try (Statement stmt = conn.createStatement()) {
+            stmt.executeUpdate("DROP DATABASE IF EXISTS `mdquotea'b`");
+        }
+    }
+
     @Test(groups = { "integration" })
     public void testGetSchemas() throws Exception {
         try (Connection conn = getJdbcConnection()) {

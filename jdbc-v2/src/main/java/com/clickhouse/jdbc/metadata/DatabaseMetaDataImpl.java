@@ -804,26 +804,26 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
     static final Map<String, String> ENGINE_TO_TABLE_TYPE;
     static {
         Map<String, String> map = new java.util.HashMap<>();
-        
+
         // Log tables
         map.put("Log", TableType.LOG_TABLE.getTypeName());
         map.put("StripeLog", TableType.LOG_TABLE.getTypeName());
         map.put("TinyLog", TableType.LOG_TABLE.getTypeName());
-        
+
         // Memory tables
         map.put("Buffer", TableType.MEMORY_TABLE.getTypeName());
         map.put("Memory", TableType.MEMORY_TABLE.getTypeName());
         map.put("Set", TableType.MEMORY_TABLE.getTypeName());
-        
+
         // Views
         map.put("View", TableType.VIEW.getTypeName());
         map.put("LiveView", TableType.VIEW.getTypeName());
         map.put("MaterializedView", TableType.MATERIALIZED_VIEW.getTypeName());
         map.put("WindowView", TableType.VIEW.getTypeName());
-        
+
         // Dictionary
         map.put("Dictionary", TableType.DICTIONARY.getTypeName());
-        
+
         // Remote/External tables
         map.put("AzureBlobStorage", TableType.REMOTE_TABLE.getTypeName());
         map.put("AzureQueue", TableType.REMOTE_TABLE.getTypeName());
@@ -908,6 +908,18 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
 
         // Remote engines (appended 08/31/2026)
         map.put("BigQuery", TableType.REMOTE_TABLE.getTypeName());
+
+        // Paimon (appended 05/27/2026)
+        map.put("Paimon", TableType.REMOTE_TABLE.getTypeName());
+        map.put("PaimonAzure", TableType.REMOTE_TABLE.getTypeName());
+        map.put("PaimonHDFS", TableType.REMOTE_TABLE.getTypeName());
+        map.put("PaimonLocal", TableType.REMOTE_TABLE.getTypeName());
+        map.put("PaimonS3", TableType.REMOTE_TABLE.getTypeName());
+
+        // Remote engines (appended 07/21/2026)
+        map.put("QueryRunner", TableType.REMOTE_TABLE.getTypeName());
+        map.put("Remote", TableType.REMOTE_TABLE.getTypeName());
+        map.put("RemoteSecure", TableType.REMOTE_TABLE.getTypeName());
 
         // Special
         map.put("TimeSeries", TableType.TABLE.getTypeName());
@@ -1284,10 +1296,16 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                     "FROM system.tables " +
                     "ARRAY JOIN arrayZip(splitByChar(',', primary_key), arrayEnumerate(splitByChar(',', primary_key))) as c " +
                     "WHERE system.tables.primary_key <> '' " +
-                    "AND system.tables.database ILIKE '" + (schema == null ? "%" : schema) + "' " +
-                    "AND system.tables.name ILIKE '" + (table == null ? "%" : table) + "' " +
+                    "AND system.tables.database ILIKE ? " +
+                    "AND system.tables.name ILIKE ? " +
                     "ORDER BY COLUMN_NAME";
-            return createStatement().executeQuery(sql);
+            try (PreparedStatement stmt = prepareStatement(sql)) {
+                stmt.setString(1, schema == null ? "%" : schema);
+                stmt.setString(2, table == null ? "%" : table);
+                try (ResultSet rs = stmt.executeQuery()) {
+                    return DetachedResultSet.createFromResultSet(rs, connection.getDefaultCalendar(), Collections.emptyList());
+                }
+            }
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -1838,9 +1856,13 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
     }
 
     private ResultSet getSchemasImpl(String schemaPattern) throws SQLException {
-        try {
-            return createStatement().executeQuery("SELECT name AS TABLE_SCHEM, " + catalogPlaceholder + " AS TABLE_CATALOG FROM system.databases " +
-                    "WHERE name LIKE '" + (schemaPattern == null ? "%" : schemaPattern) + "'");
+        String sql = "SELECT name AS TABLE_SCHEM, " + catalogPlaceholder + " AS TABLE_CATALOG FROM system.databases " +
+                "WHERE name LIKE ?";
+        try (PreparedStatement stmt = prepareStatement(sql)) {
+            stmt.setString(1, schemaPattern == null ? "%" : schemaPattern);
+            try (ResultSet rs = stmt.executeQuery()) {
+                return DetachedResultSet.createFromResultSet(rs, connection.getDefaultCalendar(), Collections.emptyList());
+            }
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -1891,9 +1913,12 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                 "CAST(" + java.sql.DatabaseMetaData.functionResultUnknown + " AS Int16) AS FUNCTION_TYPE, " +
                 "name AS SPECIFIC_NAME " +
                 "FROM system.functions " +
-                "WHERE name LIKE '" + (functionNamePattern == null ? "%" : functionNamePattern) + "'";
-        try {
-            return createStatement().executeQuery(sql);
+                "WHERE name LIKE ?";
+        try (PreparedStatement stmt = prepareStatement(sql)) {
+            stmt.setString(1, functionNamePattern == null ? "%" : functionNamePattern);
+            try (ResultSet rs = stmt.executeQuery()) {
+                return DetachedResultSet.createFromResultSet(rs, connection.getDefaultCalendar(), Collections.emptyList());
+            }
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
