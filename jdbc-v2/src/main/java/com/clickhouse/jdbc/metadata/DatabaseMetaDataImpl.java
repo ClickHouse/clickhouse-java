@@ -78,6 +78,10 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
 
     private String jdbcUrl;
 
+    private final boolean useShowStatements;
+
+    private final ShowStatementsMetaData showStatementsMetaData;
+
     /**
      * Creates an instance of DatabaseMetaData for the given connection.
      *
@@ -93,6 +97,8 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         this.useCatalogs = useCatalogs;
         this.catalogPlaceholder = useCatalogs ? "'local' " : "''";
         this.jdbcUrl = url;
+        this.useShowStatements = connection.getJdbcConfig().isFlagSet(DriverProperties.METADATA_USE_SHOW_STATEMENTS);
+        this.showStatementsMetaData = new ShowStatementsMetaData(connection);
     }
 
     private Statement createStatement() throws SQLException {
@@ -104,6 +110,10 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
     }
 
     private PreparedStatement prepareStatement(String sql) throws SQLException {
+        return prepareStatement(connection, sql);
+    }
+
+    static PreparedStatement prepareStatement(ConnectionImpl connection, String sql) throws SQLException {
         PreparedStatement stmt = connection.prepareStatement(sql);
         if (stmt instanceof StatementImpl) {
             ((StatementImpl) stmt).getLocalSettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes);
@@ -955,9 +965,9 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         return engine != null && (engine.startsWith("System") || engine.startsWith("Async"));
     }
 
-    private static final String TABLE_TYPE_COL_IN_GET_TABLES = "TABLE_TYPE";
+    static final String TABLE_TYPE_COL_IN_GET_TABLES = "TABLE_TYPE";
 
-    private static final Consumer<Map<String, Object>> TABLE_TYPE_MUTATOR = row -> {
+    static final Consumer<Map<String, Object>> TABLE_TYPE_MUTATOR = row -> {
         String engine = (String) row.get(TABLE_TYPE_COL_IN_GET_TABLES);
         
         String tableType;
@@ -987,8 +997,16 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         // TODO: when switch between catalog and schema is implemented, then TABLE_SCHEMA and TABLE_CAT should be populated accordingly
         // TODO: handle useCatalogs == true and return schema catalog name
 
-        // Get engines that map to the requested table types
         Set<String> requestedTypes = (types == null || types.length == 0) ? TABLE_TYPES : Arrays.stream(types).collect(Collectors.toSet())  ;
+        if (useShowStatements) {
+            return showStatementsMetaData.getTables(schemaPattern, tableNamePattern, requestedTypes);
+        } else {
+            return getTablesImpl(schemaPattern, tableNamePattern, requestedTypes);
+        }
+    }
+
+    private ResultSet getTablesImpl(String schemaPattern, String tableNamePattern, Set<String> requestedTypes) throws SQLException {
+        // Get engines that map to the requested table types
         Set<String> engines = getEnginesForTableTypes(requestedTypes);
         
         // Build engine filter conditions
@@ -1060,6 +1078,14 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
     @Override
     public ResultSet getSchemas() throws SQLException {
         // TODO: handle useCatalogs == true and return schema catalog name
+        if (useShowStatements) {
+            return showStatementsMetaData.getSchemas(null);
+        } else {
+            return getSchemasImpl();
+        }
+    }
+
+    private ResultSet getSchemasImpl() throws SQLException {
         try {
             return createStatement().executeQuery("SELECT name AS TABLE_SCHEM, " + catalogPlaceholder + " AS TABLE_CATALOG FROM system.databases ORDER BY name");
         } catch (Exception e) {
@@ -1102,9 +1128,17 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
     }
 
     @Override
-    @SuppressWarnings({"squid:S2095", "squid:S2077"})
     public ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern) throws SQLException {
         // TODO: handle useCatalogs == true and return schema catalog name
+        if (useShowStatements) {
+            return showStatementsMetaData.getColumns(schemaPattern, tableNamePattern, columnNamePattern);
+        } else {
+            return getColumnsImpl(schemaPattern, tableNamePattern, columnNamePattern);
+        }
+    }
+
+    @SuppressWarnings({"squid:S2095", "squid:S2077"})
+    private ResultSet getColumnsImpl(String schemaPattern, String tableNamePattern, String columnNamePattern) throws SQLException {
         final String sql = "SELECT " +
                 catalogPlaceholder + " AS TABLE_CAT, " +
                 "database AS TABLE_SCHEM, " +
@@ -1156,7 +1190,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
     }
 
 
-    private static final Consumer<Map<String, Object>> DATA_TYPE_VALUE_FUNCTION = row -> {
+    static final Consumer<Map<String, Object>> DATA_TYPE_VALUE_FUNCTION = row -> {
         String typeName = (String) row.get("TYPE_NAME");
         SQLType type = JdbcUtils.CLICKHOUSE_TYPE_NAME_TO_SQL_TYPE_MAP.get(typeName);
         if (type == null) {
@@ -1814,6 +1848,14 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
     @Override
     public ResultSet getSchemas(String catalog, String schemaPattern) throws SQLException {
         // TODO: handle useCatalogs == true and return schema catalog name
+        if (useShowStatements) {
+            return showStatementsMetaData.getSchemas(schemaPattern);
+        } else {
+            return getSchemasImpl(schemaPattern);
+        }
+    }
+
+    private ResultSet getSchemasImpl(String schemaPattern) throws SQLException {
         String sql = "SELECT name AS TABLE_SCHEM, " + catalogPlaceholder + " AS TABLE_CATALOG FROM system.databases " +
                 "WHERE name LIKE ?";
         try (PreparedStatement stmt = prepareStatement(sql)) {
