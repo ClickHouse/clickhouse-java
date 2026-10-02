@@ -6,7 +6,7 @@ import java.util.regex.Pattern;
 public class SQLUtils {
     /**
      * Escapes and quotes a string literal for use in SQL queries.
-     * ClickHouse honours backslash escape sequences inside single-quoted strings, so a backslash
+     * ClickHouse honors backslash escape sequences inside single-quoted strings, so a backslash
      * is escaped by doubling it before the single quotes are doubled. Without that, a literal
      * backslash-t in the input would reach the server as a TAB, and a trailing backslash would
      * escape the closing quote.
