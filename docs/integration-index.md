@@ -88,6 +88,49 @@ The JDBC driver is a thin adaptation layer that uses the Java Client underneath 
 
 ---
 
+## Development Environment
+
+### Java Version
+
+The ClickHouse JDBC driver and Client require **Java 8 or newer**. All mainstream development and testing are validated on recent LTS versions (Java 8, 11, 17, and 21 as available). We recommend using up-to-date LTS releases, as feature coverage, TLS support, and performance are best with newer runtimes.
+
+### Local ClickHouse for Development
+
+For local development and rapid prototyping, you can run ClickHouse in a container with minimal setup:
+
+```sh
+docker run --rm -d -p 8123:8123 --name clickhouse-server clickhouse/clickhouse-server:latest
+```
+
+This launches a fresh ClickHouse server, with the HTTP API available at `localhost:8123`. The default database is `default` and no password is required for the default user (`default`). This is ideal for smoke tests, schema exploration, and validating basic integration.
+
+You can also use any recent [official ClickHouse binary](https://clickhouse.com/docs/en/getting-started/install/) or use Docker Compose for more complex setups.
+
+> **Note:** Local environments are best for initial integration, experiments, and CI pipelines — not for realistic scale, performance, or operational requirements.
+
+### ClickHouse Cloud (Recommended for Production-like Integration)
+
+While local ClickHouse is excellent for early development, **we strongly recommend using [ClickHouse Cloud](https://clickhouse.com/cloud/)** for end-to-end integration and before considering your application production ready.
+
+ClickHouse Cloud environments mirror real-world production settings:
+
+- Managed authentication, scaling, secure TLS endpoints
+- Production-like network performance and stability
+- Long-running, stateful databases without the churn or "works on my machine" surprises
+
+Using ClickHouse Cloud during integration helps uncover configuration or authentication nuances, avoid brittle local-only assumptions, and validates your app against true cloud operations. All features described in this guide are supported equally, and connection examples are identical — just provide your cloud hostname, port, and TLS-enabled URL in the JDBC connection string.
+
+> **Best practice:** Validate your integration against ClickHouse Cloud regularly, especially before feature launches and release cutoffs.
+
+### Summary
+
+- **Local ClickHouse**: Fast, simple; best for initial trials and interactive development.
+- **ClickHouse Cloud**: Closest to real-world production, surfaces integration and operational issues early, and ensures all JDBC (and client) features work as expected.
+
+For more, see the [ClickHouse Cloud docs](https://clickhouse.com/docs/en/cloud/) and the [official integrations guide](https://clickhouse.com/docs/en/integrations/java/).
+
+---
+
 ## Choosing Between the Java Client and JDBC
 
 Making the right choice between the client and driver is crucial for application architecture and long-term maintainability. 
