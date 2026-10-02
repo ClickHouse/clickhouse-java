@@ -473,6 +473,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
              * - number of arguments matches schema or column list
              * RowBinary cannot be used when
              * - INSERT INTO t VALUES (now(), ?, ?) !# there is a function in the values
+             * - INSERT INTO t VALUES (1, ?, ? + 1) !# there is a literal or an expression in the values
              * - INSERT INTO t VALUES (now(), ?, 1), (now(), ?, 2) !# multiple values list
              * - INSERT INTO t SELECT ?, ?, ? !# insert from select
              * - INSERT INTO [TABLE] FUNCTION f(...) VALUES (?) !# the target is a table function

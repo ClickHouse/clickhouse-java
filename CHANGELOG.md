@@ -194,6 +194,13 @@ now required to work with server. (https://github.com/ClickHouse/clickhouse-java
 
 ### Bug Fixes 
 
+- **[jdbc-v2]** Fixed an `INSERT ... VALUES` statement whose values list holds a literal, an expression (e.g. `? + 1`)
+  or, with the `JAVACC` parser, a JDBC escape sequence or a query parameter, being written with the RowBinary writer
+  when `beta.row_binary_for_simple_insert` is enabled. The writer takes one bound value per column, so the bound values
+  were shifted to other columns: the statement failed with a misleading error, or stored wrong data with no error. The
+  parsers did not report such values: the `JAVACC` parser discarded the result of its values-list check, and the
+  `ANTLR4` parsers reported only function calls. Now the writer is used only for a values list of `?` placeholders,
+  and other statements use the standard `PreparedStatement` path. (https://github.com/ClickHouse/clickhouse-java/issues/3083)
 - **[client-v2,jdbc-v2]** - Replaced slow HTTP LZ4 compression with compressing stream from 
 `lz4-java` library. Client uses Apache Compress to handle HTTP compression (because it has 
 convenient factory for many compressions methods. However, Apache Compress uses slow LZ4 implementation what causes very slow inserts. Now `lz4-java` used for insert. Query still slow but will be fix in future releases (need refactoring and custom implementation to solve it). Using `ZSTD` for queries should solve the issue.(https://github.com/ClickHouse/clickhouse-java/issues/2273). 
