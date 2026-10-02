@@ -31,6 +31,11 @@
 
 - **[r2dbc]** Pre `1.0.0` is not supported anymore because R2DBC API reached stable `1.0.0` version.  
 
+- **[jdbc-v2]** `DatabaseMetaData#getTables` now returns `null` in `REMARKS` (table comment) and `TYPE_SCHEM` by
+  default, because metadata is read with `SHOW` statements (see the `jdbc_metadata_use_show_statements` entry in New
+  Features). Set `jdbc_metadata_use_show_statements=false` to get the table comments.
+  (https://github.com/ClickHouse/clickhouse-java/issues/2907)
+
 ### New Features
 
 - **[client-v2,jdbc-v2]** Added ZSTD compression support for Block compression stream. Previously only
@@ -177,8 +182,28 @@ now required to work with server. (https://github.com/ClickHouse/clickhouse-java
   as `(INDEX, VALUE)` pairs where each `VALUE` is the tuple. (https://github.com/ClickHouse/clickhouse-java/issues/2477)
 - **[client-v2, jdbc-v2]** Added logging on previously-silent error and diagnostic paths (no functional or
   public-API change). (https://github.com/ClickHouse/clickhouse-java/issues/2969)
+- **[jdbc-v2]** `DatabaseMetaData#getSchemas`, `#getTables` and `#getColumns` now read metadata with `SHOW DATABASES`,
+  `SHOW TABLES` and `DESCRIBE TABLE` instead of the `system.databases`, `system.tables` and `system.columns` tables.
+  The server does not show some tables in the system tables by default (for example, tables of `DataLakeCatalog`
+  databases), so tools that use `DatabaseMetaData` did not find them. The new driver property
+  `jdbc_metadata_use_show_statements` (default `true`) selects the implementation; set it to `false` to use the system
+  tables. With the `SHOW` statements, `getTables()` returns `null` in `REMARKS` (table comment) and `TYPE_SCHEM`;
+  `getColumns()` sends one `DESCRIBE TABLE` query for each table that matches and skips a table that was dropped
+  meanwhile, that the user cannot describe, or whose data lake metadata cannot be read. All other columns and values
+  are the same. (https://github.com/ClickHouse/clickhouse-java/issues/2907)
 
 ### Bug Fixes 
+
+- **[jdbc-v2]** Fixed an `INSERT ... VALUES` statement whose values list holds a literal, an expression (e.g. `? + 1`)
+  or, with the `JAVACC` parser, a JDBC escape sequence or a query parameter, being written with the RowBinary writer
+  when `beta.row_binary_for_simple_insert` is enabled. The writer takes one bound value per column, so the bound values
+  were shifted to other columns: the statement failed with a misleading error, or stored wrong data with no error. The
+  parsers did not report such values: the `JAVACC` parser discarded the result of its values-list check, and the
+  `ANTLR4` parsers reported only function calls. Now the writer is used only for a values list of `?` placeholders,
+  and other statements use the standard `PreparedStatement` path. (https://github.com/ClickHouse/clickhouse-java/issues/3083)
+- **[client-v2,jdbc-v2]** - Replaced slow HTTP LZ4 compression with compressing stream from 
+`lz4-java` library. Client uses Apache Compress to handle HTTP compression (because it has 
+convenient factory for many compressions methods. However, Apache Compress uses slow LZ4 implementation what causes very slow inserts. Now `lz4-java` used for insert. Query still slow but will be fix in future releases (need refactoring and custom implementation to solve it). Using `ZSTD` for queries should solve the issue.(https://github.com/ClickHouse/clickhouse-java/issues/2273). 
 
 - **[client-v2]** Fixed writing a `String` value into a `UUID` column (also as an `Array`/`Tuple` element or a `Map`
   key) failing with `ClassCastException`. The string is now parsed with `UUID.fromString`; a string it cannot parse is

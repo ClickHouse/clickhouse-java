@@ -1,7 +1,9 @@
 package com.clickhouse.jdbc.internal;
 
+import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.jdbc.JdbcV2Wrapper;
 import com.clickhouse.jdbc.ResultSetImpl;
+import com.clickhouse.jdbc.metadata.ResultSetMetaDataImpl;
 
 import java.io.InputStream;
 import java.io.Reader;
@@ -95,6 +97,20 @@ public class DetachedResultSet implements ResultSet, JdbcV2Wrapper {
             records.add(record);
         }
         return new DetachedResultSet(records, metaData, defaultCalendar);
+    }
+
+    /**
+     * Creates a result set from records built by the driver.
+     *
+     * @param records - rows, each maps a column name to its value
+     * @param columns - columns of the result set
+     * @param defaultCalendar - calendar used for date and time values
+     * @return result set with the records
+     * @throws SQLException - if the result set cannot be created
+     */
+    public static DetachedResultSet createFromRecords(List<Map<String, Object>> records, List<ClickHouseColumn> columns,
+                                                      Calendar defaultCalendar) throws SQLException {
+        return new DetachedResultSet(records, new ResultSetMetaDataImpl(columns, "", "", "", null, null), defaultCalendar);
     }
 
     @Override

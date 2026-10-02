@@ -2290,6 +2290,9 @@ public class Client implements AutoCloseable {
     /**
      * <p>Fetches schema of a table and returns complete information about each column.
      * Information includes column name, type, default value, etc.</p>
+     * <p>Important: table name should be properly escaped
+     * (see @link com.clickhouse.client.api.sql.SQLUtils#enquoteIdentifier(java.lang.String, boolean)).
+     * This method uses table name as is because method is not aware if database name also present and cannot properly escape it.</p>
      *
      * <p>See {@link #register(Class, TableSchema)}</p>
      *
@@ -2304,6 +2307,9 @@ public class Client implements AutoCloseable {
      * <p>Fetches schema of a table and returns complete information about each column.
      * Information includes column name, type, default value, etc.</p>
      * <p>See {@link #register(Class, TableSchema)}</p>
+     * <p>Important: table name should be properly escaped
+     * (see @link com.clickhouse.client.api.sql.SQLUtils#enquoteIdentifier(java.lang.String, boolean))
+     * and should not contain database name</p>
      *
      * @param table - table name
      * @param database - database name
@@ -2316,6 +2322,9 @@ public class Client implements AutoCloseable {
 
     /**
      * <p>Creates table schema from a query.</p>
+     * <p>Important: table name should be properly escaped
+     * (see @link com.clickhouse.client.api.sql.SQLUtils#enquoteIdentifier(java.lang.String, boolean)).
+     * This method doesn't validate or parse the SQL query</p>
      * @param sql - SQL query which schema to return
      * @return table schema for the query
      */
@@ -2323,6 +2332,15 @@ public class Client implements AutoCloseable {
         return getTableSchemaFromQuery(sql, null);
     }
 
+    /**
+     * <p>Creates table schema from a query.</p>
+     * <p>Important: table name should be properly escaped
+     * (see @link com.clickhouse.client.api.sql.SQLUtils#enquoteIdentifier(java.lang.String, boolean)).
+     * This method doesn't validate or parse the SQL query</p>
+     * @param sql - SQL query which schema to return
+     * @param params - server bound parameters
+     * @return table schema for the query
+     */
     public TableSchema getTableSchemaFromQuery(String sql, Map<String, Object> params) {
         final String describeQuery = "DESC (" + sql + ")";
         return getTableSchemaImpl(describeQuery, null, sql, getDefaultDatabase(), params);

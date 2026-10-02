@@ -10,6 +10,7 @@ import com.clickhouse.jdbc.JdbcIntegrationTest;
 import com.clickhouse.jdbc.internal.JdbcUtils;
 import org.testng.Assert;
 import org.testng.SkipException;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.io.ByteArrayOutputStream;
@@ -29,6 +30,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Properties;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static java.sql.RowIdLifetime.ROWID_UNSUPPORTED;
@@ -41,6 +43,19 @@ import static org.testng.Assert.assertTrue;
 
 @Test(groups = { "integration" })
 public class DatabaseMetaDataTest extends JdbcIntegrationTest {
+
+    /**
+     * Disables {@link DriverProperties#METADATA_USE_SHOW_STATEMENTS} unless the caller sets it, so this suite reads
+     * metadata from the system tables. {@link ShowStatementDatabaseMetaDataTest} runs the same suite with the flag
+     * enabled.
+     */
+    @Override
+    public Connection getJdbcConnection(Properties properties) throws SQLException {
+        Properties props = properties == null ? new Properties() : (Properties) properties.clone();
+        props.putIfAbsent(DriverProperties.METADATA_USE_SHOW_STATEMENTS.getKey(), String.valueOf(false));
+        return super.getJdbcConnection(props);
+    }
+
     @Test(groups = { "integration" })
     public void testGetColumns() throws Exception {
         try (Connection conn = getJdbcConnection()) {
@@ -607,6 +622,89 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
         }
     }
 
+    /**
+     * A {@link DatabaseMetaData} lookup that takes a schema pattern and an object-name pattern.
+     * Used to run the same assertions over the metadata methods that filter on caller-supplied
+     * patterns.
+     */
+    @FunctionalInterface
+    private interface MetaDataPatternCall {
+        ResultSet apply(DatabaseMetaData dbmd, String schemaPattern, String namePattern) throws SQLException;
+    }
+
+    @DataProvider(name = "metadataPatternArguments")
+    public static Object[][] metadataPatternArguments() {
+        final String schemaWithQuote = QUOTED_NAME_SCHEMA;
+        final String tableWithQuote = QUOTED_NAME_TABLE;
+        final String injection = "nomatch' OR '1'='1";
+
+        MetaDataPatternCall getSchemas = (dbmd, schemaPattern, namePattern) -> dbmd.getSchemas(null, schemaPattern);
+        MetaDataPatternCall getPrimaryKeys = (dbmd, schemaPattern, namePattern) -> dbmd.getPrimaryKeys(null, schemaPattern, namePattern);
+        MetaDataPatternCall getFunctions = (dbmd, schemaPattern, namePattern) -> dbmd.getFunctions(null, null, namePattern);
+
+        return new Object[][] {
+                // A name that legally contains a single quote must be matched, not rejected as a syntax error.
+                { "getSchemas", getSchemas, schemaWithQuote, null, 1 },
+                { "getPrimaryKeys", getPrimaryKeys, schemaWithQuote, tableWithQuote, 1 },
+                // No function name contains a quote, so the only thing to assert is that it does not throw.
+                { "getFunctions", getFunctions, null, "to'Int", 0 },
+                // The pattern must stay a value: it must not close the literal and inject a predicate.
+                { "getSchemas", getSchemas, injection, null, 0 },
+                { "getPrimaryKeys", getPrimaryKeys, injection, null, 0 },
+                { "getFunctions", getFunctions, null, injection, 0 },
+        };
+    }
+
+    /**
+     * Regression test: these methods used to concatenate the caller's pattern straight into the SQL
+     * text, so a pattern containing a single quote either failed with SYNTAX_ERROR or was parsed as
+     * SQL and changed the result set.
+     */
+    @Test(groups = { "integration" }, dataProvider = "metadataPatternArguments")
+    public void testMetadataPatternIsUsedAsValueNotSql(String method, MetaDataPatternCall call,
+                                                       String schemaPattern, String namePattern,
+                                                       int expectedRows) throws Exception {
+        if ("getFunctions".equals(method) && ClickHouseVersion.of(getServerVersion()).check("(,23.8]")) {
+            throw new SkipException("getFunctions is broken before 23.9 - see testGetFunctions");
+        }
+
+        try (Connection conn = getJdbcConnection()) {
+            createQuotedNameFixture(conn);
+            try {
+                DatabaseMetaData dbmd = conn.getMetaData();
+                int rows = 0;
+                try (ResultSet rs = call.apply(dbmd, schemaPattern, namePattern)) {
+                    while (rs.next()) {
+                        rows++;
+                    }
+                }
+                assertEquals(rows, expectedRows, method + " returned the wrong number of rows for schemaPattern="
+                        + schemaPattern + ", namePattern=" + namePattern);
+            } finally {
+                dropQuotedNameFixture(conn);
+            }
+        }
+    }
+
+    /** Deliberately contains a single quote, and no {@code _} so that LIKE matches it exactly. */
+    private static final String QUOTED_NAME_SCHEMA = "mdquotea'b";
+
+    private static final String QUOTED_NAME_TABLE = "t'1";
+
+    private static void createQuotedNameFixture(Connection conn) throws SQLException {
+        try (Statement stmt = conn.createStatement()) {
+            stmt.executeUpdate("DROP DATABASE IF EXISTS `mdquotea'b`");
+            stmt.executeUpdate("CREATE DATABASE `mdquotea'b`");
+            stmt.executeUpdate("CREATE TABLE `mdquotea'b`.`t'1` (id Int32, v String) ENGINE MergeTree ORDER BY id");
+        }
+    }
+
+    private static void dropQuotedNameFixture(Connection conn) throws SQLException {
+        try (Statement stmt = conn.createStatement()) {
+            stmt.executeUpdate("DROP DATABASE IF EXISTS `mdquotea'b`");
+        }
+    }
+
     @Test(groups = { "integration" })
     public void testGetSchemas() throws Exception {
         try (Connection conn = getJdbcConnection()) {
@@ -621,6 +719,48 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
             }
 
             assertTrue(defaultSchemaFound);
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testGetSchemasOrderedBySchemaName() throws Exception {
+        List<String> schemas = new ArrayList<>();
+        try (Connection conn = getJdbcConnection(); ResultSet rs = conn.getMetaData().getSchemas()) {
+            while (rs.next()) {
+                schemas.add(rs.getString("TABLE_SCHEM"));
+            }
+        }
+        assertTrue(schemas.containsAll(Arrays.asList(getDatabase(), "system")), schemas.toString());
+        List<String> sortedSchemas = new ArrayList<>(schemas);
+        Collections.sort(sortedSchemas);
+        assertEquals(schemas, sortedSchemas);
+    }
+
+    @DataProvider(name = "temporaryTableSchemaPatterns")
+    public Object[][] temporaryTableSchemaPatterns() {
+        return new Object[][] {{null, true}, {"", true}, {"%", true}, {getDatabase(), false}};
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "temporaryTableSchemaPatterns")
+    public void testGetColumnsOfTemporaryTable(String schemaPattern, boolean expected) throws Exception {
+        if (isCloud()) {
+            throw new SkipException("HTTP sessions require server affinity");
+        }
+        final String tableName = "metadata_temporary_table";
+        Properties props = new Properties();
+        props.setProperty(ClientConfigProperties.serverSetting("session_id"), tableName + "_" + UUID.randomUUID());
+        try (Connection conn = getJdbcConnection(props)) {
+            try (Statement stmt = conn.createStatement()) {
+                stmt.executeUpdate("CREATE TEMPORARY TABLE " + tableName + " (id Int32)");
+            }
+            try (ResultSet rs = conn.getMetaData().getColumns(null, schemaPattern, tableName, null)) {
+                assertEquals(rs.next(), expected);
+                if (expected) {
+                    assertEquals(rs.getString("TABLE_SCHEM"), "");
+                    assertEquals(rs.getString("COLUMN_NAME"), "id");
+                    assertFalse(rs.next());
+                }
+            }
         }
     }
 

@@ -122,7 +122,7 @@ public abstract class SqlParserFacade {
                 }
             }
 
-            stmt.setUseFunction(parsedStmt.isFuncUsed());
+            stmt.setUseFunction(stmt.isUseFunction() || parsedStmt.isFuncUsed());
             parseParameters(sql, stmt);
             discardValuesListPositionsNotMatchingOriginalSql(sql, stmt);
             return stmt;
@@ -435,6 +435,12 @@ public abstract class SqlParserFacade {
             public void enterAssignmentValuesList(ClickHouseParser.AssignmentValuesListContext ctx) {
                 parsedStatement.setAssignValuesListStartPosition(ctx.getStart().getStartIndex());
                 parsedStatement.setAssignValuesListStopPosition(ctx.getStop().getStopIndex());
+                for (ClickHouseParser.AssignmentValueContext value : ctx.assignmentValue()) {
+                    if (!(value instanceof ClickHouseParser.InsertParameterContext)) {
+                        parsedStatement.setUseFunction(true);
+                        break;
+                    }
+                }
             }
 
             @Override

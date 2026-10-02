@@ -833,6 +833,7 @@ Key JDBC-specific properties (see [`DriverProperties`](../jdbc-v2/src/main/java/
 | `jdbc_type_mappings` | — | Custom ClickHouse → Java type overrides |
 | `default_query_settings` | — | Default settings for all queries |
 | `jdbc_metrics_recorder` | — | Custom `MetricsRecorder` implementation class name |
+| `jdbc_metadata_use_show_statements` | `true` | `DatabaseMetaData` schemas, tables and columns via `SHOW` / `DESCRIBE` instead of `system.*` tables |
 
 
 ## Observability & Monitoring
