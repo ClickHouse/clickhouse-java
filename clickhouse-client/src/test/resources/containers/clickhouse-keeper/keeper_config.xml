@@ -1,8 +1,10 @@
 <clickhouse>
     <logger>
         <level>warning</level>
-        <console>true</console>
+        <console>1</console>
     </logger>
+    <!-- Keeper listens on localhost only when listen_host is omitted, so other containers cannot connect. -->
+    <listen_host>0.0.0.0</listen_host>
     <keeper_server>
         <tcp_port>9181</tcp_port>
         <server_id>1</server_id>
