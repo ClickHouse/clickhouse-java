@@ -31,7 +31,7 @@ Feature work and big changes must be discussed through an issue, and the impleme
 - what user-visible behavior will change
 - what compatibility risks exist
 - what tests will prove the behavior
-- whether documentation, `CHANGELOG.md`, or `docs/features.md` needs to change
+- whether documentation, new file about change in `/history/latest`, or `docs/features.md` needs to change
 
 Please review our (AI Policy)[AI_POLICY.MD] if you are using AI tools. Special attention should be paid to tests because they are the main guardrails for code changes. 
 
@@ -75,7 +75,7 @@ Steps:
   - Include compatibility impact
 - Run self-review of the code (personally or by AI). This reduces PR time.
 - Run tests locally. IMPORTANT: We skip PR that has failed CI and ask to fix it.  
-- Update `CHANGELOG.md` shortly with what was the problem and how fixed. Add link to the issue. 
+- Add change record as separate file with name `<issue ref number>.md` to `/history/latest` shortly with what was the problem and how fixed. Add link to the issue. 
 - Update `docs/features.md` when `client-v2` or `jdbc-v2` feature was added, removed, or intentionally behaviour change. This file helps to review code. 
 
 Use `docs/review-template.md` as a reference for what reviewers will look for when assessing important changes.
