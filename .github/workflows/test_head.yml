@@ -37,8 +37,10 @@ jobs:
           distribution: 'temurin'
           architecture: x64
       - name: Test Java client
+        env:
+          TEST_CLICKHOUSE_IMAGE_VERSION: ${{ env.CH_VERSION }}
         run: |
-          mvn --also-make --batch-mode --no-transfer-progress --projects ${{ matrix.project }} -DclickhouseVersion=$CH_VERSION -Dmaven.javadoc.skip=true clean install
+          mvn --also-make --batch-mode --no-transfer-progress --projects ${{ matrix.project }} -Dmaven.javadoc.skip=true clean install
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: failure()
@@ -68,10 +70,12 @@ jobs:
           architecture: x64
       - name: Build
         run: |
-          mvn --also-make --batch-mode --no-transfer-progress -DclickhouseVersion=$CH_VERSION -Dmaven.javadoc.skip=true -DskipTests=true clean install
+          mvn --also-make --batch-mode --no-transfer-progress -Dmaven.javadoc.skip=true -DskipTests=true clean install
       - name: Test R2DBC ${{ matrix.r2dbc }}
+        env:
+          TEST_CLICKHOUSE_IMAGE_VERSION: ${{ env.CH_VERSION }}
         run: |
-          mvn --batch-mode --no-transfer-progress --projects clickhouse-r2dbc -DclickhouseVersion=$CH_VERSION \
+          mvn --batch-mode --no-transfer-progress --projects clickhouse-r2dbc \
             -D'r2dbc-spi.version=${{ matrix.r2dbc }}' -Dprotocol=${{ matrix.protocol }} -Dmaven.javadoc.skip=true clean install
       - name: Upload test results
         uses: actions/upload-artifact@v4

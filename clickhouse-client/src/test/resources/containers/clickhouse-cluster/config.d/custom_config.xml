@@ -1,0 +1,87 @@
+<clickhouse>
+    <http_port>8123</http_port>
+    <https_port>8443</https_port>
+    <tcp_port>9000</tcp_port>
+    <tcp_port_secure>9440</tcp_port_secure>
+    <mysql_port>9004</mysql_port>
+    <postgresql_port>9005</postgresql_port>
+    <interserver_http_port>9009</interserver_http_port>
+    <interserver_http_host from_env="CLICKHOUSE_INTERSERVER_HOST"/>
+    <grpc_port>9100</grpc_port>
+    <kerberos />
+    <openSSL replace="1">
+        <server>
+            <certificateFile>/etc/clickhouse-server/certs/localhost.crt</certificateFile>
+            <privateKeyFile>/etc/clickhouse-server/certs/localhost.key</privateKeyFile>
+            <verificationMode>relaxed</verificationMode>
+            <caConfig>/etc/clickhouse-server/certs/marsnet_ca.crt</caConfig>
+            <cacheSessions>true</cacheSessions>
+            <disableProtocols>sslv2,sslv3</disableProtocols>
+            <preferServerCiphers>true</preferServerCiphers>
+        </server>
+        <client>
+            <loadDefaultCAFile>false</loadDefaultCAFile>
+            <caConfig>/etc/clickhouse-server/certs/marsnet_ca.crt</caConfig>
+            <cacheSessions>true</cacheSessions>
+            <disableProtocols>sslv2,sslv3</disableProtocols>
+            <preferServerCiphers>true</preferServerCiphers>
+            <verificationMode>relaxed</verificationMode>
+            <invalidCertificateHandler>
+                <name>RejectCertificateHandler</name>
+            </invalidCertificateHandler>
+        </client>
+    </openSSL>
+
+    <custom_settings_prefixes>custom_</custom_settings_prefixes>
+
+    <!-- One shard, three replicas. Nginx may send a query to any of them. -->
+    <remote_servers>
+        <test_cluster>
+            <shard>
+                <internal_replication>true</internal_replication>
+                <replica>
+                    <host>clickhouse-1</host>
+                    <port>9000</port>
+                    <user>default</user>
+                    <password>test_default_password</password>
+                </replica>
+                <replica>
+                    <host>clickhouse-2</host>
+                    <port>9000</port>
+                    <user>default</user>
+                    <password>test_default_password</password>
+                </replica>
+                <replica>
+                    <host>clickhouse-3</host>
+                    <port>9000</port>
+                    <user>default</user>
+                    <password>test_default_password</password>
+                </replica>
+            </shard>
+        </test_cluster>
+    </remote_servers>
+
+    <distributed_ddl>
+        <path>/clickhouse/task_queue/ddl</path>
+    </distributed_ddl>
+
+    <format_schema_path>/var/lib/clickhouse/format_schemas/</format_schema_path>
+
+    <macros>
+        <cluster>test_cluster</cluster>
+        <shard>s1</shard>
+        <replica from_env="CLICKHOUSE_REPLICA"/>
+    </macros>
+
+    <default_replica_path>/clickhouse/databases/{uuid}</default_replica_path>
+    <default_replica_name>{replica}</default_replica_name>
+
+    <zookeeper>
+        <node>
+            <host>clickhouse-keeper</host>
+            <port>9181</port>
+        </node>
+    </zookeeper>
+
+    <allow_experimental_transactions>42</allow_experimental_transactions>
+</clickhouse>

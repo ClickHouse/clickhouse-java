@@ -139,36 +139,35 @@ Compile examples or packaging modules when your change affects examples, packagi
 
 Unit tests do not require a running ClickHouse server. Relevant unit tests should pass locally before a PR is submitted.
 
-Integration tests usually require [Docker](https://docs.docker.com/engine/install/). The Docker image defaults to `clickhouse/clickhouse-server`, and containers are created automatically by [testcontainers](https://www.testcontainers.org/). To test against a specific ClickHouse version, pass a Maven parameter such as:
+Integration tests usually require [Docker](https://docs.docker.com/engine/install/). The Docker image defaults to `clickhouse/clickhouse-server`, and containers are created automatically by [testcontainers](https://www.testcontainers.org/). Configuration is read from environment variables prefixed with `TEST_`:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `TEST_CLICKHOUSE_CONTAINER` | `single` | `single` starts one server, `cluster` starts three servers behind nginx, `none` starts nothing |
+| `TEST_CLICKHOUSE_IMAGE_VERSION` | | Image tag used when a container is started, for example `24.8` |
+| `TEST_CLICKHOUSE_IMAGE` | `clickhouse/clickhouse-server` | Image repository |
+| `TEST_CLICKHOUSE_HOST` | `localhost` | Host used when no container is started |
+| `TEST_CLICKHOUSE_USER` | `default` | User name |
+| `TEST_CLICKHOUSE_PASSWORD` | `test_default_password` | Password |
+| `TEST_CLICKHOUSE_SECURE` | `false` | `true` uses HTTPS on port 8443 (ClickHouse Cloud) |
+| `TEST_CLICKHOUSE_TIMEZONE` | `UTC` | Timezone inside a started container |
+| `TEST_CLICKHOUSE_ADDITIONAL_PACKAGES` | | Extra apt packages installed into the image |
+| `TEST_DB_NAME` | generated | Database name. An external name must start with `clickhouse_java_test_` |
+| `TEST_PROXY_ADDRESS` | | External proxy as `host:port` |
+| `TEST_PROXY_IMAGE` | `ghcr.io/shopify/toxiproxy:2.5.0` | Toxiproxy image |
+
+To test against a specific ClickHouse version:
 
 ```bash
-mvn -pl <module> test -DclickhouseVersion=23.3
+TEST_CLICKHOUSE_IMAGE_VERSION=24.8 mvn -pl <module> test
 ```
 
-If you do not want to use Docker, or you prefer to test against an existing server:
+To use an existing server instead of Docker, set `TEST_CLICKHOUSE_CONTAINER=none` and point `TEST_CLICKHOUSE_HOST` at that server. The server must accept `TEST_CLICKHOUSE_USER` / `TEST_CLICKHOUSE_PASSWORD` (defaults: `default` / `test_default_password`) with DDL and DML privileges. For ClickHouse Cloud also set `TEST_CLICKHOUSE_SECURE=true`.
 
-- make sure the server can be accessed with the default account, user `default` and no password, with both DDL and DML privileges
-- add the test server configuration files and expose all default ports:
-  - [ports.xml](clickhouse-client/src/test/resources/containers/clickhouse-server/config.d/ports.xml)
-  - [users.xml](clickhouse-client/src/test/resources/containers/clickhouse-server/users.d/users.xml)
-- make sure the ClickHouse binary, usually `/usr/bin/clickhouse`, is available in `PATH` for `clickhouse-cli-client` tests
-- put `test.properties` under either `~/.clickhouse` or the module's `src/test/resources`
-
-Example `test.properties`:
-
-```properties
-# ClickHouse server for integration tests
-clickhouseServer=x.x.x.x
-
-# Custom HTTP proxy for integration tests
-proxyAddress=<host>:<port>
-
-# Properties below are only useful for testcontainers
-#clickhouseVersion=latest
-#clickhouseTimezone=UTC
-#clickhouseImage=clickhouse/clickhouse-server
-#additionalPackages=
-#proxyImage=ghcr.io/shopify/toxiproxy:2.5.0
+```bash
+TEST_CLICKHOUSE_CONTAINER=none \
+TEST_CLICKHOUSE_HOST=127.0.0.1 \
+mvn -pl <module> test
 ```
 
 TBD: document a dockerized development environment for running the standard local test suite.
