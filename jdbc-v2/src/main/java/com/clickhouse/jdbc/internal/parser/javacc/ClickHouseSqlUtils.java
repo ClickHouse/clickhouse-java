@@ -77,7 +77,9 @@ public final class ClickHouseSqlUtils {
                 // Appended 09/10/2026
                 "AGGREGATE", "BOUNDED", "EXTEND", "HANDLER", "IDLE", "PROTOCOL", "RECENT", "TIMEOUT", "UNORDERED",
                 // Appended 09/29/2026
-                "FAMILIES", "INCREMENTAL", "METRIC", "PROJECTIONS", "TOKEN"
+                "FAMILIES", "INCREMENTAL", "METRIC", "PROJECTIONS", "TOKEN",
+                // Appended 10/05/2026
+                "LATERAL", "SIMILAR"
             );
     }
 

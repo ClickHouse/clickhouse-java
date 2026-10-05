@@ -679,7 +679,8 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 client.queryAll("select 1");
                 fail("Exception expected");
             } catch (ClientException e) {
-                Assert.assertTrue(e.getCause().getMessage().contains("no handle /some-path?"));
+                Assert.assertTrue(e.getCause() instanceof ServerException, "cause should be " + ServerException.class + " but was " + e.getCause().getClass());
+                Assert.assertEquals(((ServerException)e.getCause()).getTransportProtocolCode(), 404, "Transport code should be NOT_FOUND 404");
             }
         }
     }
