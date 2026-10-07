@@ -1474,7 +1474,7 @@ public class QueryTests extends BaseIntegrationTest {
         testDataTypes(columns, valueGenerators, verifiers, Collections.emptyMap());
     }
     void testDataTypes(List<String> columns, List<Supplier<String>> valueGenerators, List<Consumer<ClickHouseBinaryFormatReader>> verifiers, Map<String, String> serverSettings) {
-        final String table = "data_types_test_table";
+    	final String table = "data_types_test_table";
 
         try {
             // Drop table
@@ -1491,7 +1491,7 @@ public class QueryTests extends BaseIntegrationTest {
                 createStmtBuilder.append(column).append(", ");
             }
             createStmtBuilder.setLength(createStmtBuilder.length() - 2);
-            createStmtBuilder.append(") ENGINE = MergeTree ORDER BY tuple()");
+            createStmtBuilder.append(") ENGINE = ").append(ClickHouseServerForTest.isCluster() ? "ReplicatedMergeTree" : "MergeTree").append(" ORDER BY tuple()");
             client.execute(createStmtBuilder.toString(), commandSettings).get(10, TimeUnit.SECONDS);
 
 
@@ -1523,10 +1523,10 @@ public class QueryTests extends BaseIntegrationTest {
         Future<QueryResponse> response = client.query(selectStmtBuilder.toString(), settings);
         TableSchema schema = client.getTableSchema(table);
 
-        try {
-            QueryResponse queryResponse = response.get();
+        try (QueryResponse queryResponse = response.get()) {
+        	
             ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(queryResponse, schema);
-            Assert.assertNotNull(reader.next());
+            Assert.assertNotNull(reader.next(), "Result is empty but should not");
             Assert.assertEquals(verifiers.size(), columns.size(), "Number of verifiers should match number of columns");
             int colIndex = 0;
             for (Consumer<ClickHouseBinaryFormatReader> verifier : verifiers) {
@@ -1686,7 +1686,8 @@ public class QueryTests extends BaseIntegrationTest {
                 createStmtBuilder.append(column).append(", ");
             }
             createStmtBuilder.setLength(createStmtBuilder.length() - 2);
-            createStmtBuilder.append(") ENGINE = MergeTree ORDER BY tuple()");
+            final String engine = ClickHouseServerForTest.isCluster() ? "ReplicatedMergeTree" : "MergeTree";
+            createStmtBuilder.append(") ENGINE = ").append(engine).append(" ORDER BY tuple()");
             client.execute(createStmtBuilder.toString(), settings).get(10, TimeUnit.SECONDS);
 
             // Insert data

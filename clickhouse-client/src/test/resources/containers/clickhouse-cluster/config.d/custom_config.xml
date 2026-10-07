@@ -1,5 +1,5 @@
 <clickhouse>
-    <http_port>8123</http_port>
+    <http_port>18123</http_port>
     <https_port>8443</https_port>
     <tcp_port>9000</tcp_port>
     <tcp_port_secure>9440</tcp_port_secure>
@@ -73,7 +73,7 @@
         <replica from_env="CLICKHOUSE_REPLICA"/>
     </macros>
 
-    <default_replica_path>/clickhouse/databases/{uuid}</default_replica_path>
+    <default_replica_path>/clickhouse/tables/{uuid}/{shard}</default_replica_path>
     <default_replica_name>{replica}</default_replica_name>
 
     <zookeeper>
@@ -82,6 +82,15 @@
             <port>9181</port>
         </node>
     </zookeeper>
+
+    <user_directories replace="replace">
+        <users_xml>
+            <path>/etc/clickhouse-server/users.xml</path>
+        </users_xml>
+        <replicated>
+            <zookeeper_path>/clickhouse/access/</zookeeper_path>
+        </replicated>
+    </user_directories>
 
     <allow_experimental_transactions>42</allow_experimental_transactions>
 </clickhouse>

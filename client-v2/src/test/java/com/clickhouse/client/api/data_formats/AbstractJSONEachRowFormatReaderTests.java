@@ -64,6 +64,7 @@ public abstract class AbstractJSONEachRowFormatReaderTests extends BaseIntegrati
                 .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isCloud())
                 .setUsername("default")
                 .setPassword(ClickHouseServerForTest.getPassword())
+                .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
                 .build()) {
 
             setupClient.execute("DROP TABLE IF EXISTS " + primitivesTable).get().close();
@@ -103,6 +104,7 @@ public abstract class AbstractJSONEachRowFormatReaderTests extends BaseIntegrati
                 .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isCloud())
                 .setUsername("default")
                 .setPassword(ClickHouseServerForTest.getPassword())
+                .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
                 .build()) {
             teardownClient.execute("DROP TABLE IF EXISTS " + primitivesTable).get().close();
         }
@@ -115,6 +117,7 @@ public abstract class AbstractJSONEachRowFormatReaderTests extends BaseIntegrati
                 .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isCloud())
                 .setUsername("default")
                 .setPassword(ClickHouseServerForTest.getPassword())
+                .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
                 .build();
     }
 

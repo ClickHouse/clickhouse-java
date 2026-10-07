@@ -77,8 +77,9 @@ public class ProxyTests extends BaseIntegrationTest{
         client.set(clientBuilder(initProxy(), false).build());
         addProxyStub();
 
+        client.get().execute("DROP TABLE IF EXISTS " + tableName).get();
         client.get().execute(createSQL).get();
-        client.get().register(SamplePOJO.class, client.get().getTableSchema(tableName, "default"));
+        client.get().register(SamplePOJO.class, client.get().getTableSchema(tableName));
         List<Object> simplePOJOs = new ArrayList<>();
 
         for (int i = 0; i < 1000; i++) {
@@ -217,6 +218,7 @@ public class ProxyTests extends BaseIntegrationTest{
                 .addEndpoint(Protocol.HTTP, "clickhouse", 8123, false)
                 .setUsername("default")
                 .setPassword(ClickHouseServerForTest.getPassword())
+                .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
                 .addProxy(ProxyType.HTTP, "localhost", proxyPort);
     }
 

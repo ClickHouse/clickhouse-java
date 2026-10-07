@@ -1,6 +1,6 @@
 <clickhouse>
     <logger>
-        <level>warning</level>
+        <level>information</level>
         <console>1</console>
     </logger>
     <!-- Keeper listens on localhost only when listen_host is omitted, so other containers cannot connect. -->

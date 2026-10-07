@@ -84,6 +84,21 @@ public class ClickHouseTestEnvironmentTest {
     }
 
     @Test(groups = { "unit" })
+    public void testVersionFallback() {
+        Map<String, String> values = new HashMap<String, String>();
+        values.put(ClickHouseTestEnvironment.VERSION, "26.9");
+        ClickHouseTestEnvironment environment = ClickHouseTestEnvironment.from(values);
+        Assert.assertEquals(environment.getImageRef(), "clickhouse/clickhouse-server:26.9");
+        Assert.assertEquals(environment.getClickHouseVersion(), "26.9");
+
+        // IMAGE_VERSION takes precedence over VERSION
+        values.put(ClickHouseTestEnvironment.IMAGE_VERSION, "25.8");
+        environment = ClickHouseTestEnvironment.from(values);
+        Assert.assertEquals(environment.getImageRef(), "clickhouse/clickhouse-server:25.8");
+        Assert.assertEquals(environment.getClickHouseVersion(), "25.8");
+    }
+
+    @Test(groups = { "unit" })
     public void testOldClickHouseImageInstallsTzdata() {
         ClickHouseTestEnvironment environment = ClickHouseTestEnvironment.from(
                 env(ClickHouseTestEnvironment.IMAGE_VERSION, "21.3"));

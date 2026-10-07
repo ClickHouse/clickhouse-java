@@ -82,8 +82,9 @@ public class DataTypeTests extends BaseIntegrationTest {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
         client = new Client.Builder()
                 .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isCloud())
-                .setUsername("default")
+                .setUsername(ClickHouseServerForTest.getUsername())
                 .setPassword(ClickHouseServerForTest.getPassword())
+                .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
                 .compressClientRequest(useClientCompression)
                 .useHttpCompression(useHttpCompression)
                 .build();
@@ -3231,6 +3232,7 @@ public class DataTypeTests extends BaseIntegrationTest {
                 .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isCloud())
                 .setUsername("default")
                 .setPassword(ClickHouseServerForTest.getPassword())
+                .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
                 .compressClientRequest(useClientCompression)
                 .useHttpCompression(useHttpCompression);
     }

@@ -144,7 +144,7 @@ Integration tests usually require [Docker](https://docs.docker.com/engine/instal
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `TEST_CLICKHOUSE_CONTAINER` | `single` | `single` starts one server, `cluster` starts three servers behind nginx, `none` starts nothing |
-| `TEST_CLICKHOUSE_IMAGE_VERSION` | | Image tag used when a container is started, for example `24.8` |
+| `TEST_CLICKHOUSE_IMAGE_VERSION` | | Image tag used when a container is started, for example `24.8` (`TEST_CLICKHOUSE_VERSION` is also accepted) |
 | `TEST_CLICKHOUSE_IMAGE` | `clickhouse/clickhouse-server` | Image repository |
 | `TEST_CLICKHOUSE_HOST` | `localhost` | Host used when no container is started |
 | `TEST_CLICKHOUSE_USER` | `default` | User name |
@@ -162,7 +162,7 @@ To test against a specific ClickHouse version:
 TEST_CLICKHOUSE_IMAGE_VERSION=24.8 mvn -pl <module> test
 ```
 
-To use an existing server instead of Docker, set `TEST_CLICKHOUSE_CONTAINER=none` and point `TEST_CLICKHOUSE_HOST` at that server. The server must accept `TEST_CLICKHOUSE_USER` / `TEST_CLICKHOUSE_PASSWORD` (defaults: `default` / `test_default_password`) with DDL and DML privileges. For ClickHouse Cloud also set `TEST_CLICKHOUSE_SECURE=true`.
+To use an existing server instead of Docker, set `TEST_CLICKHOUSE_CONTAINER=none` and point `TEST_CLICKHOUSE_HOST` at that server (defaults to port `8123`). The server must accept `TEST_CLICKHOUSE_USER` / `TEST_CLICKHOUSE_PASSWORD` (defaults: `default` / `test_default_password`) with DDL and DML privileges. When containers are started by tests, ClickHouse HTTP port is `18123` to avoid colliding with any locally running ClickHouse instance. For ClickHouse Cloud also set `TEST_CLICKHOUSE_SECURE=true`.
 
 ```bash
 TEST_CLICKHOUSE_CONTAINER=none \

@@ -2,11 +2,12 @@ package com.clickhouse.client;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.testcontainers.containers.Container;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 import org.testng.annotations.AfterSuite;
 import org.testng.annotations.BeforeSuite;
+
+import com.clickhouse.client.ClickHouseTestEnvironment.ContainerMode;
 
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
@@ -170,6 +171,10 @@ public class ClickHouseServerForTest {
         return environment.isSecure();
     }
 
+    public static boolean isCluster() {
+    	return environment.getContainerMode() == ContainerMode.CLUSTER;
+    }
+
     @BeforeSuite(groups = {"integration"})
     public static void beforeSuite() {
         if (starter != null) {
@@ -185,8 +190,8 @@ public class ClickHouseServerForTest {
                             .toString(), e);
                 }
             }
-            if (starter.isRunning() && !createDatabaseOnServers()) {
-                throw new RuntimeException("Failed to create database");
+            if (starter.isRunning()) {
+                createDatabaseOnServers();
             }
             return;
         }
@@ -215,26 +220,25 @@ public class ClickHouseServerForTest {
         return environment.getDatabase();
     }
 
-    private static boolean createDatabaseOnServers() {
+    private static void createDatabaseOnServers() {
         String database = getDatabase();
-        String cluster = starter.replicatedClusterName();
-        try {
-            if (cluster == null) {
-                return starter.execQueryOnServers("CREATE DATABASE IF NOT EXISTS `" + database + "`",
-                        getUsername(), getPassword());
+        Exception lastFailure = null;
+        for (int attempt = 1; attempt <= 10; attempt++) {
+            try {
+                starter.createDatabase(database, getUsername(), getPassword());
+                return;
+            } catch (Exception e) {
+                lastFailure = e;
+                LOGGER.warn("Creating database {} failed on attempt {}", database, attempt);
+                try {
+                    Thread.sleep(2000L);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
             }
-            String sql = "CREATE DATABASE IF NOT EXISTS `" + database + "` ON CLUSTER " + cluster
-                    + " ENGINE = Replicated('/clickhouse/databases/" + database + "', '{shard}', '{replica}')";
-            Container.ExecResult result = starter.execInContainer("clickhouse-client",
-                    "-u", getUsername(), "--password", getPassword(), "--query", sql);
-            if (result.getExitCode() != 0) {
-                LOGGER.error("query failed: stderr={}, stdout={}", result.getStderr(), result.getStdout());
-                return false;
-            }
-            return true;
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to create database", e);
         }
+        throw new RuntimeException("Failed to create database " + database, lastFailure);
     }
 
     public static boolean runQuery(String sql) {
@@ -277,7 +281,10 @@ public class ClickHouseServerForTest {
 
     private static Endpoint resolve(ClickHouseProtocol protocol, int port, boolean applyOverride) {
         if (starter != null) {
-            return new Endpoint(starter.getHost(), starter.getMappedPort(port));
+            int containerPort = (port == ClickHouseProtocol.HTTP.getDefaultPort())
+                    ? ClickHouseContainerStarter.HTTP_PORT
+                    : port;
+            return new Endpoint(starter.getHost(), starter.getMappedPort(containerPort));
         }
         if (applyOverride) {
             String override = environment.portOverride(protocol);

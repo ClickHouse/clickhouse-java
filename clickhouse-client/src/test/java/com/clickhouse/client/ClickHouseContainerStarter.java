@@ -23,6 +23,8 @@ import static java.time.temporal.ChronoUnit.SECONDS;
 public abstract class ClickHouseContainerStarter {
     private static final Logger LOGGER = LoggerFactory.getLogger(ClickHouseContainerStarter.class);
 
+    public static final int HTTP_PORT = 18123;
+
     static final String FRONTEND_ALIAS = "clickhouse";
     static final String CONTAINER_TMP_DIR = "/tmp";
     private static final String CUSTOM_DIRECTORY = "/custom";
@@ -72,19 +74,29 @@ public abstract class ClickHouseContainerStarter {
     }
 
     /**
-     * Runs a query inside every ClickHouse server.
+     * Creates the test database. A cluster creates one Replicated database, with each
+     * node joining as its own replica of shard {@code s1}.
      */
-    public final boolean execQueryOnServers(String sql, String user, String password) throws Exception {
-        boolean succeeded = true;
-        for (GenericContainer<?> server : clickHouseServers()) {
-            Container.ExecResult result = server.execInContainer("clickhouse-client",
-                    "-u", user, "--password", password, "--query", sql);
-            if (result.getExitCode() != 0) {
-                LOGGER.error("query failed: stderr={}, stdout={}", result.getStderr(), result.getStdout());
-                succeeded = false;
-            }
+    public final void createDatabase(String database, String user, String password) throws Exception {
+        if (replicatedClusterName() == null) {
+            execQuery("CREATE DATABASE IF NOT EXISTS `" + database + "`", user, password, clickHouseServers().get(0));
+            return;
         }
-        return succeeded;
+        List<GenericContainer<?>> servers = clickHouseServers();
+        for (int index = 0; index < servers.size(); index++) {
+            String sql = "CREATE DATABASE IF NOT EXISTS `" + database + "` ENGINE = Replicated("
+                    + "'/clickhouse/databases/" + database + "', 's1', 'r" + (index + 1) + "')";
+            execQuery(sql, user, password, servers.get(index));
+        }
+    }
+
+    private static void execQuery(String sql, String user, String password, GenericContainer<?> server) throws Exception {
+        Container.ExecResult result = server.execInContainer("clickhouse-client",
+                "-u", user, "--password", password, "--query", sql);
+        if (result.getExitCode() != 0) {
+            throw new IllegalStateException("Failed to execute [" + sql + "]: " + result.getStderr()
+                    + result.getStdout());
+        }
     }
 
     protected abstract List<GenericContainer<?>> clickHouseServers();
@@ -121,7 +133,7 @@ public abstract class ClickHouseContainerStarter {
                 .withEnv("TZ", environment.getTimezone())
                 .withExposedPorts(
                         ClickHouseProtocol.GRPC.getDefaultPort(),
-                        ClickHouseProtocol.HTTP.getDefaultPort(),
+                        HTTP_PORT,
                         ClickHouseProtocol.HTTP.getDefaultSecurePort(),
                         ClickHouseProtocol.MYSQL.getDefaultPort(),
                         ClickHouseProtocol.TCP.getDefaultPort(),
@@ -142,7 +154,7 @@ public abstract class ClickHouseContainerStarter {
                     .withClasspathResourceMapping("containers/clickhouse-cluster/users.d/cluster_quorum.xml",
                             CUSTOM_DIRECTORY + "/users.d/cluster_quorum.xml", BindMode.READ_ONLY);
         }
-        return container.waitingFor(Wait.forHttp("/ping").forPort(ClickHouseProtocol.HTTP.getDefaultPort())
+        return container.waitingFor(Wait.forHttp("/ping").forPort(HTTP_PORT)
                 .forStatusCode(200).withStartupTimeout(Duration.of(600, SECONDS)));
     }
 
@@ -158,13 +170,13 @@ public abstract class ClickHouseContainerStarter {
                 .withClasspathResourceMapping(configResource, "/etc/nginx/nginx.conf", BindMode.READ_ONLY)
                 .withExposedPorts(
                         ClickHouseProtocol.GRPC.getDefaultPort(),
-                        ClickHouseProtocol.HTTP.getDefaultPort(),
+                        HTTP_PORT,
                         ClickHouseProtocol.HTTP.getDefaultSecurePort(),
                         ClickHouseProtocol.MYSQL.getDefaultPort(),
                         ClickHouseProtocol.TCP.getDefaultPort(),
                         ClickHouseProtocol.TCP.getDefaultSecurePort(),
                         ClickHouseProtocol.POSTGRESQL.getDefaultPort())
-                .waitingFor(Wait.forHttp("/ping").forPort(ClickHouseProtocol.HTTP.getDefaultPort())
+                .waitingFor(Wait.forHttp("/ping").forPort(HTTP_PORT)
                         .forStatusCode(200).withStartupTimeout(Duration.of(600, SECONDS)));
     }
 

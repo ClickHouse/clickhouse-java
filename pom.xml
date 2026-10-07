@@ -148,7 +148,7 @@
         <jackson.version>2.22.0</jackson.version>
         <jackson.version.annotations>2.22</jackson.version.annotations>
 
-        <minTargetJdk>17</minTargetJdk>
+        <minTargetJdk>1.8</minTargetJdk>
         <minSourceJdk>1.8</minSourceJdk>
         <javadoc.source.version>1.8</javadoc.source.version>
         <skipTests>false</skipTests>
@@ -551,7 +551,7 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <configuration>
                     <source>${minSourceJdk}</source>
-                    <target>${minSourceJdk}</target>
+                    <target>${minTargetJdk}</target>
                     <showWarnings>true</showWarnings>
                     <compilerArgs>
                         <arg>-Xlint:all</arg>

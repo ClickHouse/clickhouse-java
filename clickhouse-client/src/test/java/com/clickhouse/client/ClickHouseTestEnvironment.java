@@ -13,6 +13,7 @@ final class ClickHouseTestEnvironment {
     static final String CONTAINER = "TEST_CLICKHOUSE_CONTAINER";
     static final String IMAGE = "TEST_CLICKHOUSE_IMAGE";
     static final String IMAGE_VERSION = "TEST_CLICKHOUSE_IMAGE_VERSION";
+    static final String VERSION = "TEST_CLICKHOUSE_VERSION";
     static final String HOST = "TEST_CLICKHOUSE_HOST";
     static final String USER = "TEST_CLICKHOUSE_USER";
     static final String PASSWORD = "TEST_CLICKHOUSE_PASSWORD";
@@ -105,6 +106,9 @@ final class ClickHouseTestEnvironment {
             imageName = DEFAULT_IMAGE;
         }
         String requestedVersion = value(source, IMAGE_VERSION);
+        if (requestedVersion == null) {
+            requestedVersion = value(source, VERSION);
+        }
         String clickHouseVersion;
         String imageRef;
         int tagIndex = imageName.indexOf(':');

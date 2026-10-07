@@ -31,17 +31,21 @@ final class ClusterClickHouseContainerStarter extends ClickHouseContainerStarter
         String baseName = environment.getContainerName();
         this.keeper = new GenericContainer<>(environment.getImageRef())
                 .withCreateContainerCmdModifier(command -> {
+                    command.withEntrypoint("/bin/sh");
                     if (baseName != null) {
                         command.withName(baseName + "-keeper");
                     }
                 })
                 .withNetwork(network)
                 .withNetworkAliases("clickhouse-keeper")
-                .withCommand("clickhouse-keeper", "--config-file=/etc/clickhouse-keeper/keeper_config.xml")
+                .withCommand("-c", "mkdir -p /var/lib/clickhouse/coordination/log"
+                        + " /var/lib/clickhouse/coordination/snapshots"
+                        + " && exec clickhouse-keeper --config-file=/etc/clickhouse-keeper/keeper_config.xml")
                 .withClasspathResourceMapping(KEEPER_CONFIG, "/etc/clickhouse-keeper/keeper_config.xml",
                         BindMode.READ_ONLY)
                 .withExposedPorts(KEEPER_PORT)
-                .waitingFor(Wait.forListeningPort().withStartupTimeout(Duration.of(120, SECONDS)));
+                .waitingFor(Wait.forLogMessage(".*Listening for.*", 1)
+                        .withStartupTimeout(Duration.of(120, SECONDS)));
 
         List<GenericContainer<?>> created = new ArrayList<GenericContainer<?>>(NODE_COUNT);
         for (int index = 1; index <= NODE_COUNT; index++) {
