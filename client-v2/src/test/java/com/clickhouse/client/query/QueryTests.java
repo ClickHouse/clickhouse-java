@@ -2208,7 +2208,7 @@ public class QueryTests extends BaseIntegrationTest {
         CommandSettings commandSettings = new CommandSettings();
         commandSettings.serverSetting("allow_experimental_json_type", "1");
         client.execute("DROP TABLE IF EXISTS test_json_values", commandSettings).get(1, TimeUnit.SECONDS);
-        client.execute("CREATE TABLE test_json_values (json JSON) ENGINE = MergeTree ORDER BY ()", commandSettings).get(1, TimeUnit.SECONDS);
+        client.execute("CREATE TABLE test_json_values (json JSON)", commandSettings).get(1, TimeUnit.SECONDS);
         client.execute("INSERT INTO test_json_values VALUES ('{\"a\" : {\"b\" : 42}, \"c\" : [1, 2, 3]}')", commandSettings).get(1, TimeUnit.SECONDS);
 
 
@@ -2258,9 +2258,10 @@ public class QueryTests extends BaseIntegrationTest {
     public void testReadingSimpleAggregateFunction() throws Exception {
         final String tableName = "simple_aggregate_function_test_table";
         client.execute("DROP TABLE IF EXISTS " + tableName).get();
+        final String tableEngine = ClickHouseServerForTest.isCluster() ? "ReplicatedMergeTree" : "MergeTree";
         client.execute("CREATE TABLE `" + tableName + "` " +
                 "(idx UInt8, lowest_value SimpleAggregateFunction(min, UInt8), count SimpleAggregateFunction(sum, Int64), mp SimpleAggregateFunction(maxMap, Map(UInt8, UInt8))) " +
-                "ENGINE MergeTree ORDER BY ();").get();
+                "ENGINE " + tableEngine + " ORDER BY ();").get();
 
 
             try (InsertResponse response = client.insert(tableName, new ByteArrayInputStream("1\t2\t3\t{1:2}".getBytes(StandardCharsets.UTF_8)), ClickHouseFormat.TSV).get(30, TimeUnit.SECONDS)) {
@@ -2282,10 +2283,11 @@ public class QueryTests extends BaseIntegrationTest {
     @Test(groups = {"integration"})
     public void testReadingSimpleAggregateFunction2() throws Exception {
         final String tableName = "simple_aggregate_function_test_table";
+        final String tableEngine = ClickHouseServerForTest.isCluster() ? "ReplicatedMergeTree" : "MergeTree";
         client.execute("DROP TABLE IF EXISTS " + tableName).get();
         client.execute("CREATE TABLE `" + tableName + "` " +
                 "(idx UInt8, lowest_value SimpleAggregateFunction(min, UInt8), count SimpleAggregateFunction(sum, Int64), date SimpleAggregateFunction(anyLast, DateTime32)) " +
-                "ENGINE Memory;").get();
+                "ENGINE " + tableEngine + " ORDER BY ()").get();
 
 
         try (InsertResponse response = client.insert(tableName, new ByteArrayInputStream("1\t2\t3\t2024-12-22T12:00:00".getBytes(StandardCharsets.UTF_8)), ClickHouseFormat.TSV).get(30, TimeUnit.SECONDS)) {
