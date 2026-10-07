@@ -75,7 +75,7 @@ public abstract class AbstractJSONEachRowFormatReaderTests extends BaseIntegrati
             for (PrimitiveTypeCase c : PRIMITIVE_CASES) {
                 create.append(", ").append(c.columnName).append(' ').append(c.chType);
             }
-            create.append(") ENGINE = MergeTree ORDER BY id");
+            create.append(") ORDER BY id");
             setupClient.execute(create.toString()).get().close();
 
             StringBuilder insert = new StringBuilder("INSERT INTO ")

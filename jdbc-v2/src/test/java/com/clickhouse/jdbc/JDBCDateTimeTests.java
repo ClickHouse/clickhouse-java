@@ -52,7 +52,7 @@ public class JDBCDateTimeTests extends JdbcIntegrationTest {
         props.put(ClientConfigProperties.serverSetting("session_timezone"), "Asia/Tokyo");
         try (Connection conn = getJdbcConnection(props);
              Statement stmt = conn.createStatement()) {
-            stmt.executeUpdate("CREATE TABLE test_days_before_birthday_party (id Int32, birthdate Date32) Engine MergeTree ORDER BY()");
+            stmt.executeUpdate("CREATE TABLE test_days_before_birthday_party (id Int32, birthdate Date32) ORDER BY ()");
 
 
             try (PreparedStatement ps = conn.prepareStatement("INSERT INTO test_days_before_birthday_party VALUES (?, ?)")) {
@@ -132,7 +132,7 @@ public class JDBCDateTimeTests extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection(props);
              Statement stmt = conn.createStatement()) {
 
-            stmt.executeUpdate("CREATE TABLE test_walk_time (id Int32, walk_time Time64(3)) Engine MergeTree ORDER BY()");
+            stmt.executeUpdate("CREATE TABLE test_walk_time (id Int32, walk_time Time64(3)) ORDER BY ()");
 
             final String walkTimeStr = DataTypeUtils.durationToTimeString(walkTime, 3);
             stmt.executeUpdate("INSERT INTO test_walk_time VALUES (1, '" + walkTimeStr + "')");
@@ -176,7 +176,7 @@ public class JDBCDateTimeTests extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection(props);
              Statement stmt = conn.createStatement()) {
 
-            stmt.executeUpdate("CREATE TABLE test_laps_time (racerId Int32, lapId Int32, lapTime Time64(3)) Engine MergeTree ORDER BY()");
+            stmt.executeUpdate("CREATE TABLE test_laps_time (racerId Int32, lapId Int32, lapTime Time64(3)) ORDER BY ()");
 
             Object[][] dataset = new Object[][]{
                     {
@@ -236,7 +236,7 @@ public class JDBCDateTimeTests extends JdbcIntegrationTest {
              Statement stmt = conn.createStatement())   {
 
             stmt.executeUpdate("DROP TABLE IF EXISTS test_date_in_range");
-            stmt.executeUpdate("CREATE TABLE test_date_in_range ( id UInt32, d Date) Engine MergeTree ORDER BY()");
+            stmt.executeUpdate("CREATE TABLE test_date_in_range ( id UInt32, d Date) ORDER BY ()");
             stmt.executeUpdate("INSERT INTO test_date_in_range VALUES (1, '2025-01-01') , (2, '2025-02-01') , (3, '2025-02-03')");
 
             try (PreparedStatement pStmt = conn.prepareStatement("SELECT * FROM test_date_in_range WHERE d IN (?) ORDER BY id")){
@@ -274,7 +274,7 @@ public class JDBCDateTimeTests extends JdbcIntegrationTest {
              Statement stmt = conn.createStatement()) {
 
             stmt.executeUpdate("DROP TABLE IF EXISTS test_timestamp_in_range");
-            stmt.executeUpdate("CREATE TABLE test_timestamp_in_range (id UInt32, ts DateTime) Engine MergeTree ORDER BY()");
+            stmt.executeUpdate("CREATE TABLE test_timestamp_in_range (id UInt32, ts DateTime) ORDER BY ()");
             stmt.executeUpdate("INSERT INTO test_timestamp_in_range VALUES " +
                     "(1, '2025-01-01 08:00:00'), (2, '2025-01-01 12:00:00'), (3, '2025-01-01 18:00:00'), (4, '2025-01-02 00:00:00')");
 

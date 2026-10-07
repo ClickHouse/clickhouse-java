@@ -36,6 +36,6 @@ public class PojoWithJSON {
     }
 
     public static String createTable(String tableName) {
-        return "CREATE TABLE " + tableName + " (eventPayload JSON) ENGINE = MergeTree() ORDER BY tuple()";
+        return "CREATE TABLE " + tableName + " (eventPayload JSON) ORDER BY tuple()";
     }
 }

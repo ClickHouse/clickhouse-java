@@ -489,7 +489,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("DROP TABLE IF EXISTS " + table);
-                stmt.execute("CREATE TABLE " + table + " (v1 String) Engine MergeTree ORDER BY ()");
+                stmt.execute("CREATE TABLE " + table + " (v1 String) ORDER BY ()");
                 stmt.execute("INSERT INTO " + table + " VALUES ('A'), ('B')");
             }
             final Timestamp target_time = Timestamp.valueOf(LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS));
@@ -647,7 +647,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
     void testGetMetadata(String sql, int colCountBeforeExecution, Object[] values,
                          int colCountAfterExecution) throws Exception {
         String tableName = "test_get_metadata";
-        runQuery("CREATE TABLE IF NOT EXISTS " + tableName + " ( a1 String, b2 Float, b3 Float ) Engine=MergeTree ORDER BY ()");
+        runQuery("CREATE TABLE IF NOT EXISTS " + tableName + " ( a1 String, b2 Float, b3 Float ) ORDER BY ()");
 
         try (Connection conn = getJdbcConnection();
              PreparedStatement stmt = conn.prepareStatement(String.format(sql, tableName))) {
@@ -885,7 +885,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("DROP TABLE IF EXISTS " + table);
-                stmt.execute("CREATE TABLE " + table + " (s String, n Int32) Engine MergeTree ORDER BY ()");
+                stmt.execute("CREATE TABLE " + table + " (s String, n Int32) ORDER BY ()");
             }
             try (PreparedStatement stmt = conn.prepareStatement(
                     "INSERT INTO " + table + " (s, n) VALUES " + valuesList)) {
@@ -911,7 +911,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection(Map.of(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF))) {
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("DROP TABLE IF EXISTS " + table);
-                stmt.execute("CREATE TABLE " + table + " (s DateTime, n Int32) Engine MergeTree ORDER BY ()");
+                stmt.execute("CREATE TABLE " + table + " (s DateTime, n Int32) ORDER BY ()");
             }
             try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO " + table
                     + " (s, n) VALUES (toDateTime({ts '2024-01-01 00:00:00'}), ?)")) {
@@ -940,7 +940,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("DROP TABLE IF EXISTS " + table);
-                stmt.execute("CREATE TABLE " + table + " (s String, n Int32) Engine MergeTree ORDER BY ()");
+                stmt.execute("CREATE TABLE " + table + " (s String, n Int32) ORDER BY ()");
             }
             try (PreparedStatement stmt = conn.prepareStatement(
                     "INSERT INTO " + table + " (s, n) VALUES ($$a@b$$, ?)")) {
@@ -962,8 +962,8 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("CREATE TABLE IF NOT EXISTS `with_complex_id` (`v?``1` Int32, " +
-                        "\"v?\"\"2\" Int32,`v?\\`3` Int32, \"v?\\\"4\" Int32) ENGINE MergeTree ORDER BY ();");
-                stmt.execute("CREATE TABLE IF NOT EXISTS `test_stmt_split2` (v1 Int32, v2 String) ENGINE MergeTree ORDER BY (); ");
+                        "\"v?\"\"2\" Int32,`v?\\`3` Int32, \"v?\\\"4\" Int32) ORDER BY ();");
+                stmt.execute("CREATE TABLE IF NOT EXISTS `test_stmt_split2` (v1 Int32, v2 String) ORDER BY (); ");
                 stmt.execute("INSERT INTO `test_stmt_split2` VALUES (1, 'abc'), (2, '?'), (3, '?')");
             }
             String insertQuery = "-- line comment1 ?\n"
@@ -1095,7 +1095,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
 
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("CREATE TABLE IF NOT EXISTS " + table +
-                        " ( ts DateTime, v1 Int32, v2 Float32, v3 Int32) Engine MergeTree ORDER BY ()");
+                        " ( ts DateTime, v1 Int32, v2 Float32, v3 Int32) ORDER BY ()");
             }
 
             final int nBatches = 10;
@@ -1152,7 +1152,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
 
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("CREATE TABLE IF NOT EXISTS " + table +
-                        " ( ts DateTime DEFAULT now(), v1 Int32, v2 Float32, v3 Int32) Engine MergeTree ORDER BY ()");
+                        " ( ts DateTime DEFAULT now(), v1 Int32, v2 Float32, v3 Int32) ORDER BY ()");
             }
 
             final int nBatches = 10;
@@ -1203,7 +1203,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
 
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("CREATE TABLE IF NOT EXISTS " + table +
-                        " (v1 Int32, v2 Int32) Engine MergeTree ORDER BY tuple()");
+                        " (v1 Int32, v2 Int32) ORDER BY tuple()");
             }
 
             final int nBatches = 10;
@@ -1258,7 +1258,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
 
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("CREATE TABLE IF NOT EXISTS " + table +
-                        " (v1 Int32, v2 Int32) Engine MergeTree ORDER BY tuple()");
+                        " (v1 Int32, v2 Int32) ORDER BY tuple()");
             }
 
             final int nBatches = 10;
@@ -1310,7 +1310,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection(properties)) {
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("DROP TABLE IF EXISTS " + table);
-                stmt.execute("CREATE TABLE " + table + " (v1 Int32, v2 String) Engine MergeTree ORDER BY ()");
+                stmt.execute("CREATE TABLE " + table + " (v1 Int32, v2 String) ORDER BY ()");
             }
 
             try (PreparedStatement stmt = conn.prepareStatement(
@@ -1505,7 +1505,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("DROP TABLE IF EXISTS " + table);
                 stmt.execute("CREATE TABLE " + table +
-                        "(v1 Int32, v2 Map(String, String), v3 String, v4 Int32) Engine MergeTree ORDER BY (v1)");
+                        "(v1 Int32, v2 Map(String, String), v3 String, v4 Int32) ORDER BY (v1)");
             }
 
             Map<String, String> map1 = new LinkedHashMap<>();
@@ -1564,7 +1564,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                 stmt.execute("CREATE DATABASE IF NOT EXISTS " + db1Name);
                 stmt.execute("DROP TABLE IF EXISTS " + db1Name + "." + table1Name);
                 stmt.execute("CREATE TABLE " + db1Name + "." + table1Name +
-                        "(v1 Int32, v2 Int32) Engine MergeTree ORDER BY ()");
+                        "(v1 Int32, v2 Int32) ORDER BY ()");
             }
 
             String[] tableIdentifier = new String[]{
@@ -1592,7 +1592,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("DROP TABLE IF EXISTS " + table);
                 stmt.execute("CREATE TABLE " + table +
-                        "(v1 Int32, v2 Nullable(Int32)) Engine MergeTree ORDER BY ()");
+                        "(v1 Int32, v2 Nullable(Int32)) ORDER BY ()");
             }
 
             try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO " + table + " VALUES (?, ?)")) {
@@ -1653,7 +1653,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                 try (Statement stmt = conn.createStatement()) {
                     stmt.execute("DROP TABLE IF EXISTS " + table);
                     stmt.execute(
-"CREATE TABLE " + table + " (v1 Int32, v2 String) Engine MergeTree ORDER BY ()");
+"CREATE TABLE " + table + " (v1 Int32, v2 String) ORDER BY ()");
                     stmt.execute("INSERT INTO `" + table + "` VALUES (1000, 'test')");
                 }
 
@@ -1978,7 +1978,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("DROP TABLE IF EXISTS " + table);
-                stmt.execute("CREATE TABLE " + table + " (id Int32, d Date) Engine MergeTree ORDER BY id");
+                stmt.execute("CREATE TABLE " + table + " (id Int32, d Date) ORDER BY id");
             }
 
             // Test dates that are prone to day shift issues (near year boundaries, month boundaries)
@@ -2054,7 +2054,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("DROP TABLE IF EXISTS " + table);
-                stmt.execute("CREATE TABLE " + table + " (id Int32, d Date) Engine MergeTree ORDER BY id");
+                stmt.execute("CREATE TABLE " + table + " (id Int32, d Date) ORDER BY id");
             }
 
             java.sql.Date testDate = java.sql.Date.valueOf("2024-06-15");
@@ -2130,7 +2130,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
             String tmpTable = "tmp_no_result_" + RandomStringUtils.randomAlphanumeric(8);
             // PreparedStatement: execute() should return false, executeQuery() should throw
             try (PreparedStatement stmt = conn.prepareStatement(
-                    "CREATE TABLE " + tmpTable + " (x Int32) Engine MergeTree ORDER BY()")) {
+                    "CREATE TABLE " + tmpTable + " (x Int32) ORDER BY()")) {
                 Assert.assertFalse(stmt.execute(), "DDL should not produce a ResultSet");
                 Assert.assertNull(stmt.getResultSet(), "ResultSet should be null for DDL");
                 assertThrows(SQLException.class, stmt::executeQuery);
@@ -2139,11 +2139,11 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
             String tmpTable2 = "tmp_no_result_" + RandomStringUtils.randomAlphanumeric(8);
             try (Statement stmt = conn.createStatement()) {
                 Assert.assertFalse(
-                        stmt.execute("CREATE TABLE " + tmpTable2 + " (x Int32) Engine MergeTree ORDER BY()"),
+                        stmt.execute("CREATE TABLE " + tmpTable2 + " (x Int32) ORDER BY()"),
                         "DDL should not produce a ResultSet");
                 Assert.assertNull(stmt.getResultSet(), "ResultSet should be null for DDL");
                 assertThrows(SQLException.class,
-                        () -> stmt.executeQuery("CREATE TABLE " + tmpTable2 + " (x Int32) Engine MergeTree ORDER BY()"));
+                        () -> stmt.executeQuery("CREATE TABLE " + tmpTable2 + " (x Int32) ORDER BY()"));
             }
         }
     }
@@ -2166,7 +2166,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection(properties)) {
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("DROP TABLE IF EXISTS " + table);
-                stmt.execute("CREATE TABLE " + table + " (v1 String, v2 String) Engine MergeTree ORDER BY ()");
+                stmt.execute("CREATE TABLE " + table + " (v1 String, v2 String) ORDER BY ()");
             }
 
             try (PreparedStatement stmt = conn.prepareStatement(

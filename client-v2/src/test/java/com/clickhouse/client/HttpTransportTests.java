@@ -618,7 +618,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
             }
 
 
-            try (QueryResponse response = client.query("CREATE TABLE table_from_csv ENGINE MergeTree ORDER BY () AS SELECT * FROM file('empty.csv') ", querySettings)
+            try (QueryResponse response = client.query("CREATE TABLE table_from_csv ORDER BY () AS SELECT * FROM file('empty.csv') ", querySettings)
                     .get(1, TimeUnit.SECONDS)) {
                 Assert.fail("Expected exception");
             } catch (ServerException e) {
@@ -1144,7 +1144,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
             try (CommandResponse resp = client.execute("DROP TABLE IF EXISTS test_omm_table").get()) {
             }
-            try (CommandResponse resp = client.execute("CREATE TABLE test_omm_table ( val String) Engine = MergeTree ORDER BY () ").get()) {
+            try (CommandResponse resp = client.execute("CREATE TABLE test_omm_table ( val String) ORDER BY () ").get()) {
             }
 
             QuerySettings settings = new QuerySettings()

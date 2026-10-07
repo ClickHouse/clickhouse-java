@@ -42,7 +42,7 @@ public class SpanRecorderTest extends BaseIntegrationTest {
                 .setSpanRecorder(recorder)
                 .build();
         client.execute("DROP TABLE IF EXISTS " + TABLE).get();
-        client.execute("CREATE TABLE " + TABLE + " (id Int32, name String) ENGINE = MergeTree ORDER BY id").get();
+        client.execute("CREATE TABLE " + TABLE + " (id Int32, name String) ORDER BY id").get();
         client.execute("INSERT INTO " + TABLE + " VALUES (1, 'a'), (2, 'b'), (3, 'c')").get();
         recorder.clear();
     }

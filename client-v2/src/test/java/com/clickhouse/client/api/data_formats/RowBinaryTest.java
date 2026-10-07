@@ -43,8 +43,7 @@ public class RowBinaryTest extends BaseIntegrationTest {
                 "   v Int64 DEFAULT 10, " +
                 "   fingerPrint UInt64 DEFAULT xxHash64(name)," +
                 "   comments String" +
-                ") ENGINE = MergeTree()" +
-                "ORDER BY name;";
+                ") ORDER BY name;";
 
         try (Client client = newClient().build()){
 
@@ -81,7 +80,7 @@ public class RowBinaryTest extends BaseIntegrationTest {
                     "fstr_arr Array(FixedString(4)), " +
                     "str_arr Array(String), " +
                     "int_arr Array(Int32)" +
-                    ") ENGINE = MergeTree() ORDER BY tuple()");
+                    ") ORDER BY tuple()");
 
             client.execute("INSERT INTO " + table + " VALUES (" +
                     "[100, 200, 18000044073709551615], " +
@@ -166,7 +165,7 @@ public class RowBinaryTest extends BaseIntegrationTest {
             client.execute("CREATE TABLE " + table + " (" +
                     "arr2d_int Array(Array(Int64)), " +
                     "arr2d_str Array(Array(String))" +
-                    ") ENGINE = MergeTree() ORDER BY tuple()");
+                    ") ORDER BY tuple()");
 
             client.execute("INSERT INTO " + table + " VALUES (" +
                     "[[1, 2, 3], [4, 5]], " +
@@ -221,7 +220,7 @@ public class RowBinaryTest extends BaseIntegrationTest {
             client.execute("DROP TABLE IF EXISTS " + table);
             client.execute("CREATE TABLE " + table + " (" +
                     "arr3d Array(Array(Array(Int32)))" +
-                    ") ENGINE = MergeTree() ORDER BY tuple()");
+                    ") ORDER BY tuple()");
 
             client.execute("INSERT INTO " + table + " VALUES (" +
                     "[[[1, 2], [3]], [[4, 5, 6]]])");
@@ -280,7 +279,7 @@ public class RowBinaryTest extends BaseIntegrationTest {
             client.execute("CREATE TABLE " + table + " (" +
                     "empty_arr Array(Int32), " +
                     "empty_2d Array(Array(String))" +
-                    ") ENGINE = MergeTree() ORDER BY tuple()");
+                    ") ORDER BY tuple()");
 
             client.execute("INSERT INTO " + table + " VALUES ([], [])");
 
@@ -313,7 +312,7 @@ public class RowBinaryTest extends BaseIntegrationTest {
             client.execute("CREATE TABLE " + table + " (" +
                     "id UInt32, " +
                     "arr Array(UInt64)" +
-                    ") ENGINE = MergeTree() ORDER BY id");
+                    ") ORDER BY id");
 
             client.execute("INSERT INTO " + table + " VALUES " +
                     "(1, [100, 200]), " +

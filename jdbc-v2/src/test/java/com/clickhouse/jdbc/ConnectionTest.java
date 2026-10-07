@@ -413,7 +413,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
             final String tableName = "array_create_test";
             final String arrayType = "Array(" + baseType + ")";
             try (Statement stmt = conn.createStatement()) {
-                stmt.executeUpdate("CREATE TABLE " +tableName + " (v1 " + arrayType + ") ENGINE MergeTree ORDER BY ()");
+                stmt.executeUpdate("CREATE TABLE " +tableName + " (v1 " + arrayType + ") ORDER BY ()");
 
 
                 Struct tuple1 = conn.createStruct(baseType, new Object[]{"v1", (byte)10});
@@ -614,7 +614,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
             final String tableName = "test_struct_tuple";
             final String tupleType = "Tuple(Int8, String, DateTime64)";
             try (Statement stmt = conn.createStatement()) {
-                stmt.executeUpdate("CREATE TABLE " + tableName +" (v1 " + tupleType + ") ENGINE MergeTree ORDER BY ()");
+                stmt.executeUpdate("CREATE TABLE " + tableName +" (v1 " + tupleType + ") ORDER BY ()");
 
                 final java.sql.Timestamp timePart = Timestamp.valueOf(LocalDateTime.now(ZoneId.of("America/Los_Angeles")));
                 timePart.setNanos(333000000);

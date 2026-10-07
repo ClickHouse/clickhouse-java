@@ -396,7 +396,7 @@ public class ClickHouseNodeTest extends BaseIntegrationTest {
     public void testProbe() {
         // FIXME does not support ClickHouseProtocol.POSTGRESQL for now
         ClickHouseProtocol[] protocols = null;
-        if ( isCloud() ) {
+        if ( isCloud() || ClickHouseServerForTest.isCluster()) {
             protocols = new ClickHouseProtocol[]{
                     ClickHouseProtocol.HTTP
             };

@@ -279,7 +279,7 @@ public class InsertTests extends BaseIntegrationTest {
     public void insertRawData() throws Exception {
         final String tableName = "raw_data_table";
         final String createSQL = "CREATE TABLE " + tableName +
-                " (Id UInt32, event_ts Timestamp, name String, p1 Int64, p2 String) ENGINE = MergeTree() ORDER BY ()";
+                " (Id UInt32, event_ts Timestamp, name String, p1 Int64, p2 String) ORDER BY ()";
 
         initTable(tableName, createSQL);
 
@@ -311,7 +311,7 @@ public class InsertTests extends BaseIntegrationTest {
     public void insertRawDataAsync(boolean async) throws Exception {
         final String tableName = "raw_data_table_async";
         final String createSQL = "CREATE TABLE " + tableName +
-                " (Id UInt32, event_ts Timestamp, name String, p1 Int64, p2 String) ENGINE = MergeTree() ORDER BY ()";
+                " (Id UInt32, event_ts Timestamp, name String, p1 Int64, p2 String) ORDER BY ()";
 
         initTable(tableName, createSQL);
 
@@ -345,7 +345,7 @@ public class InsertTests extends BaseIntegrationTest {
     public void insertRawDataSimple(String tableName) throws Exception {
 //        final String tableName = "raw_data_table";
         final String createSql = String.format("CREATE TABLE IF NOT EXISTS %s " +
-                " (Id UInt32, event_ts Timestamp, name String, p1 Int64, p2 String) ENGINE = MergeTree() ORDER BY ()", tableName);
+                " (Id UInt32, event_ts Timestamp, name String, p1 Int64, p2 String) ORDER BY ()", tableName);
 
         initTable(tableName, createSql);
 
@@ -370,7 +370,7 @@ public class InsertTests extends BaseIntegrationTest {
     public void insertRawDataFewerColumns() throws Exception {
         final String tableName = "raw_data_select_columns_table";
         final String createSQL = "CREATE TABLE " + tableName +
-                " (Id UInt32, event_ts Timestamp, name String, p1 Int64, p2 String, p3 String, p4 Int8) ENGINE = MergeTree() ORDER BY ()";
+                " (Id UInt32, event_ts Timestamp, name String, p1 Int64, p2 String, p3 String, p4 Int8) ORDER BY ()";
         List<String> columnNames = Arrays.asList("Id", "event_ts", "name", "p1", "p2");
 
         initTable(tableName, createSQL);
@@ -404,7 +404,7 @@ public class InsertTests extends BaseIntegrationTest {
     public void testInsertMetricsOperationId() throws Exception {
         final String tableName = "insert_metrics_test";
         final String createSQL = "CREATE TABLE " + tableName +
-                                 " (Id UInt32, event_ts Timestamp, name String, p1 Int64, p2 String) ENGINE = MergeTree() ORDER BY ()";
+                                 " (Id UInt32, event_ts Timestamp, name String, p1 Int64, p2 String) ORDER BY ()";
 
         initTable(tableName, createSQL);
 
@@ -433,7 +433,7 @@ public class InsertTests extends BaseIntegrationTest {
         final String new_database = client.getDefaultDatabase() +  "_new_database";
         final String createDatabaseSQL = "CREATE DATABASE IF NOT EXISTS " + new_database;
         final String createTableSQL = "CREATE TABLE " + new_database + "." + tableName +
-                                 " (Id UInt32, event_ts Timestamp, name String, p1 Int64, p2 String) ENGINE = MergeTree() ORDER BY ()";
+                                 " (Id UInt32, event_ts Timestamp, name String, p1 Int64, p2 String) ORDER BY ()";
         final String dropDatabaseSQL = "DROP DATABASE IF EXISTS " + new_database;
 
         try {
@@ -494,7 +494,7 @@ public class InsertTests extends BaseIntegrationTest {
     @Test(groups = { "integration" })
     public void testInsertSettingsDeduplicationToken() throws Exception {
         final String tableName = "insert_settings_database_test";
-        final String createTableSQL = "CREATE TABLE " + tableName + " ( A Int64 ) ENGINE = MergeTree ORDER BY A SETTINGS " +
+        final String createTableSQL = "CREATE TABLE " + tableName + " ( A Int64 ) ORDER BY A SETTINGS " +
                 "non_replicated_deduplication_window = 100";
         final String deduplicationToken = RandomStringUtils.randomAlphabetic(36);
 
@@ -540,7 +540,7 @@ public class InsertTests extends BaseIntegrationTest {
                 "  attrs Nullable(String), " +
                 "  corrected_time DateTime('UTC') DEFAULT now()," +
                 "  special_attr Nullable(Int8) DEFAULT -1)" +
-                "  Engine = MergeTree ORDER by ()";
+                "  ORDER by ()";
 
         initTable(tableName, tableCreate);
 
@@ -597,7 +597,7 @@ public class InsertTests extends BaseIntegrationTest {
                 "  attrs Nullable(String), " +
                 "  corrected_time DateTime('UTC') DEFAULT now()," +
                 "  special_attr Nullable(Int8) DEFAULT -1)" +
-                "  Engine = MergeTree ORDER by ()";
+                "  ORDER by ()";
 
         initTable(tableName, tableCreate);
 
@@ -645,7 +645,7 @@ public class InsertTests extends BaseIntegrationTest {
                 "  name_lower_alias String ALIAS lower(name)," +
                 "  unhexed String EPHEMERAL," +
                 "  hexed FixedString(4) DEFAULT unhex(unhexed)" +
-                "  ) Engine = MergeTree ORDER by (name)";
+                "  ) ORDER by (name)";
 
         initTable(tableName, tableCreate);
 
@@ -689,7 +689,7 @@ public class InsertTests extends BaseIntegrationTest {
                 "  attrs Nullable(String), " +
                 "  corrected_time DateTime('UTC') DEFAULT now()," +
                 "  special_attr Nullable(Int8) DEFAULT -1)" +
-                "  Engine = MergeTree ORDER by ()";
+                "  ORDER by ()";
 
         initTable(tableName, tableCreate);
 
@@ -726,7 +726,7 @@ public class InsertTests extends BaseIntegrationTest {
                 "  attrs Nullable(String), " +
                 "  corrected_time DateTime('UTC') DEFAULT now()," +
                 "  special_attr Nullable(Int8) DEFAULT -1)" +
-                "  Engine = MergeTree ORDER by ()";
+                "  ORDER by ()";
 
         initTable(tableName, tableCreate);
 

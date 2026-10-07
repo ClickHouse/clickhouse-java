@@ -120,7 +120,7 @@ public class BaseSQLTests extends JdbcIntegrationTest {
                     }
                     createTableQuery.append(columns[i]);
                 }
-                createTableQuery.append(") ENGINE = MergeTree() ORDER BY tuple()");
+                createTableQuery.append(") ORDER BY tuple()");
 
                 statement.execute(createTableQuery.toString());
 

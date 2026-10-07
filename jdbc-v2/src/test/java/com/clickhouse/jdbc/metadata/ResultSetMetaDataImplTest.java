@@ -276,8 +276,8 @@ public class ResultSetMetaDataImplTest extends JdbcIntegrationTest {
              Statement stmt = conn.createStatement()) {
             stmt.executeUpdate("DROP TABLE IF EXISTS " + t1);
             stmt.executeUpdate("DROP TABLE IF EXISTS " + t2);
-            stmt.executeUpdate("CREATE TABLE " + t1 + " (id Int32, val String) ENGINE = MergeTree ORDER BY id");
-            stmt.executeUpdate("CREATE TABLE " + t2 + " (id Int32, name String) ENGINE = MergeTree ORDER BY id");
+            stmt.executeUpdate("CREATE TABLE " + t1 + " (id Int32, val String) ORDER BY id");
+            stmt.executeUpdate("CREATE TABLE " + t2 + " (id Int32, name String) ORDER BY id");
             stmt.executeUpdate("INSERT INTO " + t1 + " VALUES (1, 'test_val')");
             stmt.executeUpdate("INSERT INTO " + t2 + " VALUES (1, 'test_name')");
 

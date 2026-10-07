@@ -49,6 +49,6 @@ public class AggregateFuncDTO {
         return "CREATE TABLE " + tableName + " (" +
                 "groupBitmapUint32 AggregateFunction(groupBitmap, UInt32), " +
                 "groupBitmapUint64 AggregateFunction(groupBitmap, UInt64) " +
-                ") ENGINE = MergeTree() ORDER BY tuple()";
+                ") ORDER BY tuple()";
     }
 }

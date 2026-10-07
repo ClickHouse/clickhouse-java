@@ -609,7 +609,7 @@ public class DataTypeTests extends BaseIntegrationTest {
         final int batchSize = 4096; // keep each INSERT well under max_query_size
         client.execute("DROP TABLE IF EXISTS " + table).get();
         client.execute("CREATE TABLE " + table
-                + " (rowId Int32, v BFloat16, vNull Nullable(BFloat16)) ENGINE = MergeTree ORDER BY rowId").get();
+                + " (rowId Int32, v BFloat16, vNull Nullable(BFloat16)) ORDER BY rowId").get();
 
         for (int start = 0; start < count; start += batchSize) {
             int end = Math.min(start + batchSize, count);
@@ -840,7 +840,7 @@ public class DataTypeTests extends BaseIntegrationTest {
                     continue dataTypesLoop;
 
             }
-            b.append(")) Engine = MergeTree ORDER BY ()");
+            b.append(")) ORDER BY ()");
 
             client.execute(b.toString(),
                     (CommandSettings) new CommandSettings().serverSetting("allow_experimental_variant_type", "1"));
@@ -1237,7 +1237,7 @@ public class DataTypeTests extends BaseIntegrationTest {
 
         client.execute("DROP TABLE IF EXISTS " + table).get();
         String createTableStatement = " CREATE TABLE " + table + "( rowId Int64, field Dynamic ) " +
-                "Engine = MergeTree ORDER BY ()";
+                "ORDER BY ()";
 
         client.execute(createTableStatement, (CommandSettings) new CommandSettings().serverSetting("allow_experimental_dynamic_type", "1"));
         client.register(DTOForDynamicPrimitivesTests.class, client.getTableSchema(table));
@@ -2657,7 +2657,7 @@ public class DataTypeTests extends BaseIntegrationTest {
                 "int_arr Array(Int32), " +
                 "arr2d Array(Array(Int64)), " +
                 "arr3d Array(Array(Array(Int32)))" +
-                ") Engine = MergeTree ORDER BY rowId").get();
+                ") ORDER BY rowId").get();
 
         client.execute("INSERT INTO " + table + " VALUES " +
                 "(1, " +
@@ -2839,7 +2839,7 @@ public class DataTypeTests extends BaseIntegrationTest {
                 "rowId Int32, " +
                 "str_arr Array(String), " +
                 "arr2d Array(Array(Int32))" +
-                ") Engine = MergeTree ORDER BY rowId").get();
+                ") ORDER BY rowId").get();
 
         client.execute("INSERT INTO " + table + " VALUES " +
                 "(1, ['hello', 'world'], [[1, 2], [3]])").get();
@@ -2935,7 +2935,7 @@ public class DataTypeTests extends BaseIntegrationTest {
         CommandSettings jsonSettings = (CommandSettings) new CommandSettings()
                 .serverSetting("enable_json_type", "1")
                 .serverSetting("allow_experimental_json_type", "1");
-        client.execute("CREATE TABLE " + table + " (`i` Int64, `j` JSON) ENGINE = MergeTree ORDER BY i",
+        client.execute("CREATE TABLE " + table + " (`i` Int64, `j` JSON) ORDER BY i",
                 jsonSettings).get().close();
         client.execute("INSERT INTO " + table + " VALUES " +
                 "(1, '{\"m\":{\"a\":[{\"d\": 9000}]}}'), " +
@@ -3200,7 +3200,7 @@ public class DataTypeTests extends BaseIntegrationTest {
             sb.append(s).append(", ");
         });
         sb.setLength(sb.length() - 2);
-        sb.append(") Engine = MergeTree ORDER BY ()");
+        sb.append(") ORDER BY ()");
         return sb.toString();
     }
 

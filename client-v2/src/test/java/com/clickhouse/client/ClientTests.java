@@ -552,7 +552,7 @@ public class ClientTests extends BaseIntegrationTest {
     public void testServerSettings() throws Exception {
         try (Client client = newClient().build()) {
             client.execute("DROP TABLE IF EXISTS server_settings_test_table");
-            client.execute("CREATE TABLE server_settings_test_table (v Float) Engine MergeTree ORDER BY ()");
+            client.execute("CREATE TABLE server_settings_test_table (v Float) ORDER BY ()");
 
             final String queryId = UUID.randomUUID().toString();
             InsertSettings insertSettings = new InsertSettings()

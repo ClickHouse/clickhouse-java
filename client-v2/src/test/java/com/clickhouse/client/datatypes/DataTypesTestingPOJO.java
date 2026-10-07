@@ -332,7 +332,7 @@ public class DataTypesTestingPOJO {
                 "intervalMillisecond IntervalNanosecond, " +
                 "intervalMicrosecond IntervalNanosecond, " +
                 "intervalNanosecond IntervalNanosecond " +
-                ") ENGINE = MergeTree ORDER BY ()";
+                ") ORDER BY ()";
     }
 
     public enum SmallEnum {

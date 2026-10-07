@@ -60,7 +60,7 @@ public class MetadataTests extends BaseIntegrationTest {
             client.execute("DROP DATABASE IF EXISTS " + db).get().close();
             client.execute("CREATE DATABASE " + db).get().close();
             client.query("DROP TABLE IF EXISTS " + table, settings).get().close();
-            client.query("CREATE TABLE " + table + " (rowId Int32) Engine=MergeTree ORDER BY ()", settings).get().close();
+            client.query("CREATE TABLE " + table + " (rowId Int32) ORDER BY ()", settings).get().close();
             TableSchema tableSchema = client.getTableSchema(table, db);
             Assert.assertEquals(tableSchema.getColumnByName("rowId").getDataType(), ClickHouseDataType.Int32);
         } finally {
