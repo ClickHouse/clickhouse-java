@@ -604,6 +604,10 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testGetPrimaryKeys() throws Exception {
+        if (isCloud()) {
+            throw new SkipException("Cloud does not support flushing query_log");
+        }
+
         runQuery("SELECT 1 FORMAT RowBinaryWithNamesAndTypes;");
         runQuery("SYSTEM FLUSH LOGS" + onCluster());
 

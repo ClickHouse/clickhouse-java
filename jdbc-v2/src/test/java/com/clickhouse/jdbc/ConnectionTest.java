@@ -316,6 +316,10 @@ public class ConnectionTest extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" }, dataProvider = "setAndGetClientInfoTestDataProvider")
     public void setAndGetClientInfoTest(String clientName) throws Exception {
+        if (isCloud()) {
+            throw new SkipException("Cloud does not support flushing query_log");
+        }
+
         final String unsupportedProperty = "custom-unsupported-property";
 
         // case when set via config
@@ -375,6 +379,10 @@ public class ConnectionTest extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" })
     public void influenceUserAgentClientNameTest() throws SQLException {
+        if (isCloud()) {
+            throw new SkipException("Cloud does not support flushing query_log");
+        }
+
         String clientName = UUID.randomUUID().toString().replace("-", "");
         influenceUserAgentTest(clientName, "?" + ClientConfigProperties.CLIENT_NAME.getKey() + "=" + clientName);
         influenceUserAgentTest(clientName, "?" + ClientConfigProperties.PRODUCT_NAME.getKey() + "=" + clientName);

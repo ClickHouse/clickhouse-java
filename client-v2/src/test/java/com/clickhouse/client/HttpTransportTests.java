@@ -1160,7 +1160,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
     @Test(groups = { "integration" }, dataProvider = "testUserAgentHasCompleteProductName_dataProvider", dataProviderClass = HttpTransportTests.class)
     public void testUserAgentHasCompleteProductName(String clientName, Pattern userAgentPattern) throws Exception {
         if (isCloud()) {
-            return; // mocked server
+            throw new SkipException("Cloud does not support flushing query_log");
         }
 
         ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
@@ -1208,6 +1208,9 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
     @Test(dataProvider = "testClientNameDataProvider")
     public void testClientName(String clientName, boolean setWithUpdate, String userAgentHeader, boolean setForRequest) throws Exception {
+        if (isCloud()) {
+            throw new SkipException("Cloud does not support flushing query_log");
+        }
 
         final String initialClientName = setWithUpdate ? "init clientName" : clientName;
         final String initialUserAgentHeader = setForRequest ? "init userAgentHeader" : userAgentHeader;
@@ -1273,6 +1276,9 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
     @Test(dataProvider = "testClientNameThruRawOptionsDataProvider")
     public void testClientNameThruRawOptions(String property, String value, boolean setInClient) throws Exception {
+        if (isCloud()) {
+            throw new SkipException("Cloud does not support flushing query_log");
+        }
         Client.Builder builder = newClient();
         if (setInClient) {
             builder.setOption(property, value);
@@ -2674,7 +2680,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
     @SuppressWarnings("java:S2925")
     public void testTransportRequestCancel() throws Exception {
         if (isCloud()) {
-            return; // relies on direct transport access and local system tables (processes / query_log)
+            throw new SkipException("Relies on direct transport access and local system tables (processes / query_log)");
         }
 
         ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);

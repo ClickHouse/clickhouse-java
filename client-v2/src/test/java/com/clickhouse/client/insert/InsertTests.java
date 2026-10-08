@@ -30,6 +30,7 @@ import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringEscapeUtils;
 import org.mockito.Mockito;
 import org.testng.Assert;
+import org.testng.SkipException;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
@@ -466,6 +467,9 @@ public class InsertTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"}, dataProviderClass = InsertTests.class, dataProvider = "logCommentDataProvider")
     public void testLogComment(String logComment) throws Exception {
+        if (isCloud()) {
+            throw new SkipException("Cloud does not support flushing query_log");
+        }
 
         InsertSettings settings = new InsertSettings()
                 .setQueryId(UUID.randomUUID().toString())

@@ -549,6 +549,9 @@ public class ClientTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testLogComment() throws Exception {
+        if (isCloud()) {
+            throw new SkipException("Cloud does not support flushing query_log");
+        }
 
         String logComment = "Test log comment";
         QuerySettings settings = new QuerySettings()
@@ -580,6 +583,10 @@ public class ClientTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testServerSettings() throws Exception {
+        if (isCloud()) {
+            throw new SkipException("Cloud does not support flushing query_log");
+        }
+
         try (Client client = newClient().build()) {
             client.execute("DROP TABLE IF EXISTS server_settings_test_table");
             client.execute("CREATE TABLE server_settings_test_table (v Float) ORDER BY ()");
