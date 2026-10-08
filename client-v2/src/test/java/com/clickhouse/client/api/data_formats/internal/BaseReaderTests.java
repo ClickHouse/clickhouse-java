@@ -557,7 +557,7 @@ public class BaseReaderTests extends BaseIntegrationTest {
             sb.append(s).append(", ");
         });
         sb.setLength(sb.length() - 2);
-        sb.append(") Engine = MergeTree ORDER BY ()");
+        sb.append(") ORDER BY ()");
         return sb.toString();
     }
 
@@ -571,8 +571,9 @@ public class BaseReaderTests extends BaseIntegrationTest {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
         return new Client.Builder()
                 .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isCloud())
-                .setUsername("default")
-                .setPassword(ClickHouseServerForTest.getPassword());
+                .setUsername(ClickHouseServerForTest.getUsername())
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .setDefaultDatabase(ClickHouseServerForTest.getDatabase());
     }
 
     @Test(groups = {"integration"})
@@ -580,7 +581,7 @@ public class BaseReaderTests extends BaseIntegrationTest {
         final String table = "test_reading_stringvalue";
 
         client.execute("DROP TABLE IF EXISTS " + table).get();
-        client.execute("CREATE TABLE " + table + " (id Int32, s String, fs FixedString(5), e FixedString(1)) ENGINE = MergeTree ORDER BY id").get();
+        client.execute("CREATE TABLE " + table + " (id Int32, s String, fs FixedString(5), e FixedString(1)) ORDER BY id").get();
         client.execute("INSERT INTO " + table + " VALUES (1, 'hello', 'world', 'a'), (2, 'ClickHouse', 'Rocks', 'b')").get();
 
         Client customClient = newClient()
@@ -703,7 +704,7 @@ public class BaseReaderTests extends BaseIntegrationTest {
         CommandSettings commandSettings = new CommandSettings();
         commandSettings.serverSetting("allow_experimental_json_type", "1");
         client.execute("DROP TABLE IF EXISTS " + table, commandSettings).get();
-        client.execute("CREATE TABLE " + table + " (id Int32, json JSON) ENGINE = MergeTree ORDER BY id", commandSettings).get();
+        client.execute("CREATE TABLE " + table + " (id Int32, json JSON) ORDER BY id", commandSettings).get();
         client.execute("INSERT INTO " + table + " VALUES (1, '{\"name\" : \"hello\"}')", commandSettings).get();
 
         Client customClient = newClient()
@@ -736,7 +737,7 @@ public class BaseReaderTests extends BaseIntegrationTest {
         final String table = "test_binary_string_support_per_operation";
 
         client.execute("DROP TABLE IF EXISTS " + table).get();
-        client.execute("CREATE TABLE " + table + " (id Int32, s String) ENGINE = Memory").get();
+        client.execute("CREATE TABLE " + table + " (id Int32, s String) ORDER BY id").get();
         client.execute("INSERT INTO " + table + " VALUES (1, 'hello')").get();
 
         // The shared client keeps binary string support disabled (the default).

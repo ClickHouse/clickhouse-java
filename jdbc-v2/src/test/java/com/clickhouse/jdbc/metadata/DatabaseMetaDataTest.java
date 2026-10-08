@@ -64,7 +64,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
                 stmt.executeUpdate("DROP TABLE IF EXISTS " + tableName);
                 stmt.executeUpdate("" +
                         "CREATE TABLE " + tableName + " (id Int32, name String NOT NULL, v1 Nullable(Int8), v2 Array(Int8)) " +
-                        "ENGINE MergeTree ORDER BY tuple()");
+                        "ORDER BY tuple()");
             }
 
             DatabaseMetaData dbmd = conn.getMetaData();
@@ -184,7 +184,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
                 stmt.executeUpdate("DROP TABLE IF EXISTS " + tableName);
                 stmt.executeUpdate("CREATE TABLE " + tableName +
                         " (id Int32, name String NOT NULL, v1 Nullable(Int8), v2 Array(Int8)) " +
-                        "ENGINE MergeTree ORDER BY tuple()");
+                        "ORDER BY tuple()");
             }
 
             DatabaseMetaData dbmd = conn.getMetaData();
@@ -240,7 +240,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
             try (Statement stmt = conn.createStatement()) {
                 stmt.executeUpdate("DROP TABLE IF EXISTS " + tableName);
                 stmt.executeUpdate("CREATE TABLE " + tableName
-                        + " (id Int32, v BFloat16, vNull Nullable(BFloat16)) ENGINE MergeTree ORDER BY id");
+                        + " (id Int32, v BFloat16, vNull Nullable(BFloat16)) ORDER BY id");
             }
 
             DatabaseMetaData dbmd = conn.getMetaData();
@@ -450,7 +450,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
                 createTableStmt.append(columnNames.get(i)).append(" ").append(columnTypes.get(i)).append(',');
             }
             createTableStmt.setLength(createTableStmt.length() - 1);
-            createTableStmt.append(") ENGINE = MergeTree ORDER BY tuple()");
+            createTableStmt.append(") ORDER BY tuple()");
             conn.createStatement().execute(createTableStmt.toString());
 
             DatabaseMetaData dbmd = conn.getMetaData();
@@ -604,8 +604,12 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testGetPrimaryKeys() throws Exception {
+        if (isCloud()) {
+            throw new SkipException("Cloud does not support flushing query_log");
+        }
+
         runQuery("SELECT 1 FORMAT RowBinaryWithNamesAndTypes;");
-        runQuery("SYSTEM FLUSH LOGS");
+        runQuery("SYSTEM FLUSH LOGS" + onCluster());
 
         try (Connection conn = getJdbcConnection()) {
             DatabaseMetaData dbmd = conn.getMetaData();
@@ -693,15 +697,15 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
 
     private static void createQuotedNameFixture(Connection conn) throws SQLException {
         try (Statement stmt = conn.createStatement()) {
-            stmt.executeUpdate("DROP DATABASE IF EXISTS `mdquotea'b`");
-            stmt.executeUpdate("CREATE DATABASE `mdquotea'b`");
-            stmt.executeUpdate("CREATE TABLE `mdquotea'b`.`t'1` (id Int32, v String) ENGINE MergeTree ORDER BY id");
+            stmt.executeUpdate("DROP DATABASE IF EXISTS `mdquotea'b`" + onCluster());
+            stmt.executeUpdate("CREATE DATABASE IF NOT EXISTS `mdquotea'b`" + onCluster());
+            stmt.executeUpdate("CREATE TABLE IF NOT EXISTS `mdquotea'b`.`t'1`" + onCluster() + " (id Int32, v String) ORDER BY id");
         }
     }
 
     private static void dropQuotedNameFixture(Connection conn) throws SQLException {
         try (Statement stmt = conn.createStatement()) {
-            stmt.executeUpdate("DROP DATABASE IF EXISTS `mdquotea'b`");
+            stmt.executeUpdate("DROP DATABASE IF EXISTS `mdquotea'b`" + onCluster());
         }
     }
 
@@ -743,7 +747,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
 
     @Test(groups = {"integration"}, dataProvider = "temporaryTableSchemaPatterns")
     public void testGetColumnsOfTemporaryTable(String schemaPattern, boolean expected) throws Exception {
-        if (isCloud()) {
+        if (isCloud() || ClickHouseServerForTest.isCluster()) {
             throw new SkipException("HTTP sessions require server affinity");
         }
         final String tableName = "metadata_temporary_table";
@@ -1807,11 +1811,11 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
 
                 // Regular MergeTree table
                 stmt.executeUpdate("DROP TABLE IF EXISTS test_table_types_regular");
-                stmt.executeUpdate("CREATE TABLE test_table_types_regular (id Int32) ENGINE = MergeTree ORDER BY id");
+                stmt.executeUpdate("CREATE TABLE test_table_types_regular (id Int32) ORDER BY id");
 
                 // Source table for views
                 stmt.executeUpdate("DROP TABLE IF EXISTS test_table_types_source");
-                stmt.executeUpdate("CREATE TABLE test_table_types_source (id Int32) ENGINE = MergeTree ORDER BY id");
+                stmt.executeUpdate("CREATE TABLE test_table_types_source (id Int32) ORDER BY id");
 
                 // Normal view
                 stmt.executeUpdate("DROP VIEW IF EXISTS test_table_types_view");
@@ -1819,7 +1823,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
 
                 // Materialized view
                 stmt.executeUpdate("DROP VIEW IF EXISTS test_table_types_mat_view");
-                stmt.executeUpdate("CREATE MATERIALIZED VIEW test_table_types_mat_view ENGINE = MergeTree ORDER BY id AS SELECT id FROM test_table_types_source");
+                stmt.executeUpdate("CREATE MATERIALIZED VIEW test_table_types_mat_view ORDER BY id AS SELECT id FROM test_table_types_source");
 
                 // Remote table (URL engine has empty data_paths)
                 stmt.executeUpdate("DROP TABLE IF EXISTS test_table_types_remote");

@@ -233,7 +233,7 @@ public class ParameterizedQueryTest extends BaseIntegrationTest {
         String column = "val";
         client.execute("DROP TABLE IF EXISTS " + table).get();
         client.execute("CREATE TABLE " + table + "(" + column + " String) "
-            + "ENGINE = MergeTree ORDER BY tuple()").get();
+            + "ORDER BY tuple()").get();
         client.query(
             "INSERT INTO " + table + "(" + column + ") VALUES ('" + paramValue + "')").get();
         try (QueryResponse r = client.query(
@@ -301,7 +301,7 @@ public class ParameterizedQueryTest extends BaseIntegrationTest {
                 createStmtBuilder.append(column).append(", ");
             }
             createStmtBuilder.setLength(createStmtBuilder.length() - 2);
-            createStmtBuilder.append(") ENGINE = MergeTree ORDER BY tuple()");
+            createStmtBuilder.append(") ORDER BY tuple()");
             client.execute(createStmtBuilder.toString(), settings).get(10, TimeUnit.SECONDS);
 
             // Insert data

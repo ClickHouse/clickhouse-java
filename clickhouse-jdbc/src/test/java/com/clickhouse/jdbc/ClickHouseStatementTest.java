@@ -432,6 +432,10 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
 
     @Test(groups = "local")
     public void testLogComment() throws SQLException {
+        if (isCloud()) {
+            throw new SkipException("Cloud does not support flushing query_log");
+        }
+
         Properties props = new Properties();
         props.setProperty(ClickHouseClientOption.LOG_LEADING_COMMENT.getKey(), "true");
         try (ClickHouseConnection conn = newConnection(props)) {

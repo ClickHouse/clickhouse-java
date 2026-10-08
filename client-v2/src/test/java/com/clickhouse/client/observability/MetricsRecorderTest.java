@@ -42,7 +42,7 @@ public class MetricsRecorderTest extends BaseIntegrationTest {
                 .setMetricsRecorder(recorder)
                 .build();
         client.execute("DROP TABLE IF EXISTS " + TABLE).get();
-        client.execute("CREATE TABLE " + TABLE + " (value String) ENGINE = MergeTree ORDER BY value").get();
+        client.execute("CREATE TABLE " + TABLE + " (value String) ORDER BY value").get();
         recorder.clear();
     }
 

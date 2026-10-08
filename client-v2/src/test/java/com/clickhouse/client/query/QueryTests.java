@@ -242,7 +242,7 @@ public class QueryTests extends BaseIntegrationTest {
             final String tableName = "a_" + i;
             expectedTableNames.add(tableName);
             client.execute("DROP TABLE IF EXISTS " + tableName);
-            client.execute("CREATE TABLE " + tableName +" (x UInt32) ENGINE = MergeTree ORDER BY ()");
+            client.execute("CREATE TABLE " + tableName +" (x UInt32) ORDER BY ()");
         }
 
         Records records = client.queryRecords("SHOW TABLES").get(3, TimeUnit.SECONDS);
@@ -342,7 +342,7 @@ public class QueryTests extends BaseIntegrationTest {
             final String tableName = "a_" + i;
             expectedTableNames.add(tableName);
             client.execute("DROP TABLE IF EXISTS " + tableName);
-            client.execute("CREATE TABLE " + tableName +" (x UInt32) ENGINE = MergeTree ORDER BY ()");
+            client.execute("CREATE TABLE " + tableName +" (x UInt32) ORDER BY ()");
         }
 
         List<GenericRecord> records = client.queryAll("SHOW TABLES");
@@ -354,7 +354,7 @@ public class QueryTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testQueryAllInsertSelect() {
-        client.queryAll("CREATE TABLE IF NOT EXISTS nums (number Int16) ENGINE = MergeTree() ORDER BY number;");
+        client.queryAll("CREATE TABLE IF NOT EXISTS nums (number Int16) ORDER BY number;");
         String sql = "INSERT INTO nums SELECT * FROM system.numbers LIMIT 100";
         List<GenericRecord> records = client.queryAll(sql);
         Assert.assertTrue(records.isEmpty());
@@ -1474,7 +1474,7 @@ public class QueryTests extends BaseIntegrationTest {
         testDataTypes(columns, valueGenerators, verifiers, Collections.emptyMap());
     }
     void testDataTypes(List<String> columns, List<Supplier<String>> valueGenerators, List<Consumer<ClickHouseBinaryFormatReader>> verifiers, Map<String, String> serverSettings) {
-        final String table = "data_types_test_table";
+    	final String table = "data_types_test_table";
 
         try {
             // Drop table
@@ -1491,7 +1491,7 @@ public class QueryTests extends BaseIntegrationTest {
                 createStmtBuilder.append(column).append(", ");
             }
             createStmtBuilder.setLength(createStmtBuilder.length() - 2);
-            createStmtBuilder.append(") ENGINE = MergeTree ORDER BY tuple()");
+            createStmtBuilder.append(") ORDER BY tuple()");
             client.execute(createStmtBuilder.toString(), commandSettings).get(10, TimeUnit.SECONDS);
 
 
@@ -1523,10 +1523,10 @@ public class QueryTests extends BaseIntegrationTest {
         Future<QueryResponse> response = client.query(selectStmtBuilder.toString(), settings);
         TableSchema schema = client.getTableSchema(table);
 
-        try {
-            QueryResponse queryResponse = response.get();
+        try (QueryResponse queryResponse = response.get()) {
+        	
             ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(queryResponse, schema);
-            Assert.assertNotNull(reader.next());
+            Assert.assertNotNull(reader.next(), "Result is empty but should not");
             Assert.assertEquals(verifiers.size(), columns.size(), "Number of verifiers should match number of columns");
             int colIndex = 0;
             for (Consumer<ClickHouseBinaryFormatReader> verifier : verifiers) {
@@ -1686,7 +1686,7 @@ public class QueryTests extends BaseIntegrationTest {
                 createStmtBuilder.append(column).append(", ");
             }
             createStmtBuilder.setLength(createStmtBuilder.length() - 2);
-            createStmtBuilder.append(") ENGINE = MergeTree ORDER BY tuple()");
+            createStmtBuilder.append(") ORDER BY tuple()");
             client.execute(createStmtBuilder.toString(), settings).get(10, TimeUnit.SECONDS);
 
             // Insert data
@@ -1778,7 +1778,7 @@ public class QueryTests extends BaseIntegrationTest {
         final String table = "query_params_test_table";
 
         client.execute("DROP TABLE IF EXISTS " + table).get();
-        client.execute("CREATE TABLE " + table + " (col1 UInt32, col2 String) ENGINE = MergeTree ORDER BY tuple()").get();
+        client.execute("CREATE TABLE " + table + " (col1 UInt32, col2 String) ORDER BY tuple()").get();
 
         ByteArrayOutputStream insertData = new ByteArrayOutputStream();
         try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(insertData))) {
@@ -1904,9 +1904,8 @@ public class QueryTests extends BaseIntegrationTest {
         final String table = "execute_query_test";
         Map<String, Object> query_param = new HashMap<>();
         query_param.put("table_name",table);
-        query_param.put("engine","MergeTree");
         client.execute("DROP TABLE IF EXISTS " + table).get(10, TimeUnit.SECONDS);
-        client.execute("CREATE TABLE {table_name:Identifier} ( id UInt32, name String, created_at DateTime) ENGINE = MergeTree ORDER BY tuple()", query_param)
+        client.execute("CREATE TABLE {table_name:Identifier} ( id UInt32, name String, created_at DateTime) ORDER BY tuple()", query_param)
                 .get(10, TimeUnit.SECONDS);
 
         TableSchema schema = client.getTableSchema(table);
@@ -1920,9 +1919,8 @@ public class QueryTests extends BaseIntegrationTest {
         String q1Id = UUID.randomUUID().toString();
         Map<String, Object> query_param = new HashMap<>();
         query_param.put("table_name",table);
-        query_param.put("engine","MergeTree");
         client.execute("DROP TABLE IF EXISTS " + table).get(10, TimeUnit.SECONDS);
-        client.execute("CREATE TABLE {table_name:Identifier} ( id UInt32, name String, created_at DateTime) ENGINE = MergeTree ORDER BY tuple()",
+        client.execute("CREATE TABLE {table_name:Identifier} ( id UInt32, name String, created_at DateTime) ORDER BY tuple()",
                         query_param, (CommandSettings) new CommandSettings().setQueryId(q1Id))
                 .get(10, TimeUnit.SECONDS);
 
@@ -1936,7 +1934,7 @@ public class QueryTests extends BaseIntegrationTest {
         final String table = "table_schema_test";
         client.execute("DROP TABLE IF EXISTS " + table).get(10, TimeUnit.SECONDS);
         client.execute("CREATE TABLE " + table +
-                " (col1 UInt32, col2 String) ENGINE = MergeTree ORDER BY tuple()").get(10, TimeUnit.SECONDS);
+                " (col1 UInt32, col2 String) ORDER BY tuple()").get(10, TimeUnit.SECONDS);
 
         TableSchema schema = client.getTableSchema(table);
         Assert.assertNotNull(schema);
@@ -2207,22 +2205,25 @@ public class QueryTests extends BaseIntegrationTest {
         CommandSettings commandSettings = new CommandSettings();
         commandSettings.serverSetting("allow_experimental_json_type", "1");
         client.execute("DROP TABLE IF EXISTS test_json_values", commandSettings).get(1, TimeUnit.SECONDS);
-        client.execute("CREATE TABLE test_json_values (json JSON) ENGINE = MergeTree ORDER BY ()", commandSettings).get(1, TimeUnit.SECONDS);
-        client.execute("INSERT INTO test_json_values VALUES ('{\"a\" : {\"b\" : 42}, \"c\" : [1, 2, 3]}')", commandSettings).get(1, TimeUnit.SECONDS);
+        try {
+            client.execute("CREATE TABLE test_json_values (json JSON) ORDER BY ()", commandSettings).get(1, TimeUnit.SECONDS);
+            client.execute("INSERT INTO test_json_values VALUES ('{\"a\" : {\"b\" : 42}, \"c\" : [1, 2, 3]}')", commandSettings).get(1, TimeUnit.SECONDS);
 
+            QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.CSV).serverSetting("output_format_json_quote_64bit_integers", "1");
+            try (QueryResponse resp = client.query("SELECT json FROM test_json_values", settings).get(1, TimeUnit.SECONDS)) {
+                BufferedReader reader = new BufferedReader(new InputStreamReader(resp.getInputStream()));
+                Assert.assertEquals(StringEscapeUtils.unescapeCsv(reader.lines().findFirst().get()), "{\"a\":{\"b\":\"42\"},\"c\":[\"1\",\"2\",\"3\"]}");
+            }
 
-        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.CSV).serverSetting("output_format_json_quote_64bit_integers", "1");
-        try (QueryResponse resp = client.query("SELECT json FROM test_json_values", settings).get(1, TimeUnit.SECONDS)) {
-            BufferedReader reader = new BufferedReader(new InputStreamReader(resp.getInputStream()));
-            Assert.assertEquals(StringEscapeUtils.unescapeCsv(reader.lines().findFirst().get()), "{\"a\":{\"b\":\"42\"},\"c\":[\"1\",\"2\",\"3\"]}");
-        }
-
-        settings = new QuerySettings()
-                .serverSetting(ServerSettings.OUTPUT_FORMAT_BINARY_WRITE_JSON_AS_STRING, "1").serverSetting("output_format_json_quote_64bit_integers", "1");
-        try (QueryResponse resp = client.query("SELECT json FROM test_json_values", settings).get(1, TimeUnit.SECONDS)) {
-            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(resp);
-            Assert.assertNotNull(reader.next());
-            Assert.assertEquals(reader.getString(1), "{\"a\":{\"b\":\"42\"},\"c\":[\"1\",\"2\",\"3\"]}");
+            settings = new QuerySettings()
+                    .serverSetting(ServerSettings.OUTPUT_FORMAT_BINARY_WRITE_JSON_AS_STRING, "1").serverSetting("output_format_json_quote_64bit_integers", "1");
+            try (QueryResponse resp = client.query("SELECT json FROM test_json_values", settings).get(1, TimeUnit.SECONDS)) {
+                ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(resp);
+                Assert.assertNotNull(reader.next());
+                Assert.assertEquals(reader.getString(1), "{\"a\":{\"b\":\"42\"},\"c\":[\"1\",\"2\",\"3\"]}");
+            }
+        } finally {
+            client.execute("DROP TABLE IF EXISTS test_json_values", commandSettings).get(1, TimeUnit.SECONDS);
         }
     }
 
@@ -2259,7 +2260,7 @@ public class QueryTests extends BaseIntegrationTest {
         client.execute("DROP TABLE IF EXISTS " + tableName).get();
         client.execute("CREATE TABLE `" + tableName + "` " +
                 "(idx UInt8, lowest_value SimpleAggregateFunction(min, UInt8), count SimpleAggregateFunction(sum, Int64), mp SimpleAggregateFunction(maxMap, Map(UInt8, UInt8))) " +
-                "ENGINE MergeTree ORDER BY ();").get();
+                "ORDER BY ();").get();
 
 
             try (InsertResponse response = client.insert(tableName, new ByteArrayInputStream("1\t2\t3\t{1:2}".getBytes(StandardCharsets.UTF_8)), ClickHouseFormat.TSV).get(30, TimeUnit.SECONDS)) {
@@ -2284,7 +2285,7 @@ public class QueryTests extends BaseIntegrationTest {
         client.execute("DROP TABLE IF EXISTS " + tableName).get();
         client.execute("CREATE TABLE `" + tableName + "` " +
                 "(idx UInt8, lowest_value SimpleAggregateFunction(min, UInt8), count SimpleAggregateFunction(sum, Int64), date SimpleAggregateFunction(anyLast, DateTime32)) " +
-                "ENGINE Memory;").get();
+                "ORDER BY ()").get();
 
 
         try (InsertResponse response = client.insert(tableName, new ByteArrayInputStream("1\t2\t3\t2024-12-22T12:00:00".getBytes(StandardCharsets.UTF_8)), ClickHouseFormat.TSV).get(30, TimeUnit.SECONDS)) {
@@ -2309,7 +2310,7 @@ public class QueryTests extends BaseIntegrationTest {
         client.execute("DROP TABLE IF EXISTS " + tableName).get();
         client.execute("CREATE TABLE `" + tableName + "` " +
                 "(idx UInt8, enum1 Enum8('a' = 1, 'b' = 2, 'c' = 3), enum2 Enum16('atch' = 1, 'batch' = 2, 'catch' = 3)) " +
-                "ENGINE MergeTree ORDER BY ()").get();
+                "ORDER BY ()").get();
 
         try (InsertResponse response = client.insert(tableName, new ByteArrayInputStream("1\ta\t2".getBytes(StandardCharsets.UTF_8)), ClickHouseFormat.TSV).get(30, TimeUnit.SECONDS)) {
             Assert.assertEquals(response.getWrittenRows(), 1);
@@ -2347,7 +2348,7 @@ public class QueryTests extends BaseIntegrationTest {
     @Test(groups = {"integration"})
     public void testLowCardinalityValues() throws Exception {
         final String table = "test_low_cardinality_values";
-        final String tableCreate = "CREATE TABLE " + table + "(rowID Int32, keyword LowCardinality(String)) Engine = MergeTree ORDER BY ()";
+        final String tableCreate = "CREATE TABLE " + table + "(rowID Int32, keyword LowCardinality(String)) ORDER BY ()";
 
         client.execute("DROP TABLE IF EXISTS " + table);
         client.execute(tableCreate);
@@ -2519,9 +2520,9 @@ public class QueryTests extends BaseIntegrationTest {
         {
             client.execute("DROP TABLE IF EXISTS test_duplicate_column_names1").get().close();
             client.execute("DROP TABLE IF EXISTS test_duplicate_column_names2").get().close();
-            client.execute("CREATE TABLE test_duplicate_column_names1 (name String ) ENGINE = MergeTree ORDER BY ()").get().close();
+            client.execute("CREATE TABLE test_duplicate_column_names1 (name String ) ORDER BY ()").get().close();
             client.execute("INSERT INTO test_duplicate_column_names1 VALUES ('some name')").get().close();
-            client.execute("CREATE TABLE test_duplicate_column_names2 (name String ) ENGINE = MergeTree ORDER BY ()").get().close();
+            client.execute("CREATE TABLE test_duplicate_column_names2 (name String ) ORDER BY ()").get().close();
             client.execute("INSERT INTO test_duplicate_column_names2 VALUES ('another name')").get().close();
 
             List<GenericRecord> records = client.queryAll("SELECT * FROM test_duplicate_column_names1, test_duplicate_column_names2");

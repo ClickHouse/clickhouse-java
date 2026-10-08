@@ -509,7 +509,7 @@ public class TransportBaseTests extends BaseIntegrationTest {
             Runnable operation;
             if (isInsert) {
                 Assert.assertTrue(runQuery("CREATE TABLE " + table +
-                        " (number UInt64) ENGINE = MergeTree ORDER BY number"), "[" + name + "] failed to create table");
+                        " (number UInt64) ORDER BY number"), "[" + name + "] failed to create table");
                 operation = () -> {
                     // Endless input stream so the insert stays active on the server until the request is cancelled.
                     try (InsertResponse response = client.insert(table, endlessTsvStream(), ClickHouseFormat.TSV,

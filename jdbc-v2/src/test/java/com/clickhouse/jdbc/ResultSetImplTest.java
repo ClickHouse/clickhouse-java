@@ -41,7 +41,7 @@ public class ResultSetImplTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void shouldReturnColumnIndex() throws SQLException {
-        runQuery("CREATE TABLE rs_test_data (id UInt32, val UInt8) ENGINE = MergeTree ORDER BY (id)");
+        runQuery("CREATE TABLE rs_test_data (id UInt32, val UInt8) ORDER BY (id)");
         runQuery("INSERT INTO rs_test_data VALUES (1, 10), (2, 20)");
 
         try (Connection conn = getJdbcConnection()) {

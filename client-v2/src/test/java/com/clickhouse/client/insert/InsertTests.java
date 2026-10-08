@@ -30,6 +30,7 @@ import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringEscapeUtils;
 import org.mockito.Mockito;
 import org.testng.Assert;
+import org.testng.SkipException;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
@@ -279,7 +280,7 @@ public class InsertTests extends BaseIntegrationTest {
     public void insertRawData() throws Exception {
         final String tableName = "raw_data_table";
         final String createSQL = "CREATE TABLE " + tableName +
-                " (Id UInt32, event_ts Timestamp, name String, p1 Int64, p2 String) ENGINE = MergeTree() ORDER BY ()";
+                " (Id UInt32, event_ts Timestamp, name String, p1 Int64, p2 String) ORDER BY ()";
 
         initTable(tableName, createSQL);
 
@@ -311,7 +312,7 @@ public class InsertTests extends BaseIntegrationTest {
     public void insertRawDataAsync(boolean async) throws Exception {
         final String tableName = "raw_data_table_async";
         final String createSQL = "CREATE TABLE " + tableName +
-                " (Id UInt32, event_ts Timestamp, name String, p1 Int64, p2 String) ENGINE = MergeTree() ORDER BY ()";
+                " (Id UInt32, event_ts Timestamp, name String, p1 Int64, p2 String) ORDER BY ()";
 
         initTable(tableName, createSQL);
 
@@ -345,7 +346,7 @@ public class InsertTests extends BaseIntegrationTest {
     public void insertRawDataSimple(String tableName) throws Exception {
 //        final String tableName = "raw_data_table";
         final String createSql = String.format("CREATE TABLE IF NOT EXISTS %s " +
-                " (Id UInt32, event_ts Timestamp, name String, p1 Int64, p2 String) ENGINE = MergeTree() ORDER BY ()", tableName);
+                " (Id UInt32, event_ts Timestamp, name String, p1 Int64, p2 String) ORDER BY ()", tableName);
 
         initTable(tableName, createSql);
 
@@ -370,7 +371,7 @@ public class InsertTests extends BaseIntegrationTest {
     public void insertRawDataFewerColumns() throws Exception {
         final String tableName = "raw_data_select_columns_table";
         final String createSQL = "CREATE TABLE " + tableName +
-                " (Id UInt32, event_ts Timestamp, name String, p1 Int64, p2 String, p3 String, p4 Int8) ENGINE = MergeTree() ORDER BY ()";
+                " (Id UInt32, event_ts Timestamp, name String, p1 Int64, p2 String, p3 String, p4 Int8) ORDER BY ()";
         List<String> columnNames = Arrays.asList("Id", "event_ts", "name", "p1", "p2");
 
         initTable(tableName, createSQL);
@@ -404,7 +405,7 @@ public class InsertTests extends BaseIntegrationTest {
     public void testInsertMetricsOperationId() throws Exception {
         final String tableName = "insert_metrics_test";
         final String createSQL = "CREATE TABLE " + tableName +
-                                 " (Id UInt32, event_ts Timestamp, name String, p1 Int64, p2 String) ENGINE = MergeTree() ORDER BY ()";
+                                 " (Id UInt32, event_ts Timestamp, name String, p1 Int64, p2 String) ORDER BY ()";
 
         initTable(tableName, createSQL);
 
@@ -430,16 +431,16 @@ public class InsertTests extends BaseIntegrationTest {
     @Test(groups = { "integration" })
     public void testInsertSettingsAddDatabase() throws Exception {
         final String tableName = "insert_settings_database_test";
-        final String new_database = client.getDefaultDatabase() +  "_new_database";
-        final String createDatabaseSQL = "CREATE DATABASE IF NOT EXISTS " + new_database;
-        final String createTableSQL = "CREATE TABLE " + new_database + "." + tableName +
-                                 " (Id UInt32, event_ts Timestamp, name String, p1 Int64, p2 String) ENGINE = MergeTree() ORDER BY ()";
-        final String dropDatabaseSQL = "DROP DATABASE IF EXISTS " + new_database;
+        final String new_database = client.getDefaultDatabase() +  "_new_database_" + System.currentTimeMillis();
+        final String createDatabaseSQL = "CREATE DATABASE IF NOT EXISTS " + new_database + onCluster();
+        final String createTableSQL = "CREATE TABLE IF NOT EXISTS " + new_database + "." + tableName + onCluster() +
+                                 " (Id UInt32, event_ts Timestamp, name String, p1 Int64, p2 String) ORDER BY ()";
+        final String dropDatabaseSQL = "DROP DATABASE IF EXISTS " + new_database + onCluster();
 
         try {
-            client.execute(dropDatabaseSQL).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS);
-            client.execute(createDatabaseSQL).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS);
-            client.execute(createTableSQL).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS);
+            client.execute(dropDatabaseSQL).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS).close();
+            client.execute(createDatabaseSQL).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS).close();
+            client.execute(createTableSQL).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS).close();
 
             InsertSettings insertSettings = settings.setInputStreamCopyBufferSize(8198 * 2)
                     .setDeduplicationToken(RandomStringUtils.randomAlphabetic(36))
@@ -466,12 +467,15 @@ public class InsertTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"}, dataProviderClass = InsertTests.class, dataProvider = "logCommentDataProvider")
     public void testLogComment(String logComment) throws Exception {
+        if (isCloud()) {
+            throw new SkipException("Cloud does not support flushing query_log");
+        }
 
         InsertSettings settings = new InsertSettings()
                 .setQueryId(UUID.randomUUID().toString())
                 .logComment(logComment);
 
-        final String tableName = "single_pojo_table";
+        final String tableName = "test_log_comment_pojo";
         final String createSQL = SamplePOJO.generateTableCreateSQL(tableName);
         final SamplePOJO pojo = new SamplePOJO();
 
@@ -483,18 +487,31 @@ public class InsertTests extends BaseIntegrationTest {
             Assert.assertEquals(response.getWrittenRows(), 1);
         }
 
-        try (CommandResponse resp = client.execute("SYSTEM FLUSH LOGS").get()) {
+        try (CommandResponse resp = client.execute("SYSTEM FLUSH LOGS" + onCluster()).get()) {
         }
 
-        List<GenericRecord> logRecords = client.queryAll("SELECT query_id, log_comment FROM system.query_log WHERE query_id = '" + settings.getQueryId() + "'");
-        Assert.assertEquals(logRecords.get(0).getString("query_id"), settings.getQueryId());
-        Assert.assertEquals(logRecords.get(0).getString("log_comment"), logComment == null ? "" : logComment);
+        int attempts = 10;
+        for (int i = 0; i < attempts; i++) {
+            List<GenericRecord> logRecords = client.queryAll("SELECT query_id, log_comment FROM clusterAllReplicas('default', system.query_log) WHERE query_id = '" + settings.getQueryId() + "'");
+            if (logRecords.isEmpty() && i + 1 < attempts) {
+                try {
+                    Thread.sleep(500);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException("Failed because sleep was interrupted");
+                }
+                continue;
+            }
+            Assert.assertFalse(logRecords.isEmpty(), "Log records should not be empty");
+            Assert.assertEquals(logRecords.get(0).getString("query_id"), settings.getQueryId());
+            Assert.assertEquals(logRecords.get(0).getString("log_comment"), logComment == null ? "" : logComment);
+            break;
+        }
     }
 
     @Test(groups = { "integration" })
     public void testInsertSettingsDeduplicationToken() throws Exception {
         final String tableName = "insert_settings_database_test";
-        final String createTableSQL = "CREATE TABLE " + tableName + " ( A Int64 ) ENGINE = MergeTree ORDER BY A SETTINGS " +
+        final String createTableSQL = "CREATE TABLE " + tableName + " ( A Int64 ) ORDER BY A SETTINGS " +
                 "non_replicated_deduplication_window = 100";
         final String deduplicationToken = RandomStringUtils.randomAlphabetic(36);
 
@@ -540,7 +557,7 @@ public class InsertTests extends BaseIntegrationTest {
                 "  attrs Nullable(String), " +
                 "  corrected_time DateTime('UTC') DEFAULT now()," +
                 "  special_attr Nullable(Int8) DEFAULT -1)" +
-                "  Engine = MergeTree ORDER by ()";
+                "  ORDER by ()";
 
         initTable(tableName, tableCreate);
 
@@ -597,7 +614,7 @@ public class InsertTests extends BaseIntegrationTest {
                 "  attrs Nullable(String), " +
                 "  corrected_time DateTime('UTC') DEFAULT now()," +
                 "  special_attr Nullable(Int8) DEFAULT -1)" +
-                "  Engine = MergeTree ORDER by ()";
+                "  ORDER by ()";
 
         initTable(tableName, tableCreate);
 
@@ -645,7 +662,7 @@ public class InsertTests extends BaseIntegrationTest {
                 "  name_lower_alias String ALIAS lower(name)," +
                 "  unhexed String EPHEMERAL," +
                 "  hexed FixedString(4) DEFAULT unhex(unhexed)" +
-                "  ) Engine = MergeTree ORDER by (name)";
+                "  ) ORDER by (name)";
 
         initTable(tableName, tableCreate);
 
@@ -689,7 +706,7 @@ public class InsertTests extends BaseIntegrationTest {
                 "  attrs Nullable(String), " +
                 "  corrected_time DateTime('UTC') DEFAULT now()," +
                 "  special_attr Nullable(Int8) DEFAULT -1)" +
-                "  Engine = MergeTree ORDER by ()";
+                "  ORDER by ()";
 
         initTable(tableName, tableCreate);
 
@@ -726,7 +743,7 @@ public class InsertTests extends BaseIntegrationTest {
                 "  attrs Nullable(String), " +
                 "  corrected_time DateTime('UTC') DEFAULT now()," +
                 "  special_attr Nullable(Int8) DEFAULT -1)" +
-                "  Engine = MergeTree ORDER by ()";
+                "  ORDER by ()";
 
         initTable(tableName, tableCreate);
 

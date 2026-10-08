@@ -148,7 +148,7 @@
         <jackson.version>2.22.0</jackson.version>
         <jackson.version.annotations>2.22</jackson.version.annotations>
 
-        <minTargetJdk>17</minTargetJdk>
+        <minTargetJdk>1.8</minTargetJdk>
         <minSourceJdk>1.8</minSourceJdk>
         <javadoc.source.version>1.8</javadoc.source.version>
         <skipTests>false</skipTests>
@@ -551,7 +551,7 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <configuration>
                     <source>${minSourceJdk}</source>
-                    <target>${minSourceJdk}</target>
+                    <target>${minTargetJdk}</target>
                     <showWarnings>true</showWarnings>
                     <compilerArgs>
                         <arg>-Xlint:all</arg>
@@ -628,6 +628,33 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-resources-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>default-jar</id>
+                        <configuration>
+                            <archive>
+                                <addMavenDescriptor>false</addMavenDescriptor>
+                                <manifest>
+                                    <addDefaultEntries>true</addDefaultEntries>
+                                    <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+                                    <addBuildEnvironmentEntries>true</addBuildEnvironmentEntries>
+                                </manifest>
+                                <manifestEntries>
+                                    <Multi-Release>true</Multi-Release>
+                                    <Implementation-URL>${project.url}</Implementation-URL>
+                                    <Implementation-Vendor>ClickHouse, Inc.</Implementation-Vendor>
+                                    <Implementation-Vendor-Id>${project.groupId}</Implementation-Vendor-Id>
+                                    <Implementation-Version><![CDATA[${project.artifactId} ${project.version} (revision: ${git.commit.id.abbrev})]]></Implementation-Version>
+                                    <SCM-Revision>${git.commit.id.full}</SCM-Revision>
+                                </manifestEntries>
+                            </archive>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
@@ -861,33 +888,6 @@
                     </plugin>
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-jar-plugin</artifactId>
-                        <executions>
-                            <execution>
-                                <id>default-jar</id>
-                                <configuration>
-                                    <archive>
-                                        <addMavenDescriptor>false</addMavenDescriptor>
-                                        <manifest>
-                                            <addDefaultEntries>true</addDefaultEntries>
-                                            <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
-                                            <addBuildEnvironmentEntries>true</addBuildEnvironmentEntries>
-                                        </manifest>
-                                        <manifestEntries>
-                                            <Multi-Release>true</Multi-Release>
-                                            <Implementation-URL>${project.url}</Implementation-URL>
-                                            <Implementation-Vendor>ClickHouse, Inc.</Implementation-Vendor>
-                                            <Implementation-Vendor-Id>${project.groupId}</Implementation-Vendor-Id>
-                                            <Implementation-Version><![CDATA[${project.artifactId} ${project.version} (revision: ${git.commit.id.abbrev})]]></Implementation-Version>
-                                            <SCM-Revision>${git.commit.id.full}</SCM-Revision>
-                                        </manifestEntries>
-                                    </archive>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-source-plugin</artifactId>
                         <executions>
                             <execution>
@@ -1012,33 +1012,6 @@
                             <argLine>${failsafeArgLine}</argLine>
                         </configuration>
                     </plugin>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-jar-plugin</artifactId>
-                        <executions>
-                            <execution>
-                                <id>default-jar</id>
-                                <configuration>
-                                    <archive>
-                                        <addMavenDescriptor>false</addMavenDescriptor>
-                                        <manifest>
-                                            <addDefaultEntries>true</addDefaultEntries>
-                                            <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
-                                            <addBuildEnvironmentEntries>true</addBuildEnvironmentEntries>
-                                        </manifest>
-                                        <manifestEntries>
-                                            <Multi-Release>true</Multi-Release>
-                                            <Implementation-URL>${project.url}</Implementation-URL>
-                                            <Implementation-Vendor>ClickHouse, Inc.</Implementation-Vendor>
-                                            <Implementation-Vendor-Id>${project.groupId}</Implementation-Vendor-Id>
-                                            <Implementation-Version><![CDATA[${project.artifactId} ${project.version} (revision: ${git.commit.id.abbrev})]]></Implementation-Version>
-                                            <SCM-Revision>${git.commit.id.full}</SCM-Revision>
-                                        </manifestEntries>
-                                    </archive>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
                 </plugins>
             </build>
         </profile>
@@ -1093,33 +1066,6 @@
                     <plugin>
                         <groupId>io.github.git-commit-id</groupId>
                         <artifactId>git-commit-id-maven-plugin</artifactId>
-                    </plugin>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-jar-plugin</artifactId>
-                        <executions>
-                            <execution>
-                                <id>default-jar</id>
-                                <configuration>
-                                    <archive>
-                                        <addMavenDescriptor>false</addMavenDescriptor>
-                                        <manifest>
-                                            <addDefaultEntries>true</addDefaultEntries>
-                                            <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
-                                            <addBuildEnvironmentEntries>true</addBuildEnvironmentEntries>
-                                        </manifest>
-                                        <manifestEntries>
-                                            <Multi-Release>true</Multi-Release>
-                                            <Implementation-URL>${project.url}</Implementation-URL>
-                                            <Implementation-Vendor>ClickHouse, Inc.</Implementation-Vendor>
-                                            <Implementation-Vendor-Id>${project.groupId}</Implementation-Vendor-Id>
-                                            <Implementation-Version><![CDATA[${project.artifactId} ${project.version} (revision: ${git.commit.id.abbrev})]]></Implementation-Version>
-                                            <SCM-Revision>${git.commit.id.full}</SCM-Revision>
-                                        </manifestEntries>
-                                    </archive>
-                                </configuration>
-                            </execution>
-                        </executions>
                     </plugin>
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>

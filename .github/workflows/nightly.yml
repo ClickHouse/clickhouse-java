@@ -72,10 +72,12 @@ jobs:
           echo "Published snapshot version: $VERSION"
           echo "jdbc_version=$VERSION" >> "$GITHUB_OUTPUT"
       - name: Release Snapshot
+        env:
+          TEST_CLICKHOUSE_IMAGE_VERSION: ${{ env.CH_VERSION }}
         uses: samuelmeuli/action-maven-publish@v1
         with:
           maven_profiles: release
-          maven_args: -q --batch-mode -DclickhouseVersion=${{ env.CH_VERSION }}
+          maven_args: -q --batch-mode
           server_id: central
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           gpg_passphrase: ${{ secrets.GPG_PASSPHRASE }}
