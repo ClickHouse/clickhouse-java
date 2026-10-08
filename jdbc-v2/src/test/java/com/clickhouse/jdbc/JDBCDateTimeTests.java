@@ -1,8 +1,10 @@
 package com.clickhouse.jdbc;
 
 
+import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.DataTypeUtils;
+import com.clickhouse.client.api.internal.ServerSettings;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
@@ -50,9 +52,10 @@ public class JDBCDateTimeTests extends JdbcIntegrationTest {
         Properties props = new Properties();
         props.put(ClientConfigProperties.USE_TIMEZONE.getKey(), "Asia/Tokyo");
         props.put(ClientConfigProperties.serverSetting("session_timezone"), "Asia/Tokyo");
+        props.put(ClientConfigProperties.serverSetting(ServerSettings.WAIT_END_OF_QUERY), "1");
         try (Connection conn = getJdbcConnection(props);
              Statement stmt = conn.createStatement()) {
-            stmt.executeUpdate("CREATE TABLE test_days_before_birthday_party (id Int32, birthdate Date32) ORDER BY ()");
+            stmt.executeUpdate("CREATE TABLE test_days_before_birthday_party (id Int32, birthdate Date32) ORDER BY (id)");
 
 
             try (PreparedStatement ps = conn.prepareStatement("INSERT INTO test_days_before_birthday_party VALUES (?, ?)")) {
@@ -129,6 +132,7 @@ public class JDBCDateTimeTests extends JdbcIntegrationTest {
         props.put(ClientConfigProperties.USE_TIMEZONE.getKey(), "Asia/Tokyo");
         props.put(ClientConfigProperties.serverSetting("session_timezone"), "Asia/Tokyo");
         props.put(ClientConfigProperties.serverSetting("allow_experimental_time_time64_type"), "1");
+        props.put(ClientConfigProperties.serverSetting(ServerSettings.WAIT_END_OF_QUERY), "1");
         try (Connection conn = getJdbcConnection(props);
              Statement stmt = conn.createStatement()) {
 
@@ -173,6 +177,7 @@ public class JDBCDateTimeTests extends JdbcIntegrationTest {
 
         Properties props = new Properties();
         props.put(ClientConfigProperties.serverSetting("allow_experimental_time_time64_type"), "1");
+        props.put(ClientConfigProperties.serverSetting(ServerSettings.WAIT_END_OF_QUERY), "1");
         try (Connection conn = getJdbcConnection(props);
              Statement stmt = conn.createStatement()) {
 
