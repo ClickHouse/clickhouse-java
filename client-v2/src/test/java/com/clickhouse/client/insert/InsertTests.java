@@ -430,16 +430,16 @@ public class InsertTests extends BaseIntegrationTest {
     @Test(groups = { "integration" })
     public void testInsertSettingsAddDatabase() throws Exception {
         final String tableName = "insert_settings_database_test";
-        final String new_database = client.getDefaultDatabase() +  "_new_database";
-        final String createDatabaseSQL = "CREATE DATABASE IF NOT EXISTS " + new_database;
-        final String createTableSQL = "CREATE TABLE " + new_database + "." + tableName +
+        final String new_database = client.getDefaultDatabase() +  "_new_database_" + System.currentTimeMillis();
+        final String createDatabaseSQL = "CREATE DATABASE IF NOT EXISTS " + new_database + " ON CLUSTER '{cluster}'";
+        final String createTableSQL = "CREATE TABLE IF NOT EXISTS " + new_database + "." + tableName + " ON CLUSTER '{cluster}'" +
                                  " (Id UInt32, event_ts Timestamp, name String, p1 Int64, p2 String) ORDER BY ()";
-        final String dropDatabaseSQL = "DROP DATABASE IF EXISTS " + new_database;
+        final String dropDatabaseSQL = "DROP DATABASE IF EXISTS " + new_database + " ON CLUSTER '{cluster}'";
 
         try {
-            client.execute(dropDatabaseSQL).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS);
-            client.execute(createDatabaseSQL).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS);
-            client.execute(createTableSQL).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS);
+            client.execute(dropDatabaseSQL).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS).close();
+            client.execute(createDatabaseSQL).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS).close();
+            client.execute(createTableSQL).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS).close();
 
             InsertSettings insertSettings = settings.setInputStreamCopyBufferSize(8198 * 2)
                     .setDeduplicationToken(RandomStringUtils.randomAlphabetic(36))
@@ -471,7 +471,7 @@ public class InsertTests extends BaseIntegrationTest {
                 .setQueryId(UUID.randomUUID().toString())
                 .logComment(logComment);
 
-        final String tableName = "single_pojo_table";
+        final String tableName = "test_log_comment_pojo";
         final String createSQL = SamplePOJO.generateTableCreateSQL(tableName);
         final SamplePOJO pojo = new SamplePOJO();
 
@@ -483,12 +483,25 @@ public class InsertTests extends BaseIntegrationTest {
             Assert.assertEquals(response.getWrittenRows(), 1);
         }
 
-        try (CommandResponse resp = client.execute("SYSTEM FLUSH LOGS").get()) {
+        try (CommandResponse resp = client.execute("SYSTEM FLUSH LOGS ON CLUSTER '{cluster}'").get()) {
         }
 
-        List<GenericRecord> logRecords = client.queryAll("SELECT query_id, log_comment FROM system.query_log WHERE query_id = '" + settings.getQueryId() + "'");
-        Assert.assertEquals(logRecords.get(0).getString("query_id"), settings.getQueryId());
-        Assert.assertEquals(logRecords.get(0).getString("log_comment"), logComment == null ? "" : logComment);
+        int attempts = 10;
+        for (int i = 0; i < attempts; i++) {
+            List<GenericRecord> logRecords = client.queryAll("SELECT query_id, log_comment FROM clusterAllReplicas('default', system.query_log) WHERE query_id = '" + settings.getQueryId() + "'");
+            if (logRecords.isEmpty() && i + 1 < attempts) {
+                try {
+                    Thread.sleep(500);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException("Failed because sleep was interrupted");
+                }
+                continue;
+            }
+            Assert.assertFalse(logRecords.isEmpty(), "Log records should not be empty");
+            Assert.assertEquals(logRecords.get(0).getString("query_id"), settings.getQueryId());
+            Assert.assertEquals(logRecords.get(0).getString("log_comment"), logComment == null ? "" : logComment);
+            break;
+        }
     }
 
     @Test(groups = { "integration" })

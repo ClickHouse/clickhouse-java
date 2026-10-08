@@ -606,7 +606,8 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection()) {
             for (int j = 0; j < 10; j++) {
                 try (Statement stmt = conn.createStatement()) {
-                    stmt.execute("CREATE TABLE insert_batch ( `off16` Int16, `str` String, `p_int8` Int8, `p_int16` Int16, `p_int32` Int32, `p_int64` Int64, `p_float32` Float32, `p_float64` Float64, `p_bool` Bool) ENGINE = Memory");
+                    stmt.execute("DROP TABLE IF EXISTS insert_batch");
+                    stmt.execute("CREATE TABLE insert_batch ( `off16` Int16, `str` String, `p_int8` Int8, `p_int16` Int16, `p_int32` Int32, `p_int64` Int64, `p_float32` Float32, `p_float64` Float64, `p_bool` Bool) ORDER BY ()");
                 }
                 String insertQuery = "INSERT INTO insert_batch (off16, str, p_int8, p_int16, p_int32, p_int64, p_float32, p_float64, p_bool) VALUES (?,?,?,?,?,?,?,?,?)";
                 try (PreparedStatement stmt = conn.prepareStatement(insertQuery)) {
@@ -742,11 +743,16 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
     void testMetabaseBug01() throws Exception {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
-                stmt.execute("CREATE TABLE `users` (`id` Int32, `name` Nullable(String), `last_login` Nullable(DateTime64(3, 'GMT0')), `password` Nullable(String)) ENGINE Memory;");
-                stmt.execute("CREATE TABLE `users_tmp` (`id` Int32, `name` Nullable(String), `last_login` Nullable(DateTime64(3, 'GMT0')), `password` Nullable(String)) ENGINE Memory;");
-                stmt.execute("CREATE TABLE `users_tmp01` (`id` Int32, `name` Nullable(String), `last_login` Nullable(DateTime64(3, 'GMT0')), `password` Nullable(String)) ENGINE Memory;");
-                stmt.execute("CREATE TABLE `users_tmp02` (`id` Int32, `name` Nullable(String), `last_login` Nullable(DateTime64(3, 'GMT0')), `password` Nullable(String)) ENGINE Memory;");
+                stmt.execute("DROP TABLE IF EXISTS `users`");
+                stmt.execute("DROP TABLE IF EXISTS `users_tmp`");
+                stmt.execute("DROP TABLE IF EXISTS `users_tmp01`");
+                stmt.execute("DROP TABLE IF EXISTS `users_tmp02`");
+                stmt.execute("CREATE TABLE `users` (`id` Int32, `name` Nullable(String), `last_login` Nullable(DateTime64(3, 'GMT0')), `password` Nullable(String)) ORDER BY ();");
+                stmt.execute("CREATE TABLE `users_tmp` (`id` Int32, `name` Nullable(String), `last_login` Nullable(DateTime64(3, 'GMT0')), `password` Nullable(String)) ORDER BY ();");
+                stmt.execute("CREATE TABLE `users_tmp01` (`id` Int32, `name` Nullable(String), `last_login` Nullable(DateTime64(3, 'GMT0')), `password` Nullable(String)) ORDER BY ();");
+                stmt.execute("CREATE TABLE `users_tmp02` (`id` Int32, `name` Nullable(String), `last_login` Nullable(DateTime64(3, 'GMT0')), `password` Nullable(String)) ORDER BY ();");
             }
+            try {
             try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO `users` (`name`, `last_login`, `password`, `id`) VALUES (?, `parseDateTimeBestEffort`(?, ?), ?, 1), (?, `parseDateTimeBestEffort`(?, ?), ?, 2), (?, `parseDateTimeBestEffort`(?, ?), ?, 3), (?, `parseDateTimeBestEffort`(?, ?), ?, 4), (?, `parseDateTimeBestEffort`(?, ?), ?, 5), (?, `parseDateTimeBestEffort`(?, ?), ?, 6), (?, `parseDateTimeBestEffort`(?, ?), ?, 7), (?, `parseDateTimeBestEffort`(?, ?), ?, 8), (?, `parseDateTimeBestEffort`(?, ?), ?, 9), (?, `parseDateTimeBestEffort`(?, ?), ?, 10), (?, `parseDateTimeBestEffort`(?, ?), ?, 11), (?, `parseDateTimeBestEffort`(?, ?), ?, 12), (?, `parseDateTimeBestEffort`(?, ?), ?, 13), (?, `parseDateTimeBestEffort`(?, ?), ?, 14), (?, `parseDateTimeBestEffort`(?, ?), ?, 15)")) {
                 stmt.setObject(1, "Plato Yeshua");
                 stmt.setObject(2, "2014-04-01 08:30:00.000");
@@ -874,6 +880,14 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                 try (ResultSet rs = stmt01.executeQuery("SELECT count(*) FROM `users_tmp02`")) {
                     assertTrue(rs.next());
                     assertEquals(rs.getInt(1), 10);
+                }
+            }
+            } finally {
+                try (Statement stmt = conn.createStatement()) {
+                    stmt.execute("DROP TABLE IF EXISTS `users`");
+                    stmt.execute("DROP TABLE IF EXISTS `users_tmp`");
+                    stmt.execute("DROP TABLE IF EXISTS `users_tmp01`");
+                    stmt.execute("DROP TABLE IF EXISTS `users_tmp02`");
                 }
             }
         }
@@ -1346,31 +1360,36 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
     @Test(groups = {"integration"})
     void testWriteUUID() throws Exception {
         String sql = "insert into `test_issue_2327` (`id`, `uuid`) values (?, ?)";
-        try (Connection conn = getJdbcConnection();
-             PreparedStatementImpl ps = (PreparedStatementImpl) conn.prepareStatement(sql)) {
-
+        try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
-                stmt.execute("CREATE TABLE IF NOT EXISTS `test_issue_2327` (`id` Nullable(String), `uuid` UUID) ENGINE Memory;");
+                stmt.execute("DROP TABLE IF EXISTS `test_issue_2327`");
+                stmt.execute("CREATE TABLE IF NOT EXISTS `test_issue_2327` (`id` Nullable(String), `uuid` UUID) ORDER BY ();");
             }
-            UUID uuid = UUID.randomUUID();
-            ps.setString(1, "testId01");
-            ps.setObject(2, uuid);
-            ps.execute();
+            try (PreparedStatementImpl ps = (PreparedStatementImpl) conn.prepareStatement(sql)) {
+                UUID uuid = UUID.randomUUID();
+                ps.setString(1, "testId01");
+                ps.setObject(2, uuid);
+                ps.execute();
 
-            try (Statement stmt = conn.createStatement()) {
-                ResultSet rs = stmt.executeQuery("SELECT count(*) FROM `test_issue_2327`");
-                Assert.assertTrue(rs.next());
-                Assert.assertEquals(rs.getInt(1), 1);
-            }
-
-            final String selectSQL = "SELECT * FROM `test_issue_2327` WHERE " +
-                    "`" + getDatabase() + "`.`test_issue_2327`.`uuid` IN (CAST(? AS UUID))";
-            try (PreparedStatement stmt = conn.prepareStatement(selectSQL)) {
-                stmt.setString(1, uuid.toString());
-                try (ResultSet rs = stmt.executeQuery()) {
+                try (Statement stmt = conn.createStatement()) {
+                    ResultSet rs = stmt.executeQuery("SELECT count(*) FROM `test_issue_2327`");
                     Assert.assertTrue(rs.next());
-                    Assert.assertEquals(rs.getString(1), "testId01");
-                    Assert.assertEquals(rs.getString(2), uuid.toString());
+                    Assert.assertEquals(rs.getInt(1), 1);
+                }
+
+                final String selectSQL = "SELECT * FROM `test_issue_2327` WHERE " +
+                        "`" + getDatabase() + "`.`test_issue_2327`.`uuid` IN (CAST(? AS UUID))";
+                try (PreparedStatement stmt = conn.prepareStatement(selectSQL)) {
+                    stmt.setString(1, uuid.toString());
+                    try (ResultSet rs = stmt.executeQuery()) {
+                        Assert.assertTrue(rs.next());
+                        Assert.assertEquals(rs.getString(1), "testId01");
+                        Assert.assertEquals(rs.getString(2), uuid.toString());
+                    }
+                }
+            } finally {
+                try (Statement stmt = conn.createStatement()) {
+                    stmt.execute("DROP TABLE IF EXISTS `test_issue_2327`");
                 }
             }
         }
@@ -1380,25 +1399,29 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
     @Test(groups = {"integration"})
     void testWriteCollection() throws Exception {
         String sql = "insert into `test_issue_2329` (`id`, `name`, `age`, `arr`) values (?, ?, ?, ?)";
-        try (Connection conn = getJdbcConnection();
-             PreparedStatementImpl ps = (PreparedStatementImpl) conn.prepareStatement(sql)) {
-
+        try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
-                stmt.execute("CREATE TABLE IF NOT EXISTS `test_issue_2329` (`id` Nullable(String), `name` Nullable(String), `age` Int32, `arr` Array(String)) ENGINE Memory;");
+                stmt.execute("DROP TABLE IF EXISTS `test_issue_2329`");
+                stmt.execute("CREATE TABLE IF NOT EXISTS `test_issue_2329` (`id` Nullable(String), `name` Nullable(String), `age` Int32, `arr` Array(String)) ORDER BY ();");
             }
+            try (PreparedStatementImpl ps = (PreparedStatementImpl) conn.prepareStatement(sql)) {
+                Assert.assertEquals(ps.getParametersCount(), 4);
+                Collection<String> arr = new ArrayList<String>();
+                ps.setString(1, "testId01");
+                ps.setString(2, "testName");
+                ps.setInt(3, 18);
+                ps.setObject(4, arr);
+                ps.execute();
 
-            Assert.assertEquals(ps.getParametersCount(), 4);
-            Collection<String> arr = new ArrayList<String>();
-            ps.setString(1, "testId01");
-            ps.setString(2, "testName");
-            ps.setInt(3, 18);
-            ps.setObject(4, arr);
-            ps.execute();
-
-            try (Statement stmt = conn.createStatement()) {
-                ResultSet rs = stmt.executeQuery("SELECT count(*) FROM `test_issue_2329`");
-                Assert.assertTrue(rs.next());
-                Assert.assertEquals(rs.getInt(1), 1);
+                try (Statement stmt = conn.createStatement()) {
+                    ResultSet rs = stmt.executeQuery("SELECT count(*) FROM `test_issue_2329`");
+                    Assert.assertTrue(rs.next());
+                    Assert.assertEquals(rs.getInt(1), 1);
+                }
+            } finally {
+                try (Statement stmt = conn.createStatement()) {
+                    stmt.execute("DROP TABLE IF EXISTS `test_issue_2329`");
+                }
             }
         }
 
@@ -1561,25 +1584,30 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
             final String db1Name = conn.getSchema() + "_db1";
             final String table1Name = "table1";
             try (Statement stmt = conn.createStatement()) {
-                stmt.execute("CREATE DATABASE IF NOT EXISTS " + db1Name);
-                stmt.execute("DROP TABLE IF EXISTS " + db1Name + "." + table1Name);
-                stmt.execute("CREATE TABLE " + db1Name + "." + table1Name +
+                stmt.execute("CREATE DATABASE IF NOT EXISTS " + db1Name + " ON CLUSTER '{cluster}'");
+                stmt.execute("DROP TABLE IF EXISTS " + db1Name + "." + table1Name + " ON CLUSTER '{cluster}'");
+                stmt.execute("CREATE TABLE " + db1Name + "." + table1Name + " ON CLUSTER '{cluster}' " +
                         "(v1 Int32, v2 Int32) ORDER BY ()");
             }
+            try {
+                String[] tableIdentifier = new String[]{
+                        db1Name + "." + table1Name,
+                        "`" + db1Name + "`.`" + table1Name + "`",
+                        "\"" + db1Name + "\".\"" + table1Name + "\""
+                };
 
-            String[] tableIdentifier = new String[]{
-                    db1Name + "." + table1Name,
-                    "`" + db1Name + "`.`" + table1Name + "`",
-                    "\"" + db1Name + "\".\"" + table1Name + "\""
-            };
-
-            for (int i = 0; i < tableIdentifier.length; i++) {
-                String tableId = tableIdentifier[i];
-                final String insertStmt = "INSERT INTO " + tableId + " VALUES (?, ?)";
-                try (PreparedStatement stmt = conn.prepareStatement(insertStmt)) {
-                    stmt.setInt(1, i + 10);
-                    stmt.setInt(2, i + 20);
-                    assertEquals(stmt.executeUpdate(), 1);
+                for (int i = 0; i < tableIdentifier.length; i++) {
+                    String tableId = tableIdentifier[i];
+                    final String insertStmt = "INSERT INTO " + tableId + " VALUES (?, ?)";
+                    try (PreparedStatement stmt = conn.prepareStatement(insertStmt)) {
+                        stmt.setInt(1, i + 10);
+                        stmt.setInt(2, i + 20);
+                        assertEquals(stmt.executeUpdate(), 1);
+                    }
+                }
+            } finally {
+                try (Statement stmt = conn.createStatement()) {
+                    stmt.execute("DROP DATABASE IF EXISTS " + db1Name + " ON CLUSTER '{cluster}'");
                 }
             }
         }

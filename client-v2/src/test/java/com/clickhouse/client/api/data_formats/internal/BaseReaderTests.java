@@ -737,7 +737,7 @@ public class BaseReaderTests extends BaseIntegrationTest {
         final String table = "test_binary_string_support_per_operation";
 
         client.execute("DROP TABLE IF EXISTS " + table).get();
-        client.execute("CREATE TABLE " + table + " (id Int32, s String) ENGINE = Memory").get();
+        client.execute("CREATE TABLE " + table + " (id Int32, s String) ORDER BY id").get();
         client.execute("INSERT INTO " + table + " VALUES (1, 'hello')").get();
 
         // The shared client keeps binary string support disabled (the default).

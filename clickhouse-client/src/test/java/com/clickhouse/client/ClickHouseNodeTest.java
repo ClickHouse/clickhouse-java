@@ -2,6 +2,7 @@ package com.clickhouse.client;
 
 import com.clickhouse.config.ClickHouseOption;
 import org.testng.Assert;
+import org.testng.SkipException;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
@@ -394,9 +395,12 @@ public class ClickHouseNodeTest extends BaseIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testProbe() {
+    	if (ClickHouseServerForTest.isCluster()) {
+    		throw new SkipException("Docker cluster uses alternative port and nginx what doesn't work with this probe test");
+    	}
         // FIXME does not support ClickHouseProtocol.POSTGRESQL for now
         ClickHouseProtocol[] protocols = null;
-        if ( isCloud() || ClickHouseServerForTest.isCluster()) {
+        if ( isCloud()) {
             protocols = new ClickHouseProtocol[]{
                     ClickHouseProtocol.HTTP
             };

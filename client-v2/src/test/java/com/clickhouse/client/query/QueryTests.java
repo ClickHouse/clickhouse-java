@@ -2205,22 +2205,25 @@ public class QueryTests extends BaseIntegrationTest {
         CommandSettings commandSettings = new CommandSettings();
         commandSettings.serverSetting("allow_experimental_json_type", "1");
         client.execute("DROP TABLE IF EXISTS test_json_values", commandSettings).get(1, TimeUnit.SECONDS);
-        client.execute("CREATE TABLE test_json_values (json JSON)", commandSettings).get(1, TimeUnit.SECONDS);
-        client.execute("INSERT INTO test_json_values VALUES ('{\"a\" : {\"b\" : 42}, \"c\" : [1, 2, 3]}')", commandSettings).get(1, TimeUnit.SECONDS);
+        try {
+            client.execute("CREATE TABLE test_json_values (json JSON) ORDER BY ()", commandSettings).get(1, TimeUnit.SECONDS);
+            client.execute("INSERT INTO test_json_values VALUES ('{\"a\" : {\"b\" : 42}, \"c\" : [1, 2, 3]}')", commandSettings).get(1, TimeUnit.SECONDS);
 
+            QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.CSV).serverSetting("output_format_json_quote_64bit_integers", "1");
+            try (QueryResponse resp = client.query("SELECT json FROM test_json_values", settings).get(1, TimeUnit.SECONDS)) {
+                BufferedReader reader = new BufferedReader(new InputStreamReader(resp.getInputStream()));
+                Assert.assertEquals(StringEscapeUtils.unescapeCsv(reader.lines().findFirst().get()), "{\"a\":{\"b\":\"42\"},\"c\":[\"1\",\"2\",\"3\"]}");
+            }
 
-        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.CSV).serverSetting("output_format_json_quote_64bit_integers", "1");
-        try (QueryResponse resp = client.query("SELECT json FROM test_json_values", settings).get(1, TimeUnit.SECONDS)) {
-            BufferedReader reader = new BufferedReader(new InputStreamReader(resp.getInputStream()));
-            Assert.assertEquals(StringEscapeUtils.unescapeCsv(reader.lines().findFirst().get()), "{\"a\":{\"b\":\"42\"},\"c\":[\"1\",\"2\",\"3\"]}");
-        }
-
-        settings = new QuerySettings()
-                .serverSetting(ServerSettings.OUTPUT_FORMAT_BINARY_WRITE_JSON_AS_STRING, "1").serverSetting("output_format_json_quote_64bit_integers", "1");
-        try (QueryResponse resp = client.query("SELECT json FROM test_json_values", settings).get(1, TimeUnit.SECONDS)) {
-            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(resp);
-            Assert.assertNotNull(reader.next());
-            Assert.assertEquals(reader.getString(1), "{\"a\":{\"b\":\"42\"},\"c\":[\"1\",\"2\",\"3\"]}");
+            settings = new QuerySettings()
+                    .serverSetting(ServerSettings.OUTPUT_FORMAT_BINARY_WRITE_JSON_AS_STRING, "1").serverSetting("output_format_json_quote_64bit_integers", "1");
+            try (QueryResponse resp = client.query("SELECT json FROM test_json_values", settings).get(1, TimeUnit.SECONDS)) {
+                ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(resp);
+                Assert.assertNotNull(reader.next());
+                Assert.assertEquals(reader.getString(1), "{\"a\":{\"b\":\"42\"},\"c\":[\"1\",\"2\",\"3\"]}");
+            }
+        } finally {
+            client.execute("DROP TABLE IF EXISTS test_json_values", commandSettings).get(1, TimeUnit.SECONDS);
         }
     }
 

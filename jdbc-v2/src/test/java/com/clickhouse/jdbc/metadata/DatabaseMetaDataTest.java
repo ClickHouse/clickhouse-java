@@ -605,7 +605,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
     @Test(groups = { "integration" })
     public void testGetPrimaryKeys() throws Exception {
         runQuery("SELECT 1 FORMAT RowBinaryWithNamesAndTypes;");
-        runQuery("SYSTEM FLUSH LOGS");
+        runQuery("SYSTEM FLUSH LOGS ON CLUSTER '{cluster}'");
 
         try (Connection conn = getJdbcConnection()) {
             DatabaseMetaData dbmd = conn.getMetaData();
@@ -693,15 +693,15 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
 
     private static void createQuotedNameFixture(Connection conn) throws SQLException {
         try (Statement stmt = conn.createStatement()) {
-            stmt.executeUpdate("DROP DATABASE IF EXISTS `mdquotea'b`");
-            stmt.executeUpdate("CREATE DATABASE `mdquotea'b`");
-            stmt.executeUpdate("CREATE TABLE `mdquotea'b`.`t'1` (id Int32, v String) ORDER BY id");
+            stmt.executeUpdate("DROP DATABASE IF EXISTS `mdquotea'b` ON CLUSTER '{cluster}'");
+            stmt.executeUpdate("CREATE DATABASE IF NOT EXISTS `mdquotea'b` ON CLUSTER '{cluster}'");
+            stmt.executeUpdate("CREATE TABLE IF NOT EXISTS `mdquotea'b`.`t'1` ON CLUSTER '{cluster}' (id Int32, v String) ORDER BY id");
         }
     }
 
     private static void dropQuotedNameFixture(Connection conn) throws SQLException {
         try (Statement stmt = conn.createStatement()) {
-            stmt.executeUpdate("DROP DATABASE IF EXISTS `mdquotea'b`");
+            stmt.executeUpdate("DROP DATABASE IF EXISTS `mdquotea'b` ON CLUSTER '{cluster}'");
         }
     }
 
@@ -743,7 +743,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
 
     @Test(groups = {"integration"}, dataProvider = "temporaryTableSchemaPatterns")
     public void testGetColumnsOfTemporaryTable(String schemaPattern, boolean expected) throws Exception {
-        if (isCloud()) {
+        if (isCloud() || ClickHouseServerForTest.isCluster()) {
             throw new SkipException("HTTP sessions require server affinity");
         }
         final String tableName = "metadata_temporary_table";

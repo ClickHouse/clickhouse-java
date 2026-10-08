@@ -1,5 +1,6 @@
 package com.clickhouse.jdbc;
 
+import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.Session;
 import com.clickhouse.client.api.data_formats.GsonJsonParserFactory;
@@ -817,7 +818,7 @@ public class StatementTest extends JdbcIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testCancelQueryWithSession() throws Exception {
-        if (isCloud()) {
+        if (isCloud() || ClickHouseServerForTest.isCluster()) {
             throw new SkipException("Cloud + HTTP doesn't work well. Enough to test locally");
         }
 
@@ -872,7 +873,7 @@ public class StatementTest extends JdbcIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testCancelInsertWithSession() throws Exception {
-        if (isCloud()) {
+        if (isCloud() || ClickHouseServerForTest.isCluster()) {
             throw new SkipException("Cloud + HTTP doesn't work well. Enough to test locally");
         }
         // Regression test for #2690 covering a long-running INSERT executed inside a session.
@@ -1055,26 +1056,35 @@ public class StatementTest extends JdbcIntegrationTest {
     @Test(groups = {"integration"})
     public void testSwitchDatabase() throws Exception {
         String databaseName = getDatabase() + "_test_switch";
-        String createSql = "CREATE TABLE switchDatabaseWithUse (id UInt8, words String) ORDER BY ()";
+        String createSql = "CREATE TABLE IF NOT EXISTS switchDatabaseWithUse (id UInt8, words String) ORDER BY ()";
+        String createSqlInDb = "CREATE TABLE IF NOT EXISTS switchDatabaseWithUse ON CLUSTER '{cluster}' (id UInt8, words String) ORDER BY ()";
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
+                stmt.executeUpdate("DROP TABLE IF EXISTS switchDatabaseWithUse");
                 assertEquals(stmt.executeUpdate(createSql), 0);
-                assertEquals(stmt.executeUpdate("CREATE DATABASE \"" + databaseName + "\""), 0);
+                assertEquals(stmt.executeUpdate("CREATE DATABASE IF NOT EXISTS \"" + databaseName + "\" ON CLUSTER '{cluster}'"), 0);
                 assertFalse(stmt.execute("USE \"" + databaseName + "\""));
-                assertEquals(stmt.executeUpdate(createSql), 0);
+                assertEquals(stmt.executeUpdate(createSqlInDb), 0);
             }
 
-            try (Statement stmt = conn.createStatement()) {
-                stmt.execute("USE system");
-                ResultSet rs = stmt.executeQuery("SELECT name FROM settings LIMIT 1;");
-                assertTrue(rs.next());
-                assertNotNull(rs.getString(1));
-                assertFalse(rs.next());
-                stmt.execute("USE \"" + databaseName + "\"");
-                rs = stmt.executeQuery("SHOW TABLES LIMIT 1");
-                assertTrue(rs.next());
-                assertEquals(rs.getString(1), "switchDatabaseWithUse");
-                assertFalse(rs.next());
+            try {
+                try (Statement stmt = conn.createStatement()) {
+                    stmt.execute("USE system");
+                    ResultSet rs = stmt.executeQuery("SELECT name FROM settings LIMIT 1;");
+                    assertTrue(rs.next());
+                    assertNotNull(rs.getString(1));
+                    assertFalse(rs.next());
+                    stmt.execute("USE \"" + databaseName + "\"");
+                    rs = stmt.executeQuery("SHOW TABLES LIMIT 1");
+                    assertTrue(rs.next());
+                    assertEquals(rs.getString(1), "switchDatabaseWithUse");
+                    assertFalse(rs.next());
+                }
+            } finally {
+                try (Statement stmt = conn.createStatement()) {
+                    stmt.executeUpdate("DROP DATABASE IF EXISTS \"" + databaseName + "\" ON CLUSTER '{cluster}'");
+                    stmt.executeUpdate("DROP TABLE IF EXISTS switchDatabaseWithUse");
+                }
             }
         }
     }
@@ -1083,22 +1093,27 @@ public class StatementTest extends JdbcIntegrationTest {
     @Test(groups = {"integration"})
     public void testNewLineSQLParsing() throws Exception {
         try (Connection conn = getJdbcConnection(Map.of(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF))) {
-            String sqlCreate = "CREATE TABLE balance ( `id` UUID, `currency` String, `amount` Decimal(64, 18), `create_time` DateTime64(6), `_version` UInt64, `_sign` UInt8 ) ENGINE = ReplacingMergeTree PRIMARY KEY id ORDER BY id;";
+            try (Statement stmt = conn.createStatement()) {
+                stmt.executeUpdate("DROP TABLE IF EXISTS balance");
+            }
+            String engine = ClickHouseServerForTest.isCluster() ? "ReplicatedReplacingMergeTree" : "ReplacingMergeTree";
+            String sqlCreate = "CREATE TABLE balance ( `id` UUID, `currency` String, `amount` Decimal(64, 18), `create_time` DateTime64(6), `_version` UInt64, `_sign` UInt8 ) ENGINE = " + engine + " PRIMARY KEY id ORDER BY id;";
             try (Statement stmt = conn.createStatement()) {
                 int r = stmt.executeUpdate(sqlCreate);
                 assertEquals(r, 0);
             }
-            try (Statement stmt = conn.createStatement()) {
-                String sqlInsert = "INSERT INTO balance VALUES (generateUUIDv4(), 'EUR', '42.42', now(), 144, 255);";
-                int r = stmt.executeUpdate(sqlInsert);
-                assertEquals(r, 1);
-            }
-            try (Statement stmt = conn.createStatement()) {
-                String sqlSelect = new StringBuilder("-- SELECT amount FROM balance FINAL;\n")
-                        .append("SELECT amount FROM balance FINAL;").toString();
-                ResultSet rs = stmt.executeQuery(sqlSelect);
-                assertTrue(rs.next());
-            }
+            try {
+                try (Statement stmt = conn.createStatement()) {
+                    String sqlInsert = "INSERT INTO balance VALUES (generateUUIDv4(), 'EUR', '42.42', now(), 144, 255);";
+                    int r = stmt.executeUpdate(sqlInsert);
+                    assertEquals(r, 1);
+                }
+                try (Statement stmt = conn.createStatement()) {
+                    String sqlSelect = new StringBuilder("-- SELECT amount FROM balance FINAL;\n")
+                            .append("SELECT amount FROM balance FINAL;").toString();
+                    ResultSet rs = stmt.executeQuery(sqlSelect);
+                    assertTrue(rs.next());
+                }
             try (Statement stmt = conn.createStatement()) {
                 String sqlSelect = new StringBuilder("-- SELECT * FROM balance\n")
                         .append("\n")
@@ -1141,6 +1156,11 @@ public class StatementTest extends JdbcIntegrationTest {
                 ResultSet rs = stmt.executeQuery(sqlSelect);
                 assertTrue(rs.next());
             }
+            } finally {
+                try (Statement stmt = conn.createStatement()) {
+                    stmt.executeUpdate("DROP TABLE IF EXISTS balance");
+                }
+            }
         }
     }
 
@@ -1148,31 +1168,40 @@ public class StatementTest extends JdbcIntegrationTest {
     @Test(groups = {"integration"})
     public void testNullableFixedStringType() throws Exception {
         try (Connection conn = getJdbcConnection(Map.of(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF))) {
-            String sqlCreate = "CREATE TABLE `data_types` (`f1` FixedString(4),`f2` LowCardinality(FixedString(4)), `f3` Nullable(FixedString(4)), `f4` LowCardinality(Nullable(FixedString(4))) ) ENGINE Memory;";
+            try (Statement stmt = conn.createStatement()) {
+                stmt.executeUpdate("DROP TABLE IF EXISTS `data_types`");
+            }
+            String sqlCreate = "CREATE TABLE `data_types` (`f1` FixedString(4),`f2` LowCardinality(FixedString(4)), `f3` Nullable(FixedString(4)), `f4` LowCardinality(Nullable(FixedString(4))) ) ORDER BY ();";
             try (Statement stmt = conn.createStatement()) {
                 int r = stmt.executeUpdate(sqlCreate);
                 assertEquals(r, 0);
             }
-            try (Statement stmt = conn.createStatement()) {
-                String sqlInsert = "INSERT INTO `data_types` VALUES ('val1', 'val2', 'val3', 'val4')";
-                int r = stmt.executeUpdate(sqlInsert);
-                assertEquals(r, 1);
-            }
-            try (Statement stmt = conn.createStatement()) {
-                String sqlSelect = "SELECT * FROM `data_types`";
-                ResultSet rs = stmt.executeQuery(sqlSelect);
-                assertTrue(rs.next());
-                assertEquals(rs.getString(1), "val1");
-                assertEquals(rs.getString(2), "val2");
-                assertEquals(rs.getString(3), "val3");
-                assertEquals(rs.getString(4), "val4");
-                assertFalse(rs.next());
-            }
-            try (Statement stmt = conn.createStatement()) {
-                String sqlSelect = "SELECT f4 FROM `data_types`";
-                ResultSet rs = stmt.executeQuery(sqlSelect);
-                assertTrue(rs.next());
-                assertEquals(rs.getString(1), "val4");
+            try {
+                try (Statement stmt = conn.createStatement()) {
+                    String sqlInsert = "INSERT INTO `data_types` VALUES ('val1', 'val2', 'val3', 'val4')";
+                    int r = stmt.executeUpdate(sqlInsert);
+                    assertEquals(r, 1);
+                }
+                try (Statement stmt = conn.createStatement()) {
+                    String sqlSelect = "SELECT * FROM `data_types`";
+                    ResultSet rs = stmt.executeQuery(sqlSelect);
+                    assertTrue(rs.next());
+                    assertEquals(rs.getString(1), "val1");
+                    assertEquals(rs.getString(2), "val2");
+                    assertEquals(rs.getString(3), "val3");
+                    assertEquals(rs.getString(4), "val4");
+                    assertFalse(rs.next());
+                }
+                try (Statement stmt = conn.createStatement()) {
+                    String sqlSelect = "SELECT f4 FROM `data_types`";
+                    ResultSet rs = stmt.executeQuery(sqlSelect);
+                    assertTrue(rs.next());
+                    assertEquals(rs.getString(1), "val4");
+                }
+            } finally {
+                try (Statement stmt = conn.createStatement()) {
+                    stmt.executeUpdate("DROP TABLE IF EXISTS `data_types`");
+                }
             }
         }
     }
@@ -1586,8 +1615,8 @@ public class StatementTest extends JdbcIntegrationTest {
         String db1 = getDatabase() + "_schema1";
         String db2 = getDatabase() + "_schema2";
         try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
-            stmt.execute("CREATE DATABASE " + db1);
-            stmt.execute("CREATE DATABASE " + db2);
+            stmt.execute("CREATE DATABASE IF NOT EXISTS " + db1 + " ON CLUSTER '{cluster}'");
+            stmt.execute("CREATE DATABASE IF NOT EXISTS " + db2 + " ON CLUSTER '{cluster}'");
         }
 
         try (Connection conn = getJdbcConnection()) {
@@ -1599,6 +1628,11 @@ public class StatementTest extends JdbcIntegrationTest {
                 assertEquals(getDBName(stmt), db1);
             }
 
+        } finally {
+            try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
+                stmt.execute("DROP DATABASE IF EXISTS " + db1 + " ON CLUSTER '{cluster}'");
+                stmt.execute("DROP DATABASE IF EXISTS " + db2 + " ON CLUSTER '{cluster}'");
+            }
         }
     }
 

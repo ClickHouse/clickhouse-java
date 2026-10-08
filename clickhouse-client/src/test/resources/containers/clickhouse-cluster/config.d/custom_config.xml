@@ -36,6 +36,29 @@
 
     <!-- One shard, three replicas. Nginx may send a query to any of them. -->
     <remote_servers>
+        <default replace="1">
+            <shard>
+                <internal_replication>true</internal_replication>
+                <replica>
+                    <host>clickhouse-1</host>
+                    <port>9000</port>
+                    <user>default</user>
+                    <password>test_default_password</password>
+                </replica>
+                <replica>
+                    <host>clickhouse-2</host>
+                    <port>9000</port>
+                    <user>default</user>
+                    <password>test_default_password</password>
+                </replica>
+                <replica>
+                    <host>clickhouse-3</host>
+                    <port>9000</port>
+                    <user>default</user>
+                    <password>test_default_password</password>
+                </replica>
+            </shard>
+        </default>
         <test_cluster>
             <shard>
                 <internal_replication>true</internal_replication>

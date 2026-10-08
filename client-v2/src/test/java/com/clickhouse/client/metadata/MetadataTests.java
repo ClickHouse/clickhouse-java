@@ -51,20 +51,19 @@ public class MetadataTests extends BaseIntegrationTest {
     }
 
     @Test(groups = { "integration" })
-
     public void testGetTableSchemaDifferentDb() throws Exception {
         String table = "test_get_table_schema_different_db";
         String db = ClickHouseServerForTest.getDatabase() + "_schema_test" ;
         try {
             QuerySettings settings = new QuerySettings().setDatabase(db);
-            client.execute("DROP DATABASE IF EXISTS " + db).get().close();
-            client.execute("CREATE DATABASE " + db).get().close();
-            client.query("DROP TABLE IF EXISTS " + table, settings).get().close();
-            client.query("CREATE TABLE " + table + " (rowId Int32) ORDER BY ()", settings).get().close();
+            client.execute("DROP DATABASE IF EXISTS " + db + " ON CLUSTER '{cluster}'").get().close();
+            client.execute("CREATE DATABASE " + db + " ON CLUSTER '{cluster}'").get().close();
+            client.query("DROP TABLE IF EXISTS " + table + " ON CLUSTER '{cluster}'", settings).get().close();
+            client.query("CREATE TABLE " + table + " ON CLUSTER '{cluster}' (rowId Int32) ORDER BY ()", settings).get().close();
             TableSchema tableSchema = client.getTableSchema(table, db);
             Assert.assertEquals(tableSchema.getColumnByName("rowId").getDataType(), ClickHouseDataType.Int32);
         } finally {
-            client.execute("DROP DATABASE IF EXISTS " + db).get().close();
+            client.execute("DROP DATABASE IF EXISTS " + db + " ON CLUSTER '{cluster}'").get().close();
         }
     }
 

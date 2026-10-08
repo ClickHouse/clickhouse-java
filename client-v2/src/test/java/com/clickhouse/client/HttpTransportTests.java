@@ -1136,11 +1136,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
             return; // mocked server
         }
 
-        ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
-        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
-                .setUsername("default")
-                .setPassword(ClickHouseServerForTest.getPassword())
-                .build()) {
+        try (Client client = newClient().build()) {
 
             try (CommandResponse resp = client.execute("DROP TABLE IF EXISTS test_omm_table").get()) {
             }
@@ -1178,10 +1174,17 @@ public class HttpTransportTests extends BaseIntegrationTest {
             String q1Id = UUID.randomUUID().toString();
 
             client.execute("SELECT 1", (CommandSettings) new CommandSettings().setQueryId(q1Id)).get().close();
-            client.execute("SYSTEM FLUSH LOGS").get().close();
+            client.execute("SYSTEM FLUSH LOGS ON CLUSTER '{cluster}'").get().close();
 
-            List<GenericRecord> logRecords = client.queryAll("SELECT http_user_agent, http_referer, " +
-                    " forwarded_for  FROM clusterAllReplicas('default', system.query_log) WHERE query_id = '" + q1Id + "'");
+            List<GenericRecord> logRecords = null;
+            for (int i = 0; i < 10; i++) {
+                logRecords = client.queryAll("SELECT http_user_agent, http_referer, " +
+                        " forwarded_for  FROM clusterAllReplicas('default', system.query_log) WHERE query_id = '" + q1Id + "'");
+                if (!logRecords.isEmpty()) {
+                    break;
+                }
+                Thread.sleep(500);
+            }
             Assert.assertFalse(logRecords.isEmpty(), "No records found in query log");
 
             for (GenericRecord record : logRecords) {
@@ -1236,10 +1239,18 @@ public class HttpTransportTests extends BaseIntegrationTest {
             }
 
             client.query("SELECT 1", settings).get().close();
-            client.execute("SYSTEM FLUSH LOGS").get().close();
+            client.execute("SYSTEM FLUSH LOGS ON CLUSTER '{cluster}'").get().close();
 
-            List<GenericRecord> logRecords = client.queryAll("SELECT query_id, client_name, http_user_agent, http_referer " +
-                    " FROM clusterAllReplicas('default', system.query_log) WHERE query_id = '" + settings.getQueryId() + "'");
+            List<GenericRecord> logRecords = null;
+            for (int i = 0; i < 10; i++) {
+                logRecords = client.queryAll("SELECT query_id, client_name, http_user_agent, http_referer " +
+                        " FROM clusterAllReplicas('default', system.query_log) WHERE query_id = '" + settings.getQueryId() + "'");
+                if (!logRecords.isEmpty()) {
+                    break;
+                }
+                Thread.sleep(500);
+            }
+            Assert.assertFalse(logRecords.isEmpty(), "No records found in query log");
             Assert.assertEquals(logRecords.get(0).getString("query_id"), settings.getQueryId());
             final String logUserAgent = logRecords.get(0).getString("http_user_agent");
             Assert.assertTrue(logUserAgent.startsWith(expectedClientNameStartsWith),
@@ -1277,10 +1288,18 @@ public class HttpTransportTests extends BaseIntegrationTest {
             }
 
             client.query("SELECT 1", settings).get().close();
-            client.execute("SYSTEM FLUSH LOGS").get().close();
+            client.execute("SYSTEM FLUSH LOGS ON CLUSTER '{cluster}'").get().close();
 
-            List<GenericRecord> logRecords = client.queryAll("SELECT query_id, client_name, http_user_agent, http_referer " +
-                    " FROM clusterAllReplicas('default', system.query_log) WHERE query_id = '" + settings.getQueryId() + "'");
+            List<GenericRecord> logRecords = null;
+            for (int i = 0; i < 10; i++) {
+                logRecords = client.queryAll("SELECT query_id, client_name, http_user_agent, http_referer " +
+                        " FROM clusterAllReplicas('default', system.query_log) WHERE query_id = '" + settings.getQueryId() + "'");
+                if (!logRecords.isEmpty()) {
+                    break;
+                }
+                Thread.sleep(500);
+            }
+            Assert.assertFalse(logRecords.isEmpty(), "No records found in query log");
             Assert.assertEquals(logRecords.get(0).getString("query_id"), settings.getQueryId());
             final String logUserAgent = logRecords.get(0).getString("http_user_agent");
             Assert.assertTrue(logUserAgent.startsWith(value),
@@ -2755,7 +2774,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
     private static boolean isQueryRunning(Client client, String queryId) {
         List<GenericRecord> rows = client.queryAll(
-                "SELECT count() AS c FROM system.processes WHERE query_id = '" + queryId + "'");
+                "SELECT count() AS c FROM clusterAllReplicas('default', system.processes) WHERE query_id = '" + queryId + "'");
         return !rows.isEmpty() && rows.get(0).getLong("c") > 0;
     }
 
@@ -2779,9 +2798,9 @@ public class HttpTransportTests extends BaseIntegrationTest {
         long deadline = System.currentTimeMillis() + 30_000;
         String seenTypes = "";
         while (System.currentTimeMillis() < deadline) {
-            client.queryAll("SYSTEM FLUSH LOGS");
+            client.queryAll("SYSTEM FLUSH LOGS ON CLUSTER '{cluster}'");
             List<GenericRecord> rows = client.queryAll(
-                    "SELECT toString(type) AS type, exception_code FROM system.query_log " +
+                    "SELECT toString(type) AS type, exception_code FROM clusterAllReplicas('default', system.query_log) " +
                             "WHERE query_id = '" + queryId + "' AND event_date >= today() - 1");
 
             StringBuilder types = new StringBuilder();

@@ -159,7 +159,7 @@ public class ClientTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testTemporaryTablesAreBoundToSession() throws Exception {
-        if (isCloud()) {
+        if (isCloud() || ClickHouseServerForTest.isCluster()) {
             return; // HTTP sessions require server affinity
         }
 
@@ -199,7 +199,7 @@ public class ClientTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testSessionCheckFailsForUnknownSession() {
-        if (isCloud()) {
+        if (isCloud() || ClickHouseServerForTest.isCluster()) {
             return; // HTTP sessions require server affinity
         }
 
@@ -509,12 +509,34 @@ public class ClientTests extends BaseIntegrationTest {
                 adminClient.execute("CREATE USER " + user2 + " IDENTIFIED BY '" + password2 + "'").get().close();
 
                 try (Client userClient = newClient().setUsername(user1).setPassword(password1).build()) {
-                    List<GenericRecord> firstResponse = userClient.queryAll("SELECT currentUser() AS user");
+                    List<GenericRecord> firstResponse = null;
+                    for (int i = 0; i < 20; i++) {
+                        try {
+                            firstResponse = userClient.queryAll("SELECT currentUser() AS user");
+                            break;
+                        } catch (ClientException e) {
+                            if (i == 19) {
+                                throw e;
+                            }
+                            Thread.sleep(250);
+                        }
+                    }
                     Assert.assertEquals(firstResponse.get(0).getString("user"), user1);
 
                     userClient.updateUserAndPassword(user2, password2);
 
-                    List<GenericRecord> secondResponse = userClient.queryAll("SELECT currentUser() AS user");
+                    List<GenericRecord> secondResponse = null;
+                    for (int i = 0; i < 20; i++) {
+                        try {
+                            secondResponse = userClient.queryAll("SELECT currentUser() AS user");
+                            break;
+                        } catch (ClientException e) {
+                            if (i == 19) {
+                                throw e;
+                            }
+                            Thread.sleep(250);
+                        }
+                    }
                     Assert.assertEquals(secondResponse.get(0).getString("user"), user2);
                 }
             } finally {
@@ -540,9 +562,17 @@ public class ClientTests extends BaseIntegrationTest {
                 Assert.assertTrue(response.getQueryId().startsWith(settings.getQueryId()));
             }
 
-            client.execute("SYSTEM FLUSH LOGS").get().close();
+            client.execute("SYSTEM FLUSH LOGS ON CLUSTER '{cluster}'").get().close();
 
-            List<GenericRecord> logRecords = client.queryAll("SELECT query_id, log_comment FROM clusterAllReplicas('default', system.query_log) WHERE query_id = '" + settings.getQueryId() + "'");
+            List<GenericRecord> logRecords = null;
+            for (int i = 0; i < 10; i++) {
+                logRecords = client.queryAll("SELECT query_id, log_comment FROM clusterAllReplicas('default', system.query_log) WHERE query_id = '" + settings.getQueryId() + "'");
+                if (!logRecords.isEmpty()) {
+                    break;
+                }
+                Thread.sleep(500);
+            }
+            Assert.assertFalse(logRecords.isEmpty(), "No records found in query log");
             Assert.assertEquals(logRecords.get(0).getString("query_id"), settings.getQueryId());
             Assert.assertEquals(logRecords.get(0).getString("log_comment"), logComment);
         }
@@ -564,9 +594,17 @@ public class ClientTests extends BaseIntegrationTest {
             String csvData = "0.33\n0.44\n0.55\n";
             client.insert("server_settings_test_table", new ByteArrayInputStream(csvData.getBytes()), ClickHouseFormat.CSV, insertSettings).get().close();
 
-            client.execute("SYSTEM FLUSH LOGS").get().close();
+            client.execute("SYSTEM FLUSH LOGS ON CLUSTER '{cluster}'").get().close();
 
-            List<GenericRecord> logRecords = client.queryAll("SELECT Settings, ProfileEvents['AsyncInsertQuery'] as was_async FROM clusterAllReplicas('default', system.query_log) WHERE query_id = '" + queryId + "' AND type = 'QueryFinish'");
+            List<GenericRecord> logRecords = null;
+            for (int i = 0; i < 10; i++) {
+                logRecords = client.queryAll("SELECT Settings, ProfileEvents['AsyncInsertQuery'] as was_async FROM clusterAllReplicas('default', system.query_log) WHERE query_id = '" + queryId + "' AND type = 'QueryFinish'");
+                if (!logRecords.isEmpty()) {
+                    break;
+                }
+                Thread.sleep(500);
+            }
+            Assert.assertFalse(logRecords.isEmpty(), "No records found in query log");
 
             GenericRecord record = logRecords.get(0);
             Assert.assertTrue(record.getBoolean("was_async"));

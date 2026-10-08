@@ -350,19 +350,27 @@ public class ConnectionTest extends JdbcIntegrationTest {
         stmt.execute(testQuery);
         String queryId = ((StatementImpl)stmt).getLastQueryId();
         stmt.getResultSet().close(); // close result set to finalize request.
-        stmt.execute("SYSTEM FLUSH LOGS");
-
+        stmt.execute("SYSTEM FLUSH LOGS ON CLUSTER '{cluster}'");
 
         final String logQuery ="SELECT http_user_agent FROM clusterAllReplicas('default', system.query_log) WHERE query_id = " +  stmt.enquoteLiteral(queryId);
-        try (ResultSet rs = stmt.executeQuery(logQuery)) {
-            Assert.assertTrue(rs.next());
-            String userAgent = rs.getString("http_user_agent");
-            if (clientName != null && !clientName.isEmpty()) {
-                Assert.assertTrue(userAgent.startsWith(clientName), "Expected to start with '" + clientName + "' but value was '" + userAgent + "'");
+        boolean found = false;
+        String userAgent = null;
+        for (int i = 0; i < 10; i++) {
+            try (ResultSet rs = stmt.executeQuery(logQuery)) {
+                if (rs.next()) {
+                    found = true;
+                    userAgent = rs.getString("http_user_agent");
+                    break;
+                }
             }
-            Assert.assertTrue(userAgent.contains(Client.CLIENT_USER_AGENT), "Expected to contain '" + Client.CLIENT_USER_AGENT + "' but value was '" + userAgent + "'");
-            Assert.assertTrue(userAgent.contains(Driver.DRIVER_CLIENT_NAME), "Expected to contain '" + Driver.DRIVER_CLIENT_NAME + "' but value was '" + userAgent + "'");
+            Thread.sleep(500);
         }
+        Assert.assertTrue(found, "Query log record not found for query_id=" + queryId);
+        if (clientName != null && !clientName.isEmpty()) {
+            Assert.assertTrue(userAgent.startsWith(clientName), "Expected to start with '" + clientName + "' but value was '" + userAgent + "'");
+        }
+        Assert.assertTrue(userAgent.contains(Client.CLIENT_USER_AGENT), "Expected to contain '" + Client.CLIENT_USER_AGENT + "' but value was '" + userAgent + "'");
+        Assert.assertTrue(userAgent.contains(Driver.DRIVER_CLIENT_NAME), "Expected to contain '" + Driver.DRIVER_CLIENT_NAME + "' but value was '" + userAgent + "'");
     }
 
     @Test(groups = { "integration" })
@@ -384,15 +392,28 @@ public class ConnectionTest extends JdbcIntegrationTest {
             final String testQuery = "SELECT '" + UUID.randomUUID() + "'";
             stmt.execute(testQuery);
             stmt.getResultSet().close(); // finalize request
-            stmt.execute("SYSTEM FLUSH LOGS");
+            stmt.execute("SYSTEM FLUSH LOGS ON CLUSTER '{cluster}'");
 
             final String logQuery ="SELECT http_user_agent " +
                     " FROM clusterAllReplicas('default', system.query_log) WHERE query = '" + testQuery.replaceAll("'", "\\\\'") + "'";
-            try (ResultSet rs = stmt.executeQuery(logQuery)) {
-                Assert.assertTrue(rs.next());
-                String userAgent = rs.getString("http_user_agent");
-                Assert.assertTrue(userAgent.startsWith(clientName), "Expected to start with '" + clientName + "' but value was '" + userAgent + "'");
+            boolean found = false;
+            String userAgent = null;
+            for (int i = 0; i < 10; i++) {
+                try (ResultSet rs = stmt.executeQuery(logQuery)) {
+                    if (rs.next()) {
+                        found = true;
+                        userAgent = rs.getString("http_user_agent");
+                        break;
+                    }
+                }
+                try {
+                    Thread.sleep(500);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
             }
+            Assert.assertTrue(found, "Query log record not found for query=" + testQuery);
+            Assert.assertTrue(userAgent.startsWith(clientName), "Expected to start with '" + clientName + "' but value was '" + userAgent + "'");
         }
     }
 
@@ -890,7 +911,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
         
         // Create database db1
         Connection connCreate = this.getJdbcConnection();
-        connCreate.createStatement().executeUpdate("CREATE DATABASE `db1`");
+        connCreate.createStatement().executeUpdate("CREATE DATABASE IF NOT EXISTS `db1` ON CLUSTER '{cluster}'");
         
         try {
             Properties properties = new Properties();
@@ -915,7 +936,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
             }
         } finally {
             // Clean up: drop database db1
-            connCreate.createStatement().executeUpdate("DROP DATABASE `db1`");
+            connCreate.createStatement().executeUpdate("DROP DATABASE IF EXISTS `db1` ON CLUSTER '{cluster}'");
             connCreate.close();
         }
     }
@@ -1059,17 +1080,21 @@ public class ConnectionTest extends JdbcIntegrationTest {
             return;
         }
         Connection connCreate = this.getJdbcConnection();
-        connCreate.createStatement().executeUpdate("CREATE DATABASE `" + dbName + "`");
-        Properties properties = new Properties();
-        properties.put(ClientConfigProperties.DATABASE.getKey(), dbName);
-        Connection connCheck = this.getJdbcConnection(properties);
-        ResultSet rs = connCheck.createStatement().executeQuery("SELECT 1");
-        rs.next();
-        Assert.assertEquals(rs.getInt(1), Integer.valueOf(1));
-        Assert.assertEquals(dbName, rs.getMetaData().getSchemaName(1));
-        connCreate.createStatement().executeUpdate("DROP DATABASE `" + dbName + "`");
-        connCreate.close();
-        connCheck.close();
+        try {
+            connCreate.createStatement().executeUpdate("DROP DATABASE IF EXISTS `" + dbName + "` ON CLUSTER '{cluster}'");
+            connCreate.createStatement().executeUpdate("CREATE DATABASE `" + dbName + "` ON CLUSTER '{cluster}'");
+            Properties properties = new Properties();
+            properties.put(ClientConfigProperties.DATABASE.getKey(), dbName);
+            try (Connection connCheck = this.getJdbcConnection(properties)) {
+                ResultSet rs = connCheck.createStatement().executeQuery("SELECT 1");
+                rs.next();
+                Assert.assertEquals(rs.getInt(1), Integer.valueOf(1));
+                Assert.assertEquals(dbName, rs.getMetaData().getSchemaName(1));
+            }
+        } finally {
+            connCreate.createStatement().executeUpdate("DROP DATABASE IF EXISTS `" + dbName + "` ON CLUSTER '{cluster}'");
+            connCreate.close();
+        }
     }
 
     @Test(groups = { "integration" })
@@ -1276,7 +1301,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testSessionTimeout() throws Exception {
-        if (isCloud()) {
+        if (isCloud() || ClickHouseServerForTest.isCluster()) {
             return; // HTTP sessions require server affinity
         }
 
