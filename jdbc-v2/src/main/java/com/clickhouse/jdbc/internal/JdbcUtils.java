@@ -308,13 +308,14 @@ public class JdbcUtils {
         if (value instanceof List<?>) {
             List<?> listValue = (List<?>) value;
             if (type != java.sql.Array.class) {
-                return convertList(listValue, type, column.getArrayNestedLevel());
+                return convertList(listValue, type, getArrayDimensions(column));
             }
 
             if (column != null && column.getArrayBaseColumn() != null) {
-                ClickHouseDataType baseType = column.getArrayBaseColumn().getDataType();
+                ClickHouseColumn baseColumn = column.getArrayBaseColumn();
+                ClickHouseDataType baseType = baseColumn.isNested() ? ClickHouseDataType.Tuple : baseColumn.getDataType();
                 Object[] convertedValues = convertList(listValue, convertToJavaClass(baseType),
-                        column.getArrayNestedLevel());
+                        getArrayDimensions(column));
                 return new Array(column, convertedValues);
             }
 
@@ -344,6 +345,15 @@ public class JdbcUtils {
         }
 
         return convertObject(value, type, column);
+    }
+
+    /**
+     * Returns the number of array dimensions of an array column value. A {@code Nested(...)} base column is an
+     * array of tuples, so it adds one more dimension to the {@code Array} levels of the column.
+     */
+    private static int getArrayDimensions(ClickHouseColumn column) {
+        ClickHouseColumn baseColumn = column.getArrayBaseColumn();
+        return column.getArrayNestedLevel() + (baseColumn != null && baseColumn.isNested() ? 1 : 0);
     }
 
     static Object convertObject(Object value, Class<?> type, ClickHouseColumn column) throws SQLException {

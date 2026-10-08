@@ -1899,6 +1899,76 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
     }
 
     @Test(groups = { "integration" })
+    public void testArrayOfNestedType() throws SQLException {
+        runQuery("DROP TABLE IF EXISTS test_array_of_nested_jdbc");
+        runQuery("CREATE TABLE test_array_of_nested_jdbc (order Int8, "
+                + "an Array(Nested(a Int8, b Nullable(String))), "
+                + "aan Array(Array(Nested(a Int8, b Nullable(String)))), "
+                + "aat Array(Array(Tuple(a Int8, b Nullable(String)))), "
+                + "tail Int32"
+                + ") ENGINE = MergeTree ORDER BY (order)");
+        runQuery("INSERT INTO test_array_of_nested_jdbc VALUES "
+                + "(1, [[(1, 'x'), (2, NULL)], [], [(3, 'y')]], [[[(1, 'x'), (2, NULL)]], [], [[], [(3, 'y')]]], "
+                + "[[(1, 'x'), (2, NULL)], [], [(3, 'y')]], 100), "
+                + "(2, [], [], [], 200)");
+
+        Tuple[][] an = new Tuple[][] {
+                { new Tuple((byte) 1, "x"), new Tuple((byte) 2, null) },
+                {},
+                { new Tuple((byte) 3, "y") },
+        };
+        Tuple[][][] aan = new Tuple[][][] {
+                { { new Tuple((byte) 1, "x"), new Tuple((byte) 2, null) } },
+                {},
+                { {}, { new Tuple((byte) 3, "y") } },
+        };
+
+        try (Connection conn = getJdbcConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT order, an, aan, aat, tail FROM test_array_of_nested_jdbc ORDER BY order")) {
+            assertTrue(rs.next());
+            assertEquals(rs.getByte("order"), (byte) 1);
+            assertArrayOfNestedEquals(rs.getArray("an"), an);
+            assertArrayOfNestedEquals((Array) rs.getObject("an"), an);
+            Object[] aanValue = (Object[]) rs.getArray("aan").getArray();
+            assertEquals(aanValue.length, aan.length);
+            try (ResultSet ars = rs.getArray("aan").getResultSet()) {
+                for (Tuple[][] expected : aan) {
+                    assertTrue(ars.next());
+                    assertArrayOfNestedEquals((Array) ars.getObject(2), expected);
+                }
+                assertFalse(ars.next());
+            }
+            assertArrayOfNestedEquals(rs.getArray("aat"), an);
+            assertTrue(Arrays.deepEquals((Object[]) rs.getArray("an").getArray(), (Object[]) rs.getArray("aat").getArray()));
+            assertTrue(Arrays.deepEquals(rs.getObject("an", Object[].class), rs.getObject("aat", Object[].class)));
+            assertEquals(rs.getInt("tail"), 100);
+
+            assertTrue(rs.next());
+            assertEquals(rs.getByte("order"), (byte) 2);
+            assertEquals(((Object[]) rs.getArray("an").getArray()).length, 0);
+            assertEquals(((Object[]) rs.getArray("aan").getArray()).length, 0);
+            assertEquals(((Object[]) rs.getArray("aat").getArray()).length, 0);
+            assertEquals(rs.getInt("tail"), 200);
+
+            assertFalse(rs.next());
+        }
+    }
+
+    private static void assertArrayOfNestedEquals(Array array, Tuple[][] expected) throws SQLException {
+        Object[] elements = (Object[]) array.getArray();
+        assertEquals(elements.length, expected.length);
+        try (ResultSet ars = array.getResultSet()) {
+            for (int i = 0; i < expected.length; i++) {
+                assertTrue(ars.next());
+                assertEquals(((Object[]) elements[i]).length, expected[i].length);
+                assertNestedEquals((Array) ars.getObject(2), expected[i]);
+            }
+            assertFalse(ars.next());
+        }
+    }
+
+    @Test(groups = { "integration" })
     public void testStringsUsedAsBytes() throws Exception {
         runQuery("CREATE TABLE test_strings_as_bytes (order Int8, str String, fixed FixedString(10)) ORDER BY ()");
 
