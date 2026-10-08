@@ -267,7 +267,35 @@ jobs:
       - name: Create Temporary Database
         run: |
           echo "Creating database: \`$TEST_DB_NAME\`"
-          curl --fail-with-body -s -u "$TEST_CLICKHOUSE_USER:$TEST_CLICKHOUSE_PASSWORD" "https://$TEST_CLICKHOUSE_HOST:8443" --data-binary "CREATE DATABASE IF NOT EXISTS $TEST_DB_NAME"
+          curl --fail-with-body -s -u "$TEST_CLICKHOUSE_USER:$TEST_CLICKHOUSE_PASSWORD" \
+            "https://$TEST_CLICKHOUSE_HOST:8443/?wait_end_of_query=1" \
+            --data-binary "CREATE DATABASE IF NOT EXISTS \`$TEST_DB_NAME\`"
+
+          echo "Waiting for database \`$TEST_DB_NAME\` to replicate to all nodes..."
+          TOTAL_REPLICAS=$(curl -s -u "$TEST_CLICKHOUSE_USER:$TEST_CLICKHOUSE_PASSWORD" \
+            "https://$TEST_CLICKHOUSE_HOST:8443" \
+            --data-binary "SELECT count() FROM system.clusters WHERE cluster = 'default'" | tr -d '[:space:]')
+          if [ -z "$TOTAL_REPLICAS" ] || ! [[ "$TOTAL_REPLICAS" =~ ^[0-9]+$ ]] || [ "$TOTAL_REPLICAS" -le 0 ]; then
+            TOTAL_REPLICAS=1
+          fi
+          echo "Total replicas in cluster: $TOTAL_REPLICAS"
+
+          for i in {1..30}; do
+            READY_REPLICAS=$(curl -s -u "$TEST_CLICKHOUSE_USER:$TEST_CLICKHOUSE_PASSWORD" \
+              "https://$TEST_CLICKHOUSE_HOST:8443" \
+              --data-binary "SELECT count() FROM clusterAllReplicas('default', system.databases) WHERE name = '$TEST_DB_NAME'" | tr -d '[:space:]')
+            echo "Replicas ready: $READY_REPLICAS / $TOTAL_REPLICAS (attempt $i)"
+            if [ -n "$READY_REPLICAS" ] && [[ "$READY_REPLICAS" =~ ^[0-9]+$ ]] && [ "$READY_REPLICAS" -ge "$TOTAL_REPLICAS" ]; then
+              echo "Database \`$TEST_DB_NAME\` is ready on all replicas."
+              break
+            fi
+            sleep 2
+          done
+
+          echo "Verifying database accessibility..."
+          curl --fail-with-body -s -u "$TEST_CLICKHOUSE_USER:$TEST_CLICKHOUSE_PASSWORD" \
+            "https://$TEST_CLICKHOUSE_HOST:8443/?database=$TEST_DB_NAME&wait_end_of_query=1" \
+            --data-binary "SELECT 1"
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -298,7 +326,7 @@ jobs:
           if [ -n "$TEST_DB_NAME" ]; then
             DROP_STMT="DROP DATABASE IF EXISTS \`$TEST_DB_NAME\`"
             echo "Cleaning up database: \`$TEST_DB_NAME\` with statement '$DROP_STMT'";
-            curl --fail-with-body -s -u "$TEST_CLICKHOUSE_USER:$TEST_CLICKHOUSE_PASSWORD" "https://$TEST_CLICKHOUSE_HOST:8443" --data-binary "$DROP_STMT";
+            curl --fail-with-body -s -u "$TEST_CLICKHOUSE_USER:$TEST_CLICKHOUSE_PASSWORD" "https://$TEST_CLICKHOUSE_HOST:8443/?wait_end_of_query=1" --data-binary "$DROP_STMT";
           else
             echo "No database name was generated; skipping cleanup.";
           fi;
