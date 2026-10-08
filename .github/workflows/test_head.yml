@@ -3,6 +3,7 @@ name: Test with CH HEAD
 on:
   schedule:
     - cron: "55 10 * * *"
+  workflow_dispatch:
   push:
     branches:
       - main
