@@ -56,7 +56,7 @@ jobs:
     strategy:
       matrix:
         protocol: ["http"]
-        r2dbc: ["1.0.0.RELEASE", "0.9.1.RELEASE"]
+        r2dbc: ["1.0.0.RELEASE"]
       fail-fast: false
     timeout-minutes: 10
     name: R2DBC ${{ matrix.r2dbc }} + CH HEAD (${{ matrix.protocol }})
