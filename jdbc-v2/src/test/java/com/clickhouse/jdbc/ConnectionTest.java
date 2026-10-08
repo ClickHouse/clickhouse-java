@@ -350,7 +350,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
         stmt.execute(testQuery);
         String queryId = ((StatementImpl)stmt).getLastQueryId();
         stmt.getResultSet().close(); // close result set to finalize request.
-        stmt.execute("SYSTEM FLUSH LOGS ON CLUSTER '{cluster}'");
+        stmt.execute("SYSTEM FLUSH LOGS" + onCluster());
 
         final String logQuery ="SELECT http_user_agent FROM clusterAllReplicas('default', system.query_log) WHERE query_id = " +  stmt.enquoteLiteral(queryId);
         boolean found = false;
@@ -392,7 +392,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
             final String testQuery = "SELECT '" + UUID.randomUUID() + "'";
             stmt.execute(testQuery);
             stmt.getResultSet().close(); // finalize request
-            stmt.execute("SYSTEM FLUSH LOGS ON CLUSTER '{cluster}'");
+            stmt.execute("SYSTEM FLUSH LOGS" + onCluster());
 
             final String logQuery ="SELECT http_user_agent " +
                     " FROM clusterAllReplicas('default', system.query_log) WHERE query = '" + testQuery.replaceAll("'", "\\\\'") + "'";
@@ -911,7 +911,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
         
         // Create database db1
         Connection connCreate = this.getJdbcConnection();
-        connCreate.createStatement().executeUpdate("CREATE DATABASE IF NOT EXISTS `db1` ON CLUSTER '{cluster}'");
+        connCreate.createStatement().executeUpdate("CREATE DATABASE IF NOT EXISTS `db1`" + onCluster());
         
         try {
             Properties properties = new Properties();
@@ -936,7 +936,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
             }
         } finally {
             // Clean up: drop database db1
-            connCreate.createStatement().executeUpdate("DROP DATABASE IF EXISTS `db1` ON CLUSTER '{cluster}'");
+            connCreate.createStatement().executeUpdate("DROP DATABASE IF EXISTS `db1`" + onCluster());
             connCreate.close();
         }
     }
@@ -1081,8 +1081,8 @@ public class ConnectionTest extends JdbcIntegrationTest {
         }
         Connection connCreate = this.getJdbcConnection();
         try {
-            connCreate.createStatement().executeUpdate("DROP DATABASE IF EXISTS `" + dbName + "` ON CLUSTER '{cluster}'");
-            connCreate.createStatement().executeUpdate("CREATE DATABASE `" + dbName + "` ON CLUSTER '{cluster}'");
+            connCreate.createStatement().executeUpdate("DROP DATABASE IF EXISTS `" + dbName + "`" + onCluster());
+            connCreate.createStatement().executeUpdate("CREATE DATABASE `" + dbName + "`" + onCluster());
             Properties properties = new Properties();
             properties.put(ClientConfigProperties.DATABASE.getKey(), dbName);
             try (Connection connCheck = this.getJdbcConnection(properties)) {
@@ -1092,7 +1092,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
                 Assert.assertEquals(dbName, rs.getMetaData().getSchemaName(1));
             }
         } finally {
-            connCreate.createStatement().executeUpdate("DROP DATABASE IF EXISTS `" + dbName + "` ON CLUSTER '{cluster}'");
+            connCreate.createStatement().executeUpdate("DROP DATABASE IF EXISTS `" + dbName + "`" + onCluster());
             connCreate.close();
         }
     }

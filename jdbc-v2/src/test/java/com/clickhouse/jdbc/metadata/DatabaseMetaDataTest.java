@@ -605,7 +605,7 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
     @Test(groups = { "integration" })
     public void testGetPrimaryKeys() throws Exception {
         runQuery("SELECT 1 FORMAT RowBinaryWithNamesAndTypes;");
-        runQuery("SYSTEM FLUSH LOGS ON CLUSTER '{cluster}'");
+        runQuery("SYSTEM FLUSH LOGS" + onCluster());
 
         try (Connection conn = getJdbcConnection()) {
             DatabaseMetaData dbmd = conn.getMetaData();
@@ -693,15 +693,15 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
 
     private static void createQuotedNameFixture(Connection conn) throws SQLException {
         try (Statement stmt = conn.createStatement()) {
-            stmt.executeUpdate("DROP DATABASE IF EXISTS `mdquotea'b` ON CLUSTER '{cluster}'");
-            stmt.executeUpdate("CREATE DATABASE IF NOT EXISTS `mdquotea'b` ON CLUSTER '{cluster}'");
-            stmt.executeUpdate("CREATE TABLE IF NOT EXISTS `mdquotea'b`.`t'1` ON CLUSTER '{cluster}' (id Int32, v String) ORDER BY id");
+            stmt.executeUpdate("DROP DATABASE IF EXISTS `mdquotea'b`" + onCluster());
+            stmt.executeUpdate("CREATE DATABASE IF NOT EXISTS `mdquotea'b`" + onCluster());
+            stmt.executeUpdate("CREATE TABLE IF NOT EXISTS `mdquotea'b`.`t'1`" + onCluster() + " (id Int32, v String) ORDER BY id");
         }
     }
 
     private static void dropQuotedNameFixture(Connection conn) throws SQLException {
         try (Statement stmt = conn.createStatement()) {
-            stmt.executeUpdate("DROP DATABASE IF EXISTS `mdquotea'b` ON CLUSTER '{cluster}'");
+            stmt.executeUpdate("DROP DATABASE IF EXISTS `mdquotea'b`" + onCluster());
         }
     }
 

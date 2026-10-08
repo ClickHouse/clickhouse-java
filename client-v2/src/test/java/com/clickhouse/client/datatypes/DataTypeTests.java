@@ -11,6 +11,7 @@ import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertSettings;
+import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.NullValueException;
@@ -87,6 +88,8 @@ public class DataTypeTests extends BaseIntegrationTest {
                 .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
                 .compressClientRequest(useClientCompression)
                 .useHttpCompression(useHttpCompression)
+                .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1")
+                .serverSetting(ServerSettings.WAIT_ASYNC_INSERT, "1")
                 .build();
     }
 
@@ -3234,6 +3237,8 @@ public class DataTypeTests extends BaseIntegrationTest {
                 .setPassword(ClickHouseServerForTest.getPassword())
                 .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
                 .compressClientRequest(useClientCompression)
-                .useHttpCompression(useHttpCompression);
+                .useHttpCompression(useHttpCompression)
+                .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1")
+                .serverSetting(ServerSettings.WAIT_ASYNC_INSERT, "1");
     }
 }

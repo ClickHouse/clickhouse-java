@@ -562,7 +562,7 @@ public class ClientTests extends BaseIntegrationTest {
                 Assert.assertTrue(response.getQueryId().startsWith(settings.getQueryId()));
             }
 
-            client.execute("SYSTEM FLUSH LOGS ON CLUSTER '{cluster}'").get().close();
+            client.execute("SYSTEM FLUSH LOGS" + onCluster()).get().close();
 
             List<GenericRecord> logRecords = null;
             for (int i = 0; i < 10; i++) {
@@ -594,7 +594,7 @@ public class ClientTests extends BaseIntegrationTest {
             String csvData = "0.33\n0.44\n0.55\n";
             client.insert("server_settings_test_table", new ByteArrayInputStream(csvData.getBytes()), ClickHouseFormat.CSV, insertSettings).get().close();
 
-            client.execute("SYSTEM FLUSH LOGS ON CLUSTER '{cluster}'").get().close();
+            client.execute("SYSTEM FLUSH LOGS" + onCluster()).get().close();
 
             List<GenericRecord> logRecords = null;
             for (int i = 0; i < 10; i++) {

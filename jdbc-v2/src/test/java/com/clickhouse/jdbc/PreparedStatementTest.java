@@ -1584,9 +1584,9 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
             final String db1Name = conn.getSchema() + "_db1";
             final String table1Name = "table1";
             try (Statement stmt = conn.createStatement()) {
-                stmt.execute("CREATE DATABASE IF NOT EXISTS " + db1Name + " ON CLUSTER '{cluster}'");
-                stmt.execute("DROP TABLE IF EXISTS " + db1Name + "." + table1Name + " ON CLUSTER '{cluster}'");
-                stmt.execute("CREATE TABLE " + db1Name + "." + table1Name + " ON CLUSTER '{cluster}' " +
+                stmt.execute("CREATE DATABASE IF NOT EXISTS " + db1Name + onCluster());
+                stmt.execute("DROP TABLE IF EXISTS " + db1Name + "." + table1Name + onCluster());
+                stmt.execute("CREATE TABLE " + db1Name + "." + table1Name + onCluster() + " " +
                         "(v1 Int32, v2 Int32) ORDER BY ()");
             }
             try {
@@ -1607,7 +1607,7 @@ public class PreparedStatementTest extends JdbcIntegrationTest {
                 }
             } finally {
                 try (Statement stmt = conn.createStatement()) {
-                    stmt.execute("DROP DATABASE IF EXISTS " + db1Name + " ON CLUSTER '{cluster}'");
+                    stmt.execute("DROP DATABASE IF EXISTS " + db1Name + onCluster());
                 }
             }
         }

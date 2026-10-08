@@ -1174,7 +1174,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
             String q1Id = UUID.randomUUID().toString();
 
             client.execute("SELECT 1", (CommandSettings) new CommandSettings().setQueryId(q1Id)).get().close();
-            client.execute("SYSTEM FLUSH LOGS ON CLUSTER '{cluster}'").get().close();
+            client.execute("SYSTEM FLUSH LOGS" + onCluster()).get().close();
 
             List<GenericRecord> logRecords = null;
             for (int i = 0; i < 10; i++) {
@@ -1239,7 +1239,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
             }
 
             client.query("SELECT 1", settings).get().close();
-            client.execute("SYSTEM FLUSH LOGS ON CLUSTER '{cluster}'").get().close();
+            client.execute("SYSTEM FLUSH LOGS" + onCluster()).get().close();
 
             List<GenericRecord> logRecords = null;
             for (int i = 0; i < 10; i++) {
@@ -1288,7 +1288,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
             }
 
             client.query("SELECT 1", settings).get().close();
-            client.execute("SYSTEM FLUSH LOGS ON CLUSTER '{cluster}'").get().close();
+            client.execute("SYSTEM FLUSH LOGS" + onCluster()).get().close();
 
             List<GenericRecord> logRecords = null;
             for (int i = 0; i < 10; i++) {
@@ -1720,7 +1720,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 .setUsername("default")
                 .setPassword(ClickHouseServerForTest.getPassword())
                 .sslSocketSNI(node.getHost()).build()) {
-            c.execute("SELECT 1");
+            c.execute("SELECT 1").get().close();
         }
     }
 
@@ -2798,7 +2798,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
         long deadline = System.currentTimeMillis() + 30_000;
         String seenTypes = "";
         while (System.currentTimeMillis() < deadline) {
-            client.queryAll("SYSTEM FLUSH LOGS ON CLUSTER '{cluster}'");
+            client.queryAll("SYSTEM FLUSH LOGS" + onCluster());
             List<GenericRecord> rows = client.queryAll(
                     "SELECT toString(type) AS type, exception_code FROM clusterAllReplicas('default', system.query_log) " +
                             "WHERE query_id = '" + queryId + "' AND event_date >= today() - 1");

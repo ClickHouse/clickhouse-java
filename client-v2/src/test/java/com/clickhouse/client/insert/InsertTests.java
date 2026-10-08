@@ -431,10 +431,10 @@ public class InsertTests extends BaseIntegrationTest {
     public void testInsertSettingsAddDatabase() throws Exception {
         final String tableName = "insert_settings_database_test";
         final String new_database = client.getDefaultDatabase() +  "_new_database_" + System.currentTimeMillis();
-        final String createDatabaseSQL = "CREATE DATABASE IF NOT EXISTS " + new_database + " ON CLUSTER '{cluster}'";
-        final String createTableSQL = "CREATE TABLE IF NOT EXISTS " + new_database + "." + tableName + " ON CLUSTER '{cluster}'" +
+        final String createDatabaseSQL = "CREATE DATABASE IF NOT EXISTS " + new_database + onCluster();
+        final String createTableSQL = "CREATE TABLE IF NOT EXISTS " + new_database + "." + tableName + onCluster() +
                                  " (Id UInt32, event_ts Timestamp, name String, p1 Int64, p2 String) ORDER BY ()";
-        final String dropDatabaseSQL = "DROP DATABASE IF EXISTS " + new_database + " ON CLUSTER '{cluster}'";
+        final String dropDatabaseSQL = "DROP DATABASE IF EXISTS " + new_database + onCluster();
 
         try {
             client.execute(dropDatabaseSQL).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS).close();
@@ -483,7 +483,7 @@ public class InsertTests extends BaseIntegrationTest {
             Assert.assertEquals(response.getWrittenRows(), 1);
         }
 
-        try (CommandResponse resp = client.execute("SYSTEM FLUSH LOGS ON CLUSTER '{cluster}'").get()) {
+        try (CommandResponse resp = client.execute("SYSTEM FLUSH LOGS" + onCluster()).get()) {
         }
 
         int attempts = 10;

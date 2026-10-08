@@ -1057,12 +1057,12 @@ public class StatementTest extends JdbcIntegrationTest {
     public void testSwitchDatabase() throws Exception {
         String databaseName = getDatabase() + "_test_switch";
         String createSql = "CREATE TABLE IF NOT EXISTS switchDatabaseWithUse (id UInt8, words String) ORDER BY ()";
-        String createSqlInDb = "CREATE TABLE IF NOT EXISTS switchDatabaseWithUse ON CLUSTER '{cluster}' (id UInt8, words String) ORDER BY ()";
+        String createSqlInDb = "CREATE TABLE IF NOT EXISTS switchDatabaseWithUse" + onCluster() + " (id UInt8, words String) ORDER BY ()";
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 stmt.executeUpdate("DROP TABLE IF EXISTS switchDatabaseWithUse");
                 assertEquals(stmt.executeUpdate(createSql), 0);
-                assertEquals(stmt.executeUpdate("CREATE DATABASE IF NOT EXISTS \"" + databaseName + "\" ON CLUSTER '{cluster}'"), 0);
+                assertEquals(stmt.executeUpdate("CREATE DATABASE IF NOT EXISTS \"" + databaseName + "\"" + onCluster()), 0);
                 assertFalse(stmt.execute("USE \"" + databaseName + "\""));
                 assertEquals(stmt.executeUpdate(createSqlInDb), 0);
             }
@@ -1082,7 +1082,7 @@ public class StatementTest extends JdbcIntegrationTest {
                 }
             } finally {
                 try (Statement stmt = conn.createStatement()) {
-                    stmt.executeUpdate("DROP DATABASE IF EXISTS \"" + databaseName + "\" ON CLUSTER '{cluster}'");
+                    stmt.executeUpdate("DROP DATABASE IF EXISTS \"" + databaseName + "\"" + onCluster());
                     stmt.executeUpdate("DROP TABLE IF EXISTS switchDatabaseWithUse");
                 }
             }
@@ -1615,8 +1615,8 @@ public class StatementTest extends JdbcIntegrationTest {
         String db1 = getDatabase() + "_schema1";
         String db2 = getDatabase() + "_schema2";
         try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
-            stmt.execute("CREATE DATABASE IF NOT EXISTS " + db1 + " ON CLUSTER '{cluster}'");
-            stmt.execute("CREATE DATABASE IF NOT EXISTS " + db2 + " ON CLUSTER '{cluster}'");
+            stmt.execute("CREATE DATABASE IF NOT EXISTS " + db1 + onCluster());
+            stmt.execute("CREATE DATABASE IF NOT EXISTS " + db2 + onCluster());
         }
 
         try (Connection conn = getJdbcConnection()) {
@@ -1630,8 +1630,8 @@ public class StatementTest extends JdbcIntegrationTest {
 
         } finally {
             try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
-                stmt.execute("DROP DATABASE IF EXISTS " + db1 + " ON CLUSTER '{cluster}'");
-                stmt.execute("DROP DATABASE IF EXISTS " + db2 + " ON CLUSTER '{cluster}'");
+                stmt.execute("DROP DATABASE IF EXISTS " + db1 + onCluster());
+                stmt.execute("DROP DATABASE IF EXISTS " + db2 + onCluster());
             }
         }
     }
