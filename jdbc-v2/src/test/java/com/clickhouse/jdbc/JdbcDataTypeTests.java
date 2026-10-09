@@ -1906,7 +1906,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
                 + "aan Array(Array(Nested(a Int8, b Nullable(String)))), "
                 + "aat Array(Array(Tuple(a Int8, b Nullable(String)))), "
                 + "tail Int32"
-                + ") ENGINE = MergeTree ORDER BY (order)");
+                + ") ORDER BY (order)");
         runQuery("INSERT INTO test_array_of_nested_jdbc VALUES "
                 + "(1, [[(1, 'x'), (2, NULL)], [], [(3, 'y')]], [[[(1, 'x'), (2, NULL)]], [], [[], [(3, 'y')]]], "
                 + "[[(1, 'x'), (2, NULL)], [], [(3, 'y')]], 100), "
