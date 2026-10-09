@@ -1,0 +1,48 @@
+name: "Docs Drift Check"
+
+# Advisory docs review through the shared relay and central AI worker.
+# Model credentials stay in the central repo. The worker maintains needs-docs
+# and one sticky PR comment using .claude/agents/docs-drift-reviewer.md.
+#
+# The worker reads the rubric from the trusted PR base. A missing base rubric
+# is a no-op, so this installation PR cannot validate the new rubric.
+# Later pushes can clear a finding once the affected docs are updated.
+#
+# Automatic fork and Dependabot checks are skipped. Maintainers can dispatch
+# a reviewed PR manually, including a fork, with its PR number.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+    # Cover shipped code and resources across modules, consumer packaging,
+    # docs, and examples. The rubric decides whether a docs edit is needed.
+    paths:
+      - "**/src/main/**"
+      - "**/pom.xml"
+      - "docs/**"
+      - "examples/**"
+      - "**/*.md"
+      - ".github/workflows/docs_drift_check.yml"
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number to check"
+        required: true
+        type: string
+
+permissions:
+  pull-requests: read
+
+jobs:
+  docs-drift:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+       github.actor != 'dependabot[bot]')
+    uses: ClickHouse/integrations-shared-workflows/.github/workflows/claude-docs-drift.yml@main
+    with:
+      pr_number: ${{ github.event.inputs.pr_number }}
+    secrets:
+      WORKFLOW_AUTH_PUBLIC_APP_ID: ${{ secrets.WORKFLOW_AUTH_PUBLIC_APP_ID }}
+      WORKFLOW_AUTH_PUBLIC_PRIVATE_KEY: ${{ secrets.WORKFLOW_AUTH_PUBLIC_PRIVATE_KEY }}
