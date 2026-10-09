@@ -792,6 +792,62 @@ public class SerializerUtilsTest {
         Assert.assertSame(SerializerUtils.stringValueToByteArray(bytes), bytes);
     }
 
+    @Test(dataProvider = "nonArrayValuesForArrayColumns", expectedExceptions = IllegalArgumentException.class)
+    public void testSerializeArrayDataRejectsNonArrayValue(String typeName, Object value) throws Exception {
+        SerializerUtils.serializeData(new ByteArrayOutputStream(), value, ClickHouseColumn.of("v", typeName));
+    }
+
+    @DataProvider(name = "nonArrayValuesForArrayColumns")
+    private Object[][] nonArrayValuesForArrayColumns() {
+        return new Object[][] {
+                {"Array(String)", "not-an-array"},
+                {"Array(UInt32)", 42},
+                {"Array(Array(String))", "not-an-array"},
+                {"Ring", "not-an-array"},
+                {"LineString", "not-an-array"},
+                {"Polygon", "not-an-array"},
+                {"MultiLineString", "not-an-array"},
+                {"MultiPolygon", "not-an-array"},
+        };
+    }
+
+    @Test
+    public void testSerializeArrayDataWritesNothingBeforeRejecting() throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        SerializerUtils.serializeData(out, 1, ClickHouseColumn.of("id", "UInt32"));
+        int afterId = out.size();
+
+        Assert.assertThrows(IllegalArgumentException.class, () ->
+                SerializerUtils.serializeData(out, "not-an-array", ClickHouseColumn.of("val", "Array(String)")));
+
+        Assert.assertEquals(out.size(), afterId);
+    }
+
+    @Test
+    public void testSerializeArrayDataKeepsFollowingColumnAligned() throws Exception {
+        ClickHouseColumn id = ClickHouseColumn.of("id", "UInt32");
+        ClickHouseColumn val = ClickHouseColumn.of("val", "Array(String)");
+        ClickHouseColumn tail = ClickHouseColumn.of("tail", "String");
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        SerializerUtils.serializeData(out, 1, id);
+        SerializerUtils.serializeData(out, Arrays.asList("a", "b"), val);
+        SerializerUtils.serializeData(out, "TAIL", tail);
+
+        BinaryStreamReader reader = newReader(out.toByteArray());
+        reader.readValue(id);
+        reader.readValue(val);
+        Assert.assertEquals(reader.readValue(tail), "TAIL");
+    }
+
+    @Test
+    public void testSerializeArrayDataWritesEmptyLengthForNull() throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        SerializerUtils.serializeData(out, null, ClickHouseColumn.of("v", "Array(String)"));
+
+        Assert.assertEquals(out.toByteArray(), new byte[] {0});
+    }
+
     private void assertCustomGeoTypeTag(String typeName) throws Exception {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         SerializerUtils.writeDynamicTypeTag(out, ClickHouseColumn.of("v", typeName));
