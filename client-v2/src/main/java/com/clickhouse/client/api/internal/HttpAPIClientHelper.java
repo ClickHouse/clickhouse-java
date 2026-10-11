@@ -877,6 +877,19 @@ public class HttpAPIClientHelper {
 
     private void addHeaders(HttpPost req, Map<String, Object> requestConfig) {
         setHeader(req, HttpHeaders.CONTENT_TYPE, CONTENT_TYPE.getMimeType());
+        String socketSNI = (String) requestConfig.get(ClientConfigProperties.SSL_SOCKET_SNI.getKey());
+        if (ClientUtils.isNotBlank(socketSNI) && !req.containsHeader(HttpHeaders.HOST)) {
+            int port = -1;
+            try {
+                if (req.getUri() != null) {
+                    port = req.getUri().getPort();
+                }
+            } catch (Exception ignore) {
+                // ignore
+            }
+            String hostHeader = (port > 0 && port != 80 && port != 443) ? socketSNI + ":" + port : socketSNI;
+            setHeader(req, HttpHeaders.HOST, hostHeader);
+        }
         if (requestConfig.containsKey(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey())) {
             Object formatObj = requestConfig.get(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey());
             if (formatObj != null) {

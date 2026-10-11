@@ -253,7 +253,7 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
         String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
                 " (id Int32, " +
                 "  int8 Int8, int8_nullable Nullable(Int8), int8_default Int8 DEFAULT 3 " +
-                "  ) Engine = MergeTree ORDER BY id";
+                "  ) ORDER BY id";
 
         // Insert random (valid) values
         long seed = System.currentTimeMillis();
@@ -277,7 +277,7 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
                 "  e8 Enum8('' = 0, 'a' = 1, 'neg' = -5), " +
                 "  e16 Enum16('zero' = 0, 'big' = 30000, 'nb' = -20000), " +
                 "  tail Float64" +
-                "  ) Engine = MergeTree ORDER BY id";
+                "  ) ORDER BY id";
 
         Field[][] rows = new Field[][] {
                 // Zero-like written by enum name: an empty-string name and a named zero both map to 0.
@@ -314,7 +314,7 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
     public void writeNullEnumInContainerThrowsTest(String columnType, Object valueWithNullEnum) throws Exception {
         String tableName = "rowBinaryFormatWriterTest_enumContainerNull_" + UUID.randomUUID().toString().replace('-', '_');
         initTable(tableName,
-                "CREATE TABLE \"" + tableName + "\" (id Int32, c " + columnType + ") Engine = MergeTree ORDER BY id",
+                "CREATE TABLE \"" + tableName + "\" (id Int32, c " + columnType + ") ORDER BY id",
                 new CommandSettings());
         TableSchema schema = client.getTableSchema(tableName);
         ClickHouseFormat format = ClickHouseFormat.RowBinaryWithDefaults;
@@ -360,7 +360,7 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
     public void writeNullIntoNonNullableArrayThrowsTest(ClickHouseFormat format) throws Exception {
         String tableName = "rowBinaryFormatWriterTest_nonNullableArrayNull_" + UUID.randomUUID().toString().replace('-', '_');
         initTable(tableName,
-                "CREATE TABLE \"" + tableName + "\" (id Int32, arr Array(Int32), tail Int32) Engine = MergeTree ORDER BY id",
+                "CREATE TABLE \"" + tableName + "\" (id Int32, arr Array(Int32), tail Int32) ORDER BY id",
                 new CommandSettings());
         TableSchema schema = client.getTableSchema(tableName);
 
@@ -391,7 +391,7 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
     public void writeNonNullableArrayRoundTripsTest(ClickHouseFormat format) throws Exception {
         String tableName = "rowBinaryFormatWriterTest_nonNullableArrayRoundTrip_" + UUID.randomUUID().toString().replace('-', '_');
         initTable(tableName,
-                "CREATE TABLE \"" + tableName + "\" (id Int32, arr Array(Int32), tail Int32) Engine = MergeTree ORDER BY id",
+                "CREATE TABLE \"" + tableName + "\" (id Int32, arr Array(Int32), tail Int32) ORDER BY id",
                 new CommandSettings());
         TableSchema schema = client.getTableSchema(tableName);
 
@@ -429,7 +429,7 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
     public void writeNullIntoDefaultedArrayUsesDefaultTest() throws Exception {
         String tableName = "rowBinaryFormatWriterTest_defaultedArrayNull_" + UUID.randomUUID().toString().replace('-', '_');
         initTable(tableName,
-                "CREATE TABLE \"" + tableName + "\" (id Int32, arr Array(Int32) DEFAULT [1, 2], tail Int32) Engine = MergeTree ORDER BY id",
+                "CREATE TABLE \"" + tableName + "\" (id Int32, arr Array(Int32) DEFAULT [1, 2], tail Int32) ORDER BY id",
                 new CommandSettings());
         TableSchema schema = client.getTableSchema(tableName);
         ClickHouseFormat format = ClickHouseFormat.RowBinaryWithDefaults;
@@ -474,7 +474,7 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
                 "  float32 Float32, float32_nullable Nullable(Float32), float32_default Float32 DEFAULT 3, " +
                 "  float64 Float64, float64_nullable Nullable(Float64), float64_default Float64 DEFAULT 3, " +
 //                "  bfloat16 BFloat16, bfloat16_nullable Nullable(BFloat16), bfloat16_default BFloat16 DEFAULT 3, " +
-                "  ) Engine = MergeTree ORDER BY id";
+                "  ) ORDER BY id";
 
         // Insert random (valid) values
         long seed = System.currentTimeMillis();
@@ -514,7 +514,7 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
                 "  decimal64 Decimal(18, 6), decimal64_nullable Nullable(Decimal(18, 6)), decimal64_default Decimal(18, 6) DEFAULT 3, " +
                 "  decimal128 Decimal(36, 8), decimal128_nullable Nullable(Decimal(36, 8)), decimal128_default Decimal(36, 8) DEFAULT 3, " +
                 "  decimal256 Decimal(74, 10), decimal256_nullable Nullable(Decimal(74, 10)), decimal256_default Decimal(74, 10) DEFAULT 3" +
-                "  ) Engine = MergeTree ORDER BY id";
+                "  ) ORDER BY id";
 
         // Insert random (valid) values
         long seed = System.currentTimeMillis();
@@ -551,7 +551,7 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
                 "  enum Enum('a' = 1, 'b' = 2), enum_nullable Nullable(Enum('a' = 1, 'b' = 2)), enum_default Enum('a' = 1, 'b' = 2) DEFAULT 'a', " +
                 "  enum8 Enum8('a' = 1, 'b' = 2), enum8_nullable Nullable(Enum8('a' = 1, 'b' = 2)), enum8_default Enum8('a' = 1, 'b' = 2) DEFAULT 'a', " +
                 "  enum16 Enum16('a' = 1, 'b' = 2), enum16_nullable Nullable(Enum16('a' = 1, 'b' = 2)), enum16_default Enum16('a' = 1, 'b' = 2) DEFAULT 'a', " +
-                "  ) Engine = MergeTree ORDER BY id";
+                "  ) ORDER BY id";
 
         // Insert random (valid) values
         Field[][] rows = new Field[][] {{
@@ -594,7 +594,7 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
     public void writeStringIntoUInt64AndUUIDTest(String columnType, Object value, String expected) throws Exception {
         String tableName = "rowBinaryFormatWriterTest_stringUInt64UUID_" + UUID.randomUUID().toString().replace('-', '_');
         initTable(tableName,
-                "CREATE TABLE \"" + tableName + "\" (id Int32, c " + columnType + ", tail Float64) Engine = MergeTree ORDER BY id",
+                "CREATE TABLE \"" + tableName + "\" (id Int32, c " + columnType + ", tail Float64) ORDER BY id",
                 new CommandSettings());
         TableSchema schema = client.getTableSchema(tableName);
         ClickHouseFormat format = ClickHouseFormat.RowBinaryWithDefaults;
@@ -625,7 +625,7 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
                 "  string String, " +
                 "  fixed_string FixedString(5), " +
                 "  fixed_string_one FixedString(1) " +
-                "  ) Engine = MergeTree ORDER BY id";
+                "  ) ORDER BY id";
 
         // Row 1 is written via setValue(byte[]), row 2 via setString(byte[]); use distinct
         // payloads per row so the rows are not identical (identical rows would be collapsed
@@ -691,7 +691,7 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
 
         String tableName = "rowBinaryFormatWriterTest_writeAndReadImageTest_" + UUID.randomUUID().toString().replace('-', '_');
         String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
-                " (id Int32, image String) Engine = MergeTree ORDER BY id";
+                " (id Int32, image String) ORDER BY id";
 
         initTable(tableName, tableCreate, new CommandSettings());
         TableSchema schema = client.getTableSchema(tableName);
@@ -761,7 +761,7 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
                 "  datetime64 DateTime64, datetime64_nullable Nullable(DateTime64), datetime64_default DateTime64 DEFAULT '2025-01-01 00:00:00', " +
                 "  date Date, date_nullable Nullable(Date), date_default Date DEFAULT '2020-01-01', " +
                 "  date32 Date32, date32_nullable Nullable(Date32), date32_default Date32 DEFAULT '2025-01-01', " +
-                "  ) Engine = MergeTree ORDER BY id";
+                "  ) ORDER BY id";
 
         // Insert random (valid) values
         Field[][] rows = new Field[][] {{
@@ -783,7 +783,7 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
         String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
                 " (id Int32, " +
                 "  tuple Tuple(Int8, Int16), tuple_default Tuple(Int8, Int16) DEFAULT (3, 4), " +
-                "  ) Engine = MergeTree ORDER BY id";
+                "  ) ORDER BY id";
 
         // Insert random (valid) values
         Field[][] rows = new Field[][] {{
@@ -802,7 +802,7 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
                 " (id Int32, " +
                 "  ipv4 IPv4, ipv4_nullable Nullable(IPv4), ipv4_default IPv4 DEFAULT '127.0.0.1', " +
                 "  ipv6 IPv6, ipv6_nullable Nullable(IPv6), ipv6_default IPv6 DEFAULT '::1', " +
-                "  ) Engine = MergeTree ORDER BY id";
+                "  ) ORDER BY id";
 
         // Insert random (valid) values
         Field[][] rows = new Field[][] {{
@@ -820,7 +820,7 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
         String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
                 " (id Int32, " +
                 "  array Array(Int8), array_default Array(Int8) DEFAULT [3], " +
-                "  ) Engine = MergeTree ORDER BY id";
+                "  ) ORDER BY id";
 
         // Insert random (valid) values
         Field[][] rows = new Field[][] {{
@@ -848,7 +848,7 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
                 "  multilinestring MultiLineString, multilinestring_default MultiLineString DEFAULT [[(0, 0), (10, 0), (10, 10), (0, 10)]], " +
                 "  polygon Polygon, polygon_default Polygon DEFAULT [[(0, 0), (10, 0), (10, 10), (0, 10)]], " +
                 "  multipolygon MultiPolygon, multipolygon_default MultiPolygon DEFAULT [[[(0, 0), (10, 0), (10, 10), (0, 10)]]], " +
-                "  ) Engine = MergeTree ORDER BY id";
+                "  ) ORDER BY id";
 
         // Insert random (valid) values
         Field[][] rows = new Field[][] {{
@@ -873,7 +873,7 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
         String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
                 " (id Int32, " +
                 "  map Map(String, Int16) " +
-                "  ) Engine = MergeTree ORDER BY id";
+                "  ) ORDER BY id";
 
         Map<String, Integer> tmpMap = new HashMap<>();
         tmpMap.put("a", 1);
@@ -895,7 +895,7 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
         String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
                 " (id Int32, " +
                 "  nested Nested(n1 Int8, n2 Int16) " +
-                "  ) Engine = MergeTree ORDER BY id";
+                "  ) ORDER BY id";
 
         // Insert random (valid) values
         Field[][] rows = new Field[][] {{
@@ -917,7 +917,7 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
         String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
                 " (id Int32, " +
                 "  n Nested(a UInt32, b Nullable(String)) " +
-                "  ) Engine = MergeTree ORDER BY id SETTINGS flatten_nested = 0";
+                "  ) ORDER BY id SETTINGS flatten_nested = 0";
 
         List<Object> nested = Arrays.asList(Arrays.asList(10L, "x"), Arrays.asList(20L, null));
         Field[][] rows = new Field[][] {{
@@ -939,7 +939,7 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
                 " (id Int32, " +
                 "  n Nested(a UInt32, tags Array(String), matrix Array(Array(Int32)), " +
                 "           pair Tuple(Int8, String), score Nullable(Float64), tail Float64) " +
-                "  ) Engine = MergeTree ORDER BY id SETTINGS flatten_nested = 0";
+                "  ) ORDER BY id SETTINGS flatten_nested = 0";
 
         List<Object> nestedMulti = Arrays.asList(
                 Arrays.asList(10L, Arrays.asList("x", "y"), Arrays.asList(Arrays.asList(1, 2), Arrays.asList(3)),
@@ -968,7 +968,7 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
         String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
                 " (id Int32, " +
                 "  n Nested(u UInt64, when Date, guid UUID, lc LowCardinality(String), flag Bool, tail Float64) " +
-                "  ) Engine = MergeTree ORDER BY id SETTINGS flatten_nested = 0";
+                "  ) ORDER BY id SETTINGS flatten_nested = 0";
 
         UUID g1 = UUID.fromString("00112233-4455-6677-8899-aabbccddeeff");
         UUID g2 = UUID.fromString("ffeeddcc-bbaa-9988-7766-554433221100");
@@ -990,7 +990,7 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
         String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
                 " (id Int32, " +
                 "  nullable Nullable(Int8), nullable_default Nullable(Int8) DEFAULT 3, " +
-                "  ) Engine = MergeTree ORDER BY id";
+                "  ) ORDER BY id";
 
         // Insert random (valid) values
         Field[][] rows = new Field[][] {{
@@ -1008,7 +1008,7 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
         String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
                 " (id Int32, " +
                 "  lowcardinality LowCardinality(String), lowcardinality_default LowCardinality(String) DEFAULT '3', " +
-                "  ) Engine = MergeTree ORDER BY id";
+                "  ) ORDER BY id";
 
         String randomString = RandomStringUtils.randomAlphabetic(1024);
 
@@ -1028,7 +1028,7 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
         String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
                 " (id Int32, " +
                 "  boolean Bool, boolean_default Bool DEFAULT 1, " +
-                "  ) Engine = MergeTree ORDER BY id";
+                "  ) ORDER BY id";
 
         // Insert random (valid) values
         Field[][] rows = new Field[][] {{
@@ -1048,7 +1048,7 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
         String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
                 " (id Int32, " +
                 "  aggregate_function AggregateFunction(count, Int8), " +
-                "  ) Engine = MergeTree ORDER BY id";
+                "  ) ORDER BY id";
 
         // Insert random (valid) values
         Field[][] rows = new Field[][] {{
@@ -1069,7 +1069,7 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
                 "  saf_sum SimpleAggregateFunction(sum, UInt64), " +
                 "  saf_str SimpleAggregateFunction(anyLast, Nullable(String)), " +
                 "  tail Int32 " +
-                "  ) Engine = MergeTree ORDER BY id";
+                "  ) ORDER BY id";
 
         // The SimpleAggregateFunction columns sit between id and a trailing Int32 so a byte
         // dropped/added while writing them misaligns "tail" and is detected.
@@ -1097,7 +1097,7 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
         String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
                 " (id Int32, " +
                 "  dynamic Dynamic " +
-                "  ) Engine = MergeTree ORDER BY id";
+                "  ) ORDER BY id";
 
         // Insert random (valid) values
         Field[][] rows = new Field[][] {{
@@ -1123,7 +1123,7 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
         String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
                 " (id Int32, " +
                 "  json JSON, json_default JSON DEFAULT '{\"a\": 1}' " +
-                "  ) Engine = MergeTree ORDER BY id";
+                "  ) ORDER BY id";
 
         Map<String, Object> tmpMap = new HashMap<>();
         tmpMap.put("a", 1);
@@ -1150,7 +1150,7 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
         String tableCreate = "CREATE TABLE \"" + tableName + "\" " +
                 " (id Int32, " +
                 "  variant Variant(String, Int8)," +
-                "  ) Engine = MergeTree ORDER BY id";
+                "  ) ORDER BY id";
 
         // Insert random (valid) values
         Field[][] rows = new Field[][] {{

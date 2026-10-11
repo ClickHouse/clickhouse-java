@@ -122,9 +122,11 @@ jobs:
           tar -xzf \
             "$RUNNER_TEMP/clickhouse-maven-repository/compiled-tests.tar.gz"
       - name: Test all modules
+        env:
+          TEST_CLICKHOUSE_IMAGE_VERSION: ${{ env.PREFERRED_LTS_VERSION }}
         run: |
           mvn --batch-mode --no-transfer-progress --show-version --strict-checksums --threads 2 \
-            -Dmaven.wagon.rto=30000 -DclickhouseVersion=$PREFERRED_LTS_VERSION -Dj8 \
+            -Dmaven.wagon.rto=30000 -Dj8 \
             -Pcompile-java11,compile-java17 \
             org.apache.maven.plugins:maven-surefire-plugin:3.5.3:test \
             org.apache.maven.plugins:maven-failsafe-plugin:3.1.2:integration-test \
