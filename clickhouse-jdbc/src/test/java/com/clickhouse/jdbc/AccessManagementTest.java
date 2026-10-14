@@ -33,7 +33,7 @@ public class AccessManagementTest extends JdbcIntegrationTest {
         properties.setProperty(ClickHouseDefaults.PASSWORD.getKey(), ClickHouseServerForTest.getPassword());
         properties.setProperty(ClickHouseHttpOption.REMEMBER_LAST_SET_ROLES.getKey(), "true");
         properties.setProperty(ClickHouseHttpOption.CONNECTION_PROVIDER.getKey(), connectionProvider);
-        ClickHouseDataSource dataSource = new ClickHouseDataSource(url, properties);
+        ClickHouseDataSource dataSource = new ClickHouseDataSource(url, addCustomSettings(properties));
         String serverVersion = getServerVersion(dataSource.getConnection());
         if (ClickHouseVersion.of(serverVersion).check("(,24.3]")) {
             System.out.println("Test is skipped: feature is supported since 24.4");
@@ -117,7 +117,7 @@ public class AccessManagementTest extends JdbcIntegrationTest {
         Properties properties = new Properties();
         properties.setProperty(ClickHouseDefaults.PASSWORD.getKey(), ClickHouseServerForTest.getPassword());
         properties.setProperty(ClickHouseHttpOption.REMEMBER_LAST_SET_ROLES.getKey(), "true");
-        ClickHouseDataSource dataSource = new ClickHouseDataSource(url, properties);
+        ClickHouseDataSource dataSource = new ClickHouseDataSource(url, addCustomSettings(properties));
         String serverVersion = getServerVersion(dataSource.getConnection());
         if (ClickHouseVersion.of(serverVersion).check("(,24.3]")) {
             System.out.println("Test is skipped: feature is supported since 24.4");
@@ -191,7 +191,7 @@ public class AccessManagementTest extends JdbcIntegrationTest {
         String url = String.format("jdbc:ch:%s", getEndpointString());
         Properties properties = new Properties();
         properties.setProperty(ClickHouseHttpOption.REMEMBER_LAST_SET_ROLES.getKey(), "true");
-        ClickHouseDataSource dataSource = new ClickHouseDataSource(url, properties);
+        ClickHouseDataSource dataSource = new ClickHouseDataSource(url, addCustomSettings(properties));
 
         try (Connection connection = dataSource.getConnection("access_dba", "123")) {
             Statement st = connection.createStatement();
@@ -231,7 +231,7 @@ public class AccessManagementTest extends JdbcIntegrationTest {
         String url = String.format("jdbc:ch:%s", getEndpointString());
         Properties properties = new Properties();
         properties.put(ClickHouseHttpOption.USE_BASIC_AUTHENTICATION.getKey(), false);
-        ClickHouseDataSource dataSource = new ClickHouseDataSource(url, properties);
+        ClickHouseDataSource dataSource = new ClickHouseDataSource(url, addCustomSettings(properties));
 
         try (Connection connection = dataSource.getConnection("access_dba", "123")) {
             Statement st = connection.createStatement();

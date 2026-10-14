@@ -3,7 +3,7 @@ package com.clickhouse.client.api;
 import com.clickhouse.client.api.data_formats.ClickHouseFormatReader;
 import com.clickhouse.client.api.data_formats.internal.AbstractBinaryFormatReader;
 import com.clickhouse.client.api.enums.SSLMode;
-import com.clickhouse.client.api.internal.ClickHouseLZ4OutputStream;
+import com.clickhouse.client.api.internal.CompressedBlockOutputStream;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
 import org.slf4j.Logger;
@@ -99,7 +99,9 @@ public enum ClientConfigProperties {
 
     USE_HTTP_COMPRESSION("client.use_http_compression", Boolean.class, "false"),
 
-    COMPRESSION_LZ4_UNCOMPRESSED_BUF_SIZE("compression.lz4.uncompressed_buffer_size", Integer.class, String.valueOf(ClickHouseLZ4OutputStream.UNCOMPRESSED_BUFF_SIZE)),
+    COMPRESSION_LZ4_UNCOMPRESSED_BUF_SIZE("compression.lz4.uncompressed_buffer_size", Integer.class, String.valueOf(CompressedBlockOutputStream.UNCOMPRESSED_BUFF_SIZE)),
+
+    COMPRESSION_METHOD("compression.method", CompressionMethod.class, CompressionMethod.ZSTD.name()),
 
     DISABLE_NATIVE_COMPRESSION("disable_native_compression", Boolean.class, "false"),
 

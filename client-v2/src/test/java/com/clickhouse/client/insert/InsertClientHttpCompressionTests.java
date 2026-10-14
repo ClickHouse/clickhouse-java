@@ -1,5 +1,6 @@
 package com.clickhouse.client.insert;
 
+import com.clickhouse.client.api.CompressionMethod;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.metrics.OperationMetrics;
@@ -20,7 +21,7 @@ import static org.testng.Assert.assertEquals;
 public class InsertClientHttpCompressionTests extends InsertTests {
 
     public InsertClientHttpCompressionTests() {
-        super(true, true);
+        super(true, true, CompressionMethod.ZSTD);
     }
 
 
@@ -28,7 +29,7 @@ public class InsertClientHttpCompressionTests extends InsertTests {
     public void insertRawDataCompressed(String compressionAlgo) throws Exception {
         final String tableName = "raw_data_table";
         final String createSQL = "CREATE TABLE " + tableName +
-                " (Id UInt32, event_ts Timestamp, name String, p1 Int64, p2 String) ENGINE = MergeTree() ORDER BY ()";
+                " (Id UInt32, event_ts Timestamp, name String, p1 Int64, p2 String) ORDER BY ()";
 
         initTable(tableName, createSQL);
 

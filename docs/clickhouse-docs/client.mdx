@@ -24,36 +24,16 @@ The library provides its own API to send requests to a server. The library also 
 ## Setup {#setup}
 
 - Maven Central (project web page): https://mvnrepository.com/artifact/com.clickhouse/client-v2
-- Nightly builds (repository link): https://central.sonatype.com/repository/maven-snapshots/
 <br/>
-<Tabs>
-<Tab title="Maven">
 
 ```xml
 <dependency>
     <groupId>com.clickhouse</groupId>
     <artifactId>client-v2</artifactId>
-    <version>0.9.8</version>
+    <version>0.10.0</version>
 </dependency>
 ```
 
-</Tab>
-<Tab title="Gradle (Kotlin)">
-
-```kotlin
-// https://mvnrepository.com/artifact/com.clickhouse/client-v2
-implementation("com.clickhouse:client-v2:0.9.8")
-```
-</Tab>
-<Tab title="Gradle">
-
-```groovy
-// https://mvnrepository.com/artifact/com.clickhouse/client-v2
-implementation 'com.clickhouse:client-v2:0.9.8'
-```
-
-</Tab>
-</Tabs>
 <br/>
 
 ## Initialization {#initialization}
@@ -845,7 +825,7 @@ This object should be closed as soon as possible to release a connection because
 ### Examples {#examples}
 
 - Example code is available in [repo](https://github.com/ClickHouse/clickhouse-java/tree/main/examples/client-v2)
-- Reference Spring Service [implementation](https://github.com/ClickHouse/clickhouse-java/tree/main/examples/demo-service)
+- Reference Spring Service [implementation](https://github.com/ClickHouse/clickhouse-java/tree/main/examples/demo-spring-service)
 
 ## Common API {#common-api}
 
@@ -918,7 +898,7 @@ client.register(ArticleViewEvent.class, client.getTableSchema(TABLE_NAME));
 Complete examples code is stored in the repo in a 'example` [folder](https://github.com/ClickHouse/clickhouse-java/tree/main/examples):
 
 - [client-v2](https://github.com/ClickHouse/clickhouse-java/tree/main/examples/client-v2) - main set of examples.
-- [demo-service](https://github.com/ClickHouse/clickhouse-java/tree/main/examples/demo-service) - example of how to use the client in a Spring Boot application.
+- [demo-spring-service](https://github.com/ClickHouse/clickhouse-java/tree/main/examples/demo-spring-service) - example of how to use the client and the JDBC driver in a Spring Boot application, with observability.
 - [demo-kotlin-service](https://github.com/ClickHouse/clickhouse-java/tree/main/examples/demo-kotlin-service) - example of how to use the client in Ktor (Kotlin) application.
 
 ## Reading Data {#reading-data}

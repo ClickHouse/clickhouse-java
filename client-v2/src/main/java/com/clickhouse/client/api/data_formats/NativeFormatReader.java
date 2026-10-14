@@ -106,6 +106,12 @@ public class NativeFormatReader extends AbstractBinaryFormatReader {
                         + "strided, wrapped in Nullable/LowCardinality, or nested inside another type "
                         + "(e.g. Array/Tuple/Map), is not decoded. Use a RowBinary format "
                         + "(e.g. RowBinaryWithNamesAndTypes) to read such QBit values");
+            } else if (isGeo(column)) {
+                // Native writes a geo column column-major: a Point as the two Float64 sub-columns of its
+                // tuple, and every other geo type as cumulative offsets followed by the flattened elements
+                // of the level below. The per-row decoders reached through readValue() read the RowBinary
+                // layout instead, which scrambles a Point block and desynchronizes the columns that follow.
+                values = binaryStreamReader.readGeoNative(column, nRows);
             } else if (column.isArray()) {
                 // Native encodes an Array column as nRows cumulative offsets followed by the
                 // flattened elements; each row's element count is the delta between consecutive
@@ -120,6 +126,29 @@ public class NativeFormatReader extends AbstractBinaryFormatReader {
                     int len = Math.toIntExact(offsets[j] - prevOffset);
                     values.add(binaryStreamReader.readArrayItem(column.getNestedColumns().get(0), len));
                     prevOffset = offsets[j];
+                }
+            } else if (column.isNullable() && !column.isLowCardinality()) {
+                // Native encodes a Nullable column as a null map of nRows bytes followed by the values of
+                // all rows; a row marked as null still has a placeholder value in the values section.
+                // RowBinary, in contrast, prefixes every value with its own marker - that marker is what
+                // readValue() consumes, so it must not be read here.
+                values = new ArrayList<>(nRows);
+                boolean[] nulls = new boolean[nRows];
+                for (int j = 0; j < nRows; j++) {
+                    nulls[j] = binaryStreamReader.readByte() == 1;
+                }
+                // Nothing (the type of a bare NULL) has no value bytes in RowBinary, but Native still writes
+                // one placeholder byte per row, so it has to be consumed here.
+                boolean nothing = column.getDataType() == ClickHouseDataType.Nothing;
+                for (int j = 0; j < nRows; j++) {
+                    Object value;
+                    if (nothing) {
+                        binaryStreamReader.readByte();
+                        value = null;
+                    } else {
+                        value = binaryStreamReader.readValueWithoutNullMarker(column);
+                    }
+                    values.add(nulls[j] ? null : value);
                 }
             } else {
                 values = new ArrayList<>(nRows);
@@ -158,6 +187,28 @@ public class NativeFormatReader extends AbstractBinaryFormatReader {
             case Float32:
             case Float64:
             case BFloat16:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /**
+     * Returns {@code true} for a geo column ({@code Point}, {@code Ring}, {@code LineString},
+     * {@code MultiPoint}, {@code Polygon}, {@code MultiLineString} or {@code MultiPolygon}). Geo types
+     * are their own data types rather than {@code Array}/{@code Tuple}, so they do not reach the
+     * columnar branches of {@link #readBlock} on their own and need their own Native decoder
+     * ({@link BinaryStreamReader#readGeoNative(ClickHouseColumn, int)}).
+     */
+    private static boolean isGeo(ClickHouseColumn column) {
+        switch (column.getDataType()) {
+            case Point:
+            case Ring:
+            case LineString:
+            case MultiPoint:
+            case Polygon:
+            case MultiLineString:
+            case MultiPolygon:
                 return true;
             default:
                 return false;

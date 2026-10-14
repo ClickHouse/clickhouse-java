@@ -1610,6 +1610,7 @@ public abstract class BaseSqlParserFacadeTest {
                 /* values list of placeholders only */
                 {"INSERT INTO t (v1, v2) VALUES (?, ?)", false, true},
                 {"INSERT INTO t VALUES (?, ?)", false, true},
+                {"INSERT INTO t (v1, v2) VALUES (\n  ?,\t? )", false, true},
                 /* function call the grammar matches */
                 {"INSERT INTO t (v1, v2) VALUES (?, now())", true, true},
                 {"INSERT INTO t (v1, v2) VALUES (toString(?), ?)", true, true},
@@ -1617,6 +1618,17 @@ public abstract class BaseSqlParserFacadeTest {
                 {"INSERT INTO t (v1, v2) VALUES (?, hex(x'AB'))", true, false},
                 {"INSERT INTO t (v1, v2) VALUES (hex(x'AB'), ?)", true, false},
                 {"INSERT INTO t (v1, v2) VALUES (?, ?), (?, hex(x'AB'))", true, false},
+                /* values list holding a value that is not a placeholder nor a function call */
+                {"INSERT INTO t (v1, v2, v3) VALUES (7, ?, ?)", true, true},
+                {"INSERT INTO t (v1, v2, v3) VALUES (?, ?, 7)", true, true},
+                {"INSERT INTO t (v1, v2) VALUES ('2020-01-01 00:00:00', ?)", true, true},
+                {"INSERT INTO t (v1, v2) VALUES (NULL, ?)", true, true},
+                {"INSERT INTO t (v1, v2) VALUES (-7, ?)", true, true},
+                {"INSERT INTO t (v1, v2) VALUES (? + 1, ?)", true, true},
+                {"INSERT INTO t (v1, v2) VALUES (?::Int32, ?)", true, true},
+                {"INSERT INTO t (v1, v2) VALUES ([?, ?], ?)", true, true},
+                {"INSERT INTO t (v1, v2) VALUES ({fn now()}, ?)", true, false},
+                {"INSERT INTO t (v1, v2) VALUES ({p1:DateTime}, ?)", true, false},
         };
     }
 

@@ -1,5 +1,6 @@
 package com.clickhouse.client.api.internal;
 
+import net.jpountz.lz4.LZ4FrameOutputStream;
 import org.apache.commons.compress.compressors.CompressorException;
 import org.apache.commons.compress.compressors.CompressorStreamFactory;
 import org.apache.hc.core5.function.Supplier;
@@ -51,10 +52,18 @@ public class CompressedEntity implements HttpEntity {
             throw new UnsupportedOperationException("Unsupported: writing compressed response to elsewhere");
         }
 
-        try (OutputStream compressingStream = compressorStreamFactory.createCompressorOutputStream(compressionAlgo, outStream)){
+        try (OutputStream compressingStream = createCompressingStream(outStream)){
             httpEntity.writeTo(compressingStream);
         } catch (CompressorException e) {
             throw new IOException("Failed to create compressing output stream", e);
+        }
+    }
+
+    private OutputStream createCompressingStream(OutputStream out) throws IOException {
+        if (CompressorStreamFactory.LZ4_FRAMED.equalsIgnoreCase(compressionAlgo)) {
+            return new LZ4FrameOutputStream(out, LZ4FrameOutputStream.BLOCKSIZE.SIZE_256KB);
+        } else {
+            return compressorStreamFactory.createCompressorOutputStream(compressionAlgo, out);
         }
     }
 

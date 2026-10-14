@@ -14,6 +14,7 @@ import org.testng.Assert;
 import com.clickhouse.client.BaseIntegrationTest;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
+import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 
 import javax.sql.DataSource;
@@ -28,6 +29,10 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
 
     protected String buildJdbcUrl(ClickHouseProtocol protocol, String prefix, String url) {
         if (url != null && url.startsWith("jdbc:")) {
+            if (protocol != ClickHouseProtocol.MYSQL && !url.contains("custom_settings")) {
+                char sep = url.indexOf('?') >= 0 ? '&' : '?';
+                return url + sep + "custom_settings=network_compression_method=lz4";
+            }
             return url;
         }
 
@@ -57,6 +62,14 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
         if (CUSTOM_PROTOCOL_NAME.indexOf("HTTP") >= 0 && !"HTTP".equals(CUSTOM_PROTOCOL_NAME)) {
             builder.append('?').append(ClickHouseHttpOption.CONNECTION_PROVIDER.getKey()).append('=')
                     .append(CUSTOM_PROTOCOL_NAME);
+        }
+
+        if (protocol != ClickHouseProtocol.MYSQL) {
+            String customSetting = "network_compression_method=lz4";
+            if (builder.indexOf("custom_settings") == -1) {
+                char sep = builder.indexOf("?") >= 0 ? '&' : '?';
+                builder.append(sep).append("custom_settings=").append(customSetting);
+            }
         }
         return builder.toString();
     }
@@ -101,10 +114,31 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
         return newDataSource(url, new Properties());
     }
 
-    public DataSource newDataSource(String url, Properties properties) throws SQLException {
+    protected Properties addCustomSettings(Properties properties) {
         if (properties == null) {
             properties = new Properties();
         }
+        String customSettingsKey = ClickHouseClientOption.CUSTOM_SETTINGS.getKey();
+        String customSetting = "network_compression_method=lz4";
+        String existingCustom = properties.getProperty(customSettingsKey);
+        if (existingCustom == null || existingCustom.isEmpty()) {
+            properties.setProperty(customSettingsKey, customSetting);
+        } else if (!existingCustom.contains("network_compression_method")) {
+            properties.setProperty(customSettingsKey, existingCustom + "," + customSetting);
+        }
+
+        String customHttpParamsKey = "custom_http_params";
+        String existingHttpParams = properties.getProperty(customHttpParamsKey);
+        if (existingHttpParams == null || existingHttpParams.isEmpty()) {
+            properties.setProperty(customHttpParamsKey, customSetting);
+        } else if (!existingHttpParams.contains("network_compression_method")) {
+            properties.setProperty(customHttpParamsKey, existingHttpParams + "," + customSetting);
+        }
+        return properties;
+    }
+
+    public DataSource newDataSource(String url, Properties properties) throws SQLException {
+        properties = addCustomSettings(properties);
         if (!properties.containsKey("password")) {
             properties.put("password", getPassword());
         }
