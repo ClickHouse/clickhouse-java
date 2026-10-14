@@ -94,7 +94,7 @@ Application should take care of:
 
 ### Workload identification & client name
 
-In production environments, a single ClickHouse cluster often handles diverse workloads from multiple services: real-time user-facing APIs, event ingestion pipelines (e.g., Kafka consumers, CDC streams), scheduled ETL batch jobs, BI reporting dashboards (e.g., Superset, Tableau, Grafana), and ad-hoc analytical queries. When queries fail, time out, or cause memory spikes (`MEMORY_LIMIT_EXCEEDED`), identifying the originating application or workload is essential for fast troubleshooting, root-cause analysis, and resource attribution.
+In production environments, a single ClickHouse cluster often handles diverse workloads from multiple services: real-time user-facing APIs, event ingestion pipelines (e.g., Kafka consumers, CDC streams), scheduled ETL batch jobs, BI reporting dashboards (e.g., Superset, Tableau, Grafana), and ad-hoc analytical queries. When queries fail, time out, or cause memory spikes (`MEMORY_LIMIT_EXCEEDED`), identifying the originating application or workload is essential for fast troubleshooting and resource attribution.
 
 #### Setting client name
 
@@ -225,6 +225,22 @@ ORDER BY event_time DESC
 LIMIT 100;
 ```
 
+###  Default Database
+
+If application works with specific database then default database can be set on client level: 
+
+```java
+import com.clickhouse.client.api.Client;
+
+public Client createAnalyticsClient(Client.Builder baseClient) {
+    return baseClient
+        .setDefaultDatabase("analytics") // Default database for queries
+        .build();
+}
+```
+
+**Note**: when database is set on request level then it is recommended to set non-existing database as default one. It
+will cause exception and will not let any data be written to `default` schema.
 
 ## Step 2 — Authentication
 
@@ -341,23 +357,6 @@ public Client.Builder createBaseClient() {
 }
 ```
 
-### Client Identity & Default Database
-
-Regardless of the authentication mechanism, you can also configure the client's identity and default database:
-
-```java
-import com.clickhouse.client.api.Client;
-
-public Client createAnalyticsClient(Client.Builder baseClient) {
-    return baseClient
-        .setClientName("my-analytics-app/1.0")
-        .setDefaultDatabase("analytics") // Default database for queries
-        .build();
-}
-```
-
-> **Note on Client Name:** How the client name surfaces in `system.query_log` depends on the protocol used. For HTTP connections (used by Java Client V2), it appears in the `http_user_agent` column. The `client_name` column in `system.query_log` is populated only for native TCP connections. See [Workload identification & client name](#workload-identification--client-name) for full details and query log troubleshooting queries.
-
 ### Decisions
 
 The mechanism follows from how the server and any fronting infrastructure are configured:
@@ -382,13 +381,13 @@ See [integration-testing.md — Configuration](integration-testing.md#configurat
 
 ### TLS / mTLS / proxies
 
-| Scenario | Builder methods / properties |
-|----------|------------------------------|
-| HTTPS with public CA | `addEndpoint("https://host:8443")` |
-| Self-signed server cert | `setRootCertificate("/path/to/ca.crt")` |
-| mTLS (client certificate) | `useSSLAuthentication(true)`, `setClientCertificate(...)`, `setClientKey(...)` |
-| Trust store (JKS/PKCS12) | `setSSLTrustStore(...)`, `setSSLTrustStorePassword(...)` |
-| HTTP proxy | `setProxy(ProxyType.HTTP, host, port)`, `setProxyCredentials(user, password)` |
+| Scenario                    | Property(ies)                                         | Builder methods                                      |
+|-----------------------------|------------------------------------------------------|------------------------------------------------------|
+| HTTPS with public CA        | -                                                    | `addEndpoint("https://host:8443")`                   |
+| Self-signed server cert     | `root_certificate`                                   | `setRootCertificate("/path/to/ca.crt")`              |
+| mTLS (client certificate)   | `ssl_auth`, `client_certificate`, `client_key`       | `useSSLAuthentication(true)`, `setClientCertificate(...)`, `setClientKey(...)` |
+| Trust store (JKS/PKCS12)    | `ssl_trust_store`, `ssl_trust_store_password`        | `setSSLTrustStore(...)`, `setSSLTrustStorePassword(...)` |
+| HTTP proxy                  | `proxy_type`, `proxy_host`, `proxy_port`, `proxy_user`, `proxy_password` | `setProxy(ProxyType.HTTP, host, port)`, `setProxyCredentials(user, password)` |
 
 See [SSLExamples](../examples/client-v2/src/main/java/com/clickhouse/examples/client_v2/SSLExamples.java) for a runnable walkthrough and [authentication.md](authentication.md) for full details. See also [integration-testing.md — Test Environment](integration-testing.md#test-environment) for testing across protocols, hosts, and ClickHouse versions.
 
@@ -457,40 +456,21 @@ The reasoning is only valid for **short-lived read operations**, where connectio
 
 The `Client` uses an internal Apache HttpClient 5 pool. Key pool settings exposed by client configuration are listed below:
 
-| Property (Builder method) | Purpose | Default |
-|---------------------------|---------|---------|
-| `max_open_connections` (`.setMaxConnections()`) | Maximum open HTTP connections per server endpoint. Size set from parallelism guidance above. | `10` |
-| `connection_ttl` (`.setConnectionTTL()`) | Time-to-live after which an active connection is closed and recreated. | `-1` (disabled) |
-| `http_keep_alive_timeout` (`.setKeepAliveTimeout()`) | HTTP Keep-Alive duration for idle pooled connections. | Server default |
-| `connection_request_timeout` (`.setConnectionRequestTimeout()`) | Maximum time a thread blocks waiting for an available connection from the pool. | `10000ms` |
-| `connection_reuse_strategy` (`.setConnectionReuseStrategy()`) | Connection pool allocation strategy (`FIFO` or `LIFO`). | `FIFO` |
-| `connection_pool_enabled` (`.enableConnectionPool()`) | Enable/disable HTTP connection pooling (keep enabled). | `true` |
+| Property                      | Builder method                      | Purpose                                                                                   |
+|-------------------------------|-------------------------------------|-------------------------------------------------------------------------------------------|
+| `max_open_connections`        | `.setMaxConnections()`              | Maximum open HTTP connections per server endpoint. Size set from parallelism guidance above.|
+| `connection_ttl`              | `.setConnectionTTL()`               | Time-to-live after which an active connection is closed and recreated.                     |
+| `http_keep_alive_timeout`     | `.setKeepAliveTimeout()`            | HTTP Keep-Alive duration for idle pooled connections.                                      |
+| `connection_request_timeout`  | `.setConnectionRequestTimeout()`    | Maximum time a thread blocks waiting for an available connection from the pool.            |
+| `connection_reuse_strategy`   | `.setConnectionReuseStrategy()`     | Connection pool allocation strategy (`FIFO` or `LIFO`).                                    |
+| `connection_pool_enabled`     | `.enableConnectionPool()`           | Enable/disable HTTP connection pooling (keep enabled).                                     |
 
-#### Recommended Pool Configuration
 
-```java
-import com.clickhouse.client.api.Client;
-import com.clickhouse.client.api.enums.ConnectionReuseStrategy;
+- **`http_keep_alive_timeout` and stale connections.** If your application encounters `NoHttpResponseException`, it usually indicates stale pooled connections that were closed by the server or an intermediate proxy/load balancer due to idle timeouts. Setting `setKeepAliveTimeout` to a duration shorter than the server's Keep-Alive timeout ensures idle connections are refreshed before sending a request.
 
-import java.util.concurrent.TimeUnit;
+- **`connection_ttl` against ClickHouse Cloud.** Keep it **relatively small** when the endpoint is a Cloud (or otherwise load-balanced) deployment. A short TTL forces connections to be retired and re-established frequently, so new connections keep going through the load balancer, which lets it **redistribute traffic across nodes** instead of pinning long-lived connections to whichever node they first landed on.
 
-public Client.Builder createBaseClient() {
-    return new Client.Builder()
-        .addEndpoint("http://localhost:8123")
-        .setUsername("default")
-        .setPassword("secret")
-        .setMaxConnections(50)
-        .setConnectionRequestTimeout(5, TimeUnit.SECONDS)
-        .setKeepAliveTimeout(60, TimeUnit.SECONDS)
-        .setConnectionReuseStrategy(ConnectionReuseStrategy.FIFO);
-}
-```
-
-**`setKeepAliveTimeout` and stale connections.** If your application encounters `NoHttpResponseException`, it usually indicates stale pooled connections that were closed by the server or an intermediate proxy/load balancer due to idle timeouts. Setting `setKeepAliveTimeout` to a duration shorter than the server's Keep-Alive timeout ensures idle connections are refreshed before sending a request.
-
-**`connection_ttl` against ClickHouse Cloud.** Keep it **relatively small** when the endpoint is a Cloud (or otherwise load-balanced) deployment. A short TTL forces connections to be retired and re-established frequently, so new connections keep going through the load balancer, which lets it **redistribute traffic across nodes** instead of pinning long-lived connections to whichever node they first landed on.
-
-**`connection_pool_enabled` is not recommended to change.** Leave pooling **enabled** (the default). The only reason to disable it is a workload with extreme concurrency where the internal Apache HttpClient connection pool itself becomes a contention point — under very high parallel request rates the pool's own bookkeeping can serialize threads. Disabling pooling avoids that bottleneck at the cost of a fresh connection per operation (higher latency, more sockets), so treat it as a last resort after measuring, not a default.
+- **`connection_pool_enabled` is not recommended to change.** Leave pooling **enabled** (the default). The only reason to disable it is a workload with extreme concurrency where the internal Apache HttpClient connection pool itself becomes a contention point — under very high parallel request rates the pool's own bookkeeping can serialize threads. Disabling pooling avoids that bottleneck at the cost of a fresh connection per operation (higher latency, more sockets), so treat it as a last resort after measuring, not a default.
 
 ### Common Pitfalls
 
@@ -503,9 +483,13 @@ public Client.Builder createBaseClient() {
 > **CONSTRAINT:** Always `close()` the client at shutdown to avoid leaking the pool and its threads.
 
 See [integration-testing.md — Connecting](integration-testing.md#connecting) for tests that verify pool sizing (`max_open_connections`) and connection release under load.
+
+
 ---
 
-### Retry Policy
+### Handling Errors & Retry Policy
+
+#### Retry Policy 
 
 The `Client` has built-in support for retrying requests that fail due to *transient* conditions, such as network timeouts or server unavailability. The retry strategy is controlled by configuration properties, which can be set at the client or per-request level. 
 
@@ -513,10 +497,10 @@ The `Client` has built-in support for retrying requests that fail due to *transi
 
 **Configuring Retries:**
 
-| Property (Builder method) | Purpose | Default |
-|---------------------------|---------|---------|
-| `retry` (`.setRetryOnFailure(int)`) | Maximum number of automatic retries for retriable failures (not user/SQL errors). | `3` |
-| `client_retry_on_failures` (`.setRetryOnFailureFor(List<ClientFaultCause>)`) | Fine-grained control of which failure types to retry. See below. | `NoHttpResponse`, `ConnectTimeout`, `ConnectionRequestTimeout`, `ServerRetryable` |
+| Property                  | Builder Method                         | Purpose                                                    |
+|---------------------------|----------------------------------------|------------------------------------------------------------|
+| `retry`                   | `.setRetryOnFailure(int)`              | Max automatic retries for retriable (not user/SQL) errors. |
+| `client_retry_on_failures`| `.setRetryOnFailureFor(ClientFaultCause...)` | Select which failure types will be retried.                |
 
 Example:
 
@@ -654,7 +638,7 @@ public ClickHouseFormat inspectQueryFormat(Client client, String sql) throws Exc
 }
 ```
 
-## Step 6 — Read operations & tuning
+## Step 6 — Read operations
 
 **Goal:** read results efficiently and configure the operation-level settings for heavy analytical reads.
 
@@ -807,7 +791,7 @@ See the [Error model](#error-model) for the exception hierarchy and how to unwra
 See [integration-testing.md — Fetching Data](integration-testing.md#fetching-data) for read-path test scenarios to cover (data types, formats, failure handling).
 ---
 
-## Step 7 — Write operations & tuning
+## Step 7 — Write operations
 
 **Goal:** choose an insert pattern, tune it for bulk ingest, and make retries idempotent.
 
