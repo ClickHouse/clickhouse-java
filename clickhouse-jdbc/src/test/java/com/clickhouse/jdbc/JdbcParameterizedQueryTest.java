@@ -7,6 +7,7 @@ import com.clickhouse.client.ClickHouseConfig;
 import org.testng.Assert;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 public class JdbcParameterizedQueryTest {
@@ -65,5 +66,29 @@ public class JdbcParameterizedQueryTest {
         builder.setLength(0);
         q.apply(builder, 1, new StringBuilder("Int8"));
         Assert.assertEquals(builder.toString(), "select 1::Int8");
+    }
+
+    @DataProvider(name = "queriesWithCommentedParameters")
+    private Object[][] getQueriesWithCommentedParameters() {
+        return new Object[][] {
+                { "-- filter by ? and ?\nselect ?, ?", 2, "-- filter by ? and ?\nselect 1, 2" },
+                { "/* filter by ? and ? */ select ?, ?", 2, "/* filter by ? and ? */ select 1, 2" },
+                { "select ?, ? -- and ?", 2, "select 1, 2 -- and ?" },
+                { "select ? --\n, ?", 2, "select 1 --\n, 2" },
+                { "select ?, ? -- ; and ?", 2, "select 1, 2 -- ; and ?" },
+                { "select ?, ? /* ; and ? */", 2, "select 1, 2 /* ; and ? */" },
+                { "select /* ? /* ? */ ? */ ?, ?", 2, "select /* ? /* ? */ ? */ 1, 2" },
+                { "select '-- ?', ?, ?", 2, "select '-- ?', 1, 2" },
+        };
+    }
+
+    @Test(groups = "unit", dataProvider = "queriesWithCommentedParameters")
+    public void testParseQueriesWithCommentedParameters(String sql, int paramCount, String expectedQuery) {
+        JdbcParameterizedQuery q = JdbcParameterizedQuery.of(config, sql);
+        Assert.assertEquals(q.getParameters().size(), paramCount);
+
+        StringBuilder builder = new StringBuilder();
+        q.apply(builder, "1", "2");
+        Assert.assertEquals(builder.toString(), expectedQuery);
     }
 }

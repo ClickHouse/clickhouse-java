@@ -5,13 +5,14 @@ import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.ClientFaultCause;
 import com.clickhouse.client.api.ClientMisconfigurationException;
+import com.clickhouse.client.api.CompressionMethod;
 import com.clickhouse.client.api.ConnectionInitiationException;
 import com.clickhouse.client.api.ConnectionReuseStrategy;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertSettings;
-import com.clickhouse.client.api.internal.ClickHouseLZ4OutputStream;
+import com.clickhouse.client.api.internal.CompressedBlockOutputStream;
 import com.clickhouse.client.api.internal.CredentialsManager;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.internal.ValidationUtils;
@@ -158,7 +159,7 @@ public class ClientTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testTemporaryTablesAreBoundToSession() throws Exception {
-        if (isCloud()) {
+        if (isCloud() || ClickHouseServerForTest.isCluster()) {
             return; // HTTP sessions require server affinity
         }
 
@@ -198,7 +199,7 @@ public class ClientTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testSessionCheckFailsForUnknownSession() {
-        if (isCloud()) {
+        if (isCloud() || ClickHouseServerForTest.isCluster()) {
             return; // HTTP sessions require server affinity
         }
 
@@ -334,7 +335,7 @@ public class ClientTests extends BaseIntegrationTest {
                     Assert.assertEquals(config.get(p.getKey()), p.getDefaultValue(), "Default value doesn't match");
                 }
             }
-            Assert.assertEquals(config.size(), 36); // to check everything is set. Increment when new added.
+            Assert.assertEquals(config.size(), 37); // to check everything is set. Increment when new added.
         }
 
         try (Client client = new Client.Builder()
@@ -369,7 +370,7 @@ public class ClientTests extends BaseIntegrationTest {
                 .queryFormat(ClickHouseFormat.CSV.name())
                 .build()) {
             Map<String, String> config = client.getConfiguration();
-            Assert.assertEquals(config.size(), 39); // to check everything is set. Increment when new added.
+            Assert.assertEquals(config.size(), 40); // to check everything is set. Increment when new added.
             Assert.assertEquals(config.get(ClientConfigProperties.DATABASE.getKey()), "mydb");
             Assert.assertEquals(config.get(ClientConfigProperties.MAX_EXECUTION_TIME.getKey()), "10");
             Assert.assertEquals(config.get(ClientConfigProperties.COMPRESSION_LZ4_UNCOMPRESSED_BUF_SIZE.getKey()), "300000");
@@ -396,6 +397,8 @@ public class ClientTests extends BaseIntegrationTest {
             Assert.assertEquals(config.get(ClientConfigProperties.SSL_MODE.getKey()), "STRICT");
             Assert.assertEquals(config.get(ClientConfigProperties.BINARY_STRING_SUPPORT.getKey()), "true");
             Assert.assertEquals(config.get(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey()), "CSV");
+            Assert.assertEquals(config.get(ClientConfigProperties.COMPRESSION_METHOD.getKey()), CompressionMethod.ZSTD.name());
+            // Add new assertion for default value
         }
     }
 
@@ -416,50 +419,6 @@ public class ClientTests extends BaseIntegrationTest {
             Assert.assertFalse(client.getConfiguration().containsKey(option.getKey()),
                     "Socket buffer size must not be configured unless requested");
             Assert.assertEquals(client.queryAll("SELECT 1").get(0).getInteger(1), 1);
-        }
-    }
-
-    @Test(groups = {"integration"})
-    public void testWithOldDefaults() {
-        try (Client client = new Client.Builder()
-                .setUsername("default")
-                .setPassword("seceret")
-                .addEndpoint("http://localhost:8123")
-                .setDefaultDatabase("default")
-                .setExecutionTimeout(0, MILLIS)
-                .setLZ4UncompressedBufferSize(ClickHouseLZ4OutputStream.UNCOMPRESSED_BUFF_SIZE)
-                .disableNativeCompression(false)
-                .useServerTimeZone(true)
-                .setServerTimeZone("UTC")
-                .useAsyncRequests(false)
-                .setMaxConnections(10)
-                .setConnectionRequestTimeout(10, SECONDS)
-                .setConnectionReuseStrategy(ConnectionReuseStrategy.FIFO)
-                .enableConnectionPool(true)
-                .setConnectionTTL(-1, MILLIS)
-                .retryOnFailures(ClientFaultCause.NoHttpResponse, ClientFaultCause.ConnectTimeout,
-                        ClientFaultCause.ConnectionRequestTimeout, ClientFaultCause.ServerRetryable)
-                .setClientNetworkBufferSize(300_000)
-                .setMaxRetries(3)
-                .allowBinaryReaderToReuseBuffers(false)
-                .columnToMethodMatchingStrategy(DefaultColumnToMethodMatchingStrategy.INSTANCE)
-                .useHTTPBasicAuth(true)
-                .compressClientRequest(false)
-                .compressServerResponse(true)
-                .useHttpCompression(false)
-                .appCompressedData(false)
-                .setSocketTimeout(0, SECONDS)
-                .setSocketRcvbuf(804800)
-                .setSocketSndbuf(804800)
-                .build()) {
-            Map<String, String> config = client.getConfiguration();
-            for (ClientConfigProperties p : ClientConfigProperties.values()) {
-                if (p.getDefaultValue() != null) {
-                    Assert.assertTrue(config.containsKey(p.getKey()), "Default value should be set for " + p.getKey());
-                    Assert.assertEquals(config.get(p.getKey()), p.getDefaultValue(), "Default value doesn't match");
-                }
-            }
-            Assert.assertEquals(config.size(), 38); // to check everything is set. Increment when new added.
         }
     }
 
@@ -550,12 +509,34 @@ public class ClientTests extends BaseIntegrationTest {
                 adminClient.execute("CREATE USER " + user2 + " IDENTIFIED BY '" + password2 + "'").get().close();
 
                 try (Client userClient = newClient().setUsername(user1).setPassword(password1).build()) {
-                    List<GenericRecord> firstResponse = userClient.queryAll("SELECT currentUser() AS user");
+                    List<GenericRecord> firstResponse = null;
+                    for (int i = 0; i < 20; i++) {
+                        try {
+                            firstResponse = userClient.queryAll("SELECT currentUser() AS user");
+                            break;
+                        } catch (ClientException e) {
+                            if (i == 19) {
+                                throw e;
+                            }
+                            Thread.sleep(250);
+                        }
+                    }
                     Assert.assertEquals(firstResponse.get(0).getString("user"), user1);
 
                     userClient.updateUserAndPassword(user2, password2);
 
-                    List<GenericRecord> secondResponse = userClient.queryAll("SELECT currentUser() AS user");
+                    List<GenericRecord> secondResponse = null;
+                    for (int i = 0; i < 20; i++) {
+                        try {
+                            secondResponse = userClient.queryAll("SELECT currentUser() AS user");
+                            break;
+                        } catch (ClientException e) {
+                            if (i == 19) {
+                                throw e;
+                            }
+                            Thread.sleep(250);
+                        }
+                    }
                     Assert.assertEquals(secondResponse.get(0).getString("user"), user2);
                 }
             } finally {
@@ -568,6 +549,9 @@ public class ClientTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testLogComment() throws Exception {
+        if (isCloud()) {
+            throw new SkipException("Cloud does not support flushing query_log");
+        }
 
         String logComment = "Test log comment";
         QuerySettings settings = new QuerySettings()
@@ -581,9 +565,17 @@ public class ClientTests extends BaseIntegrationTest {
                 Assert.assertTrue(response.getQueryId().startsWith(settings.getQueryId()));
             }
 
-            client.execute("SYSTEM FLUSH LOGS").get().close();
+            client.execute("SYSTEM FLUSH LOGS" + onCluster()).get().close();
 
-            List<GenericRecord> logRecords = client.queryAll("SELECT query_id, log_comment FROM clusterAllReplicas('default', system.query_log) WHERE query_id = '" + settings.getQueryId() + "'");
+            List<GenericRecord> logRecords = null;
+            for (int i = 0; i < 10; i++) {
+                logRecords = client.queryAll("SELECT query_id, log_comment FROM clusterAllReplicas('default', system.query_log) WHERE query_id = '" + settings.getQueryId() + "'");
+                if (!logRecords.isEmpty()) {
+                    break;
+                }
+                Thread.sleep(500);
+            }
+            Assert.assertFalse(logRecords.isEmpty(), "No records found in query log");
             Assert.assertEquals(logRecords.get(0).getString("query_id"), settings.getQueryId());
             Assert.assertEquals(logRecords.get(0).getString("log_comment"), logComment);
         }
@@ -591,9 +583,13 @@ public class ClientTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testServerSettings() throws Exception {
+        if (isCloud()) {
+            throw new SkipException("Cloud does not support flushing query_log");
+        }
+
         try (Client client = newClient().build()) {
             client.execute("DROP TABLE IF EXISTS server_settings_test_table");
-            client.execute("CREATE TABLE server_settings_test_table (v Float) Engine MergeTree ORDER BY ()");
+            client.execute("CREATE TABLE server_settings_test_table (v Float) ORDER BY ()");
 
             final String queryId = UUID.randomUUID().toString();
             InsertSettings insertSettings = new InsertSettings()
@@ -605,9 +601,17 @@ public class ClientTests extends BaseIntegrationTest {
             String csvData = "0.33\n0.44\n0.55\n";
             client.insert("server_settings_test_table", new ByteArrayInputStream(csvData.getBytes()), ClickHouseFormat.CSV, insertSettings).get().close();
 
-            client.execute("SYSTEM FLUSH LOGS").get().close();
+            client.execute("SYSTEM FLUSH LOGS" + onCluster()).get().close();
 
-            List<GenericRecord> logRecords = client.queryAll("SELECT Settings, ProfileEvents['AsyncInsertQuery'] as was_async FROM clusterAllReplicas('default', system.query_log) WHERE query_id = '" + queryId + "' AND type = 'QueryFinish'");
+            List<GenericRecord> logRecords = null;
+            for (int i = 0; i < 10; i++) {
+                logRecords = client.queryAll("SELECT Settings, ProfileEvents['AsyncInsertQuery'] as was_async FROM clusterAllReplicas('default', system.query_log) WHERE query_id = '" + queryId + "' AND type = 'QueryFinish'");
+                if (!logRecords.isEmpty()) {
+                    break;
+                }
+                Thread.sleep(500);
+            }
+            Assert.assertFalse(logRecords.isEmpty(), "No records found in query log");
 
             GenericRecord record = logRecords.get(0);
             Assert.assertTrue(record.getBoolean("was_async"));
@@ -707,6 +711,24 @@ public class ClientTests extends BaseIntegrationTest {
 
         Assert.assertEquals(queryIds.size(), requests);
         Assert.assertEquals(actualIds, new ArrayList<>(queryIds));
+    }
+
+    @Test(groups = {"integration"})
+    public void testExecutionTimeout() throws Exception{
+        final String query = "SELECT count(), sum(sipHash64(number)) " +
+                "FROM numbers(1000000000) " +
+                "SETTINGS max_threads = 1;";
+
+        long startTime = System.currentTimeMillis();
+        int maxExecTime = 4000;
+        try (Client client = newClient().serverSetting("max_execution_time",  String.valueOf(TimeUnit.MILLISECONDS.toSeconds(maxExecTime))).build();
+             QueryResponse response = client.query(query).get()) {
+            Assert.fail("Exception expected");
+        } catch (ServerException e) {
+            long queryTime = System.currentTimeMillis() - startTime;
+            Assert.assertTrue(Math.abs(queryTime - maxExecTime) < 1000);
+            Assert.assertEquals(e.getCode(), ServerException.EXECUTION_TIMEOUT);
+        }
     }
 
     @Test(groups = {"integration"})

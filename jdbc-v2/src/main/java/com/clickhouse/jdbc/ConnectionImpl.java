@@ -122,6 +122,20 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
             this.schema = client.getDefaultDatabase();
             this.defaultQuerySettings = new QuerySettings();
 
+            String defaultQuerySettingsProp = config.getDriverProperty(DriverProperties.DEFAULT_QUERY_SETTINGS.getKey(), null);
+            if (defaultQuerySettingsProp != null) {
+                ClientConfigProperties.toKeyValuePairs(defaultQuerySettingsProp)
+                        .forEach((k, v) -> this.defaultQuerySettings.serverSetting(k, v));
+            }
+            Map<String, String> clientProps = config.getClientProperties();
+            for (Map.Entry<String, String> entry : clientProps.entrySet()) {
+                if (entry.getKey() != null && entry.getValue() != null) {
+                    if (entry.getKey().startsWith(ClientConfigProperties.SERVER_SETTING_PREFIX)) {
+                        this.defaultQuerySettings.setOption(entry.getKey(), entry.getValue());
+                    }
+                }
+            }
+
             this.metadata = new DatabaseMetaDataImpl(this, false, url);
             this.defaultCalendar = Calendar.getInstance();
 
@@ -459,6 +473,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
              * - number of arguments matches schema or column list
              * RowBinary cannot be used when
              * - INSERT INTO t VALUES (now(), ?, ?) !# there is a function in the values
+             * - INSERT INTO t VALUES (1, ?, ? + 1) !# there is a literal or an expression in the values
              * - INSERT INTO t VALUES (now(), ?, 1), (now(), ?, 2) !# multiple values list
              * - INSERT INTO t SELECT ?, ?, ? !# insert from select
              * - INSERT INTO [TABLE] FUNCTION f(...) VALUES (?) !# the target is a table function

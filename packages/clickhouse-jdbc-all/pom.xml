@@ -36,11 +36,6 @@
                         <addMavenDescriptor>false</addMavenDescriptor>
                     </archive>
                 </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-jar-plugin</artifactId>
-                <version>3.3.0</version> <!-- Use a recent version -->
                 <executions>
                     <execution>
                         <id>javadoc-jar</id>

@@ -5,6 +5,8 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -12,7 +14,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseRecord;
 import com.clickhouse.data.ClickHouseUtils;
-import com.clickhouse.data.value.UnsignedLong;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
 
@@ -26,42 +27,60 @@ import com.clickhouse.logging.LoggerFactory;
 public final class ClickHouseTransaction implements Serializable {
     /**
      * This class encapsulates transaction ID, which is defined as
-     * {@code Tuple(snapshotVersion UInt64, localTxCounter UInt64, hostId UUID)}.
+     * {@code Tuple(snapshotVersion UInt64, localTxCounter UInt64, hostId UUID[, sessionNodeVersion Int64])}.
      */
     public static class XID implements Serializable {
         private static final long serialVersionUID = 4907177669971332404L;
 
         public static final XID EMPTY = new XID(0L, 0L, new UUID(0L, 0L).toString());
 
+        private static long toLong(Object value) {
+            if (value instanceof Number) {
+                return ((Number) value).longValue();
+            } else if (value != null) {
+                return Long.parseLong(value.toString());
+            }
+            throw new IllegalArgumentException("Non-null number is required");
+        }
+
         /**
          * Creates transaction ID from the given tuple.
          *
-         * @param list non-null tuple with 3 elements
+         * @param list non-null tuple with 3 or 4 elements
          * @return non-null transaction ID
          */
         public static XID of(List<?> list) {
-            if (list == null || list.size() != 3) {
+            if (list == null || (list.size() != 3 && list.size() != 4)) {
                 throw new IllegalArgumentException(
-                        "Non-null tuple with 3 elements(long, long, String) is required");
+                        "Non-null tuple with 3 or 4 elements(long, long, String[, long]) is required");
             }
-            long snapshotVersion = ((UnsignedLong) list.get(0)).longValue();
-            long localTxCounter = ((UnsignedLong) list.get(1)).longValue();
+            long snapshotVersion = toLong(list.get(0));
+            long localTxCounter = toLong(list.get(1));
             String hostId = String.valueOf(list.get(2));
+            Long sessionNodeVersion = list.size() == 4 && list.get(3) != null
+                    ? toLong(list.get(3))
+                    : null;
             if (EMPTY.snapshotVersion == snapshotVersion && EMPTY.localTxCounter == localTxCounter
                     && EMPTY.hostId.equals(hostId)) {
                 return EMPTY;
             }
-            return new XID(snapshotVersion, localTxCounter, hostId);
+            return new XID(snapshotVersion, localTxCounter, hostId, sessionNodeVersion);
         }
 
         private final long snapshotVersion;
         private final long localTxCounter;
         private final String hostId;
+        private final Long sessionNodeVersion;
 
         protected XID(long snapshotVersion, long localTxCounter, String hostId) {
+            this(snapshotVersion, localTxCounter, hostId, null);
+        }
+
+        protected XID(long snapshotVersion, long localTxCounter, String hostId, Long sessionNodeVersion) {
             this.snapshotVersion = snapshotVersion;
             this.localTxCounter = localTxCounter;
             this.hostId = hostId;
+            this.sessionNodeVersion = sessionNodeVersion;
         }
 
         public long getSnapshotVersion() {
@@ -76,9 +95,17 @@ public final class ClickHouseTransaction implements Serializable {
             return hostId;
         }
 
+        public Optional<Long> getSessionNodeVersion() {
+            return Optional.ofNullable(sessionNodeVersion);
+        }
+
         public String asTupleString() {
-            return new StringBuilder().append('(').append(snapshotVersion).append(',').append(localTxCounter)
-                    .append(",'").append(hostId).append("')").toString();
+            StringBuilder sb = new StringBuilder().append('(').append(snapshotVersion).append(',').append(localTxCounter)
+                    .append(",'").append(hostId).append('\'');
+            if (sessionNodeVersion != null) {
+                sb.append(',').append(sessionNodeVersion);
+            }
+            return sb.append(')').toString();
         }
 
         @Override
@@ -87,6 +114,7 @@ public final class ClickHouseTransaction implements Serializable {
             int result = prime + (int) (snapshotVersion ^ (snapshotVersion >>> 32));
             result = prime * result + (int) (localTxCounter ^ (localTxCounter >>> 32));
             result = prime * result + hostId.hashCode();
+            result = prime * result + (sessionNodeVersion != null ? sessionNodeVersion.hashCode() : 0);
             return result;
         }
 
@@ -100,14 +128,18 @@ public final class ClickHouseTransaction implements Serializable {
 
             XID other = (XID) obj;
             return snapshotVersion == other.snapshotVersion && localTxCounter == other.localTxCounter
-                    && hostId.equals(other.hostId);
+                    && hostId.equals(other.hostId)
+                    && Objects.equals(sessionNodeVersion, other.sessionNodeVersion);
         }
 
         @Override
         public String toString() {
-            return new StringBuilder().append("TransactionId [snapshotVersion=").append(snapshotVersion)
-                    .append(", localTxCounter=").append(localTxCounter).append(", hostId=").append(hostId).append("]@")
-                    .append(hashCode()).toString();
+            StringBuilder sb = new StringBuilder().append("TransactionId [snapshotVersion=").append(snapshotVersion)
+                    .append(", localTxCounter=").append(localTxCounter).append(", hostId=").append(hostId);
+            if (sessionNodeVersion != null) {
+                sb.append(", sessionNodeVersion=").append(sessionNodeVersion);
+            }
+            return sb.append("]@").append(hashCode()).toString();
         }
     }
 

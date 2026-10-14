@@ -6,6 +6,7 @@ import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.ClientFaultCause;
 import com.clickhouse.client.api.ClientMisconfigurationException;
+import com.clickhouse.client.api.CompressionMethod;
 import com.clickhouse.client.api.ConnectionInitiationException;
 import com.clickhouse.client.api.ConnectionReuseStrategy;
 import com.clickhouse.client.api.DataTransferException;
@@ -448,8 +449,8 @@ public class HttpAPIClientHelper {
                 break;
             } catch (ClientException e) {
                 // Invalid LZ4 Magic
-                if (body instanceof ClickHouseLZ4InputStream) {
-                    ClickHouseLZ4InputStream stream = (ClickHouseLZ4InputStream) body;
+                if (body instanceof CompressedBlockInputStream) {
+                    CompressedBlockInputStream stream = (CompressedBlockInputStream) body;
                     body = stream.getInputStream();
                     byte[] lzHeader = stream.getHeaderBuffer(); // Here is read part of original body
                     offset = Math.min(lzHeader.length, buffer.length);
@@ -479,8 +480,8 @@ public class HttpAPIClientHelper {
                 rBytes = body.read(buffer);
             } catch (ClientException e) {
                 // Invalid LZ4 Magic
-                if (body instanceof ClickHouseLZ4InputStream) {
-                    ClickHouseLZ4InputStream stream = (ClickHouseLZ4InputStream) body;
+                if (body instanceof CompressedBlockInputStream) {
+                    CompressedBlockInputStream stream = (CompressedBlockInputStream) body;
                     body = stream.getInputStream();
                     byte[] headerBuffer = stream.getHeaderBuffer();
                     System.arraycopy(headerBuffer, 0, buffer, 0, headerBuffer.length);
@@ -876,6 +877,19 @@ public class HttpAPIClientHelper {
 
     private void addHeaders(HttpPost req, Map<String, Object> requestConfig) {
         setHeader(req, HttpHeaders.CONTENT_TYPE, CONTENT_TYPE.getMimeType());
+        String socketSNI = (String) requestConfig.get(ClientConfigProperties.SSL_SOCKET_SNI.getKey());
+        if (ClientUtils.isNotBlank(socketSNI) && !req.containsHeader(HttpHeaders.HOST)) {
+            int port = -1;
+            try {
+                if (req.getUri() != null) {
+                    port = req.getUri().getPort();
+                }
+            } catch (Exception ignore) {
+                // ignore
+            }
+            String hostHeader = (port > 0 && port != 80 && port != 443) ? socketSNI + ":" + port : socketSNI;
+            setHeader(req, HttpHeaders.HOST, hostHeader);
+        }
         if (requestConfig.containsKey(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey())) {
             Object formatObj = requestConfig.get(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey());
             if (formatObj != null) {
@@ -1029,8 +1043,9 @@ public class HttpAPIClientHelper {
             return new CompressedEntity(httpEntity, false, CompressorStreamFactory.getSingleton());
         } else if (clientCompression && !appCompressedData) {
             int buffSize = ClientConfigProperties.COMPRESSION_LZ4_UNCOMPRESSED_BUF_SIZE.getOrDefault(requestConfig);
-            return new LZ4Entity(httpEntity, useHttpCompression, false, true,
-                    buffSize, false, lz4Factory);
+            CompressionMethod compressMethod = ClientConfigProperties.COMPRESSION_METHOD.getOrDefault(requestConfig);
+            return new CompressedBlockEntity(httpEntity, useHttpCompression, false, true,
+                    buffSize, false, lz4Factory, compressMethod);
         } else {
             return httpEntity;
         }
@@ -1048,7 +1063,8 @@ public class HttpAPIClientHelper {
         // data compression
         if (serverCompression && !(httpStatus == HttpStatus.SC_FORBIDDEN || httpStatus == HttpStatus.SC_UNAUTHORIZED)) {
             int buffSize = ClientConfigProperties.COMPRESSION_LZ4_UNCOMPRESSED_BUF_SIZE.getOrDefault(requestConfig);
-            return new LZ4Entity(httpEntity, useHttpCompression, true, false, buffSize, true, lz4Factory);
+            return new CompressedBlockEntity(httpEntity, useHttpCompression, true, false, buffSize, true, lz4Factory,
+                    ClientConfigProperties.COMPRESSION_METHOD.getDefObjVal());
         }
 
         return httpEntity;
@@ -1130,6 +1146,9 @@ public class HttpAPIClientHelper {
         // there are some db retryable error codes
         if (ex instanceof ServerException || ex.getCause() instanceof ServerException) {
             ServerException se = (ServerException) (ex instanceof ServerException ? ex : ex.getCause());
+            if (se.getCode() == ServerException.EXECUTION_TIMEOUT) {
+                return retryCauses.contains(ClientFaultCause.ServerTimeoutExceeded);
+            }
             return se.isRetryable() && retryCauses.contains(ClientFaultCause.ServerRetryable);
         }
 

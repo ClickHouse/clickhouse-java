@@ -331,6 +331,6 @@ public class SamplePOJO {
                 "groupBitmapUint32 AggregateFunction(groupBitmap, UInt32), " +
                 "groupBitmapUint64 AggregateFunction(groupBitmap, UInt64), " +
                 "keyword LowCardinality(String) " +
-                ") ENGINE = MergeTree ORDER BY ()";
+                ") ORDER BY ()";
     }
 }
