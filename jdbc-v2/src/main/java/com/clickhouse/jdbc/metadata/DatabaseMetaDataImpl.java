@@ -1033,10 +1033,14 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
             filterConditions.add("(t.is_temporary = 1)");
         }
 
-        String engineFilter = filterConditions.isEmpty() ? "" : " AND ( " + String.join(" OR ", filterConditions) + ")";
+        List<String> tableConditions = new ArrayList<>();
+        tableConditions.add("t.name LIKE ?");
+        if (!filterConditions.isEmpty()) {
+            tableConditions.add("(" + String.join(" OR ", filterConditions) + ")");
+        }
         // Exclude temporary tables when not requested (they would otherwise match engine-based conditions)
         if (!requestedTypes.contains(TableType.TEMPORARY_TABLE.getTypeName())) {
-            engineFilter += " AND (t.is_temporary = 0)";
+            tableConditions.add("t.is_temporary = 0");
         }
 
         String sql = "SELECT " +
@@ -1053,8 +1057,7 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                 " FROM system.tables t" +
                 " JOIN system.databases d ON system.tables.database = system.databases.name" +
                 " WHERE t.database LIKE ?" +
-                " AND t.name LIKE ?"
-                + engineFilter;
+                " AND (" + String.join(" AND ", tableConditions) + ")";
 
         try (PreparedStatement stmt = prepareStatement(sql)) {
             stmt.setString(1, (schemaPattern == null ? "%" : schemaPattern));

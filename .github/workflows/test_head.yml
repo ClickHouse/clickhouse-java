@@ -37,11 +37,14 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
           architecture: x64
+      - name: Build
+        run: |
+          mvn --also-make --batch-mode --no-transfer-progress --projects ${{ matrix.project }} -Dmaven.javadoc.skip=true -DskipTests=true clean install
       - name: Test Java client
         env:
           TEST_CLICKHOUSE_IMAGE_VERSION: ${{ env.CH_VERSION }}
         run: |
-          mvn --also-make --batch-mode --no-transfer-progress --projects ${{ matrix.project }} -Dmaven.javadoc.skip=true clean install
+          mvn --batch-mode --no-transfer-progress --projects ${{ matrix.project }} -Dmaven.javadoc.skip=true clean install
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: failure()
