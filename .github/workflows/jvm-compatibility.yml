@@ -150,7 +150,6 @@ jobs:
               examples/client-v2-apache-arrow/pom.xml
               examples/client-v2-json-processors/pom.xml
               examples/demo-kotlin-service/pom.xml
-              examples/demo-service/pom.xml
               examples/jdbc-v2-json-processors/pom.xml
             )
           fi
