@@ -1,14 +1,16 @@
 # ClickHouse Java Client Integration Guide
 
-This guide is a **step-by-step, end-to-end integration path** for the **Java Client V2** (`client-v2`). It is written to be used as context for building an application or a downstream integration spec: each step states the decisions you must make, how to configure them, and the common pitfalls to avoid. It is self-contained — you can work through it from the empty project to a running read/write path without other prerequisites.
+This guide is a **end-to-end integration path** for the **Java Client V2** (`client-v2`). It is written to be used as context for building an application or a downstream integration spec: each step states the decisions you must make, how to configure them, and the common pitfalls to avoid. It is self-contained — you can work through it from the empty project to a running read/write path without other prerequisites.
 
-> **Configuration philosophy.** This guide names only the properties relevant to each step. It does not repeat the exhaustive property list — that lives in [`ClientConfigProperties`](../client-v2/src/main/java/com/clickhouse/client/api/ClientConfigProperties.java) and the official docs. Configuration splits into two groups:
-> - **Init configuration** — set once when the client is built: endpoint, connection pool size, async mode, authentication. Covered in Steps 1–4.
-> - **Operation configuration** — set per request or as client defaults: formats, buffer sizes, timeouts, retries, dedup tokens. Covered in Steps 5–7.
+### Configuration References
 
-## Artifacts
+This guide names only the properties relevant to each step. The exhaustive lists live in [`ClientConfigProperties`](../client-v2/src/main/java/com/clickhouse/client/api/ClientConfigProperties.java), and the official docs. Configuration splits into two groups:
+- **Init configuration** — set once using [Client.Builder](/client-v2/src/main/java/com/clickhouse/client/api/Client.java) methods: endpoint, connection pool size, authentication, TLS. Covered in Steps 1–4.
+- **Operation configuration** — set via `com.clickhouse.client.api.Client` method like `com.clickhouse.client.api.Client.Builder.setAccessToken`.
 
-The client is published to Maven Central as **`com.clickhouse:client-v2`**. Browse versions and copy a ready-made dependency snippet for any build system (Maven, Gradle, sbt, Ivy, ...) from the [Maven Central page](https://central.sonatype.com/artifact/com.clickhouse/client-v2).
+### Maven Artifacts
+
+The client is published to Maven Central as `com.clickhouse:client-v2`:  https://central.sonatype.com/artifact/com.clickhouse/client-v2.
 
 Two distributions are published under the same artifact:
 
@@ -45,16 +47,15 @@ Work through these steps in order. Each one is a decision point; the "Common Pit
 
 **Goal:** decide how many `Client` instances exist, how long they live, and how the internal connection pool is sized.
 
-### What a `Client` is
 
-The [`Client`](https://javadoc.io/doc/com.clickhouse/client-v2/latest/com/clickhouse/client/api/Client.html) is the single entry point for all operations. It owns:
+The [com.clickhouse.client.api.Client](/client-v2/src/main/java/com/clickhouse/client/api/Client.java) is library interface object for most interactions with it:
+- Read and Write operations
+- Getting a table schema 
+- Registering POJO for use in insert operations
+- Manipulating active session 
+- Updating user credentials 
 
-- An HTTP connection pool (Apache HttpClient)
-- Endpoint configuration and retry policy
-- A table schema cache
-- The POJO serialization/deserialization registry
-- Optional client-wide session and settings defaults
-
+This object is constructed using a `Client.Builder`:
 ```java
 import com.clickhouse.client.api.Client;
 
@@ -76,17 +77,24 @@ public Client createAnalyticsDBClient(Client.Builder baseClient) {
 }
 ```
 
-### Instantiation Strategy
+### Instantiation and Life Cycle Strategies
 
-- **Share a single instance:** A single, shared `Client` instance suits most use cases. It is thread-safe and designed to be reused across your application.
-- **Long-lived lifecycle:** Build the client once at startup and close it once at shutdown. Creating a new client per request or operation is an anti-pattern because initialization takes time to set up internal structures (like the connection pool and schema cache), which adds latency to your requests.
-- **Serverless functions:** For serverless environments (like AWS Lambda), initialize the client outside the function handler so it can be reused across invocations.
-- **Warm-up (optional):** Calling `client.ping()` at startup can help initialize the connectivity part and verify the endpoint before serving live traffic, though it is not strictly required. It may also require to wakeup cloud instance.
-- **Caching:** The application is responsible for holding the reference to the `Client` instance (e.g., via dependency injection or a singleton). The library does not provide a global static cache.
+- **Shared single instance:** to make request in the same domain and security context. Usually long living. For example, data sync job.
+- **Short-lived instance:** to make multiple operations within one application request for a single user.   
+
+> In ClickHouse Cloud instances can enter suspended mode when idle. Make sure to have a "wake-up" call using `Client#ping()`. Using suspended mode useful to reduce cost
+> by not running instance when it is almost idle.
+
+Application should take care of: 
+- `Client` instances caching if needed. Library doesn't hold reference to instantiated `Client` objects
+- Closing client when it is not needed. 
+- Separating `Client` instances of different tenants.
+
+> Even client init is a lightweight operation avoid make it in hot path. For example, prefer caching instances if working in multi-tenant environment
 
 ### Workload identification & client name
 
-In production environments, a single ClickHouse cluster often handles diverse workloads from multiple services: real-time user-facing APIs, event ingestion pipelines (e.g., Kafka consumers, CDC streams), scheduled ETL batch jobs, BI reporting dashboards (e.g., Superset, Tableau, Grafana), and ad-hoc analytical queries. When queries fail, time out, or cause memory spikes (`MEMORY_LIMIT_EXCEEDED`), identifying the originating application or workload is essential for fast troubleshooting, root-cause analysis, and resource attribution.
+In production environments, a single ClickHouse cluster often handles diverse workloads from multiple services: real-time user-facing APIs, event ingestion pipelines (e.g., Kafka consumers, CDC streams), scheduled ETL batch jobs, BI reporting dashboards (e.g., Superset, Tableau, Grafana), and ad-hoc analytical queries. When queries fail, time out, or cause memory spikes (`MEMORY_LIMIT_EXCEEDED`), identifying the originating application or workload is essential for fast troubleshooting and resource attribution.
 
 #### Setting client name
 
@@ -217,12 +225,26 @@ ORDER BY event_time DESC
 LIMIT 100;
 ```
 
+###  Default Database
+
+If application works with specific database then default database can be set on client level: 
+
+```java
+import com.clickhouse.client.api.Client;
+
+public Client createAnalyticsClient(Client.Builder baseClient) {
+    return baseClient
+        .setDefaultDatabase("analytics") // Default database for queries
+        .build();
+}
+```
+
+**Note**: when database is set on request level then it is recommended to set non-existing database as default one. It
+will cause exception and will not let any data be written to `default` schema.
 
 ## Step 2 — Authentication
 
-**Goal:** configure the authentication mechanism the ClickHouse deployment requires. The mechanism is dictated by the server and any fronting infrastructure, not chosen freely; the task is to identify it and configure it correctly.
-
-> **CONSTRAINT:** Configure exactly one mechanism. Different method cannot be mixed to avoid configuration errors.
+**Goal:** choose exactly one primary authentication mechanism and pass it through the JDBC URL or `Properties`. The driver forwards these to the underlying client, whose `CredentialsManager` rejects mixed mechanisms.
 
 ### Option A — Basic (username + password)
 
@@ -248,8 +270,7 @@ void updateClientCredentials(AppConfiguration appConf) {
 } 
 ```
 
-**Note**: realtime credentials update would work well with runtime configuration update but would not work for multi-tenant setup. Multi tenant application should organize exclusive access to client 
-while handling tenant operation to avoid cross-talk problem. Separate client instance per tenant must be used when each tenant has own database.
+**Note**: realtime credentials update would work well with runtime configuration update but would not work for multi-tenant setup. Multi tenant application should organize exclusive access to client  while handling tenant operation to avoid cross-talk problem. Separate client instance per tenant must be used when each tenant has own database.
 
 ### Option B — Token / bearer
 
@@ -336,24 +357,7 @@ public Client.Builder createBaseClient() {
 }
 ```
 
-### Client Identity & Default Database
-
-Regardless of the authentication mechanism, you can also configure the client's identity and default database:
-
-```java
-import com.clickhouse.client.api.Client;
-
-public Client createAnalyticsClient(Client.Builder baseClient) {
-    return baseClient
-        .setClientName("my-analytics-app/1.0")
-        .setDefaultDatabase("analytics") // Default database for queries
-        .build();
-}
-```
-
-> **Note on Client Name:** How the client name surfaces in `system.query_log` depends on the protocol used. For HTTP connections (used by Java Client V2), it appears in the `http_user_agent` column. The `client_name` column in `system.query_log` is populated only for native TCP connections. See [Workload identification & client name](#workload-identification--client-name) for full details and query log troubleshooting queries.
-
-### Identifying the required mechanism
+### Decisions
 
 The mechanism follows from how the server and any fronting infrastructure are configured:
 
@@ -377,24 +381,23 @@ See [integration-testing.md — Configuration](integration-testing.md#configurat
 
 ### TLS / mTLS / proxies
 
-| Scenario | Builder methods / properties |
-|----------|------------------------------|
-| HTTPS with public CA | `addEndpoint("https://host:8443")` |
-| Self-signed server cert | `setRootCertificate("/path/to/ca.crt")` |
-| mTLS (client certificate) | `useSSLAuthentication(true)`, `setClientCertificate(...)`, `setClientKey(...)` |
-| Trust store (JKS/PKCS12) | `setSSLTrustStore(...)`, `setSSLTrustStorePassword(...)` |
-| HTTP proxy | `setProxy(ProxyType.HTTP, host, port)`, `setProxyCredentials(user, password)` |
+| Scenario                    | Property(ies)                                         | Builder methods                                      |
+|-----------------------------|------------------------------------------------------|------------------------------------------------------|
+| HTTPS with public CA        | -                                                    | `addEndpoint("https://host:8443")`                   |
+| Self-signed server cert     | `root_certificate`                                   | `setRootCertificate("/path/to/ca.crt")`              |
+| mTLS (client certificate)   | `ssl_auth`, `client_certificate`, `client_key`       | `useSSLAuthentication(true)`, `setClientCertificate(...)`, `setClientKey(...)` |
+| Trust store (JKS/PKCS12)    | `ssl_trust_store`, `ssl_trust_store_password`        | `setSSLTrustStore(...)`, `setSSLTrustStorePassword(...)` |
+| HTTP proxy                  | `proxy_type`, `proxy_host`, `proxy_port`, `proxy_user`, `proxy_password` | `setProxy(ProxyType.HTTP, host, port)`, `setProxyCredentials(user, password)` |
 
 See [SSLExamples](../examples/client-v2/src/main/java/com/clickhouse/examples/client_v2/SSLExamples.java) for a runnable walkthrough and [authentication.md](authentication.md) for full details. See also [integration-testing.md — Test Environment](integration-testing.md#test-environment) for testing across protocols, hosts, and ClickHouse versions.
 
-### Init configuration — timeouts
+### Operation Timeouts
 
-Timeouts are critical parameters that directly impact application stability under load and over long distances:
+Timeouts are critical parameters that directly impact application stability under load and over long run time:
 
-- **Connection timeout** (`.setConnectTimeout()`): The TCP connect timeout. Setting this value too low can cause failures when the application and server are in different geographical regions. Additionally, connection timeouts are closely tied to the connection pool: if the application issues concurrent requests that exceed the available pool size, it may manifest as a connection timeout because no free connections are present.
+- **Connection timeout** (`.setConnectTimeout()`): timeout for establishing connection. Setting this value too low can cause failures when the application and server are in different geographical regions. Additionally, connection timeouts are closely tied to the connection pool: if the application issues concurrent requests that exceed the available pool size, it may manifest as a connection timeout because no free connections are present.
 - **Socket timeout** (`.setSocketTimeout()`): The timeout for underlying socket read/write operations. While it applies strictly to socket activity, it is vital because it dictates how long the client will wait for long-running queries to return data. If your workload involves heavy analytical queries, you may need a very long socket timeout. However, the trade-off of a long socket timeout is the increased risk of encountering stale or silently dropped connections.
 - **TCP keepalive**: Can be enabled to mitigate stale connections, though the host operating system's settings may ultimately override it. System-level TCP keepalive defaults are often several hours; configuring a shorter keepalive period makes sense for long-running operations. Keep in mind that executing extremely long operations over the public internet remains inherently risky.
-- **Socket buffers** (`.setSocketRcvbuf()`, `.setSocketSndbuf()`): Not set by default, so the operating system sizes the socket buffers and auto-tunes them for the connection. Setting a fixed size turns that auto-tuning off and is additionally capped by the operating system limits, so a large value may have no effect. Configure these options only when a measurement shows a benefit for your workload.
 
 > **Note on runtime configuration:** You can optionally override the default network timeout on a per-operation basis using `QuerySettings.setNetworkTimeout(long timeout, ChronoUnit unit)`. This allows you to set stricter boundaries on specific queries without altering the client-wide defaults.
 
@@ -431,6 +434,10 @@ See [integration-testing.md — Connecting](integration-testing.md#connecting) f
 
 In the Java Client a "connection" is an **HTTP connection borrowed from the internal pool**, not a long-lived database session. Each operation borrows a connection, sends a request, streams the response, and returns the connection to the pool.
 
+### Sockets Configuration
+
+- **Socket buffers** (`.setSocketRcvbuf()`, `.setSocketSndbuf()`): Not set by default, so the operating system sizes the socket buffers and auto-tunes them for the connection. Setting a fixed size turns that auto-tuning off and is additionally capped by the operating system limits, so a large value may have no effect. Configure these options only when a measurement shows a benefit for your workload.
+
 ### Connection limit (`max_open_connections`)
 
 The pool size depends on your workload — specifically on its **concurrency**, not on how much data it moves. What matters is **how many operations run at the same time**, not the number of rows or bytes any single operation transfers. A pool of 20 connections serves at most 20 simultaneous operations regardless of whether each returns one row or a million. This is the single setting you actually tune. The table below will help to estimate rough number. Having slightly bigger number than actualy needed is not a problem because unused connections will be garbage collected. It is recommended to perform a load testing with one application instance to detect if estimated number works — see [integration-testing.md — Load Testing](integration-testing.md#load-testing) for how to design that test. 
@@ -449,40 +456,21 @@ The reasoning is only valid for **short-lived read operations**, where connectio
 
 The `Client` uses an internal Apache HttpClient 5 pool. Key pool settings exposed by client configuration are listed below:
 
-| Property (Builder method) | Purpose | Default |
-|---------------------------|---------|---------|
-| `max_open_connections` (`.setMaxConnections()`) | Maximum open HTTP connections per server endpoint. Size set from parallelism guidance above. | `10` |
-| `connection_ttl` (`.setConnectionTTL()`) | Time-to-live after which an active connection is closed and recreated. | `-1` (disabled) |
-| `http_keep_alive_timeout` (`.setKeepAliveTimeout()`) | HTTP Keep-Alive duration for idle pooled connections. | Server default |
-| `connection_request_timeout` (`.setConnectionRequestTimeout()`) | Maximum time a thread blocks waiting for an available connection from the pool. | `10000ms` |
-| `connection_reuse_strategy` (`.setConnectionReuseStrategy()`) | Connection pool allocation strategy (`FIFO` or `LIFO`). | `FIFO` |
-| `connection_pool_enabled` (`.enableConnectionPool()`) | Enable/disable HTTP connection pooling (keep enabled). | `true` |
+| Property                      | Builder method                      | Purpose                                                                                   |
+|-------------------------------|-------------------------------------|-------------------------------------------------------------------------------------------|
+| `max_open_connections`        | `.setMaxConnections()`              | Maximum open HTTP connections per server endpoint. Size set from parallelism guidance above.|
+| `connection_ttl`              | `.setConnectionTTL()`               | Time-to-live after which an active connection is closed and recreated.                     |
+| `http_keep_alive_timeout`     | `.setKeepAliveTimeout()`            | HTTP Keep-Alive duration for idle pooled connections.                                      |
+| `connection_request_timeout`  | `.setConnectionRequestTimeout()`    | Maximum time a thread blocks waiting for an available connection from the pool.            |
+| `connection_reuse_strategy`   | `.setConnectionReuseStrategy()`     | Connection pool allocation strategy (`FIFO` or `LIFO`).                                    |
+| `connection_pool_enabled`     | `.enableConnectionPool()`           | Enable/disable HTTP connection pooling (keep enabled).                                     |
 
-#### Recommended Pool Configuration
 
-```java
-import com.clickhouse.client.api.Client;
-import com.clickhouse.client.api.enums.ConnectionReuseStrategy;
+- **`http_keep_alive_timeout` and stale connections.** If your application encounters `NoHttpResponseException`, it usually indicates stale pooled connections that were closed by the server or an intermediate proxy/load balancer due to idle timeouts. Setting `setKeepAliveTimeout` to a duration shorter than the server's Keep-Alive timeout ensures idle connections are refreshed before sending a request.
 
-import java.util.concurrent.TimeUnit;
+- **`connection_ttl` against ClickHouse Cloud.** Keep it **relatively small** when the endpoint is a Cloud (or otherwise load-balanced) deployment. A short TTL forces connections to be retired and re-established frequently, so new connections keep going through the load balancer, which lets it **redistribute traffic across nodes** instead of pinning long-lived connections to whichever node they first landed on.
 
-public Client.Builder createBaseClient() {
-    return new Client.Builder()
-        .addEndpoint("http://localhost:8123")
-        .setUsername("default")
-        .setPassword("secret")
-        .setMaxConnections(50)
-        .setConnectionRequestTimeout(5, TimeUnit.SECONDS)
-        .setKeepAliveTimeout(60, TimeUnit.SECONDS)
-        .setConnectionReuseStrategy(ConnectionReuseStrategy.FIFO);
-}
-```
-
-**`setKeepAliveTimeout` and stale connections.** If your application encounters `NoHttpResponseException`, it usually indicates stale pooled connections that were closed by the server or an intermediate proxy/load balancer due to idle timeouts. Setting `setKeepAliveTimeout` to a duration shorter than the server's Keep-Alive timeout ensures idle connections are refreshed before sending a request.
-
-**`connection_ttl` against ClickHouse Cloud.** Keep it **relatively small** when the endpoint is a Cloud (or otherwise load-balanced) deployment. A short TTL forces connections to be retired and re-established frequently, so new connections keep going through the load balancer, which lets it **redistribute traffic across nodes** instead of pinning long-lived connections to whichever node they first landed on.
-
-**`connection_pool_enabled` is not recommended to change.** Leave pooling **enabled** (the default). The only reason to disable it is a workload with extreme concurrency where the internal Apache HttpClient connection pool itself becomes a contention point — under very high parallel request rates the pool's own bookkeeping can serialize threads. Disabling pooling avoids that bottleneck at the cost of a fresh connection per operation (higher latency, more sockets), so treat it as a last resort after measuring, not a default.
+- **`connection_pool_enabled` is not recommended to change.** Leave pooling **enabled** (the default). The only reason to disable it is a workload with extreme concurrency where the internal Apache HttpClient connection pool itself becomes a contention point — under very high parallel request rates the pool's own bookkeeping can serialize threads. Disabling pooling avoids that bottleneck at the cost of a fresh connection per operation (higher latency, more sockets), so treat it as a last resort after measuring, not a default.
 
 ### Common Pitfalls
 
@@ -495,7 +483,88 @@ public Client.Builder createBaseClient() {
 > **CONSTRAINT:** Always `close()` the client at shutdown to avoid leaking the pool and its threads.
 
 See [integration-testing.md — Connecting](integration-testing.md#connecting) for tests that verify pool sizing (`max_open_connections`) and connection release under load.
+
+
 ---
+
+### Handling Errors & Retry Policy
+
+#### Retry Policy 
+
+The `Client` has built-in support for retrying requests that fail due to *transient* conditions, such as network timeouts or server unavailability. The retry strategy is controlled by configuration properties, which can be set at the client or per-request level. 
+
+**Stale Connection:** when connection in the pool is not used for a long time server can close it and next request that uses such a connection will fail. Usually it is `NoHttpResponse` error. Use `ClientFaultCause.NoHttpResponse` to retry on such errors. Usually TCP keepalive doesn't solve the problem because TCP will not check connection in hours and OS configuration would be needed to change this time period.
+
+**Configuring Retries:**
+
+| Property                  | Builder Method                         | Purpose                                                    |
+|---------------------------|----------------------------------------|------------------------------------------------------------|
+| `retry`                   | `.setRetryOnFailure(int)`              | Max automatic retries for retriable (not user/SQL) errors. |
+| `client_retry_on_failures`| `.setRetryOnFailureFor(ClientFaultCause...)` | Select which failure types will be retried.                |
+
+Example:
+
+```java
+import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.ClientFaultCause;
+
+public Client.Builder createResilientClient() {
+    return new Client.Builder()
+        .addEndpoint("http://localhost:8123")
+        .setRetryOnFailure(5)
+        .setRetryOnFailureFor(
+            ClientFaultCause.NoHttpResponse,       // stale connection problem
+            ClientFaultCause.ConnectTimeout,       // server did not accept connection
+            ClientFaultCause.ServerRetryable       // transient HTTP 5xx errors, server overload
+        );
+}
+```
+
+#### Handling ServerException and Retriable Errors
+
+Failed requests (e.g., a rejected query or a server-side error) throw a `ServerException`. Not all failures are safe to retry—retries make sense for *transient* problems, but not for syntax errors, quota violations, or authorization failures.
+
+To determine whether an error is retriable, use the `isRetriable()` method on `ServerException`:
+
+```java
+import com.clickhouse.client.api.ServerException;
+
+void doSync() {
+    try {
+        // ... client request ...
+    } catch (ServerException e) {
+        if (e.isRetriable()) {
+            // Retry logic: safe to reattempt
+            // (Most users should use the client's built-in retry mechanism instead)
+        } else {
+            // Not retriable: fail/abort or escalate
+        }
+    }
+}
+```
+
+**What is considered retriable?**
+
+- Server-side errors classified as *transient*: HTTP 502/503/504 responses, server overload, shutdown, resource limits that may be cleared after delay.
+- Connection-level issues: `NoHttpResponse` (dropped/stale pooled connection), `ConnectTimeout`, etc.
+
+See [`ClientFaultCause`](../client-v2/src/main/java/com/clickhouse/client/api/ClientFaultCause.java) for the full set.
+
+> **Note:** Retries are never triggered for application errors (bad SQL, type mismatch), authentication failures, or client-side value validation errors.
+
+#### Tuning retry logic
+
+- Use a higher retry count in long-running ingestion or ETL jobs, but stick to fewer retries for user-facing APIs (to avoid delays).
+- You may override `retry` and `client_retry_on_failures` **per query** via `setOption("retry", ...)` and `setOption("client_retry_on_failures", ...)`.
+
+#### Negative test: Making sure unrecoverable errors are not retried
+
+If you want to test that application errors *do not* trigger a retry, deliberately send a bad SQL and check that only a single attempt is made.
+
+---
+
+For further details and advanced configuration, see [ClientConfigProperties.java](../client-v2/src/main/java/com/clickhouse/client/api/ClientConfigProperties.java).
+
 
 ## Step 5 — Data formats, readers & writers
 
@@ -569,7 +638,18 @@ public ClickHouseFormat inspectQueryFormat(Client client, String sql) throws Exc
 }
 ```
 
-## Step 6 — Read operations & tuning
+### Data Types 
+
+A clear type system is essential for integrating application components with ClickHouse. Decisions made at this stage carry over into the future evolution of your application, so review the type mappings carefully before finalizing your design.
+
+Start by reviewing the [ClickHouse data types](https://clickhouse.com/docs/reference/data-types/index) (new types are added regularly), then check the client documentation for the list of [supported data types](https://clickhouse.com/docs/integrations/language-clients/java#supported-data-types). If you need support for a type that is not yet covered, feel free to raise an issue in the Java client repository.
+
+Database data types are mapped to Java types by the reader or writer and generally follow similar rules across formats (though custom or format-specific readers and writers may use different mappings). 
+
+Next read the official client documentation regarding [data types mapping](/docs/clickhouse-docs/client.mdx#data-types). Client API is built around JDK native data types to make 
+application code more portable. Any additional traits can be implemented with different adaptors. 
+
+## Step 6 — Read operations
 
 **Goal:** read results efficiently and configure the operation-level settings for heavy analytical reads.
 
@@ -661,9 +741,9 @@ public void streamEvents(Client client) throws Exception {
 
 ### Direct InputStream access
 
-The `QueryResponse` object also provides direct access to the underlying input stream via `response.getInputStream()`. This is incredibly useful when you want to read text formats using third-party libraries (like Jackson for JSON or OpenCSV for CSV). 
-
-Because of this direct stream access, it is also possible to stream columnar formats directly into memory structures like **Apache Arrow**. (See our [examples directory](../examples/src/main/java/com/clickhouse/examples) for reference implementations).
+Sometimes it is more efficient to read data without materializing to any of the structures. For example, backend may request data in `JSONEachRow` format and stream it back to backend client (query should be well-designed to avoid
+creating a tight coupling on database schema).  The `QueryResponse` object also provides direct access to the underlying input stream via `response.getInputStream()`. Such approach is useful to integrate with other libraries like 
+Jackson to leverage its JSON/CSV parsing capabilities or to stream columnar formats directly into memory structures like **Apache Arrow**. (See our [examples directory](../examples/src/main/java/com/clickhouse/examples) for reference implementations).
 
 ### Parameterized queries
 
@@ -693,7 +773,7 @@ public void queryEventsWithParam(Client client, long minId, QuerySettings settin
 | [`GenericRecord`](../client-v2/src/main/java/com/clickhouse/client/api/query/GenericRecord.java) | Column access by name or index |
 | [`OperationMetrics`](../client-v2/src/main/java/com/clickhouse/client/api/metrics/OperationMetrics.java) | Server timing and row counts via `QueryResponse.getMetrics()` |
 
-### Operation configuration — tuning heavy reads
+### Operation configuration
 
 The most useful **client settings** for reads are configured on `QuerySettings`:
 
@@ -720,9 +800,10 @@ See the [Error model](#error-model) for the exception hierarchy and how to unwra
 | Connection dropped **mid-stream** (after you began iterating) | `DataTransferException` while reading | You cannot resume from the middle — some rows were already consumed. Close the `QueryResponse` and re-run the entire query. Make consumers tolerant of re-reading from the start. |
 
 See [integration-testing.md — Fetching Data](integration-testing.md#fetching-data) for read-path test scenarios to cover (data types, formats, failure handling).
+
 ---
 
-## Step 7 — Write operations & tuning
+## Step 7 — Write operations
 
 **Goal:** choose an insert pattern, tune it for bulk ingest, and make retries idempotent.
 
@@ -893,6 +974,159 @@ See the [Error model](#error-model) for the exception hierarchy and how to unwra
 - Even a successful retry can **duplicate rows** unless you set a stable `insert_deduplication_token` (see [Idempotency](#idempotency--deduplication-token) above) on a MergeTree-family table.
 - If retries are not safe for your source, disable them (`retry=0`) and handle re-submission at the application level with a dedup token.
 ---
+
+## Optimization
+
+Generally we want to optimize space and time. Memory is the main space in our case. If application reads big data chunks it will cost
+memory first of all. Time depends on how much memory we used for request - it unfolds into memory allocation, data processing,
+work of GC. All this defines application throughput. 
+
+First we need to picture client operations stages. All starts with request to the client to execute request, and it should find or allocate connection 
+to DBs. When done client can send/receive data - request send first that actual data comes. Commonly data is processed on application side while 
+reading operation and on server while write. Each stage can be optimized in own way. 
+
+### Compression
+
+Network is relatively slow and unstable compare to memory. Reducing number of bytes sent via network reduces number of 
+expensive interactions with operating system. Compression is the best way to reduce network traffic and request time. 
+
+Here we need to note that historically there are two ways to compress data if using HTTP: 
+- Data compression - data is compressed by server logic while writing response or reading data from client. There are two algorithms - `LZ4` and 
+`ZSTD`. More details in [ClickHouse Compression Modes](https://clickhouse.com/docs/guides/clickhouse/data-modelling/compression/compression-modes). 
+- HTTP compression - available only for HTTP interface (java client support only HTTP right now). [ClickHouse HTTP Interface — Compression](https://clickhouse.com/docs/interfaces/http#compression) — server-side behavior for `compress`, `decompress`, and `enable_http_compression`.
+
+Java client can use both methods. See [Java Client V2 Configuration — Client configuration](https://clickhouse.com/docs/integrations/language-clients/java/client#client-configuration) and [Compression](https://clickhouse.com/docs/integrations/language-clients/java/client#v2-compression) . By default, **read compression (`compressServerResponse`) is enabled** and **write compression (`compressClientRequest`) is disabled**. You can enable write compression and select the native block algorithm (`LZ4` or `ZSTD`) at client initialization or per operation:
+
+
+#### Configuration examples 
+
+
+```java
+import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.CompressionMethod;
+import com.clickhouse.client.api.insert.InsertResponse;
+import com.clickhouse.client.api.insert.InsertSettings;
+import com.clickhouse.client.api.query.QueryResponse;
+import com.clickhouse.client.api.query.QuerySettings;
+import com.clickhouse.data.ClickHouseFormat;
+
+public Client.Builder configureNativeCompression(Client.Builder baseClient) {
+    return baseClient
+        .compressServerResponse(true) // enabled by default for reads
+        .compressClientRequest(true)  // enable native block compression for writes
+        .compressionMethod(CompressionMethod.LZ4) // use LZ4 (default is ZSTD)
+        .setLZ4UncompressedBufferSize(65536);
+}
+
+public void insertWithClientCompression(Client client, InputStream dataStream) throws Exception {
+    // Enable or override write compression for a single insert operation
+    InsertSettings settings = new InsertSettings()
+        .compressClientRequest(true)
+        .setOption(ClientConfigProperties.COMPRESSION_METHOD.getKey(), CompressionMethod.ZSTD);
+
+    try (InsertResponse response = client.insert("events", dataStream, ClickHouseFormat.RowBinary, settings).get()) {
+        // handle response metrics
+    }
+}
+
+public void queryWithoutCompression(Client client) throws Exception {
+    // Disable server response compression for a specific small query if needed
+    QuerySettings settings = new QuerySettings()
+        .setOption(ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getKey(), false);
+
+    try (QueryResponse response = client.query("SELECT * FROM events LIMIT 10", settings).get()) {
+        // process response
+    }
+}
+```
+
+**Enabling HTTP compression**
+
+Enable HTTP compression when routing traffic through HTTP proxies/load balancers that inspect standard HTTP encodings or when you want to use `gzip`, `deflate`, `zstd`, or framed `lz4`.
+
+When `useHttpCompression(true)` is set, the client defaults to `lz4` (`Accept-Encoding: lz4` for reads and `Content-Encoding: lz4` for writes). To use another algorithm (`gzip`, `zstd`, or `deflate`), set the `Accept-Encoding` or `Content-Encoding` HTTP header:
+
+```java
+import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.insert.InsertResponse;
+import com.clickhouse.client.api.insert.InsertSettings;
+import com.clickhouse.client.api.query.QueryResponse;
+import com.clickhouse.client.api.query.QuerySettings;
+import com.clickhouse.data.ClickHouseFormat;
+
+public Client.Builder configureHttpCompression(Client.Builder baseClient) {
+    return baseClient
+        .useHttpCompression(true)
+        .compressServerResponse(true) // sends Accept-Encoding: lz4 by default
+        .compressClientRequest(true); // sends Content-Encoding: lz4 by default
+}
+
+public void queryWithHttpCompression(Client client, String compressionAlgo) throws Exception {
+    // compressionAlgo can be "lz4", "zstd", "gzip", or "deflate"
+    QuerySettings settings = new QuerySettings()
+        .httpHeader("Accept-Encoding", compressionAlgo);
+
+    try (QueryResponse response = client.query("SELECT * FROM events", settings).get()) {
+        // response stream is automatically decompressed by the client
+    }
+}
+
+public void insertWithHttpCompression(Client client, InputStream dataStream, String compressionAlgo) throws Exception {
+    // compressionAlgo can be "lz4", "zstd", "gzip", or "deflate"
+    InsertSettings settings = new InsertSettings()
+        .useHttpCompression(true)
+        .compressClientRequest(true)
+        .httpHeader("Content-Encoding", compressionAlgo);
+
+    try (InsertResponse response = client.insert("events", dataStream, ClickHouseFormat.JSONEachRow, settings).get()) {
+        // handle response metrics
+    }
+}
+```
+
+**Writing pre-compressed application data**
+
+If your application already receives or stores compressed files/streams (for example, `.gz` or `.lz4` files in object storage), use `InsertSettings.appCompressedData(true, "<algorithm>")`. The client skips compressing the stream itself and sends the raw compressed bytes directly to ClickHouse with `enable_http_compression=1` and `Content-Encoding: <algorithm>`:
+
+```java
+import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.insert.InsertResponse;
+import com.clickhouse.client.api.insert.InsertSettings;
+import com.clickhouse.data.ClickHouseFormat;
+
+public void insertPreCompressedStream(Client client, InputStream gzippedJsonStream) throws Exception {
+    InsertSettings settings = new InsertSettings()
+        .appCompressedData(true, "gzip");
+
+    try (InsertResponse response = client.insert("events", gzippedJsonStream, ClickHouseFormat.JSONEachRow, settings).get()) {
+        // handle response metrics
+    }
+}
+```
+
+> **Important notes & constraints:**
+> - **Parameterized queries with form data (`useHttpFormDataForQuery(true)`):** When `client.http.use_form_request_for_query` is enabled, query parameters are sent as `multipart/form-data` in the request body. Client-side request compression (`decompress`) is automatically disabled for multipart query requests, while server response compression (`compress`) remains active.
+> - **Dependencies in standard vs. shaded jar:** Compression relies on `org.lz4:lz4-pure-java`, `com.github.luben:zstd-jni`, and `org.apache.commons:commons-compress`. In restricted environments where native JNI libraries cannot be loaded, call `disableNativeCompression(true)` on `Client.Builder`. 
+
+
+### Connection Pool 
+
+Connection pools is mostly useful when application handles many concurrent request because pool can utilize each connection more (creating a new one 
+is expensive because of SSL handshake and initialization in the OS). In this case client should have been configured to have enough max number of connections. When limit is reached then all new request will line up and it will significantly increase operation time what will cause timeouts. However making max number of connections may result on uncontrolled pool grow what can overload client. 
+
+See [Client - Connection Pooling](https://clickhouse.com/docs/integrations/language-clients/java/client#connection-pooling) for details about configuration.
+
+
+### JVM Memory and GC 
+
+Data processing consumes memory, and it creates different problems down the road. Java application commonly uses objects to store data and when 
+reading a lot of data many objects are created on the heap. After processing all these objects should be GC'ed. Usually it happens on the edge of two requests (one finished and one starting).
+The new request needs memory for its object and GC has to work hard to free it what may result in long world pause. This creates second problem network gets more data queued for client. 
+
+Selection of proper GC would help and here is [official guide](https://docs.oracle.com/en/java/javase/27/gctuning/introduction-garbage-collection-tuning.html).
+Allocating adequate amount of memory for JVM will reduce GC pressure but costs so we recommend load testing to find optimal values.
+Using objects pool reduces number of memory allocations however considered unsafe in some cases (to avoid cross-talk, for example, when data of one customers present in objects of another customer).
 
 ## Step 8 — Metadata & schema discovery
 
