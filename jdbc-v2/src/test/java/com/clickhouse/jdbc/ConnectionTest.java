@@ -599,7 +599,8 @@ public class ConnectionTest extends JdbcIntegrationTest {
                         {10, 20, 30, 40, 50, },
                 };
                 Array array = conn.createArrayOf("Array(Array(Int32))", table);
-
+                assertEquals(array.getBaseTypeName(), "Array(Int32)");
+                assertEquals(array.getBaseType(), JDBCType.ARRAY.getVendorTypeNumber());
             }
 
 

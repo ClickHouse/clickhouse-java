@@ -31,8 +31,10 @@ public class Array implements java.sql.Array {
         // type, so use the array nesting level (set for both Array and QBit) to find the element column.
         ClickHouseColumn baseColumn = (this.column.getArrayNestedLevel() > 0 ? this.column.getArrayBaseColumn() : this.column);
         this.baseDataType = baseColumn.getDataType();
-        this.elementTypeName = baseColumn.getOriginalTypeName();
-        this.type = JdbcUtils.CLICKHOUSE_TO_SQL_TYPE_MAP.getOrDefault(baseDataType, JDBCType.OTHER).getVendorTypeNumber();
+        // Elements of a multi-dimensional array are arrays of the next level, not values of the base column.
+        ClickHouseColumn elementColumn = this.column.getArrayNestedLevel() > 1 ? this.column.getNestedColumns().get(0) : baseColumn;
+        this.elementTypeName = elementColumn.getOriginalTypeName();
+        this.type = JdbcUtils.CLICKHOUSE_TO_SQL_TYPE_MAP.getOrDefault(elementColumn.getDataType(), JDBCType.OTHER).getVendorTypeNumber();
         this.valid = true;
     }
 

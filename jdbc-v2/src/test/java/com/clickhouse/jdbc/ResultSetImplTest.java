@@ -4,6 +4,7 @@ import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.data_formats.JacksonJsonParserFactory;
 import com.clickhouse.data.ClickHouseVersion;
 import org.testng.Assert;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.io.InputStream;
@@ -444,6 +445,43 @@ public class ResultSetImplTest extends JdbcIntegrationTest {
                 }
             }
         }
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "multiDimensionalArrays")
+    public void testMultiDimensionalArrayElementType(String sql, String[] elementTypeNames, int leafType,
+                                                     String leafValue) throws Exception {
+        try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            assertTrue(rs.next());
+            Array array = rs.getArray(1);
+            for (int level = 0; level < elementTypeNames.length; level++) {
+                boolean leaf = level == elementTypeNames.length - 1;
+                assertEquals(array.getBaseTypeName(), elementTypeNames[level]);
+                assertEquals(array.getBaseType(), leaf ? leafType : Types.ARRAY);
+
+                ResultSet elements = array.getResultSet();
+                assertTrue(elements.next());
+                assertEquals(elements.getMetaData().getColumnTypeName(2), array.getBaseTypeName());
+                assertEquals(elements.getMetaData().getColumnType(2), array.getBaseType());
+                if (leaf) {
+                    assertEquals(elements.getString(2), leafValue);
+                } else {
+                    array = elements.getArray(2);
+                }
+            }
+        }
+    }
+
+    @DataProvider
+    public static Object[][] multiDimensionalArrays() {
+        return new Object[][] {
+                {"SELECT [1, 2, 3]", new String[] {"UInt8"}, Types.SMALLINT, "1"},
+                {"SELECT [[1, 2, 3]]", new String[] {"Array(UInt8)", "UInt8"}, Types.SMALLINT, "1"},
+                {"SELECT [[[7]]]::Array(Array(Array(Int32)))",
+                        new String[] {"Array(Array(Int32))", "Array(Int32)", "Int32"}, Types.INTEGER, "7"},
+                {"SELECT [['a', NULL]]::Array(Array(Nullable(String)))",
+                        new String[] {"Array(Nullable(String))", "Nullable(String)"}, Types.VARCHAR, "a"},
+        };
     }
 
     @Test(groups = {"integration"})
