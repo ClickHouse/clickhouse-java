@@ -1117,6 +1117,17 @@ is expensive because of SSL handshake and initialization in the OS). In this cas
 
 See [Client - Connection Pooling](https://clickhouse.com/docs/integrations/language-clients/java/client#connection-pooling) for details about configuration.
 
+
+### JVM Memory and GC 
+
+Data processing consumes memory, and it creates different problems down the road. Java application commonly uses objects to store data and when 
+reading a lot of data many objects are created on the heap. After processing all these objects should be GC'ed. Usually it happens on the edge of two requests (one finished and one starting).
+The new request needs memory for its object and GC has to work hard to free it what may result in long world pause. This creates second problem network gets more data queued for client. 
+
+Selection of proper GC would help and here is [official guide](https://docs.oracle.com/en/java/javase/27/gctuning/introduction-garbage-collection-tuning.html).
+Allocating adequate amount of memory for JVM will reduce GC pressure but costs so we recommend load testing to find optimal values.
+Using objects pool reduces number of memory allocations however considered unsafe in some cases (to avoid cross-talk, for example, when data of one customers present in objects of another customer).
+
 ## Step 8 — Metadata & schema discovery
 
 **Goal:** obtain table and query schemas using the client API.
