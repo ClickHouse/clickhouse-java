@@ -328,8 +328,9 @@ public class ResultSetImplTest extends JdbcIntegrationTest {
         properties.setProperty(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), format);
         properties.setProperty(ClientConfigProperties.HTTP_MAX_OPEN_CONNECTIONS.getKey(), "1");
         // The query fails after the first rows are sent, so the server ends the response body early.
+        // Without http_write_exception_in_output_format = 0, older servers send the error as the last JSONEachRow row.
         final String query = "SELECT number, randomPrintableASCII(100), throwIf(number = 100000)"
-                + " FROM numbers(200000) SETTINGS max_block_size = 1000";
+                + " FROM numbers(200000) SETTINGS max_block_size = 1000, http_write_exception_in_output_format = 0";
         try (Connection conn = getJdbcConnection(properties); Statement stmt = conn.createStatement()) {
             ResultSet rs = stmt.executeQuery(query);
             assertTrue(rs.next());
