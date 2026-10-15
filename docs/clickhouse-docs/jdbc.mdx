@@ -372,13 +372,13 @@ The general mapping rules for arrays are:
 | `Array(<Parameterized Type>(<N>))`         | `<Parameterized Type>(<N>)`                    | `<JDBC type of base type>`  |
 | `Array(Nullable(<Type>))`                  | `Nullable(<Type>)`                             | `<JDBC type of inner Type>` |
 | `Array(LowCardinality(<Type>))`            | `LowCardinality(<Type>)`                       | `<JDBC type of inner Type>` |
-| `Array(Array(...(<Type>)))`                | `<Type>` (innermost element)                   | `<JDBC type of innermost>`  |
+| `Array(Array(...(<Type>)))`                | `Array(...(<Type>))` (next array level)        | `ARRAY`                     |
 | `Array(Tuple(...))`                        | `Tuple(...)` (full definition)                 | `OTHER`                     |
 | `Array(Enum8(...))` / `Array(Enum16(...))` | `Enum8(...)` / `Enum16(...)` (full definition) | `VARCHAR`                   |
 
 Notes on the rules above:
 - Wrapper types (`Nullable`, `LowCardinality`) are preserved in `getBaseTypeName()` but `getBaseType()` resolves to the inner type's JDBC code.
-- Nested arrays are flattened in the metadata: `getBaseTypeName()` returns the innermost non-array element type, not the immediate child.
+- Nested arrays are not flattened in the metadata: `getBaseTypeName()` returns the immediate child type, which is the next array level, and `getBaseType()` returns `ARRAY`. The `VALUE` column of `getResultSet()` has the same type; call `getArray()` on it to read the next level.
 - Parameterized types (`FixedString(N)`, full `Enum`/`Tuple` definitions) keep their parameters in `getBaseTypeName()`.
 
 **Examples:**
@@ -404,8 +404,8 @@ Notes on the rules above:
 | Array(Nullable(String))                            | Nullable(String)                            | VARCHAR         |
 | Array(LowCardinality(String))                      | LowCardinality(String)                      | VARCHAR         |
 | Array(LowCardinality(Nullable(String)))            | LowCardinality(Nullable(String))            | VARCHAR         |
-| Array(Array(Int32))                                | Int32                                       | INTEGER         |
-| Array(Array(Array(String)))                        | String                                      | VARCHAR         |
+| Array(Array(Int32))                                | Array(Int32)                                | ARRAY           |
+| Array(Array(Array(String)))                        | Array(Array(String))                        | ARRAY           |
 | Array(Tuple(name String, val Int32))               | Tuple(name String, val Int32)               | OTHER           |
 | Array(Enum8('alpha' = 1, 'beta' = 2, 'gamma' = 3)) | Enum8('alpha' = 1, 'beta' = 2, 'gamma' = 3) | VARCHAR         |
 
