@@ -638,6 +638,86 @@ public ClickHouseFormat inspectQueryFormat(Client client, String sql) throws Exc
 }
 ```
 
+### Data Types 
+
+A clear type system is essential for integrating application components with ClickHouse. Decisions made at this stage carry over into the future evolution of your application, so review the type mappings carefully before finalizing your design.
+
+Start by reviewing the [ClickHouse data types](https://clickhouse.com/docs/reference/data-types/index) (new types are added regularly), then check the client documentation for the list of [supported data types](https://clickhouse.com/docs/integrations/language-clients/java#supported-data-types). If you need support for a type that is not yet covered, feel free to raise an issue in the Java client repository.
+
+Database data types are mapped to Java types by the reader or writer and generally follow similar rules across formats (though custom or format-specific readers and writers may use different mappings).
+
+
+**ClickHouse / Java Type Mapping**
+
+The following table summarizes typical mappings between ClickHouse database and Java types. Conversion depends on data 
+format and reader/writer implementation. Following table represents supported conversions when used with ClickHouse binary formats
+like `RowBinary` and `Native`.
+
+Reader Interface: `com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader`
+Writer Interface: `com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatWriter`
+
+| ClickHouse Type                      | Java Type (Reader)                                            | Java Type (Writer)                                                                  |
+|--------------------------------------|---------------------------------------------------------------|-------------------------------------------------------------------------------------|
+| `Bool`                               | `boolean`                                                     | `boolean`                                                                           |
+| `Int8`                               | `byte`, `short`, `int`, `long`                                | `byte`, `short`, `int`, `long`                                                      |
+| `UInt8`                              | `short`, `int`, `long`                                        | `byte`, `short`, `int`, `long`                                                      |
+| `Int16`                              | `short`, `int`, `long`                                        | `short`, `int`, `long`                                                              |
+| `UInt16`                             | `int`, `long`                                                 | `short`, `int`, `long`                                                              |
+| `Int32`                              | `int`, `long`                                                 | `int`, `long`                                                                       |
+| `UInt32`                             | `long`                                                        | `int`, `long`                                                                       |
+| `Int64`                              | `long`, `BigInteger`                                          | `long`, `BigInteger`                                                                |
+| `UInt64`                             | `BigInteger`, `long`                                          | `long`, `BigInteger`                                                                |
+| `Int128`, `UInt128`                  | `BigInteger`                                                  | `BigInteger`, `long`                                                                |
+| `Int256`, `UInt256`                  | `BigInteger`                                                  | `BigInteger`, `long`                                                                |
+| `BFloat16`                           | `float`, `double`                                             | `float`                                                                             |
+| `Float32`                            | `float`, `double`                                             | `float`, `double`                                                                   |
+| `Float64`                            | `double`                                                      | `float`, `double`                                                                   |
+| `Decimal`, `Decimal32`..`Decimal256` | `BigDecimal`                                                  | `BigDecimal`, `String`                                                              |
+| `String`, `FixedString`              | `String`, `byte[]`                                            | `String`, `byte[]`                                                                  |
+| `Date`                               | `LocalDate`                                                   | `LocalDate`                                                                         |
+| `Date32`                             | `LocalDate`                                                   | `LocalDate`                                                                         |
+| `DateTime`, `DateTime32`             | `ZonedDateTime`, `OffsetDateTime`, `Instant`, `LocalDateTime` | `ZonedDateTime`, `OffsetDateTime`, `Instant`, `LocalDateTime`, `java.sql.Timestamp` |
+| `DateTime64`                         | `ZonedDateTime`, `OffsetDateTime`, `Instant`, `LocalDateTime` | `ZonedDateTime`, `OffsetDateTime`, `Instant`, `LocalDateTime`, `java.sql.Timestamp` |
+| `Time`, `Time64`                     | `LocalTime`, `LocalDateTime`, `Duration`, `TemporalAmount`    | `int` (`Time`), `long`, `BigInteger`, `Instant` (`Time64`)                          |
+| `Interval*`                          | `TemporalAmount` (`Period` / `Duration`), `Duration`          | `Period` (date intervals), `Duration` (time/day intervals)                          |
+| `Enum8`, `Enum16`                    | `String`, `byte` (`Enum8`), `short` (`Enum16`), `int`         | `String`, `byte`, `short`, `int`                                                    |
+| `UUID`                               | `UUID`, `String`                                              | `UUID`, `String`                                                                    |
+| `IPv4`, `IPv6`                       | `Inet4Address`, `Inet6Address`, `String`                      | `Inet4Address` (`IPv4`), `Inet6Address` (`IPv6`)                                    |
+| `Nullable(T)`                        | `T` or `null`                                                 | `T` or `null`                                                                       |
+| `LowCardinality(T)`                  | `T`                                                           | `T`                                                                                 |
+| `Array(T)`                           | `List<T>`, primitive `T[]`, `String[]`, `Object[]`            | `List<T>`, `T[]`                                                                    |
+| `Tuple`                              | `Object[]`, `List<?>` (POJO)                                  | `Object[]`, `List<?>`                                                               |
+| `Map(K, V)`                          | `Map<K, V>`                                                   | `Map<K, V>`                                                                         |
+| `Nested`                             | `List<Object[]>`, `Object[]`                                  | `List<Object[]>`, `Object[][]`                                                      |
+| `Point`                              | `double[]`                                                    | `double[]`                                                                          |
+| `Ring`, `LineString`, `MultiPoint`   | `double[][]`                                                  | `double[][]`                                                                        |
+| `Polygon`, `MultiLineString`         | `double[][][]`                                                | `double[][][]`                                                                      |
+| `MultiPolygon`                       | `double[][][][]`                                              | `double[][][][]`                                                                    |
+| `Geometry`                           | `double[]` … `double[][][][]`                                 | `double[]` … `double[][][][]`                                                       |
+| `QBit(T, N)`                         | `float[]`, `double[]`, `List<T>`                              | `float[]`, `double[]`, `List<T>` (length `N`)                                       |
+| `Variant`, `Dynamic`                 | `Object` (resolved runtime value)                             | `Object` (supported scalar/array/map types)                                         |
+| `JSON`                               | `Map<String, Object>`, `String`                               | `String`                                                                            |
+| `SimpleAggregateFunction(f, T)`      | `T`                                                           | `T`                                                                                 |
+
+**Notes:**
+- **Signed vs. unsigned integers:** Unsigned types (`UInt8`, `UInt16`, `UInt32`) are widened to the next larger signed Java primitive (`short`, `int`, `long`) on read so values above the signed max do not overflow; `UInt64`, `Int128`, `UInt128`, `Int256`, and `UInt256` use `BigInteger`. Narrower getters (e.g., `getByte` on `UInt8 > 127` or `getLong` on `UInt64 > Long.MAX_VALUE`) throw `ArithmeticException`.
+- **Binary strings (`String`, `FixedString`):** By default, strings are decoded as UTF-8 `String` on read. To read raw binary bytes via `getByteArray(...)` (or POJO `byte[]` fields) without UTF-8 transcoding, enable `Client.Builder#binaryStringSupport(true)` (or per-query `binary_string_support`).
+- **Dates (`Date`, `Date32`):** Use `java.time.LocalDate` (timezone-agnostic calendar date). Note that `java.sql.Date` is not supported by the `RowBinary` writer.
+- **Timestamps (`DateTime`, `DateTime64`):** **Prefer `ZonedDateTime`, `OffsetDateTime`, or `Instant`** over `LocalDateTime`. ClickHouse stores `DateTime` / `DateTime64` as UTC epoch values. Because `LocalDateTime` carries no timezone offset, using it can easily cause timezone confusion:
+  - On **write**, a `LocalDateTime` is interpreted in the column's declared timezone (e.g., `DateTime('Asia/Tokyo')`), or in **`UTC`** if the column has no timezone parameter — *not* the JVM default timezone.
+  - On **read**, the reader decodes the timestamp into a `ZonedDateTime` using the column's timezone (or the client's configured timezone), and `getLocalDateTime(...)` simply strips that zone (`toLocalDateTime()`), which may not match the application's local wall clock.
+  - Using `Instant` or `ZonedDateTime` / `OffsetDateTime` keeps the exact point in time unambiguous across client, server, and column timezones.
+- **Nullability:** Reading a `NULL` value through a primitive getter (`getInt`, `getLong`, `getDouble`, `getBoolean`, `getEnum8`, etc.) or into a primitive POJO field throws `NullValueException`. Check `hasValue(...)` first or use boxed/object types.
+- **`LowCardinality(T)`:** Treated as a transparent storage modifier by the client. A `LowCardinality(T)` (or `LowCardinality(Nullable(T))`) column is unwrapped to its underlying type `T` and follows the exact same Java type conversion rules on both read and write.
+- **Containers (`Array`, `Tuple`, `Map`, `Nested`):** `getList(...)` reads any `Array` as `List<T>`, primitive array getters (`getIntArray`, `getDoubleArray`, etc.) read 1D primitive arrays, and `getObjectArray(...)` reads any 1D or multidimensional array as `Object[]`. `Tuple` is read via `getTuple(...)` as `Object[]` (and accepts `Object[]` or `List<?>` on write and in POJO mapping).
+- **Enums:** `Enum8` and `Enum16` can be read/written by label (`String`) or numeric value (`getEnum8`/`getEnum16`/`getInteger`).
+- **Decimals:** `Decimal` and `Decimal32`/`64`/`128`/`256` map to `BigDecimal` to preserve scale and precision.
+
+When reading or writing data programmatically, favor the canonical Java type above for portability.
+
+
+
+
 ## Step 6 — Read operations
 
 **Goal:** read results efficiently and configure the operation-level settings for heavy analytical reads.
