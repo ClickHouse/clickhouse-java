@@ -644,79 +644,10 @@ A clear type system is essential for integrating application components with Cli
 
 Start by reviewing the [ClickHouse data types](https://clickhouse.com/docs/reference/data-types/index) (new types are added regularly), then check the client documentation for the list of [supported data types](https://clickhouse.com/docs/integrations/language-clients/java#supported-data-types). If you need support for a type that is not yet covered, feel free to raise an issue in the Java client repository.
 
-Database data types are mapped to Java types by the reader or writer and generally follow similar rules across formats (though custom or format-specific readers and writers may use different mappings).
+Database data types are mapped to Java types by the reader or writer and generally follow similar rules across formats (though custom or format-specific readers and writers may use different mappings). 
 
-
-**ClickHouse / Java Type Mapping**
-
-The following table summarizes typical mappings between ClickHouse database and Java types. Conversion depends on data 
-format and reader/writer implementation. Following table represents supported conversions when used with ClickHouse binary formats
-like `RowBinary` and `Native`.
-
-Reader Interface: `com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader`
-Writer Interface: `com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatWriter`
-
-| ClickHouse Type                      | Java Type (Reader)                                            | Java Type (Writer)                                                                  |
-|--------------------------------------|---------------------------------------------------------------|-------------------------------------------------------------------------------------|
-| `Bool`                               | `boolean`                                                     | `boolean`                                                                           |
-| `Int8`                               | `byte`, `short`, `int`, `long`                                | `byte`, `short`, `int`, `long`                                                      |
-| `UInt8`                              | `short`, `int`, `long`                                        | `byte`, `short`, `int`, `long`                                                      |
-| `Int16`                              | `short`, `int`, `long`                                        | `short`, `int`, `long`                                                              |
-| `UInt16`                             | `int`, `long`                                                 | `short`, `int`, `long`                                                              |
-| `Int32`                              | `int`, `long`                                                 | `int`, `long`                                                                       |
-| `UInt32`                             | `long`                                                        | `int`, `long`                                                                       |
-| `Int64`                              | `long`, `BigInteger`                                          | `long`, `BigInteger`                                                                |
-| `UInt64`                             | `BigInteger`, `long`                                          | `long`, `BigInteger`                                                                |
-| `Int128`, `UInt128`                  | `BigInteger`                                                  | `BigInteger`, `long`                                                                |
-| `Int256`, `UInt256`                  | `BigInteger`                                                  | `BigInteger`, `long`                                                                |
-| `BFloat16`                           | `float`, `double`                                             | `float`                                                                             |
-| `Float32`                            | `float`, `double`                                             | `float`, `double`                                                                   |
-| `Float64`                            | `double`                                                      | `float`, `double`                                                                   |
-| `Decimal`, `Decimal32`..`Decimal256` | `BigDecimal`                                                  | `BigDecimal`, `String`                                                              |
-| `String`, `FixedString`              | `String`, `byte[]`                                            | `String`, `byte[]`                                                                  |
-| `Date`                               | `LocalDate`                                                   | `LocalDate`                                                                         |
-| `Date32`                             | `LocalDate`                                                   | `LocalDate`                                                                         |
-| `DateTime`, `DateTime32`             | `ZonedDateTime`, `OffsetDateTime`, `Instant`, `LocalDateTime` | `ZonedDateTime`, `OffsetDateTime`, `Instant`, `LocalDateTime`, `java.sql.Timestamp` |
-| `DateTime64`                         | `ZonedDateTime`, `OffsetDateTime`, `Instant`, `LocalDateTime` | `ZonedDateTime`, `OffsetDateTime`, `Instant`, `LocalDateTime`, `java.sql.Timestamp` |
-| `Time`, `Time64`                     | `LocalTime`, `LocalDateTime`, `Duration`, `TemporalAmount`    | `int` (`Time`), `long`, `BigInteger`, `Instant` (`Time64`)                          |
-| `Interval*`                          | `TemporalAmount` (`Period` / `Duration`), `Duration`          | `Period` (date intervals), `Duration` (time/day intervals)                          |
-| `Enum8`, `Enum16`                    | `String`, `byte` (`Enum8`), `short` (`Enum16`), `int`         | `String`, `byte`, `short`, `int`                                                    |
-| `UUID`                               | `UUID`, `String`                                              | `UUID`, `String`                                                                    |
-| `IPv4`, `IPv6`                       | `Inet4Address`, `Inet6Address`, `String`                      | `Inet4Address` (`IPv4`), `Inet6Address` (`IPv6`)                                    |
-| `Nullable(T)`                        | `T` or `null`                                                 | `T` or `null`                                                                       |
-| `LowCardinality(T)`                  | `T`                                                           | `T`                                                                                 |
-| `Array(T)`                           | `List<T>`, primitive `T[]`, `String[]`, `Object[]`            | `List<T>`, `T[]`                                                                    |
-| `Tuple`                              | `Object[]`, `List<?>` (POJO)                                  | `Object[]`, `List<?>`                                                               |
-| `Map(K, V)`                          | `Map<K, V>`                                                   | `Map<K, V>`                                                                         |
-| `Nested`                             | `List<Object[]>`, `Object[]`                                  | `List<Object[]>`, `Object[][]`                                                      |
-| `Point`                              | `double[]`                                                    | `double[]`                                                                          |
-| `Ring`, `LineString`, `MultiPoint`   | `double[][]`                                                  | `double[][]`                                                                        |
-| `Polygon`, `MultiLineString`         | `double[][][]`                                                | `double[][][]`                                                                      |
-| `MultiPolygon`                       | `double[][][][]`                                              | `double[][][][]`                                                                    |
-| `Geometry`                           | `double[]` … `double[][][][]`                                 | `double[]` … `double[][][][]`                                                       |
-| `QBit(T, N)`                         | `float[]`, `double[]`, `List<T>`                              | `float[]`, `double[]`, `List<T>` (length `N`)                                       |
-| `Variant`, `Dynamic`                 | `Object` (resolved runtime value)                             | `Object` (supported scalar/array/map types)                                         |
-| `JSON`                               | `Map<String, Object>`, `String`                               | `String`                                                                            |
-| `SimpleAggregateFunction(f, T)`      | `T`                                                           | `T`                                                                                 |
-
-**Notes:**
-- **Signed vs. unsigned integers:** Unsigned types (`UInt8`, `UInt16`, `UInt32`) are widened to the next larger signed Java primitive (`short`, `int`, `long`) on read so values above the signed max do not overflow; `UInt64`, `Int128`, `UInt128`, `Int256`, and `UInt256` use `BigInteger`. Narrower getters (e.g., `getByte` on `UInt8 > 127` or `getLong` on `UInt64 > Long.MAX_VALUE`) throw `ArithmeticException`.
-- **Binary strings (`String`, `FixedString`):** By default, strings are decoded as UTF-8 `String` on read. To read raw binary bytes via `getByteArray(...)` (or POJO `byte[]` fields) without UTF-8 transcoding, enable `Client.Builder#binaryStringSupport(true)` (or per-query `binary_string_support`).
-- **Dates (`Date`, `Date32`):** Use `java.time.LocalDate` (timezone-agnostic calendar date). Note that `java.sql.Date` is not supported by the `RowBinary` writer.
-- **Timestamps (`DateTime`, `DateTime64`):** **Prefer `ZonedDateTime`, `OffsetDateTime`, or `Instant`** over `LocalDateTime`. ClickHouse stores `DateTime` / `DateTime64` as UTC epoch values. Because `LocalDateTime` carries no timezone offset, using it can easily cause timezone confusion:
-  - On **write**, a `LocalDateTime` is interpreted in the column's declared timezone (e.g., `DateTime('Asia/Tokyo')`), or in **`UTC`** if the column has no timezone parameter — *not* the JVM default timezone.
-  - On **read**, the reader decodes the timestamp into a `ZonedDateTime` using the column's timezone (or the client's configured timezone), and `getLocalDateTime(...)` simply strips that zone (`toLocalDateTime()`), which may not match the application's local wall clock.
-  - Using `Instant` or `ZonedDateTime` / `OffsetDateTime` keeps the exact point in time unambiguous across client, server, and column timezones.
-- **Nullability:** Reading a `NULL` value through a primitive getter (`getInt`, `getLong`, `getDouble`, `getBoolean`, `getEnum8`, etc.) or into a primitive POJO field throws `NullValueException`. Check `hasValue(...)` first or use boxed/object types.
-- **`LowCardinality(T)`:** Treated as a transparent storage modifier by the client. A `LowCardinality(T)` (or `LowCardinality(Nullable(T))`) column is unwrapped to its underlying type `T` and follows the exact same Java type conversion rules on both read and write.
-- **Containers (`Array`, `Tuple`, `Map`, `Nested`):** `getList(...)` reads any `Array` as `List<T>`, primitive array getters (`getIntArray`, `getDoubleArray`, etc.) read 1D primitive arrays, and `getObjectArray(...)` reads any 1D or multidimensional array as `Object[]`. `Tuple` is read via `getTuple(...)` as `Object[]` (and accepts `Object[]` or `List<?>` on write and in POJO mapping).
-- **Enums:** `Enum8` and `Enum16` can be read/written by label (`String`) or numeric value (`getEnum8`/`getEnum16`/`getInteger`).
-- **Decimals:** `Decimal` and `Decimal32`/`64`/`128`/`256` map to `BigDecimal` to preserve scale and precision.
-
-When reading or writing data programmatically, favor the canonical Java type above for portability.
-
-
-
+Next read the official client documentation regarding [data types mapping](/docs/clickhouse-docs/client.mdx#data-types). Client API is built around JDK native data types to make 
+application code more portable. Any additional traits can be implemented with different adaptors. 
 
 ## Step 6 — Read operations
 
@@ -810,9 +741,9 @@ public void streamEvents(Client client) throws Exception {
 
 ### Direct InputStream access
 
-The `QueryResponse` object also provides direct access to the underlying input stream via `response.getInputStream()`. This is incredibly useful when you want to read text formats using third-party libraries (like Jackson for JSON or OpenCSV for CSV). 
-
-Because of this direct stream access, it is also possible to stream columnar formats directly into memory structures like **Apache Arrow**. (See our [examples directory](../examples/src/main/java/com/clickhouse/examples) for reference implementations).
+Sometimes it is more efficient to read data without materializing to any of the structures. For example, backend may request data in `JSONEachRow` format and stream it back to backend client (query should be well-designed to avoid
+creating a tight coupling on database schema).  The `QueryResponse` object also provides direct access to the underlying input stream via `response.getInputStream()`. Such approach is useful to integrate with other libraries like 
+Jackson to leverage its JSON/CSV parsing capabilities or to stream columnar formats directly into memory structures like **Apache Arrow**. (See our [examples directory](../examples/src/main/java/com/clickhouse/examples) for reference implementations).
 
 ### Parameterized queries
 
@@ -842,7 +773,7 @@ public void queryEventsWithParam(Client client, long minId, QuerySettings settin
 | [`GenericRecord`](../client-v2/src/main/java/com/clickhouse/client/api/query/GenericRecord.java) | Column access by name or index |
 | [`OperationMetrics`](../client-v2/src/main/java/com/clickhouse/client/api/metrics/OperationMetrics.java) | Server timing and row counts via `QueryResponse.getMetrics()` |
 
-### Operation configuration — tuning heavy reads
+### Operation configuration
 
 The most useful **client settings** for reads are configured on `QuerySettings`:
 
@@ -869,6 +800,7 @@ See the [Error model](#error-model) for the exception hierarchy and how to unwra
 | Connection dropped **mid-stream** (after you began iterating) | `DataTransferException` while reading | You cannot resume from the middle — some rows were already consumed. Close the `QueryResponse` and re-run the entire query. Make consumers tolerant of re-reading from the start. |
 
 See [integration-testing.md — Fetching Data](integration-testing.md#fetching-data) for read-path test scenarios to cover (data types, formats, failure handling).
+
 ---
 
 ## Step 7 — Write operations
@@ -1042,6 +974,148 @@ See the [Error model](#error-model) for the exception hierarchy and how to unwra
 - Even a successful retry can **duplicate rows** unless you set a stable `insert_deduplication_token` (see [Idempotency](#idempotency--deduplication-token) above) on a MergeTree-family table.
 - If retries are not safe for your source, disable them (`retry=0`) and handle re-submission at the application level with a dedup token.
 ---
+
+## Optimization
+
+Generally we want to optimize space and time. Memory is the main space in our case. If application reads big data chunks it will cost
+memory first of all. Time depends on how much memory we used for request - it unfolds into memory allocation, data processing,
+work of GC. All this defines application throughput. 
+
+First we need to picture client operations stages. All starts with request to the client to execute request, and it should find or allocate connection 
+to DBs. When done client can send/receive data - request send first that actual data comes. Commonly data is processed on application side while 
+reading operation and on server while write. Each stage can be optimized in own way. 
+
+### Compression
+
+Network is relatively slow and unstable compare to memory. Reducing number of bytes sent via network reduces number of 
+expensive interactions with operating system. Compression is the best way to reduce network traffic and request time. 
+
+Here we need to note that historically there are two ways to compress data if using HTTP: 
+- Data compression - data is compressed by server logic while writing response or reading data from client. There are two algorithms - `LZ4` and 
+`ZSTD`. More details in [ClickHouse Compression Modes](https://clickhouse.com/docs/guides/clickhouse/data-modelling/compression/compression-modes). 
+- HTTP compression - available only for HTTP interface (java client support only HTTP right now). [ClickHouse HTTP Interface — Compression](https://clickhouse.com/docs/interfaces/http#compression) — server-side behavior for `compress`, `decompress`, and `enable_http_compression`.
+
+Java client can use both methods. See [Java Client V2 Configuration — Client configuration](https://clickhouse.com/docs/integrations/language-clients/java/client#client-configuration) and [Compression](https://clickhouse.com/docs/integrations/language-clients/java/client#v2-compression) . By default, **read compression (`compressServerResponse`) is enabled** and **write compression (`compressClientRequest`) is disabled**. You can enable write compression and select the native block algorithm (`LZ4` or `ZSTD`) at client initialization or per operation:
+
+
+#### Configuration examples 
+
+
+```java
+import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.CompressionMethod;
+import com.clickhouse.client.api.insert.InsertResponse;
+import com.clickhouse.client.api.insert.InsertSettings;
+import com.clickhouse.client.api.query.QueryResponse;
+import com.clickhouse.client.api.query.QuerySettings;
+import com.clickhouse.data.ClickHouseFormat;
+
+public Client.Builder configureNativeCompression(Client.Builder baseClient) {
+    return baseClient
+        .compressServerResponse(true) // enabled by default for reads
+        .compressClientRequest(true)  // enable native block compression for writes
+        .compressionMethod(CompressionMethod.LZ4) // use LZ4 (default is ZSTD)
+        .setLZ4UncompressedBufferSize(65536);
+}
+
+public void insertWithClientCompression(Client client, InputStream dataStream) throws Exception {
+    // Enable or override write compression for a single insert operation
+    InsertSettings settings = new InsertSettings()
+        .compressClientRequest(true)
+        .setOption(ClientConfigProperties.COMPRESSION_METHOD.getKey(), CompressionMethod.ZSTD);
+
+    try (InsertResponse response = client.insert("events", dataStream, ClickHouseFormat.RowBinary, settings).get()) {
+        // handle response metrics
+    }
+}
+
+public void queryWithoutCompression(Client client) throws Exception {
+    // Disable server response compression for a specific small query if needed
+    QuerySettings settings = new QuerySettings()
+        .setOption(ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getKey(), false);
+
+    try (QueryResponse response = client.query("SELECT * FROM events LIMIT 10", settings).get()) {
+        // process response
+    }
+}
+```
+
+**Enabling HTTP compression**
+
+Enable HTTP compression when routing traffic through HTTP proxies/load balancers that inspect standard HTTP encodings or when you want to use `gzip`, `deflate`, `zstd`, or framed `lz4`.
+
+When `useHttpCompression(true)` is set, the client defaults to `lz4` (`Accept-Encoding: lz4` for reads and `Content-Encoding: lz4` for writes). To use another algorithm (`gzip`, `zstd`, or `deflate`), set the `Accept-Encoding` or `Content-Encoding` HTTP header:
+
+```java
+import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.insert.InsertResponse;
+import com.clickhouse.client.api.insert.InsertSettings;
+import com.clickhouse.client.api.query.QueryResponse;
+import com.clickhouse.client.api.query.QuerySettings;
+import com.clickhouse.data.ClickHouseFormat;
+
+public Client.Builder configureHttpCompression(Client.Builder baseClient) {
+    return baseClient
+        .useHttpCompression(true)
+        .compressServerResponse(true) // sends Accept-Encoding: lz4 by default
+        .compressClientRequest(true); // sends Content-Encoding: lz4 by default
+}
+
+public void queryWithHttpCompression(Client client, String compressionAlgo) throws Exception {
+    // compressionAlgo can be "lz4", "zstd", "gzip", or "deflate"
+    QuerySettings settings = new QuerySettings()
+        .httpHeader("Accept-Encoding", compressionAlgo);
+
+    try (QueryResponse response = client.query("SELECT * FROM events", settings).get()) {
+        // response stream is automatically decompressed by the client
+    }
+}
+
+public void insertWithHttpCompression(Client client, InputStream dataStream, String compressionAlgo) throws Exception {
+    // compressionAlgo can be "lz4", "zstd", "gzip", or "deflate"
+    InsertSettings settings = new InsertSettings()
+        .useHttpCompression(true)
+        .compressClientRequest(true)
+        .httpHeader("Content-Encoding", compressionAlgo);
+
+    try (InsertResponse response = client.insert("events", dataStream, ClickHouseFormat.JSONEachRow, settings).get()) {
+        // handle response metrics
+    }
+}
+```
+
+**Writing pre-compressed application data**
+
+If your application already receives or stores compressed files/streams (for example, `.gz` or `.lz4` files in object storage), use `InsertSettings.appCompressedData(true, "<algorithm>")`. The client skips compressing the stream itself and sends the raw compressed bytes directly to ClickHouse with `enable_http_compression=1` and `Content-Encoding: <algorithm>`:
+
+```java
+import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.insert.InsertResponse;
+import com.clickhouse.client.api.insert.InsertSettings;
+import com.clickhouse.data.ClickHouseFormat;
+
+public void insertPreCompressedStream(Client client, InputStream gzippedJsonStream) throws Exception {
+    InsertSettings settings = new InsertSettings()
+        .appCompressedData(true, "gzip");
+
+    try (InsertResponse response = client.insert("events", gzippedJsonStream, ClickHouseFormat.JSONEachRow, settings).get()) {
+        // handle response metrics
+    }
+}
+```
+
+> **Important notes & constraints:**
+> - **Parameterized queries with form data (`useHttpFormDataForQuery(true)`):** When `client.http.use_form_request_for_query` is enabled, query parameters are sent as `multipart/form-data` in the request body. Client-side request compression (`decompress`) is automatically disabled for multipart query requests, while server response compression (`compress`) remains active.
+> - **Dependencies in standard vs. shaded jar:** Compression relies on `org.lz4:lz4-pure-java`, `com.github.luben:zstd-jni`, and `org.apache.commons:commons-compress`. In restricted environments where native JNI libraries cannot be loaded, call `disableNativeCompression(true)` on `Client.Builder`. 
+
+
+### Connection Pool 
+
+Connection pools is mostly useful when application handles many concurrent request because pool can utilize each connection more (creating a new one 
+is expensive because of SSL handshake and initialization in the OS). In this case client should have been configured to have enough max number of connections. When limit is reached then all new request will line up and it will significantly increase operation time what will cause timeouts. However making max number of connections may result on uncontrolled pool grow what can overload client. 
+
+See [Client - Connection Pooling](https://clickhouse.com/docs/integrations/language-clients/java/client#connection-pooling) for details about configuration.
 
 ## Step 8 — Metadata & schema discovery
 
