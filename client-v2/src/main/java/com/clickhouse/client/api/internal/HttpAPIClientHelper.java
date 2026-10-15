@@ -105,7 +105,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
@@ -171,7 +170,7 @@ public class HttpAPIClientHelper {
             defaultRetryCauses.removeIf(c -> c != ClientFaultCause.None);
         }
 
-        this.defaultUserAgent = buildDefaultUserAgent();
+        this.defaultUserAgent = buildDefaultUserAgent(ClientConfigProperties.CLIENT_METADATA.getOrDefault(configuration));
     }
 
     /**
@@ -1204,47 +1203,17 @@ public class HttpAPIClientHelper {
         request.setHeader(HttpHeaders.USER_AGENT, userAgentValue);
     }
 
-    private String buildDefaultUserAgent() {
+    private static String buildDefaultUserAgent(Map<String, String> clientMetadata) {
         StringBuilder userAgent = new StringBuilder();
-        userAgent.append(Client.CLIENT_USER_AGENT);
-
-        String clientVersion = Client.clientVersion;
-
-        userAgent.append(clientVersion);
-
-        userAgent.append(" (");
-        userAgent.append(System.getProperty("os.name"));
-        userAgent.append("; ");
-        userAgent.append("jvm:").append(System.getProperty("java.version"));
-        userAgent.append("; ");
-
-        userAgent.setLength(userAgent.length() - 2);
-        userAgent.append(')');
-
-        try {
-            String httpClientVersion = this.httpClient.getClass().getPackage().getImplementationVersion();
-            if (Objects.equals(this.httpClient.getClass().getPackage().getImplementationTitle(), this.getClass().getPackage().getImplementationTitle())) {
-                // shaded jar - all packages have same implementation title
-                httpClientVersion = "unknown";
-                try (InputStream in = Thread.currentThread().getContextClassLoader().getResourceAsStream("client-v2-version.properties")) {
-                    Properties p = new Properties();
-                    p.load(in);
-
-                    String tmp = p.getProperty("apache.http.client.version");
-                    if (tmp != null && !tmp.isEmpty() && !tmp.equals("${apache.httpclient.version}")) {
-                        httpClientVersion = tmp;
-                    }
-                } catch (Exception e) {
-                    LOG.debug("Failed to read HTTP client version from client-v2-version.properties", e);
-                }
+        userAgent.append(Client.CLIENT_USER_AGENT).append(Client.clientVersion).append(" (");
+        if (clientMetadata != null) {
+            for (Map.Entry<String, String> entry : clientMetadata.entrySet()) {
+                userAgent.append(entry.getKey()).append(':').append(entry.getValue()).append("; ");
             }
-            userAgent.append(" ")
-                    .append("Apache-HttpClient")
-                    .append('/')
-                    .append(httpClientVersion);
-        } catch (Exception e) {
-            LOG.warn("failed to construct http client version string", e);
         }
+        userAgent.append("lv:java/").append(System.getProperty("java.version"))
+                .append("; os:").append(System.getProperty("os.name"))
+                .append(')');
         return userAgent.toString();
     }
 

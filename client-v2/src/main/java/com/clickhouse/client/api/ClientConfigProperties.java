@@ -257,6 +257,24 @@ public enum ClientConfigProperties {
                     .collect(Collectors.toList());
         }
     },
+
+    /**
+     * Key/value pairs, written as {@code key1=value1,key2=value2}, that the client adds to the comment group of the
+     * {@code User-Agent} header. A {@code ,} or {@code \} in a value is escaped with {@code \}. This is a client-level
+     * setting: it is not read from operation settings. See {@link Client.Builder#setClientMetadata(Map)} for the
+     * format and the rules for keys and values.
+     */
+    CLIENT_METADATA("client_metadata", Map.class) {
+        @Override
+        @SuppressWarnings("unchecked")
+        public Object parseValue(String value) {
+            Map<String, String> metadata = (Map<String, String>) super.parseValue(value);
+            if (metadata != null) {
+                metadata.forEach(ClientConfigProperties::checkClientMetadataEntry);
+            }
+            return metadata;
+        }
+    },
     ;
 
     private static final Logger LOG = LoggerFactory.getLogger(ClientConfigProperties.class);
@@ -505,6 +523,58 @@ public enum ClientConfigProperties {
     }
 
 
+
+    private static void checkClientMetadataEntry(String key, String value) {
+        if (key.equalsIgnoreCase("lv") || key.equalsIgnoreCase("os")) {
+            throw new ClientMisconfigurationException("Invalid '" + CLIENT_METADATA.getKey() + "' entry '" + key
+                    + "': the key is reserved by the client");
+        }
+        if (!isClientMetadataText(key, " :;(),=") || !isClientMetadataText(value, ";()")) {
+            throw new ClientMisconfigurationException("Invalid '" + CLIENT_METADATA.getKey() + "' entry '" + key
+                    + "=" + value + "': keys and values must be printable ASCII, a key must not contain spaces or"
+                    + " any of ':;(),=', and a value must not contain any of ';()'");
+        }
+    }
+
+    private static boolean isClientMetadataText(String str, String forbiddenChars) {
+        for (int i = 0; i < str.length(); i++) {
+            char ch = str.charAt(i);
+            if (ch < 0x20 || ch > 0x7E || forbiddenChars.indexOf(ch) >= 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Inverse of {@link #toKeyValuePairs(String)}: escapes {@code \}, {@code ,} and {@code =} with {@code \} and
+     * skips entries with a {@code null} key or value.
+     */
+    static String fromKeyValuePairs(Map<String, String> map) {
+        StringBuilder sb = new StringBuilder();
+        for (Map.Entry<String, String> entry : map.entrySet()) {
+            if (entry.getKey() == null || entry.getValue() == null) {
+                continue;
+            }
+            if (sb.length() > 0) {
+                sb.append(',');
+            }
+            appendEscaped(sb, entry.getKey()).append('=');
+            appendEscaped(sb, entry.getValue());
+        }
+        return sb.toString();
+    }
+
+    private static StringBuilder appendEscaped(StringBuilder sb, String str) {
+        for (int i = 0; i < str.length(); i++) {
+            char ch = str.charAt(i);
+            if (ch == '\\' || ch == ',' || ch == '=') {
+                sb.append('\\');
+            }
+            sb.append(ch);
+        }
+        return sb;
+    }
 
     public static String mapToString(Map<?,?> map, Function<Object, String> valueConverter) {
         StringBuilder sb = new StringBuilder();

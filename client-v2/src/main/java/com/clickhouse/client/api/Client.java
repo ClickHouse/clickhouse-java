@@ -1144,12 +1144,37 @@ public class Client implements AutoCloseable {
          * Warn: If custom value of User-Agent header is set it will override this value for HTTP transport
          * Client name is used by server to identify client application when investigating {@code system.query_log}. In case of HTTP
          * transport this value will be in the {@code system.query_log.http_user_agent} column. Currently only HTTP transport is used.
+         * Use {@link #setClientMetadata(Map)} to add key/value pairs to the comment group of the {@code User-Agent} header.
          *
          * @param clientName - client application display name.
          * @return same instance of the builder
          */
         public Builder setClientName(String clientName) {
             this.configuration.put(ClientConfigProperties.CLIENT_NAME.getKey(), clientName);
+            return this;
+        }
+
+        /**
+         * Sets key/value pairs that the client adds to the comment group of the {@code User-Agent} header, in the
+         * iteration order of {@code metadata}, before its own {@code lv} and {@code os} entries. For example, a client
+         * name {@code my-app/1.0} and the metadata {@code fv=flink/2.0.0} and {@code api=table} give
+         * {@code my-app/1.0 clickhouse-java-v2/<version> (fv:flink/2.0.0; api:table; lv:java/<java.version>; os:<os.name>)}.
+         * Keys and values are trimmed, and entries with an empty key or value are ignored. Keys and values must be
+         * printable ASCII, a key must not contain spaces or any of {@code :;(),=}, a value must not contain any of
+         * {@code ;()}, and the keys {@code lv} and {@code os} are reserved; otherwise {@link #build()} throws
+         * {@link ClientMisconfigurationException}. This is a client-level setting.
+         *
+         * @param metadata - key/value pairs; {@code null} or empty removes the previously set metadata
+         * @return same instance of the builder
+         * @see ClientConfigProperties#CLIENT_METADATA
+         */
+        public Builder setClientMetadata(Map<String, String> metadata) {
+            if (metadata == null || metadata.isEmpty()) {
+                this.configuration.remove(ClientConfigProperties.CLIENT_METADATA.getKey());
+            } else {
+                this.configuration.put(ClientConfigProperties.CLIENT_METADATA.getKey(),
+                        ClientConfigProperties.fromKeyValuePairs(metadata));
+            }
             return this;
         }
 

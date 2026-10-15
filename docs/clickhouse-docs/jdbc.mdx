@@ -146,8 +146,11 @@ conn.setClientInfo(com.clickhouse.jdbc.ClientInfoProperties.APPLICATION_NAME.get
 
 Both ways will result in the following `http_user_agent` value in the query log:
 ```
-my-app-01/1.0 jdbc-v2/0.9.7 clickhouse-java-v2/0.9.6 (Linux; jvm:17.0.17) Apache-HttpClient/5.4.4
+my-app-01/1.0 jdbc-v2/0.12.0 clickhouse-java-v2/0.12.0 (lv:java/17.0.17; os:Linux)
 ```
+
+To add key/value pairs to the comment group of the header, set the `client_metadata` property. For example,
+`client_metadata=fv=flink/2.0.0,api=table` gives `(fv:flink/2.0.0; api:table; lv:java/17.0.17; os:Linux)`.
 
 **Note:** We recommend using `app_name/version` format for `client_name` property because it helps to identify the application in the query log.
 

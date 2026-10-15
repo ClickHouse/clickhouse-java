@@ -152,11 +152,13 @@ public void executeWorkloadTask(Connection conn, String taskName) throws SQLExce
 
 #### How it is observed on the server (`User-Agent` header)
 
-The JDBC driver communicates over HTTP and passes the client name as the leading segment of the HTTP `User-Agent` header. The driver automatically appends the JDBC driver version, detected frameworks (e.g. HikariCP), client version, operating system, and JVM version:
+The JDBC driver communicates over HTTP and passes the client name as the leading segment of the HTTP `User-Agent` header. The driver automatically appends the JDBC driver version, detected frameworks (e.g. Apache Spark), the client version, and a comment group with the Java version (`lv`) and operating system (`os`):
 
 ```text
-order-service/1.2.0 ClickHouse-JDBC/0.9.8 clickhouse-java-v2/0.9.8 (Linux; jvm:17.0.2) Apache-HttpClient/5.4.4
+order-service/1.2.0 jdbc-v2/0.12.0 clickhouse-java-v2/0.12.0 (lv:java/17.0.2; os:Linux)
 ```
+
+To add key/value pairs to the comment group of the header, set the `client_metadata` property (for example, `client_metadata=fv=flink/2.0.0,api=table` gives `(fv:flink/2.0.0; api:table; lv:java/17.0.2; os:Linux)`).
 
 > **CRITICAL SERVER OBSERVATION NOTE:**
 > In ClickHouse's `system.query_log` and `system.processes`, HTTP requests record this information in the **`http_user_agent`** column. The `client_name` column in `system.query_log` is populated **only** for native TCP protocol connections. Always query `http_user_agent` when troubleshooting JDBC applications.
