@@ -124,10 +124,14 @@ Using ClickHouse Cloud during integration helps uncover configuration or authent
 
 ### Summary
 
+General recommendation:
 - **Local ClickHouse**: Fast, simple; best for initial trials and interactive development.
 - **ClickHouse Cloud**: Closest to real-world production, surfaces integration and operational issues early, and ensures all JDBC (and client) features work as expected.
 
-For more, see the [ClickHouse Cloud docs](https://clickhouse.com/docs/en/cloud/) and the [official integrations guide](https://clickhouse.com/docs/en/integrations/java/).
+Reference documentation to help understand specific of each environment: 
+- [Comparison of self-managed ClickHouse and ClickHouse Cloud]([https://clickhouse.com/docs/products/cloud/getting-started/intro](https://clickhouse.com/docs/products/cloud/getting-started/intro#oss-vs-clickhouse-cloud)) - for high-level overview
+- [Cloud Architecture](https://clickhouse.com/docs/products/cloud/reference/architecture) - for technical insights
+- [ClickHouse Cloud docs](https://clickhouse.com/docs/en/cloud/) - reference documentation
 
 ---
 
