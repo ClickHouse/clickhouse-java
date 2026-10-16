@@ -86,6 +86,7 @@ as is to the driver. Driver has some own properties that aren't part of the clie
 | `jdbc_use_max_result_rows` | `false` | Enables using server property `max_result_rows` to limit number of rows returned by query. When enabled, overrides user-set overflow mode. See JavaDoc for details. |
 | `jdbc_sql_parser` | `JAVACC` | Configures which SQL parser to use. Choices: `ANTLR4`, `ANTLR4_PARAMS_PARSER`, `JAVACC`. |
 | `remember_last_set_roles` | `true` | Remember last set roles for the connection. |
+| `jdbc_multi_dimensional_array_element_type` | `true` | `Array.getBaseTypeName()` and `Array.getBaseType()` of a multi-dimensional array return the element type, which is the next array level. Set to `false` to return the innermost non-array type, as in earlier versions. See **Array Element Type Metadata** below. |
 
 <Info>
 **Server Settings**
@@ -379,6 +380,7 @@ The general mapping rules for arrays are:
 Notes on the rules above:
 - Wrapper types (`Nullable`, `LowCardinality`) are preserved in `getBaseTypeName()` but `getBaseType()` resolves to the inner type's JDBC code.
 - Nested arrays are not flattened in the metadata: `getBaseTypeName()` returns the immediate child type, which is the next array level, and `getBaseType()` returns `ARRAY`. The `VALUE` column of `getResultSet()` has the same type; call `getArray()` on it to read the next level.
+  Set the driver property `jdbc_multi_dimensional_array_element_type=false` to get the earlier behavior: `getBaseTypeName()` and `getBaseType()` return the innermost non-array type (`Int32` and `INTEGER` for `Array(Array(Int32))`) at each array level. The `VALUE` column metadata of `getResultSet()` always reports the next array level and is not affected by this property.
 - Parameterized types (`FixedString(N)`, full `Enum`/`Tuple` definitions) keep their parameters in `getBaseTypeName()`.
 
 **Examples:**

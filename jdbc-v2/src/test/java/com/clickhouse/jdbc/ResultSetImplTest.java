@@ -29,6 +29,7 @@ import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
@@ -448,25 +449,35 @@ public class ResultSetImplTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = {"integration"}, dataProvider = "multiDimensionalArrays")
-    public void testMultiDimensionalArrayElementType(String sql, String[] elementTypeNames, int leafType,
-                                                     String leafValue) throws Exception {
-        try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement();
+    public void testMultiDimensionalArrayElementType(String elementTypeFlag, String sql, String[] elementTypeNames,
+                                                     int leafType, String leafValue) throws Exception {
+        Properties props = new Properties();
+        if (elementTypeFlag != null) {
+            props.setProperty(DriverProperties.MULTI_DIMENSIONAL_ARRAY_ELEMENT_TYPE.getKey(), elementTypeFlag);
+        }
+        boolean elementType = !"false".equals(elementTypeFlag);
+        String leafTypeName = elementTypeNames[elementTypeNames.length - 1];
+        try (Connection conn = getJdbcConnection(props); Statement stmt = conn.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
             assertTrue(rs.next());
             Array array = rs.getArray(1);
             for (int level = 0; level < elementTypeNames.length; level++) {
                 boolean leaf = level == elementTypeNames.length - 1;
-                assertEquals(array.getBaseTypeName(), elementTypeNames[level]);
-                assertEquals(array.getBaseType(), leaf ? leafType : Types.ARRAY);
+                assertEquals(array.getBaseTypeName(), elementType ? elementTypeNames[level] : leafTypeName);
+                assertEquals(array.getBaseType(), elementType && !leaf ? Types.ARRAY : leafType);
 
                 ResultSet elements = array.getResultSet();
                 assertTrue(elements.next());
-                assertEquals(elements.getMetaData().getColumnTypeName(2), array.getBaseTypeName());
-                assertEquals(elements.getMetaData().getColumnType(2), array.getBaseType());
+                assertEquals(elements.getMetaData().getColumnTypeName(2), elementTypeNames[level]);
+                assertEquals(elements.getMetaData().getColumnType(2), leaf ? leafType : Types.ARRAY);
                 if (leaf) {
                     assertEquals(elements.getString(2), leafValue);
                 } else {
-                    array = elements.getArray(2);
+                    Array next = elements.getArray(2);
+                    ResultSet slice = array.getResultSet(0, 1);
+                    assertTrue(slice.next());
+                    assertEquals(slice.getArray(2).getBaseTypeName(), next.getBaseTypeName());
+                    array = next;
                 }
             }
         }
@@ -474,7 +485,7 @@ public class ResultSetImplTest extends JdbcIntegrationTest {
 
     @DataProvider
     public static Object[][] multiDimensionalArrays() {
-        return new Object[][] {
+        Object[][] arrays = new Object[][] {
                 {"SELECT [1, 2, 3]", new String[] {"UInt8"}, Types.SMALLINT, "1"},
                 {"SELECT [[1, 2, 3]]", new String[] {"Array(UInt8)", "UInt8"}, Types.SMALLINT, "1"},
                 {"SELECT [[[7]]]::Array(Array(Array(Int32)))",
@@ -482,6 +493,16 @@ public class ResultSetImplTest extends JdbcIntegrationTest {
                 {"SELECT [['a', NULL]]::Array(Array(Nullable(String)))",
                         new String[] {"Array(Nullable(String))", "Nullable(String)"}, Types.VARCHAR, "a"},
         };
+        List<Object[]> rows = new ArrayList<>();
+        for (String elementTypeFlag : new String[] {null, "false"}) {
+            for (Object[] array : arrays) {
+                Object[] row = new Object[array.length + 1];
+                row[0] = elementTypeFlag;
+                System.arraycopy(array, 0, row, 1, array.length);
+                rows.add(row);
+            }
+        }
+        return rows.toArray(new Object[0][]);
     }
 
     @Test(groups = {"integration"})

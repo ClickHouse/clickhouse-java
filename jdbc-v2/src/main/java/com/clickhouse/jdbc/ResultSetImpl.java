@@ -72,6 +72,8 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
 
     private final Map<String, Class<?>> connTypeMap;
 
+    private final boolean multiDimensionalArrayElementType;
+
     public ResultSetImpl(StatementImpl parentStatement, QueryResponse response, ClickHouseFormatReader reader,
                          Consumer<Exception> onDataTransferException) throws SQLException {
         this(parentStatement, response, reader, onDataTransferException, JdbcUtils.DATA_TYPE_CLASS_MAP);
@@ -86,6 +88,8 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         this.featureManager = new FeatureManager(parentStatement.getConnection().getJdbcConfig());
         TableSchema tableMetadata = reader.getSchema();
         this.connTypeMap = parentStatement.getConnection().getTypeMap();
+        this.multiDimensionalArrayElementType = parentStatement.getConnection().getJdbcConfig()
+                .isFlagSet(DriverProperties.MULTI_DIMENSIONAL_ARRAY_ELEMENT_TYPE);
 
         final Map<ClickHouseDataType, Class<?>> resolvedDefaultTypeMap =
                 defaultTypeMap != null ? defaultTypeMap : JdbcUtils.DATA_TYPE_CLASS_MAP;
@@ -1552,7 +1556,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                             "Use getObject(...) to read this column.");
                 }
 
-                return (T) JdbcUtils.convert(value, type, column);
+                return (T) JdbcUtils.convert(value, type, column, multiDimensionalArrayElementType);
             } else {
                 wasNull = true;
                 return null;

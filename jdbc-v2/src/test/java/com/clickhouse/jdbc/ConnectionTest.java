@@ -599,8 +599,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
                         {10, 20, 30, 40, 50, },
                 };
                 Array array = conn.createArrayOf("Array(Array(Int32))", table);
-                assertEquals(array.getBaseTypeName(), "Array(Int32)");
-                assertEquals(array.getBaseType(), JDBCType.ARRAY.getVendorTypeNumber());
+
             }
 
 
@@ -636,6 +635,29 @@ public class ConnectionTest extends JdbcIntegrationTest {
                 }
             }
         }
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "multiDimensionalArrayElementTypeFlags")
+    public void testCreateArrayOfMultiDimensionalElementType(String flag, String baseTypeName, JDBCType baseType)
+            throws Exception {
+        Properties props = new Properties();
+        if (flag != null) {
+            props.setProperty(DriverProperties.MULTI_DIMENSIONAL_ARRAY_ELEMENT_TYPE.getKey(), flag);
+        }
+        try (Connection conn = getJdbcConnection(props)) {
+            Array array = conn.createArrayOf("Array(Array(Int32))", new Object[][] {{1, 2, 3}, {10, 20}});
+            assertEquals(array.getBaseTypeName(), baseTypeName);
+            assertEquals(array.getBaseType(), baseType.getVendorTypeNumber());
+        }
+    }
+
+    @DataProvider
+    public static Object[][] multiDimensionalArrayElementTypeFlags() {
+        return new Object[][] {
+                {null, "Array(Int32)", JDBCType.ARRAY},
+                {"true", "Array(Int32)", JDBCType.ARRAY},
+                {"false", "Int32", JDBCType.INTEGER},
+        };
     }
 
     @Test(groups = { "integration" })
