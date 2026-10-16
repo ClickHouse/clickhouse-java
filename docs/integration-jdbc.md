@@ -160,6 +160,8 @@ order-service/1.2.0 jdbc-v2/0.12.0 clickhouse-java-v2/0.12.0 (lv:java/17.0.2; os
 
 To add key/value pairs to the comment group of the header, set the `client_metadata` property (for example, `client_metadata=fv=flink/2.0.0,api=table` gives `(fv:flink/2.0.0; api:table; lv:java/17.0.2; os:Linux)`).
 
+Always identify the application with the client name (`client_name` or `ApplicationName`). Do not set a custom `User-Agent` HTTP header for this: it replaces the application part of the header, including `jdbc-v2/<version>`.
+
 > **CRITICAL SERVER OBSERVATION NOTE:**
 > In ClickHouse's `system.query_log` and `system.processes`, HTTP requests record this information in the **`http_user_agent`** column. The `client_name` column in `system.query_log` is populated **only** for native TCP protocol connections. Always query `http_user_agent` when troubleshooting JDBC applications.
 

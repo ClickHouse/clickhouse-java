@@ -153,6 +153,7 @@ To add key/value pairs to the comment group of the header, set the `client_metad
 `client_metadata=fv=flink/2.0.0,api=table` gives `(fv:flink/2.0.0; api:table; lv:java/17.0.17; os:Linux)`.
 
 **Note:** We recommend using `app_name/version` format for `client_name` property because it helps to identify the application in the query log.
+Use the client name to identify the application. Do not set a custom `User-Agent` HTTP header for this: it replaces the application part of the header, including `jdbc-v2/<version>`.
 
 ### Operation Identification {#operation-identification}
 

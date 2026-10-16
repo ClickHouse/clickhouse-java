@@ -60,21 +60,37 @@ public class UserAgentUnitTest {
 
         return new Object[][]{
                 {(Consumer<Client.Builder>) b -> { }, userAgent(null, null)},
-                {(Consumer<Client.Builder>) b -> b.setClientName("Flink-ClickHouse-Sink/0.2.0")
-                        .setClientMetadata(flinkMetadata),
+                {(Consumer<Client.Builder>) b -> b.setClientName("Flink-ClickHouse-Sink/0.2.0", flinkMetadata),
                         userAgent("Flink-ClickHouse-Sink/0.2.0", "fv:flink/2.0.0; api:table")},
                 {(Consumer<Client.Builder>) b -> b.setOption(ClientConfigProperties.CLIENT_METADATA.getKey(),
                         "api=table, fv=flink/2.0.0"),
                         userAgent(null, "api:table; fv:flink/2.0.0")},
-                {(Consumer<Client.Builder>) b -> b.setClientMetadata(Collections.singletonMap("build", "a=b,c\\d")),
-                        userAgent(null, "build:a=b,c\\d")},
-                {(Consumer<Client.Builder>) b -> b.setClientMetadata(withEmptyValue),
-                        userAgent(null, "fv:flink/2.0.0")},
-                {(Consumer<Client.Builder>) b -> b.setClientMetadata(flinkMetadata).setClientMetadata(null),
-                        userAgent(null, null)},
-                {(Consumer<Client.Builder>) b -> b.setClientName("my-app/1.0")
-                        .httpHeader(HttpHeaders.USER_AGENT, "custom-agent/2.0")
-                        .setClientMetadata(Collections.singletonMap("api", "table")),
+                {(Consumer<Client.Builder>) b -> b.setClientName("my-app/1.0",
+                        Collections.singletonMap("build", "a=b,c\\d")),
+                        userAgent("my-app/1.0", "build:a=b,c\\d")},
+                {(Consumer<Client.Builder>) b -> b.setClientName("my-app/1.0", withEmptyValue),
+                        userAgent("my-app/1.0", "fv:flink/2.0.0")},
+                {(Consumer<Client.Builder>) b -> b.setClientName("", flinkMetadata),
+                        userAgent(null, "fv:flink/2.0.0; api:table")},
+                {(Consumer<Client.Builder>) b -> b.setClientName(" ", flinkMetadata),
+                        userAgent(null, "fv:flink/2.0.0; api:table")},
+                {(Consumer<Client.Builder>) b -> b.setOption(ClientConfigProperties.CLIENT_METADATA.getKey(), "api=table")
+                        .setClientName("my-app/1.0"),
+                        userAgent("my-app/1.0", "api:table")},
+                {(Consumer<Client.Builder>) b -> b.setOption(ClientConfigProperties.CLIENT_METADATA.getKey(), "api=table")
+                        .setClientName("my-app/1.0", flinkMetadata),
+                        userAgent("my-app/1.0", "fv:flink/2.0.0; api:table")},
+                {(Consumer<Client.Builder>) b -> b.setClientName("my-app/1.0", flinkMetadata)
+                        .setClientName("new-app/2.0"),
+                        userAgent("new-app/2.0", "fv:flink/2.0.0; api:table")},
+                {(Consumer<Client.Builder>) b -> b.setClientName("my-app/1.0", flinkMetadata)
+                        .setClientName("new-app/2.0", null),
+                        userAgent("new-app/2.0", null)},
+                {(Consumer<Client.Builder>) b -> b.setClientName("my-app/1.0", flinkMetadata)
+                        .setClientName("new-app/2.0", Collections.emptyMap()),
+                        userAgent("new-app/2.0", null)},
+                {(Consumer<Client.Builder>) b -> b.setClientName("my-app/1.0", Collections.singletonMap("api", "table"))
+                        .httpHeader(HttpHeaders.USER_AGENT, "custom-agent/2.0"),
                         userAgent("custom-agent/2.0", "api:table")},
         };
     }
@@ -82,8 +98,7 @@ public class UserAgentUnitTest {
     @Test
     public void testClientMetadataKeptWhenApplicationPartChanges() throws Exception {
         try (Client client = newClientBuilder()
-                .setClientName("my-app/1.0")
-                .setClientMetadata(Collections.singletonMap("api", "table"))
+                .setClientName("my-app/1.0", Collections.singletonMap("api", "table"))
                 .build()) {
             client.updateClientName("new-app/2.0");
             assertUserAgent(client, null, userAgent("new-app/2.0", "api:table"));
@@ -98,7 +113,7 @@ public class UserAgentUnitTest {
     @Test
     public void testInvalidClientMetadataRejectedOnBuild() {
         Client.Builder builder = newClientBuilder()
-                .setClientMetadata(Collections.singletonMap("api", "table; os:other"));
+                .setClientName("my-app/1.0", Collections.singletonMap("api", "table; os:other"));
         Assert.expectThrows(ClientMisconfigurationException.class, builder::build);
     }
 

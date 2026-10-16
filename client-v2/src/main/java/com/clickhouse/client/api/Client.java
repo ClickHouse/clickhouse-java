@@ -1004,6 +1004,8 @@ public class Client implements AutoCloseable {
          * Defines list of headers that should be sent with each request. The Client will use a header value
          * defined in {@code headers} instead of any other.
          * Operation settings may override these headers.
+         * The {@code User-Agent} header is different: the client adds its own part to the end of the value. To identify
+         * the application, use {@link #setClientName(String)} instead of the {@code User-Agent} header.
          *
          * @see InsertSettings#httpHeaders(Map)
          * @see QuerySettings#httpHeaders(Map)
@@ -1139,14 +1141,17 @@ public class Client implements AutoCloseable {
         }
 
         /**
-         * Sets additional information about calling application. This string will be passed to server as a client name.
-         * In case of HTTP protocol it will be passed as a {@code User-Agent} header.
-         * Warn: If custom value of User-Agent header is set it will override this value for HTTP transport
-         * Client name is used by server to identify client application when investigating {@code system.query_log}. In case of HTTP
-         * transport this value will be in the {@code system.query_log.http_user_agent} column. Currently only HTTP transport is used.
-         * Use {@link #setClientMetadata(Map)} to add key/value pairs to the comment group of the {@code User-Agent} header.
+         * Sets the client name, which identifies the application to the server. The client sends it in the
+         * {@code User-Agent} header, before its own part {@code clickhouse-java-v2/<version> (...)}. The server records
+         * the header in the {@code http_user_agent} column of {@code system.query_log}.
+         * <p>
+         * To identify the application, set the client name. Do not set the {@code User-Agent} header with
+         * {@link #httpHeader(String, String)}: a custom {@code User-Agent} header replaces the client name.
+         * <p>
+         * This method does not change the client metadata. To also add key/value pairs to the {@code User-Agent}
+         * header, use {@link #setClientName(String, Map)}.
          *
-         * @param clientName - client application display name.
+         * @param clientName - client application name, for example {@code my-app/1.0}
          * @return same instance of the builder
          */
         public Builder setClientName(String clientName) {
@@ -1155,20 +1160,26 @@ public class Client implements AutoCloseable {
         }
 
         /**
-         * Sets key/value pairs that the client adds to the comment group of the {@code User-Agent} header, in the
-         * iteration order of {@code metadata}, before its own {@code lv} and {@code os} entries. For example, a client
-         * name {@code my-app/1.0} and the metadata {@code fv=flink/2.0.0} and {@code api=table} give
+         * Sets the client name and the client metadata, which identify the application to the server. See
+         * {@link #setClientName(String)} for the client name. The client adds the metadata to the comment group of the
+         * {@code User-Agent} header, in the iteration order of {@code metadata}, before its own {@code lv} and
+         * {@code os} entries. For example, the client name {@code my-app/1.0} and the metadata {@code fv=flink/2.0.0}
+         * and {@code api=table} give
          * {@code my-app/1.0 clickhouse-java-v2/<version> (fv:flink/2.0.0; api:table; lv:java/<java.version>; os:<os.name>)}.
+         * <p>
          * Keys and values are trimmed, and entries with an empty key or value are ignored. Keys and values must be
          * printable ASCII, a key must not contain spaces or any of {@code :;(),=}, a value must not contain any of
          * {@code ;()}, and the keys {@code lv} and {@code os} are reserved; otherwise {@link #build()} throws
-         * {@link ClientMisconfigurationException}. This is a client-level setting.
+         * {@link ClientMisconfigurationException}. The metadata is a client-level setting: it is kept when the client
+         * name changes with {@link Client#updateClientName(String)}.
          *
+         * @param clientName - client application name, for example {@code my-app/1.0}
          * @param metadata - key/value pairs; {@code null} or empty removes the previously set metadata
          * @return same instance of the builder
          * @see ClientConfigProperties#CLIENT_METADATA
          */
-        public Builder setClientMetadata(Map<String, String> metadata) {
+        public Builder setClientName(String clientName, Map<String, String> metadata) {
+            setClientName(clientName);
             if (metadata == null || metadata.isEmpty()) {
                 this.configuration.remove(ClientConfigProperties.CLIENT_METADATA.getKey());
             } else {

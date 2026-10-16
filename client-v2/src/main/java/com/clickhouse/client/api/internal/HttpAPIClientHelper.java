@@ -1,7 +1,6 @@
 package com.clickhouse.client.api.internal;
 
 import com.clickhouse.client.api.ClickHouseException;
-import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.ClientFaultCause;
@@ -134,7 +133,7 @@ public class HttpAPIClientHelper {
 
     private final Set<ClientFaultCause> defaultRetryCauses;
 
-    private final String defaultUserAgent;
+    private final WorkloadIdentitySupport workloadIdentitySupport;
     private final Object metricsRegistry;
 
     ConnPoolControl<?> poolControl;
@@ -170,7 +169,7 @@ public class HttpAPIClientHelper {
             defaultRetryCauses.removeIf(c -> c != ClientFaultCause.None);
         }
 
-        this.defaultUserAgent = buildDefaultUserAgent(ClientConfigProperties.CLIENT_METADATA.getOrDefault(configuration));
+        this.workloadIdentitySupport = new WorkloadIdentitySupport(configuration);
     }
 
     /**
@@ -1193,28 +1192,8 @@ public class HttpAPIClientHelper {
         Header userAgentHeader = request.getLastHeader(HttpHeaders.USER_AGENT);
         request.removeHeaders(HttpHeaders.USER_AGENT);
 
-        String clientName = ClientConfigProperties.CLIENT_NAME.getOrDefault(requestConfig);
-        String userAgentValue = defaultUserAgent;
-        if (userAgentHeader == null && clientName != null && !clientName.isEmpty()) {
-            userAgentValue = clientName + " " + defaultUserAgent;
-        } else if (userAgentHeader != null) {
-            userAgentValue = userAgentHeader.getValue() + " " + defaultUserAgent;
-        }
-        request.setHeader(HttpHeaders.USER_AGENT, userAgentValue);
-    }
-
-    private static String buildDefaultUserAgent(Map<String, String> clientMetadata) {
-        StringBuilder userAgent = new StringBuilder();
-        userAgent.append(Client.CLIENT_USER_AGENT).append(Client.clientVersion).append(" (");
-        if (clientMetadata != null) {
-            for (Map.Entry<String, String> entry : clientMetadata.entrySet()) {
-                userAgent.append(entry.getKey()).append(':').append(entry.getValue()).append("; ");
-            }
-        }
-        userAgent.append("lv:java/").append(System.getProperty("java.version"))
-                .append("; os:").append(System.getProperty("os.name"))
-                .append(')');
-        return userAgent.toString();
+        request.setHeader(HttpHeaders.USER_AGENT, workloadIdentitySupport.getUserAgent(
+                userAgentHeader == null ? null : userAgentHeader.getValue(), requestConfig));
     }
 
     public void close() {
