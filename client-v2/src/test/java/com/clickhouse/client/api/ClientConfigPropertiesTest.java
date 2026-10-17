@@ -5,9 +5,11 @@ import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -75,5 +77,58 @@ public class ClientConfigPropertiesTest {
         Map<String, Object> parsed = ClientConfigProperties.parseConfigMap(raw);
         Assert.assertEquals(parsed.get(ClientConfigProperties.SSL_CIPHER_SUITES.getKey()),
                 Arrays.asList("TLS_AES_256_GCM_SHA384", "TLS_AES_128_GCM_SHA256"));
+    }
+
+    @DataProvider(name = "validClientMetadata")
+    public static Object[][] validClientMetadata() {
+        return new Object[][]{
+                {"fv=flink/2.0.0,api=table", new String[]{"fv", "flink/2.0.0", "api", "table"}},
+                {" api = table , os_version = Mac OS X ", new String[]{"api", "table", "os_version", "Mac OS X"}},
+                {"url=http://host:8123/path?x=1", new String[]{"url", "http://host:8123/path?x=1"}},
+                {"api=,fv=flink/2.0.0,=x", new String[]{"fv", "flink/2.0.0"}},
+                {"", new String[0]},
+        };
+    }
+
+    @Test(groups = {"unit"}, dataProvider = "validClientMetadata")
+    public void testClientMetadataParsed(String raw, String[] expectedEntries) {
+        Map<String, String> expected = new LinkedHashMap<>();
+        for (int i = 0; i < expectedEntries.length; i += 2) {
+            expected.put(expectedEntries[i], expectedEntries[i + 1]);
+        }
+        Map<?, ?> parsed = (Map<?, ?>) ClientConfigProperties.CLIENT_METADATA.parseValue(raw);
+        Assert.assertEquals(new ArrayList<>(parsed.entrySet()), new ArrayList<>(expected.entrySet()));
+    }
+
+    @DataProvider(name = "invalidClientMetadata")
+    public static Object[][] invalidClientMetadata() {
+        return new Object[][]{
+                {"a:b=c"}, {"a;b=c"}, {"a(b=c"}, {"a)b=c"}, {"a\\,b=c"}, {"a\\=b=c"}, {"my key=c"},
+                {"k=v;x"}, {"k=v(x"}, {"k=v)x"},
+                {"k=a\nb"}, {"k=a\tb"}, {"k=caf\u00e9"}, {"k\u00e9=v"},
+                {"lv=java/8"}, {"os=Linux"}, {"OS=Linux"},
+                {"fv=flink/2.0.0,api=table; lv:java/8"},
+                {",api=table"}, {"fv=flink/2.0.0,,api=table"}, {"fv=flink/2.0.0,api,ver=1"},
+        };
+    }
+
+    @Test(groups = {"unit"}, dataProvider = "invalidClientMetadata")
+    public void testInvalidClientMetadataRejected(String raw) {
+        Assert.expectThrows(ClientMisconfigurationException.class,
+                () -> ClientConfigProperties.CLIENT_METADATA.parseValue(raw));
+    }
+
+    @Test(groups = {"unit"})
+    public void testClientMetadataUnsetParsesToNull() {
+        Assert.assertNull(ClientConfigProperties.CLIENT_METADATA.parseValue(null));
+    }
+
+    @Test(groups = {"unit"})
+    public void testFromKeyValuePairsRoundTrip() {
+        Map<String, String> pairs = new LinkedHashMap<>();
+        pairs.put("a=b", "c,d\\e=f");
+        pairs.put("x,y", "z");
+        Map<String, String> parsed = ClientConfigProperties.toKeyValuePairs(ClientConfigProperties.fromKeyValuePairs(pairs));
+        Assert.assertEquals(new ArrayList<>(parsed.entrySet()), new ArrayList<>(pairs.entrySet()));
     }
 }

@@ -92,6 +92,8 @@ In production environments, a single ClickHouse cluster often handles diverse wo
 
 Use a structured format such as `<application-name>/<version>` or `<application-name>:<workload-type>/<version>` (for example, `order-service/1.2.0` or `etl-worker:cdc/2.0.1`).
 
+Always identify the application with the client name. Do not set the `User-Agent` header (for example, with `httpHeader("User-Agent", ...)`): a custom `User-Agent` header replaces the client name in the header.
+
 **1. Client Builder** (static setup at client creation):
 
 ```java
@@ -119,11 +121,32 @@ public void updateClientWorkload(Client client, String workloadOrTenant) {
 
 #### How it is observed on the server (`User-Agent` header)
 
-The Java Client communicates over HTTP and passes the client name as the leading segment of the HTTP `User-Agent` header. The client automatically appends the client library version, operating system, JVM version, and underlying HTTP client details:
+The Java Client communicates over HTTP and passes the client name as the leading segment of the HTTP `User-Agent` header. The client automatically appends the client library version and a comment group with the Java version (`lv`) and operating system (`os`), in the standard ClickHouse client format:
 
 ```text
-order-service/1.2.0 clickhouse-java-v2/0.9.6 (Linux; jvm:17.0.2) Apache-HttpClient/5.4.4
+order-service/1.2.0 clickhouse-java-v2/0.12.0 (lv:java/17.0.2; os:Linux)
 ```
+
+To add key/value pairs to the comment group (for example, the version of a framework that the application runs in), use `setClientName(String, Map)`. The pairs are added in the iteration order of the map, before `lv` and `os`:
+
+```java
+Map<String, String> metadata = new LinkedHashMap<>();
+metadata.put("fv", "flink/2.0.0");
+metadata.put("api", "table");
+
+Client client = new Client.Builder()
+        .addEndpoint("http://localhost:8123")
+        .setUsername("default")
+        .setPassword("secret")
+        .setClientName("Flink-ClickHouse-Sink/0.2.0", metadata)
+        .build();
+```
+
+```text
+Flink-ClickHouse-Sink/0.2.0 clickhouse-java-v2/0.12.0 (fv:flink/2.0.0; api:table; lv:java/17.0.2; os:Linux)
+```
+
+The same pairs can be set with the `client_metadata` property, written as `fv=flink/2.0.0,api=table` (escape a `,` or `\` in a value with `\`). Keys and values must be printable ASCII, a key must not contain spaces or any of `:;(),=`, a value must not contain any of `;()`, and the keys `lv` and `os` are reserved. `setClientName(String)` and `client.updateClientName(...)` do not change the metadata.
 
 > **CRITICAL SERVER OBSERVATION NOTE:**
 > In ClickHouse's `system.query_log` and `system.processes`, HTTP requests record this information in the **`http_user_agent`** column. The `client_name` column in `system.query_log` is populated **only** for native TCP protocol connections. Always query `http_user_agent` when troubleshooting Java Client applications.

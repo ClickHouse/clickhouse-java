@@ -4,6 +4,7 @@ import com.clickhouse.client.api.data_formats.ClickHouseFormatReader;
 import com.clickhouse.client.api.data_formats.internal.AbstractBinaryFormatReader;
 import com.clickhouse.client.api.enums.SSLMode;
 import com.clickhouse.client.api.internal.CompressedBlockOutputStream;
+import com.clickhouse.client.api.internal.WorkloadIdentitySupport;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
 import org.slf4j.Logger;
@@ -257,6 +258,24 @@ public enum ClientConfigProperties {
                     .collect(Collectors.toList());
         }
     },
+
+    /**
+     * Key/value pairs, written as {@code key1=value1,key2=value2}, that the client adds to the comment group of the
+     * {@code User-Agent} header. A {@code ,} or {@code \} in a value is escaped with {@code \}. This is a client-level
+     * setting: it is not read from operation settings. See {@link Client.Builder#setClientName(String, Map)} for the
+     * format and the rules for keys and values.
+     */
+    CLIENT_METADATA("client_metadata", Map.class) {
+        @Override
+        @SuppressWarnings("unchecked")
+        public Object parseValue(String value) {
+            Map<String, String> metadata = (Map<String, String>) super.parseValue(value);
+            if (metadata != null) {
+                metadata.forEach(WorkloadIdentitySupport::checkClientMetadataEntry);
+            }
+            return metadata;
+        }
+    },
     ;
 
     private static final Logger LOG = LoggerFactory.getLogger(ClientConfigProperties.class);
@@ -505,6 +524,36 @@ public enum ClientConfigProperties {
     }
 
 
+
+    /**
+     * Inverse of {@link #toKeyValuePairs(String)}: escapes {@code \}, {@code ,} and {@code =} with {@code \} and
+     * skips entries with a {@code null} key or value.
+     */
+    static String fromKeyValuePairs(Map<String, String> map) {
+        StringBuilder sb = new StringBuilder();
+        for (Map.Entry<String, String> entry : map.entrySet()) {
+            if (entry.getKey() == null || entry.getValue() == null) {
+                continue;
+            }
+            if (sb.length() > 0) {
+                sb.append(',');
+            }
+            appendEscaped(sb, entry.getKey()).append('=');
+            appendEscaped(sb, entry.getValue());
+        }
+        return sb.toString();
+    }
+
+    private static StringBuilder appendEscaped(StringBuilder sb, String str) {
+        for (int i = 0; i < str.length(); i++) {
+            char ch = str.charAt(i);
+            if (ch == '\\' || ch == ',' || ch == '=') {
+                sb.append('\\');
+            }
+            sb.append(ch);
+        }
+        return sb;
+    }
 
     public static String mapToString(Map<?,?> map, Function<Object, String> valueConverter) {
         StringBuilder sb = new StringBuilder();
