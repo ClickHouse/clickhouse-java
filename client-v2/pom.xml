@@ -61,7 +61,7 @@
         <dependency>
             <groupId>com.github.luben</groupId>
             <artifactId>zstd-jni</artifactId>
-            <version>1.5.7-20</version>
+            <version>${zstd-jni.version}</version>
             <classifier>cloud</classifier>
         </dependency>
 

@@ -19,6 +19,7 @@
 
     <properties>
         <java.version>17</java.version>
+        <micrometer.version>1.17.1</micrometer.version>
         <opentelemetry.version>1.43.0</opentelemetry.version>
         <opentelemetry.javaagent.version>2.30.0</opentelemetry.javaagent.version>
         <opentelemetry.javaagent.traces.exporter>otlp</opentelemetry.javaagent.traces.exporter>
