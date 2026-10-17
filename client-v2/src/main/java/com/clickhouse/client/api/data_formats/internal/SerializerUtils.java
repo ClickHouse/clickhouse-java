@@ -550,6 +550,12 @@ public class SerializerUtils {
                 }
                 serializeData(stream, val, column.getNestedColumns().get(0));
             }
+        } else {
+            // Without this the method would return having written nothing at all for the column - not even the
+            // var-int length - and the bytes of the next column would be read as this column's length prefix,
+            // misframing the rest of the row.
+            throw new IllegalArgumentException("Cannot write value of class " + value.getClass()
+                    + " into column with array type " + column.getOriginalTypeName());
         }
     }
 
