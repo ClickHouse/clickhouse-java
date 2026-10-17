@@ -86,6 +86,7 @@ as is to the driver. Driver has some own properties that aren't part of the clie
 | `jdbc_use_max_result_rows` | `false` | Enables using server property `max_result_rows` to limit number of rows returned by query. When enabled, overrides user-set overflow mode. See JavaDoc for details. |
 | `jdbc_sql_parser` | `JAVACC` | Configures which SQL parser to use. Choices: `ANTLR4`, `ANTLR4_PARAMS_PARSER`, `JAVACC`. |
 | `remember_last_set_roles` | `true` | Remember last set roles for the connection. |
+| `jdbc_multi_dimensional_array_element_type` | `true` | `Array.getBaseTypeName()` and `Array.getBaseType()` of a multi-dimensional array return the element type, which is the next array level. Set to `false` to return the innermost non-array type, as in earlier versions. See **Array Element Type Metadata** below. |
 
 <Info>
 **Server Settings**
@@ -372,13 +373,14 @@ The general mapping rules for arrays are:
 | `Array(<Parameterized Type>(<N>))`         | `<Parameterized Type>(<N>)`                    | `<JDBC type of base type>`  |
 | `Array(Nullable(<Type>))`                  | `Nullable(<Type>)`                             | `<JDBC type of inner Type>` |
 | `Array(LowCardinality(<Type>))`            | `LowCardinality(<Type>)`                       | `<JDBC type of inner Type>` |
-| `Array(Array(...(<Type>)))`                | `<Type>` (innermost element)                   | `<JDBC type of innermost>`  |
+| `Array(Array(...(<Type>)))`                | `Array(...(<Type>))` (next array level)        | `ARRAY`                     |
 | `Array(Tuple(...))`                        | `Tuple(...)` (full definition)                 | `OTHER`                     |
 | `Array(Enum8(...))` / `Array(Enum16(...))` | `Enum8(...)` / `Enum16(...)` (full definition) | `VARCHAR`                   |
 
 Notes on the rules above:
 - Wrapper types (`Nullable`, `LowCardinality`) are preserved in `getBaseTypeName()` but `getBaseType()` resolves to the inner type's JDBC code.
-- Nested arrays are flattened in the metadata: `getBaseTypeName()` returns the innermost non-array element type, not the immediate child.
+- Nested arrays are not flattened in the metadata: `getBaseTypeName()` returns the immediate child type, which is the next array level, and `getBaseType()` returns `ARRAY`. The `VALUE` column of `getResultSet()` has the same type; call `getArray()` on it to read the next level.
+  Set the driver property `jdbc_multi_dimensional_array_element_type=false` to get the earlier behavior: `getBaseTypeName()` and `getBaseType()` return the innermost non-array type (`Int32` and `INTEGER` for `Array(Array(Int32))`) at each array level. The `VALUE` column metadata of `getResultSet()` always reports the next array level and is not affected by this property.
 - Parameterized types (`FixedString(N)`, full `Enum`/`Tuple` definitions) keep their parameters in `getBaseTypeName()`.
 
 **Examples:**
@@ -404,8 +406,8 @@ Notes on the rules above:
 | Array(Nullable(String))                            | Nullable(String)                            | VARCHAR         |
 | Array(LowCardinality(String))                      | LowCardinality(String)                      | VARCHAR         |
 | Array(LowCardinality(Nullable(String)))            | LowCardinality(Nullable(String))            | VARCHAR         |
-| Array(Array(Int32))                                | Int32                                       | INTEGER         |
-| Array(Array(Array(String)))                        | String                                      | VARCHAR         |
+| Array(Array(Int32))                                | Array(Int32)                                | ARRAY           |
+| Array(Array(Array(String)))                        | Array(Array(String))                        | ARRAY           |
 | Array(Tuple(name String, val Int32))               | Tuple(name String, val Int32)               | OTHER           |
 | Array(Enum8('alpha' = 1, 'beta' = 2, 'gamma' = 3)) | Enum8('alpha' = 1, 'beta' = 2, 'gamma' = 3) | VARCHAR         |
 
