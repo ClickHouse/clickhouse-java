@@ -921,6 +921,9 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         map.put("Remote", TableType.REMOTE_TABLE.getTypeName());
         map.put("RemoteSecure", TableType.REMOTE_TABLE.getTypeName());
 
+        // Obfuscate (appended 10/17/2026)
+        map.put("Obfuscate", TableType.TABLE.getTypeName());
+
         // Special
         map.put("TimeSeries", TableType.TABLE.getTypeName());
         map.put("Null", TableType.TABLE.getTypeName());
