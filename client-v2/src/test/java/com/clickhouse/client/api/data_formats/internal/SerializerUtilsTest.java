@@ -805,6 +805,7 @@ public class SerializerUtilsTest {
                 {"Array(Array(String))", "not-an-array"},
                 {"Ring", "not-an-array"},
                 {"LineString", "not-an-array"},
+                {"MultiPoint", "not-an-array"},
                 {"Polygon", "not-an-array"},
                 {"MultiLineString", "not-an-array"},
                 {"MultiPolygon", "not-an-array"},
