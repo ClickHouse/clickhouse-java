@@ -1264,13 +1264,10 @@ public class HttpAPIClientHelper {
         if (PATTERN_HEADER_VALUE_ASCII.matcher(value).matches()) {
             req.setHeader(headerName, value);
         } else {
-            try {
-                req.setHeader(
-                        headerName + "*",
-                        "UTF-8''" + URLEncoder.encode(value, StandardCharsets.UTF_8.name()));
-            } catch (UnsupportedEncodingException e) {
-                throw new ClientException("Failed to convert string to UTF8" , e);
-            }
+            throw new ClientException(
+                    "HTTP header '" + headerName
+                            + "' contains an unsupported value. Only printable ASCII "
+                            + "characters with internal spaces or tabs are supported.");
         }
     }
 
