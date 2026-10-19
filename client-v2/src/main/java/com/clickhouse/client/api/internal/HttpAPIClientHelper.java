@@ -1188,7 +1188,6 @@ public class HttpAPIClientHelper {
     }
 
     private void correctUserAgentHeader(HttpRequest request, Map<String, Object> requestConfig) {
-        //TODO: implement cache for user-agent
         Header userAgentHeader = request.getLastHeader(HttpHeaders.USER_AGENT);
         request.removeHeaders(HttpHeaders.USER_AGENT);
 

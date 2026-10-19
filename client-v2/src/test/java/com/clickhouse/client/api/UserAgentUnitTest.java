@@ -92,6 +92,8 @@ public class UserAgentUnitTest {
                 {(Consumer<Client.Builder>) b -> b.setClientName("my-app/1.0", Collections.singletonMap("api", "table"))
                         .httpHeader(HttpHeaders.USER_AGENT, "custom-agent/2.0"),
                         userAgent("custom-agent/2.0", "api:table")},
+                {(Consumer<Client.Builder>) b -> b.setClientName(" my-app/1.0 "),
+                        userAgent("my-app/1.0", null)},
         };
     }
 

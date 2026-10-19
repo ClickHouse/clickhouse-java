@@ -14,6 +14,11 @@ import java.util.Map;
  * The application part is the client name ({@link ClientConfigProperties#CLIENT_NAME}), and the key/value pairs are
  * the client metadata ({@link ClientConfigProperties#CLIENT_METADATA}). A transport sends the value of
  * {@link #getUserAgent(String, Map)} with every request, so the identification is the same for every transport.
+ * <p>
+ * The value is composed once and cached. The mandatory part is the same for every client and is composed when the
+ * class is initialized. The client metadata is validated when {@link Client.Builder#build()} creates the client and
+ * parses its configuration, and is composed once per client. The complete value is composed again only when the
+ * application part changes.
  */
 public class WorkloadIdentitySupport {
 
@@ -21,32 +26,63 @@ public class WorkloadIdentitySupport {
 
     private static final String RESERVED_KEY_OS = "os";
 
-    private final String clientUserAgent;
+    /** Start of the client part, up to the comment group. */
+    private static final String CLIENT_PART_START = Client.CLIENT_USER_AGENT + Client.clientVersion + " (";
+
+    /** Mandatory end of the comment group. */
+    private static final String CLIENT_PART_END = RESERVED_KEY_LANGUAGE_VERSION + ":java/"
+            + System.getProperty("java.version") + "; " + RESERVED_KEY_OS + ":" + System.getProperty("os.name") + ")";
+
+    /** Client part when there is no client metadata. */
+    private static final String CLIENT_PART_WITHOUT_METADATA = CLIENT_PART_START + CLIENT_PART_END;
+
+    private final String clientPart;
+
+    private volatile UserAgent lastUserAgent;
 
     /**
+     * Composes the client part, and the complete value for the client name of the configuration.
+     *
      * @param configuration - parsed client configuration
      */
     public WorkloadIdentitySupport(Map<String, Object> configuration) {
-        this.clientUserAgent = buildClientUserAgent(ClientConfigProperties.CLIENT_METADATA.getOrDefault(configuration));
+        this.clientPart = composeClientPart(ClientConfigProperties.CLIENT_METADATA.getOrDefault(configuration));
+        String application = applicationPart(null, configuration);
+        this.lastUserAgent = new UserAgent(application, compose(application));
     }
 
     /**
      * Returns the value of the {@code User-Agent} header for a request: the application part, then the client part.
      * The application part is {@code customUserAgent} if the application set its own {@code User-Agent} header, and
-     * the client name otherwise. A blank value counts as not set, and a blank application part is left out.
+     * the client name otherwise. Leading and trailing whitespace is removed, a blank value counts as not set, and a blank
+     * application part is left out. The value is cached, so it is composed again only when the application part
+     * changes.
      *
      * @param customUserAgent - value of the {@code User-Agent} header that the application set, or {@code null}
      * @param requestConfig - settings of the request
      * @return value of the {@code User-Agent} header
      */
     public String getUserAgent(String customUserAgent, Map<String, Object> requestConfig) {
-        String application = isBlank(customUserAgent)
-                ? ClientConfigProperties.CLIENT_NAME.<String>getOrDefault(requestConfig) : customUserAgent;
-        return isBlank(application) ? clientUserAgent : application + " " + clientUserAgent;
+        String application = applicationPart(customUserAgent, requestConfig);
+        UserAgent userAgent = lastUserAgent;
+        if (!application.equals(userAgent.application)) {
+            userAgent = new UserAgent(application, compose(application));
+            lastUserAgent = userAgent;
+        }
+        return userAgent.value;
     }
 
-    private static boolean isBlank(String str) {
-        return str == null || str.trim().isEmpty();
+    /**
+     * Returns the trimmed application part, or an empty string if it is not set.
+     */
+    private static String applicationPart(String customUserAgent, Map<String, Object> config) {
+        String application = ClientUtils.isBlank(customUserAgent)
+                ? ClientConfigProperties.CLIENT_NAME.<String>getOrDefault(config) : customUserAgent;
+        return ClientUtils.isBlank(application) ? "" : application.trim();
+    }
+
+    private String compose(String application) {
+        return application.isEmpty() ? clientPart : application + " " + clientPart;
     }
 
     /**
@@ -79,17 +115,29 @@ public class WorkloadIdentitySupport {
         return true;
     }
 
-    private static String buildClientUserAgent(Map<String, String> clientMetadata) {
-        StringBuilder userAgent = new StringBuilder();
-        userAgent.append(Client.CLIENT_USER_AGENT).append(Client.clientVersion).append(" (");
-        if (clientMetadata != null) {
-            for (Map.Entry<String, String> entry : clientMetadata.entrySet()) {
-                userAgent.append(entry.getKey()).append(':').append(entry.getValue()).append("; ");
-            }
+    private static String composeClientPart(Map<String, String> clientMetadata) {
+        if (clientMetadata == null || clientMetadata.isEmpty()) {
+            return CLIENT_PART_WITHOUT_METADATA;
         }
-        userAgent.append(RESERVED_KEY_LANGUAGE_VERSION).append(":java/").append(System.getProperty("java.version"))
-                .append("; ").append(RESERVED_KEY_OS).append(':').append(System.getProperty("os.name"))
-                .append(')');
-        return userAgent.toString();
+        StringBuilder clientPart = new StringBuilder(CLIENT_PART_START);
+        for (Map.Entry<String, String> entry : clientMetadata.entrySet()) {
+            clientPart.append(entry.getKey()).append(':').append(entry.getValue()).append("; ");
+        }
+        return clientPart.append(CLIENT_PART_END).toString();
+    }
+
+    /**
+     * Complete value of the {@code User-Agent} header for one application part.
+     */
+    private static final class UserAgent {
+
+        private final String application;
+
+        private final String value;
+
+        private UserAgent(String application, String value) {
+            this.application = application;
+            this.value = value;
+        }
     }
 }
