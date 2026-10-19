@@ -2599,8 +2599,15 @@ public class Client implements AutoCloseable {
         this.unmodifiableDbRolesView = ImmutableList.copyOf(tmp);
     }
 
+    /**
+     * Updates the client name for all subsequent requests created by this client. The client composes the value of
+     * the {@code User-Agent} header again, and keeps it.
+     *
+     * @param name - client application name, for example {@code my-app/1.0}
+     */
     public void updateClientName(String name) {
         this.configuration.put(ClientConfigProperties.CLIENT_NAME.getKey(), name);
+        this.httpClientHelper.updateWorkloadIdentity(this.configuration);
     }
 
     /**

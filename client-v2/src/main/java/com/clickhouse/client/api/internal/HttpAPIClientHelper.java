@@ -109,6 +109,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.regex.Pattern;
@@ -133,7 +134,7 @@ public class HttpAPIClientHelper {
 
     private final Set<ClientFaultCause> defaultRetryCauses;
 
-    private final WorkloadIdentitySupport workloadIdentitySupport;
+    private final AtomicReference<WorkloadIdentitySupport> workloadIdentitySupport;
     private final Object metricsRegistry;
 
     ConnPoolControl<?> poolControl;
@@ -169,7 +170,17 @@ public class HttpAPIClientHelper {
             defaultRetryCauses.removeIf(c -> c != ClientFaultCause.None);
         }
 
-        this.workloadIdentitySupport = new WorkloadIdentitySupport(configuration);
+        this.workloadIdentitySupport = new AtomicReference<>(new WorkloadIdentitySupport(configuration));
+    }
+
+    /**
+     * Composes the value of the {@code User-Agent} header again for the client configuration, and keeps it. Call it
+     * after the client name changes.
+     *
+     * @param configuration - client configuration
+     */
+    public void updateWorkloadIdentity(Map<String, Object> configuration) {
+        workloadIdentitySupport.set(new WorkloadIdentitySupport(configuration));
     }
 
     /**
@@ -1191,7 +1202,7 @@ public class HttpAPIClientHelper {
         Header userAgentHeader = request.getLastHeader(HttpHeaders.USER_AGENT);
         request.removeHeaders(HttpHeaders.USER_AGENT);
 
-        request.setHeader(HttpHeaders.USER_AGENT, workloadIdentitySupport.getUserAgent(
+        request.setHeader(HttpHeaders.USER_AGENT, workloadIdentitySupport.get().getUserAgent(
                 userAgentHeader == null ? null : userAgentHeader.getValue(), requestConfig));
     }
 

@@ -3,51 +3,71 @@ package com.clickhouse.client.api.internal;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientMisconfigurationException;
+import org.apache.hc.core5.http.HttpHeaders;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Map;
 import java.util.StringJoiner;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Builds the identification of the client and of the application that uses it. The identification is the value of
  * the {@code User-Agent} header, in the standard ClickHouse client format:
  * {@code <application> clickhouse-java-v2/<version> (<key>:<value>; ...; lv:java/<java.version>; os:<os.name>)}.
  * <p>
- * The application part is the client name ({@link ClientConfigProperties#CLIENT_NAME}), and the key/value pairs are
- * the client metadata ({@link ClientConfigProperties#CLIENT_METADATA}). A transport sends the value of
+ * The application part is the client name ({@link ClientConfigProperties#CLIENT_NAME}), or the custom
+ * {@code User-Agent} header if the application set one. The key/value pairs are the client metadata
+ * ({@link ClientConfigProperties#CLIENT_METADATA}). A transport sends the value of
  * {@link #getUserAgent(String, Map)} with every request, so the identification is the same for every transport.
  * <p>
- * The client metadata is validated when {@link Client.Builder#build()} parses the configuration. The client part is
- * composed once, when the client is created. The complete value is cached, and is composed again only when the
- * application part changes.
+ * The client metadata is validated when {@link Client.Builder#build()} parses the configuration. An instance composes
+ * the value for the client configuration once and keeps it. When the client name changes, the client creates a new
+ * instance.
  */
 public class WorkloadIdentitySupport {
+
+    private static final Logger LOG = LoggerFactory.getLogger(WorkloadIdentitySupport.class);
 
     private static final String RESERVED_KEY_LANGUAGE_VERSION = "lv";
 
     private static final String RESERVED_KEY_OS = "os";
 
+    /**
+     * Length of the {@code User-Agent} value above which the client logs a warning. Common browsers send about 120
+     * characters.
+     */
+    private static final int USER_AGENT_WARNING_LENGTH = 200;
+
     private final String clientPart;
 
-    private final AtomicReference<UserAgent> lastUserAgent = new AtomicReference<>();
+    private final String clientApplication;
+
+    private final String clientUserAgent;
 
     /**
-     * Composes the client part, and the complete value for the client name of the configuration.
+     * Composes the value of the {@code User-Agent} header for the client configuration, and logs a warning if the
+     * value is longer than 200 characters.
      *
      * @param configuration - parsed client configuration
      */
     public WorkloadIdentitySupport(Map<String, Object> configuration) {
         this.clientPart = composeClientPart(configuration);
-        String application = applicationPart(null, configuration);
-        this.lastUserAgent.set(new UserAgent(application, compose(application)));
+        this.clientApplication = applicationPart(
+                (String) configuration.get(ClientConfigProperties.httpHeader(HttpHeaders.USER_AGENT)), configuration);
+        this.clientUserAgent = compose(clientApplication);
+        if (clientUserAgent.length() > USER_AGENT_WARNING_LENGTH) {
+            LOG.warn("The User-Agent value is {} characters long, more than {}: '{}'. Use a shorter client name or"
+                    + " less client metadata.", clientUserAgent.length(), USER_AGENT_WARNING_LENGTH, clientUserAgent);
+        }
     }
 
     /**
      * Returns the value of the {@code User-Agent} header for a request: the application part, then the client part.
      * The application part is {@code customUserAgent} if the application set its own {@code User-Agent} header, and
      * the client name otherwise. Leading and trailing whitespace is removed, a blank value counts as not set, and a blank
-     * application part is left out. The value is cached, so it is composed again only when the application part
-     * changes.
+     * application part is left out. If the application part is the one of the client configuration, the value that
+     * this instance keeps is returned. Otherwise, for example for a {@code User-Agent} header of one operation, a new
+     * value is composed and not kept.
      *
      * @param customUserAgent - value of the {@code User-Agent} header that the application set, or {@code null}
      * @param requestConfig - settings of the request
@@ -55,21 +75,16 @@ public class WorkloadIdentitySupport {
      */
     public String getUserAgent(String customUserAgent, Map<String, Object> requestConfig) {
         String application = applicationPart(customUserAgent, requestConfig);
-        UserAgent userAgent = lastUserAgent.get();
-        if (!application.equals(userAgent.application)) {
-            userAgent = new UserAgent(application, compose(application));
-            lastUserAgent.set(userAgent);
-        }
-        return userAgent.value;
+        return application.equals(clientApplication) ? clientUserAgent : compose(application);
     }
 
     /**
      * Returns the trimmed application part, or an empty string if it is not set.
      */
     private static String applicationPart(String customUserAgent, Map<String, Object> config) {
-        String application = ClientUtils.isBlank(customUserAgent)
+        String value = ClientUtils.isBlank(customUserAgent)
                 ? ClientConfigProperties.CLIENT_NAME.<String>getOrDefault(config) : customUserAgent;
-        return ClientUtils.isBlank(application) ? "" : application.trim();
+        return ClientUtils.isBlank(value) ? "" : value.trim();
     }
 
     private String compose(String application) {
@@ -126,20 +141,5 @@ public class WorkloadIdentitySupport {
         comment.add(RESERVED_KEY_LANGUAGE_VERSION + ":java/" + System.getProperty("java.version"));
         comment.add(RESERVED_KEY_OS + ":" + System.getProperty("os.name"));
         return comment.toString();
-    }
-
-    /**
-     * Complete value of the {@code User-Agent} header for one application part.
-     */
-    private static final class UserAgent {
-
-        private final String application;
-
-        private final String value;
-
-        private UserAgent(String application, String value) {
-            this.application = application;
-            this.value = value;
-        }
     }
 }

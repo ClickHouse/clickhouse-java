@@ -2,6 +2,7 @@ package com.clickhouse.client.api.internal;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
@@ -12,7 +13,7 @@ import java.util.Map;
 public class WorkloadIdentitySupportTest {
 
     @Test
-    public void testUserAgentComposedOncePerApplicationPart() {
+    public void testUserAgentComposedOncePerClient() {
         Map<String, String> rawConfig = new HashMap<>();
         rawConfig.put(ClientConfigProperties.CLIENT_NAME.getKey(), "my-app/1.0");
         rawConfig.put(ClientConfigProperties.CLIENT_METADATA.getKey(), "api=table");
@@ -24,11 +25,27 @@ public class WorkloadIdentitySupportTest {
         Assert.assertSame(identity.getUserAgent(null, new HashMap<>(config)), userAgent);
         Assert.assertSame(identity.getUserAgent(" ", config), userAgent);
 
-        String customUserAgent = identity.getUserAgent(" custom-agent/2.0 ", config);
-        Assert.assertEquals(customUserAgent, userAgent("custom-agent/2.0 ", "api:table; "));
-        Assert.assertSame(identity.getUserAgent("custom-agent/2.0", config), customUserAgent);
+        Map<String, Object> requestConfig = new HashMap<>(config);
+        requestConfig.put(ClientConfigProperties.CLIENT_NAME.getKey(), "op-app/3.0");
+        Assert.assertEquals(identity.getUserAgent(null, requestConfig), userAgent("op-app/3.0 ", "api:table; "));
+        Assert.assertEquals(identity.getUserAgent(" custom-agent/2.0 ", config),
+                userAgent("custom-agent/2.0 ", "api:table; "));
 
-        Assert.assertEquals(identity.getUserAgent(null, config), userAgent);
+        Assert.assertSame(identity.getUserAgent(null, config), userAgent);
+    }
+
+    @Test
+    public void testUserAgentComposedOnceForConfiguredHeader() {
+        Map<String, String> rawConfig = new HashMap<>();
+        rawConfig.put(ClientConfigProperties.CLIENT_NAME.getKey(), "my-app/1.0");
+        rawConfig.put(ClientConfigProperties.httpHeader(HttpHeaders.USER_AGENT), "custom-agent/2.0");
+        Map<String, Object> config = ClientConfigProperties.parseConfigMap(rawConfig);
+        WorkloadIdentitySupport identity = new WorkloadIdentitySupport(config);
+
+        String userAgent = identity.getUserAgent("custom-agent/2.0", config);
+        Assert.assertEquals(userAgent, userAgent("custom-agent/2.0 ", ""));
+        Assert.assertSame(identity.getUserAgent("custom-agent/2.0", config), userAgent);
+        Assert.assertEquals(identity.getUserAgent(null, config), userAgent("my-app/1.0 ", ""));
     }
 
     @Test
