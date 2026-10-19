@@ -5,6 +5,7 @@ import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientMisconfigurationException;
 
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Builds the identification of the client and of the application that uses it. The identification is the value of
@@ -38,7 +39,7 @@ public class WorkloadIdentitySupport {
 
     private final String clientPart;
 
-    private volatile UserAgent lastUserAgent;
+    private final AtomicReference<UserAgent> lastUserAgent = new AtomicReference<>();
 
     /**
      * Composes the client part, and the complete value for the client name of the configuration.
@@ -48,7 +49,7 @@ public class WorkloadIdentitySupport {
     public WorkloadIdentitySupport(Map<String, Object> configuration) {
         this.clientPart = composeClientPart(ClientConfigProperties.CLIENT_METADATA.getOrDefault(configuration));
         String application = applicationPart(null, configuration);
-        this.lastUserAgent = new UserAgent(application, compose(application));
+        this.lastUserAgent.set(new UserAgent(application, compose(application)));
     }
 
     /**
@@ -64,10 +65,10 @@ public class WorkloadIdentitySupport {
      */
     public String getUserAgent(String customUserAgent, Map<String, Object> requestConfig) {
         String application = applicationPart(customUserAgent, requestConfig);
-        UserAgent userAgent = lastUserAgent;
+        UserAgent userAgent = lastUserAgent.get();
         if (!application.equals(userAgent.application)) {
             userAgent = new UserAgent(application, compose(application));
-            lastUserAgent = userAgent;
+            lastUserAgent.set(userAgent);
         }
         return userAgent.value;
     }
