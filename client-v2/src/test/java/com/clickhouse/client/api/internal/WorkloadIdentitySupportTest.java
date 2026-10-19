@@ -32,11 +32,21 @@ public class WorkloadIdentitySupportTest {
     }
 
     @Test
-    public void testMandatoryPartSharedByClients() {
+    public void testUserAgentWithoutClientMetadata() {
+        Map<String, Object> withMetadata = ClientConfigProperties.parseConfigMap(
+                Collections.singletonMap(ClientConfigProperties.CLIENT_METADATA.getKey(), "api=table"));
+        WorkloadIdentitySupport identityWithMetadata = new WorkloadIdentitySupport(withMetadata);
+
         Map<String, Object> config = Collections.emptyMap();
-        String userAgent = new WorkloadIdentitySupport(config).getUserAgent(null, config);
-        Assert.assertEquals(userAgent, userAgent("", ""));
-        Assert.assertSame(new WorkloadIdentitySupport(config).getUserAgent(null, config), userAgent);
+        Assert.assertEquals(new WorkloadIdentitySupport(config).getUserAgent(null, config), userAgent("", ""));
+
+        Map<String, Object> emptyMetadata = ClientConfigProperties.parseConfigMap(
+                Collections.singletonMap(ClientConfigProperties.CLIENT_METADATA.getKey(), ""));
+        Assert.assertEquals(new WorkloadIdentitySupport(emptyMetadata).getUserAgent(null, emptyMetadata),
+                userAgent("", ""));
+
+        Assert.assertEquals(identityWithMetadata.getUserAgent("my-app/1.0", withMetadata),
+                userAgent("my-app/1.0 ", "api:table; "));
     }
 
     private static String userAgent(String application, String metadata) {

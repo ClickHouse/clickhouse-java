@@ -85,6 +85,7 @@ public class ClientConfigPropertiesTest {
                 {"fv=flink/2.0.0,api=table", new String[]{"fv", "flink/2.0.0", "api", "table"}},
                 {" api = table , os_version = Mac OS X ", new String[]{"api", "table", "os_version", "Mac OS X"}},
                 {"url=http://host:8123/path?x=1", new String[]{"url", "http://host:8123/path?x=1"}},
+                {"ver~=~1.0", new String[]{"ver~", "~1.0"}},
                 {"api=,fv=flink/2.0.0,=x", new String[]{"fv", "flink/2.0.0"}},
                 {"", new String[0]},
         };
@@ -105,7 +106,7 @@ public class ClientConfigPropertiesTest {
         return new Object[][]{
                 {"a:b=c"}, {"a;b=c"}, {"a(b=c"}, {"a)b=c"}, {"a\\,b=c"}, {"a\\=b=c"}, {"my key=c"},
                 {"k=v;x"}, {"k=v(x"}, {"k=v)x"},
-                {"k=a\nb"}, {"k=a\tb"}, {"k=caf\u00e9"}, {"k\u00e9=v"},
+                {"k=a\nb"}, {"k=a\tb"}, {"k=a\u001fb"}, {"k=a\u007fb"}, {"k\u007f=v"}, {"k=caf\u00e9"}, {"k\u00e9=v"},
                 {"lv=java/8"}, {"os=Linux"}, {"OS=Linux"},
                 {"fv=flink/2.0.0,api=table; lv:java/8"},
                 {",api=table"}, {"fv=flink/2.0.0,,api=table"}, {"fv=flink/2.0.0,api,ver=1"},

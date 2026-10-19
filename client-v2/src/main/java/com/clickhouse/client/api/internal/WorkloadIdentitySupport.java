@@ -5,6 +5,7 @@ import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientMisconfigurationException;
 
 import java.util.Map;
+import java.util.StringJoiner;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -16,9 +17,8 @@ import java.util.concurrent.atomic.AtomicReference;
  * the client metadata ({@link ClientConfigProperties#CLIENT_METADATA}). A transport sends the value of
  * {@link #getUserAgent(String, Map)} with every request, so the identification is the same for every transport.
  * <p>
- * The value is composed once and cached. The mandatory part is the same for every client and is composed when the
- * class is initialized. The client metadata is validated when {@link Client.Builder#build()} creates the client and
- * parses its configuration, and is composed once per client. The complete value is composed again only when the
+ * The client metadata is validated when {@link Client.Builder#build()} parses the configuration. The client part is
+ * composed once, when the client is created. The complete value is cached, and is composed again only when the
  * application part changes.
  */
 public class WorkloadIdentitySupport {
@@ -26,16 +26,6 @@ public class WorkloadIdentitySupport {
     private static final String RESERVED_KEY_LANGUAGE_VERSION = "lv";
 
     private static final String RESERVED_KEY_OS = "os";
-
-    /** Start of the client part, up to the comment group. */
-    private static final String CLIENT_PART_START = Client.CLIENT_USER_AGENT + Client.clientVersion + " (";
-
-    /** Mandatory end of the comment group. */
-    private static final String CLIENT_PART_END = RESERVED_KEY_LANGUAGE_VERSION + ":java/"
-            + System.getProperty("java.version") + "; " + RESERVED_KEY_OS + ":" + System.getProperty("os.name") + ")";
-
-    /** Client part when there is no client metadata. */
-    private static final String CLIENT_PART_WITHOUT_METADATA = CLIENT_PART_START + CLIENT_PART_END;
 
     private final String clientPart;
 
@@ -47,7 +37,7 @@ public class WorkloadIdentitySupport {
      * @param configuration - parsed client configuration
      */
     public WorkloadIdentitySupport(Map<String, Object> configuration) {
-        this.clientPart = composeClientPart(ClientConfigProperties.CLIENT_METADATA.getOrDefault(configuration));
+        this.clientPart = composeClientPart(configuration);
         String application = applicationPart(null, configuration);
         this.lastUserAgent.set(new UserAgent(application, compose(application)));
     }
@@ -99,6 +89,8 @@ public class WorkloadIdentitySupport {
             throw new ClientMisconfigurationException("Invalid '" + ClientConfigProperties.CLIENT_METADATA.getKey()
                     + "' entry '" + key + "': the key is reserved by the client");
         }
+        // ':' separates a key from its value, ';' separates entries, '(' and ')' delimit the comment group,
+        // and ',' and '=' are separators of the client_metadata property value
         if (!isClientMetadataText(key, " :;(),=") || !isClientMetadataText(value, ";()")) {
             throw new ClientMisconfigurationException("Invalid '" + ClientConfigProperties.CLIENT_METADATA.getKey()
                     + "' entry '" + key + "=" + value + "': keys and values must be printable ASCII, a key must not"
@@ -109,22 +101,31 @@ public class WorkloadIdentitySupport {
     private static boolean isClientMetadataText(String str, String forbiddenChars) {
         for (int i = 0; i < str.length(); i++) {
             char ch = str.charAt(i);
-            if (ch < 0x20 || ch > 0x7E || forbiddenChars.indexOf(ch) >= 0) {
+            if (!isPrintableAscii(ch) || forbiddenChars.indexOf(ch) >= 0) {
                 return false;
             }
         }
         return true;
     }
 
-    private static String composeClientPart(Map<String, String> clientMetadata) {
-        if (clientMetadata == null || clientMetadata.isEmpty()) {
-            return CLIENT_PART_WITHOUT_METADATA;
-        }
-        StringBuilder clientPart = new StringBuilder(CLIENT_PART_START);
-        for (Map.Entry<String, String> entry : clientMetadata.entrySet()) {
-            clientPart.append(entry.getKey()).append(':').append(entry.getValue()).append("; ");
-        }
-        return clientPart.append(CLIENT_PART_END).toString();
+    /**
+     * Returns {@code true} if the character is printable ASCII: from the space character to {@code '~'}.
+     */
+    private static boolean isPrintableAscii(char ch) {
+        return ch >= ' ' && ch <= '~';
+    }
+
+    /**
+     * Composes the client part: {@code clickhouse-java-v2/<version> (<key>:<value>; ...; lv:java/<java.version>;
+     * os:<os.name>)}. The key/value pairs are the client metadata, if it is set.
+     */
+    private static String composeClientPart(Map<String, Object> configuration) {
+        StringJoiner comment = new StringJoiner("; ", Client.CLIENT_USER_AGENT + Client.clientVersion + " (", ")");
+        ClientConfigProperties.CLIENT_METADATA.<Map<String, String>>applyIfSet(configuration,
+                metadata -> metadata.forEach((key, value) -> comment.add(key + ":" + value)));
+        comment.add(RESERVED_KEY_LANGUAGE_VERSION + ":java/" + System.getProperty("java.version"));
+        comment.add(RESERVED_KEY_OS + ":" + System.getProperty("os.name"));
+        return comment.toString();
     }
 
     /**
