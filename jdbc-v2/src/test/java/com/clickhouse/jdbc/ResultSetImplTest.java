@@ -4,6 +4,7 @@ import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.data_formats.JacksonJsonParserFactory;
 import com.clickhouse.data.ClickHouseVersion;
 import org.testng.Assert;
+import org.testng.SkipException;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
@@ -317,6 +318,47 @@ public class ResultSetImplTest extends JdbcIntegrationTest {
         }
     }
 
+
+    @Test(groups = {"integration"}, dataProvider = "testCloseNotFullyReadResultSetDataProvider")
+    public void testCloseNotFullyReadResultSet(String format) throws SQLException {
+        if (isCloud()) {
+            throw new SkipException("Test depends on how the server ends a failed response, a proxy can change it");
+        }
+        Properties properties = new Properties();
+        properties.setProperty(DriverProperties.JSON_PARSER_FACTORY.getKey(), JacksonJsonParserFactory.class.getName());
+        properties.setProperty(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), format);
+        properties.setProperty(ClientConfigProperties.HTTP_MAX_OPEN_CONNECTIONS.getKey(), "1");
+        // The query fails after the first rows are sent, so the server ends the response body early.
+        // Without http_write_exception_in_output_format = 0, older servers send the error as the last JSONEachRow row.
+        final String query = "SELECT number, randomPrintableASCII(100), throwIf(number = 100000)"
+                + " FROM numbers(200000) SETTINGS max_block_size = 1000, http_write_exception_in_output_format = 0";
+        try (Connection conn = getJdbcConnection(properties); Statement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery(query);
+            assertTrue(rs.next());
+            rs.close();
+
+            try (ResultSet readRs = stmt.executeQuery(query)) {
+                Assert.expectThrows(SQLException.class, () -> {
+                    while (readRs.next()) {
+                        // read to the end
+                    }
+                });
+            }
+
+            // An update does not read the response body, so closing it still reports the failure.
+            Assert.expectThrows(SQLException.class, () -> stmt.executeUpdate(query));
+
+            try (ResultSet next = stmt.executeQuery("SELECT 1")) {
+                assertTrue(next.next());
+                assertEquals(next.getInt(1), 1);
+            }
+        }
+    }
+
+    @DataProvider(name = "testCloseNotFullyReadResultSetDataProvider")
+    public static Object[][] testCloseNotFullyReadResultSetDataProvider() {
+        return new Object[][] {{"RowBinaryWithNamesAndTypes"}, {"JSONEachRow"}};
+    }
 
     @Test(groups = {"integration"})
     public void testFetchDirectionsAndSize() throws SQLException {
