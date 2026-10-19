@@ -126,8 +126,7 @@ public class HttpAPIClientHelper {
 
     private final String DEFAULT_HTTP_COMPRESSION_ALGO = "lz4";
 
-    private static final Pattern PATTERN_HEADER_VALUE_ASCII = Pattern.compile(
-        "\\p{Graph}+(?:[ ]\\p{Graph}+)*");
+    private static final Pattern PATTERN_HEADER_VALUE_ASCII =Pattern.compile("[\\x21-\\x7E]+(?:[ \\t]+[\\x21-\\x7E]+)*");
 
     private final CloseableHttpClient httpClient;
 
