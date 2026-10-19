@@ -43,6 +43,7 @@ import org.apache.hc.client5.http.socket.LayeredConnectionSocketFactory;
 import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
 import org.apache.hc.client5.http.ssl.TlsSocketStrategy;
 import org.apache.hc.core5.http.ClassicHttpResponse;
+import org.apache.hc.core5.http.ConnectionClosedException;
 import org.apache.hc.core5.http.ConnectionRequestTimeoutException;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.Header;
@@ -81,6 +82,7 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLSocket;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -658,6 +660,8 @@ public class HttpAPIClientHelper {
 
         private final ClassicHttpResponse delegate;
 
+        private boolean dataStreamCreated;
+
         TransportResponseImpl(ClassicHttpResponse delegate) {
             this.delegate = delegate;
         }
@@ -693,17 +697,55 @@ public class HttpAPIClientHelper {
 
         @Override
         public void close() throws IOException {
-            delegate.close();
+            try {
+                delegate.close();
+            } catch (ConnectionClosedException e) {
+                // Without a data stream nobody reads the body, and this is the only report of a failed query.
+                if (!dataStreamCreated) {
+                    throw e;
+                }
+                logIncompleteBodyOnClose(getQueryId(), e);
+            }
         }
 
         @Override
         public InputStream createDataInputStream() {
             try {
-                return delegate.getEntity().getContent();
+                InputStream stream = new ResponseBodyInputStream(delegate.getEntity().getContent(), getQueryId());
+                dataStreamCreated = true;
+                return stream;
             } catch (Exception e) {
                 throw new ClientException("Failed to construct input stream", e);
             }
         }
+    }
+
+    /**
+     * Closing a response body that is not read to the end makes the HTTP client read and discard the rest of it.
+     * When the server ends the body early (it does so when a query fails after the response started), that read
+     * fails with {@link ConnectionClosedException}. The caller stopped reading, so it is logged only; reads still throw.
+     */
+    private static final class ResponseBodyInputStream extends FilterInputStream {
+
+        private final String queryId;
+
+        ResponseBodyInputStream(InputStream in, String queryId) {
+            super(in);
+            this.queryId = queryId;
+        }
+
+        @Override
+        public void close() throws IOException {
+            try {
+                super.close();
+            } catch (ConnectionClosedException e) {
+                logIncompleteBodyOnClose(queryId, e);
+            }
+        }
+    }
+
+    private static void logIncompleteBodyOnClose(String queryId, ConnectionClosedException e) {
+        LOG.debug("Ignoring incomplete response body on close (queryId = {})", queryId, e);
     }
 
     /**
