@@ -41,6 +41,11 @@ jobs:
             8
             17
           cache: 'maven'
+          server-id: central
+          server-username: MAVEN_USERNAME
+          server-password: MAVEN_PASSWORD
+          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+          gpg-passphrase: MAVEN_GPG_PASSPHRASE
       - name: Setup Toolchain
         shell: bash
         run: |
@@ -71,18 +76,14 @@ jobs:
           VERSION=$(sed -n 's|.*<revision>\(.*\)</revision>.*|\1|p' pom.xml | head -1)
           echo "Published snapshot version: $VERSION"
           echo "jdbc_version=$VERSION" >> "$GITHUB_OUTPUT"
-      - name: Release Snapshot
+      - name: Release Maven package
         env:
+          MAVEN_USERNAME: ${{ secrets.SONATYPE_TOKEN_USER }}
+          MAVEN_PASSWORD: ${{ secrets.SONATYPE_TOKEN }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
           TEST_CLICKHOUSE_IMAGE_VERSION: ${{ env.CH_VERSION }}
-        uses: samuelmeuli/action-maven-publish@v1
-        with:
-          maven_profiles: release
-          maven_args: -q --batch-mode
-          server_id: central
-          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
-          gpg_passphrase: ${{ secrets.GPG_PASSPHRASE }}
-          nexus_username: ${{ secrets.SONATYPE_TOKEN_USER }}
-          nexus_password: ${{ secrets.SONATYPE_TOKEN }}
+        run: mvn -q --batch-mode -P release clean deploy
+
   # Mirror Tableau TDVT after publish (non-blocking).
   tdvt:
     name: "Tableau TDVT"
