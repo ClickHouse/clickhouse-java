@@ -27,6 +27,7 @@ This is the repository for the Java Client and JDBC Driver for the [ClickHouse d
 The Java Client is the core component that provides an API to interact with the database via HTTP Protocol. The JDBC driver component implements the JDBC specification and communicates with ClickHouse using the Java Client API.
 
 The client and driver work with both ClickHouse Cloud and self-hosted ClickHouse. You can [start a free Cloud trial](https://console.clickhouse.cloud/signUp?utm_medium=referral&utm_source=github&utm_campaign=readme&utm_content=clickhouse-java) or [install ClickHouse](https://clickhouse.com/docs/get-started/setup/install) locally.
+
 Historically, there are two versions of both components. The previous version of the Java client required a significant rewrite, so we decided to create a new one, `client-v2`, not to disturb anyone's work and to give time for migration. The JDBC driver also required changes to be compatible with the new client and comply more with JDBC specs, and we created `jdbc-v2`. This component will replace an old version (to keep the artifact name).
 
 ## Client Features
