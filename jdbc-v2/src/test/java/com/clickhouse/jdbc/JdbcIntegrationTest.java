@@ -53,6 +53,10 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
         }
 
         info.putIfAbsent(ClientConfigProperties.DATABASE.getKey(), getDatabase());
+        if (isCloud()) {
+            // Cloud can route a query to a replica that has not seen the previous insert yet
+            info.putIfAbsent(DriverProperties.serverSetting("select_sequential_consistency"), "1");
+        }
 
         return new ConnectionImpl(getEndpointString(), info);
     }
