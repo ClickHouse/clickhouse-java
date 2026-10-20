@@ -1,7 +1,6 @@
 package com.clickhouse.client.api.internal;
 
 import com.clickhouse.client.api.ClickHouseException;
-import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.ClientFaultCause;
@@ -105,7 +104,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
@@ -135,7 +133,11 @@ public class HttpAPIClientHelper {
 
     private final Set<ClientFaultCause> defaultRetryCauses;
 
-    private final String defaultUserAgent;
+    /**
+     * Identification of the client, which gives the value of the {@code User-Agent} header. {@code Client} creates
+     * and updates it. Never {@code null}.
+     */
+    private final WorkloadIdentitySupport workloadIdentitySupport;
     private final Object metricsRegistry;
 
     ConnPoolControl<?> poolControl;
@@ -152,9 +154,12 @@ public class HttpAPIClientHelper {
     private final SpanRecorder spanRecorder;
 
     public HttpAPIClientHelper(Map<String, Object> configuration, Object metricsRegistry, boolean initSslContext,
-                               LZ4Factory lz4Factory, SpanRecorder spanRecorder) {
+                               LZ4Factory lz4Factory, SpanRecorder spanRecorder,
+                               WorkloadIdentitySupport workloadIdentitySupport) {
         this.spanRecorder = Objects.requireNonNull(spanRecorder,
                 "spanRecorder is required; use DefaultSpanRecorder.NOOP to record nothing");
+        this.workloadIdentitySupport = Objects.requireNonNull(workloadIdentitySupport,
+                "workloadIdentitySupport is required");
         this.metricsRegistry = metricsRegistry;
         this.httpClient = createHttpClient(initSslContext, configuration);
         this.lz4Factory = lz4Factory;
@@ -170,8 +175,6 @@ public class HttpAPIClientHelper {
         if (defaultRetryCauses.contains(ClientFaultCause.None)) {
             defaultRetryCauses.removeIf(c -> c != ClientFaultCause.None);
         }
-
-        this.defaultUserAgent = buildDefaultUserAgent();
     }
 
     /**
@@ -1177,62 +1180,11 @@ public class HttpAPIClientHelper {
     }
 
     private void correctUserAgentHeader(HttpRequest request, Map<String, Object> requestConfig) {
-        //TODO: implement cache for user-agent
         Header userAgentHeader = request.getLastHeader(HttpHeaders.USER_AGENT);
         request.removeHeaders(HttpHeaders.USER_AGENT);
 
-        String clientName = ClientConfigProperties.CLIENT_NAME.getOrDefault(requestConfig);
-        String userAgentValue = defaultUserAgent;
-        if (userAgentHeader == null && clientName != null && !clientName.isEmpty()) {
-            userAgentValue = clientName + " " + defaultUserAgent;
-        } else if (userAgentHeader != null) {
-            userAgentValue = userAgentHeader.getValue() + " " + defaultUserAgent;
-        }
-        request.setHeader(HttpHeaders.USER_AGENT, userAgentValue);
-    }
-
-    private String buildDefaultUserAgent() {
-        StringBuilder userAgent = new StringBuilder();
-        userAgent.append(Client.CLIENT_USER_AGENT);
-
-        String clientVersion = Client.clientVersion;
-
-        userAgent.append(clientVersion);
-
-        userAgent.append(" (");
-        userAgent.append(System.getProperty("os.name"));
-        userAgent.append("; ");
-        userAgent.append("jvm:").append(System.getProperty("java.version"));
-        userAgent.append("; ");
-
-        userAgent.setLength(userAgent.length() - 2);
-        userAgent.append(')');
-
-        try {
-            String httpClientVersion = this.httpClient.getClass().getPackage().getImplementationVersion();
-            if (Objects.equals(this.httpClient.getClass().getPackage().getImplementationTitle(), this.getClass().getPackage().getImplementationTitle())) {
-                // shaded jar - all packages have same implementation title
-                httpClientVersion = "unknown";
-                try (InputStream in = Thread.currentThread().getContextClassLoader().getResourceAsStream("client-v2-version.properties")) {
-                    Properties p = new Properties();
-                    p.load(in);
-
-                    String tmp = p.getProperty("apache.http.client.version");
-                    if (tmp != null && !tmp.isEmpty() && !tmp.equals("${apache.httpclient.version}")) {
-                        httpClientVersion = tmp;
-                    }
-                } catch (Exception e) {
-                    LOG.debug("Failed to read HTTP client version from client-v2-version.properties", e);
-                }
-            }
-            userAgent.append(" ")
-                    .append("Apache-HttpClient")
-                    .append('/')
-                    .append(httpClientVersion);
-        } catch (Exception e) {
-            LOG.warn("failed to construct http client version string", e);
-        }
-        return userAgent.toString();
+        request.setHeader(HttpHeaders.USER_AGENT, workloadIdentitySupport.getUserAgent(
+                userAgentHeader == null ? null : userAgentHeader.getValue(), requestConfig));
     }
 
     public void close() {

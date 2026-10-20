@@ -1197,9 +1197,9 @@ public class HttpTransportTests extends BaseIntegrationTest {
     @DataProvider(name = "testUserAgentHasCompleteProductName_dataProvider")
     public static Object[][] testUserAgentHasCompleteProductName_dataProvider() {
         return new Object[][] {
-                { "", Pattern.compile("clickhouse-java-v2\\/.+ \\(.+\\) Apache-HttpClient\\/[\\d\\.]+$") },
-                { "test-client/1.0", Pattern.compile("test-client/1.0 clickhouse-java-v2\\/.+ \\(.+\\) Apache-HttpClient\\/[\\d\\.]+$")},
-                { "test-client/", Pattern.compile("test-client/ clickhouse-java-v2\\/.+ \\(.+\\) Apache-HttpClient\\/[\\d\\.]+$")}};
+                { "", Pattern.compile("clickhouse-java-v2/[^ ]+ \\(lv:java/[^;]+; os:[^;()]+; hc:ahc_[\\d.]+\\)") },
+                { "test-client/1.0", Pattern.compile("test-client/1.0 clickhouse-java-v2/[^ ]+ \\(lv:java/[^;]+; os:[^;()]+; hc:ahc_[\\d.]+\\)")},
+                { "test-client/", Pattern.compile("test-client/ clickhouse-java-v2/[^ ]+ \\(lv:java/[^;]+; os:[^;()]+; hc:ahc_[\\d.]+\\)")}};
     }
 
     @Test(dataProvider = "testClientNameDataProvider")
