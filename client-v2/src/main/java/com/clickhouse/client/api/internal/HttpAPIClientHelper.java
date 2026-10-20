@@ -133,6 +133,10 @@ public class HttpAPIClientHelper {
 
     private final Set<ClientFaultCause> defaultRetryCauses;
 
+    /**
+     * Identification of the client, which gives the value of the {@code User-Agent} header. {@code Client} creates
+     * and updates it. Never {@code null}.
+     */
     private final WorkloadIdentitySupport workloadIdentitySupport;
     private final Object metricsRegistry;
 
@@ -150,9 +154,12 @@ public class HttpAPIClientHelper {
     private final SpanRecorder spanRecorder;
 
     public HttpAPIClientHelper(Map<String, Object> configuration, Object metricsRegistry, boolean initSslContext,
-                               LZ4Factory lz4Factory, SpanRecorder spanRecorder) {
+                               LZ4Factory lz4Factory, SpanRecorder spanRecorder,
+                               WorkloadIdentitySupport workloadIdentitySupport) {
         this.spanRecorder = Objects.requireNonNull(spanRecorder,
                 "spanRecorder is required; use DefaultSpanRecorder.NOOP to record nothing");
+        this.workloadIdentitySupport = Objects.requireNonNull(workloadIdentitySupport,
+                "workloadIdentitySupport is required");
         this.metricsRegistry = metricsRegistry;
         this.httpClient = createHttpClient(initSslContext, configuration);
         this.lz4Factory = lz4Factory;
@@ -168,18 +175,6 @@ public class HttpAPIClientHelper {
         if (defaultRetryCauses.contains(ClientFaultCause.None)) {
             defaultRetryCauses.removeIf(c -> c != ClientFaultCause.None);
         }
-
-        this.workloadIdentitySupport = new WorkloadIdentitySupport(configuration);
-    }
-
-    /**
-     * Composes the value of the {@code User-Agent} header again for the client configuration, and keeps it. Call it
-     * after the client name changes.
-     *
-     * @param configuration - client configuration
-     */
-    public void updateClientName(Map<String, Object> configuration) {
-        workloadIdentitySupport.updateClientName(configuration);
     }
 
     /**

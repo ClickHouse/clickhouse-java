@@ -520,16 +520,9 @@ public class HttpAPIClientHelperTest {
      */
     @Test
     public void testUserAgentKeptAfterClientNameUpdate() throws Exception {
-        try (Client client = new Client.Builder()
-                .addEndpoint("http://localhost:8123")
-                .setUsername("default")
-                .setPassword("")
-                .setClientName("my-app/1.0")
-                .build()) {
+        try (Client client = newClient("my-app/1.0")) {
             client.updateClientName("new-app/2.0");
-            Field helperField = Client.class.getDeclaredField("httpClientHelper");
-            helperField.setAccessible(true);
-            HttpAPIClientHelper helper = (HttpAPIClientHelper) helperField.get(client);
+            HttpAPIClientHelper helper = helperOf(client);
 
             String userAgent = userAgentHeader(helper, "new-app/2.0");
             assertEquals(userAgent, "new-app/2.0 " + clientPart());
@@ -543,21 +536,35 @@ public class HttpAPIClientHelperTest {
      * logged, so that the log does not repeat for every request.
      */
     @Test
-    public void testLongUserAgentLoggedAsWarning() {
+    public void testLongUserAgentLoggedAsWarning() throws Exception {
         String atLimit = String.join("", Collections.nCopies(200 - 1 - clientPart().length(), "x"));
         String overLimit = atLimit + "x";
         String warning = "The User-Agent value is ";
 
-        assertFalse(captureStdErr(() -> newHelper(atLimit)).contains(warning));
-        assertTrue(captureStdErr(() -> newHelper(overLimit)).contains(warning + "201 characters long, more than 200"));
+        assertFalse(captureStdErr(() -> newClient(atLimit).close()).contains(warning));
+        assertTrue(captureStdErr(() -> newClient(overLimit).close())
+                .contains(warning + "201 characters long, more than 200"));
 
-        HttpAPIClientHelper helper = newHelper("my-app/1.0");
-        assertFalse(captureStdErr(() -> userAgentHeader(helper, overLimit)).contains(warning));
-        assertTrue(captureStdErr(() -> helper.updateClientName(clientNameConfig(overLimit))).contains(warning));
+        try (Client client = newClient("my-app/1.0")) {
+            HttpAPIClientHelper helper = helperOf(client);
+            assertFalse(captureStdErr(() -> userAgentHeader(helper, overLimit)).contains(warning));
+            assertTrue(captureStdErr(() -> client.updateClientName(overLimit)).contains(warning));
+        }
     }
 
-    private static HttpAPIClientHelper newHelper(String clientName) {
-        return HttpAPIClientHelperFactory.newHelper(clientNameConfig(clientName), LZ4Factory.fastestInstance());
+    private static Client newClient(String clientName) {
+        return new Client.Builder()
+                .addEndpoint("http://localhost:8123")
+                .setUsername("default")
+                .setPassword("")
+                .setClientName(clientName)
+                .build();
+    }
+
+    private static HttpAPIClientHelper helperOf(Client client) throws Exception {
+        Field helperField = Client.class.getDeclaredField("httpClientHelper");
+        helperField.setAccessible(true);
+        return (HttpAPIClientHelper) helperField.get(client);
     }
 
     private static Map<String, Object> clientNameConfig(String clientName) {
@@ -574,7 +581,7 @@ public class HttpAPIClientHelperTest {
 
     private static String clientPart() {
         return "clickhouse-java-v2/" + Client.clientVersion + " (lv:java/" + System.getProperty("java.version")
-                + "; os:" + System.getProperty("os.name") + "; ahc:" + DependencyVersions.APACHE_HTTP_CLIENT + ")";
+                + "; os:" + System.getProperty("os.name") + "; hc:ahc_" + Versions.APACHE_HTTP_CLIENT + ")";
     }
 
     private static String headerValue(HttpPost req, String name) {

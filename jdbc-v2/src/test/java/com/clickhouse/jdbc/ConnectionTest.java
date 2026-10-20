@@ -7,8 +7,8 @@ import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.ServerException;
-import com.clickhouse.client.api.internal.DependencyVersions;
 import com.clickhouse.client.api.internal.ServerSettings;
+import com.clickhouse.client.api.internal.Versions;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.data.ClickHouseFormat;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -398,8 +398,8 @@ public class ConnectionTest extends JdbcIntegrationTest {
         }
 
         String expectedSuffix = "clickhouse-java-v2/" + Client.clientVersion + " (fv:flink/2.0.0; api:table; lv:java/"
-                + System.getProperty("java.version") + "; os:" + System.getProperty("os.name") + "; ahc:"
-                + DependencyVersions.APACHE_HTTP_CLIENT + ")";
+                + System.getProperty("java.version") + "; os:" + System.getProperty("os.name") + "; hc:ahc_"
+                + Versions.APACHE_HTTP_CLIENT + ")";
         try (Connection localConnection = new ConnectionImpl(url, info);
              Statement stmt = localConnection.createStatement()) {
             String userAgent = executeQueryAndVerifyUserAgent(stmt, null);

@@ -121,13 +121,13 @@ public void updateClientWorkload(Client client, String workloadOrTenant) {
 
 #### How it is observed on the server (`User-Agent` header)
 
-The Java Client communicates over HTTP and passes the client name as the leading segment of the HTTP `User-Agent` header. The client automatically appends the client library version and a comment group with the Java version (`lv`), the operating system (`os`), and the Apache HttpClient version (`ahc`), in the standard ClickHouse client format:
+The Java Client communicates over HTTP and passes the client name as the leading segment of the HTTP `User-Agent` header. The client automatically appends the client library version and a comment group with the Java version (`lv`), the operating system (`os`), and the HTTP client (`hc`: `ahc_` and the Apache HttpClient version), in the standard ClickHouse client format:
 
 ```text
-order-service/1.2.0 clickhouse-java-v2/0.12.0 (lv:java/17.0.2; os:Linux; ahc:5.6.4)
+order-service/1.2.0 clickhouse-java-v2/0.12.0 (lv:java/17.0.2; os:Linux; hc:ahc_5.6.4)
 ```
 
-To add key/value pairs to the comment group (for example, the version of a framework that the application runs in), use `setClientName(String, Map)`. The pairs are added in the iteration order of the map, then `lv`, `os` and `ahc` if the map does not set these keys (set them to replace the values of the client):
+To add key/value pairs to the comment group (for example, the version of a framework that the application runs in), use `setClientName(String, Map)`. The pairs are added in the iteration order of the map, then `lv`, `os` and `hc` if the map does not set these keys (set them to replace the values of the client):
 
 ```java
 Map<String, String> metadata = new LinkedHashMap<>();
@@ -143,7 +143,7 @@ Client client = new Client.Builder()
 ```
 
 ```text
-Flink-ClickHouse-Sink/0.2.0 clickhouse-java-v2/0.12.0 (fv:flink/2.0.0; api:table; lv:java/17.0.2; os:Linux; ahc:5.6.4)
+Flink-ClickHouse-Sink/0.2.0 clickhouse-java-v2/0.12.0 (fv:flink/2.0.0; api:table; lv:java/17.0.2; os:Linux; hc:ahc_5.6.4)
 ```
 
 The same pairs can be set with the `client_id_metadata` property, written as `fv=flink/2.0.0,api=table` (escape a `,` or `\` in a value with `\`). Keys and values must be printable ASCII, a key must not contain spaces or any of `:;(),=`, and a value must not contain any of `;()`. `setClientName(String)` and `client.updateClientName(...)` do not change the metadata.

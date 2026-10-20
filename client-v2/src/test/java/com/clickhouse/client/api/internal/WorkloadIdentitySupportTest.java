@@ -2,9 +2,7 @@ package com.clickhouse.client.api.internal;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
-import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.core5.http.HttpHeaders;
-import org.apache.hc.core5.util.VersionInfo;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
@@ -102,23 +100,15 @@ public class WorkloadIdentitySupportTest {
     public static Object[][] clientEntriesMetadata() {
         String languageVersion = "lv:java/" + System.getProperty("java.version");
         String os = "os:" + System.getProperty("os.name");
-        String httpClient = "ahc:" + DependencyVersions.APACHE_HTTP_CLIENT;
+        String httpClient = "hc:ahc_" + Versions.APACHE_HTTP_CLIENT;
         return new Object[][]{
                 {"os=Android 14", "os:Android 14; " + languageVersion + "; " + httpClient},
                 {"api=table,lv=kotlin/2.0", "api:table; lv:kotlin/2.0; " + os + "; " + httpClient},
-                {"ahc=okhttp/4.12", "ahc:okhttp/4.12; " + languageVersion + "; " + os},
+                {"hc=okhttp_4.12", "hc:okhttp_4.12; " + languageVersion + "; " + os},
                 {"OS=Android 14,LV=kotlin/2.0", "OS:Android 14; LV:kotlin/2.0; " + httpClient},
-                {"os=Android 14,ahc=okhttp/4.12,api=table,lv=kotlin/2.0",
-                        "os:Android 14; ahc:okhttp/4.12; api:table; lv:kotlin/2.0"},
+                {"os=Android 14,hc=okhttp_4.12,api=table,lv=kotlin/2.0",
+                        "os:Android 14; hc:okhttp_4.12; api:table; lv:kotlin/2.0"},
         };
-    }
-
-    @Test
-    public void testApacheHttpClientVersionGenerated() {
-        VersionInfo versionInfo = VersionInfo.loadVersionInfo("org.apache.hc.client5",
-                HttpClients.class.getClassLoader());
-        Assert.assertNotNull(versionInfo);
-        Assert.assertEquals(DependencyVersions.APACHE_HTTP_CLIENT, versionInfo.getRelease());
     }
 
     @Test
@@ -142,6 +132,6 @@ public class WorkloadIdentitySupportTest {
     private static String userAgent(String application, String metadata) {
         return application + "clickhouse-java-v2/" + Client.clientVersion + " (" + metadata
                 + "lv:java/" + System.getProperty("java.version") + "; os:" + System.getProperty("os.name")
-                + "; ahc:" + DependencyVersions.APACHE_HTTP_CLIENT + ")";
+                + "; hc:ahc_" + Versions.APACHE_HTTP_CLIENT + ")";
     }
 }

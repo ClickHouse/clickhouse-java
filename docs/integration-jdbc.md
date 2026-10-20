@@ -152,13 +152,13 @@ public void executeWorkloadTask(Connection conn, String taskName) throws SQLExce
 
 #### How it is observed on the server (`User-Agent` header)
 
-The JDBC driver communicates over HTTP and passes the client name as the leading segment of the HTTP `User-Agent` header. The driver automatically appends the JDBC driver version, detected frameworks (e.g. Apache Spark), the client version, and a comment group with the Java version (`lv`), the operating system (`os`), and the Apache HttpClient version (`ahc`):
+The JDBC driver communicates over HTTP and passes the client name as the leading segment of the HTTP `User-Agent` header. The driver automatically appends the JDBC driver version, detected frameworks (e.g. Apache Spark), the client version, and a comment group with the Java version (`lv`), the operating system (`os`), and the HTTP client (`hc`: `ahc_` and the Apache HttpClient version):
 
 ```text
-order-service/1.2.0 jdbc-v2/0.12.0 clickhouse-java-v2/0.12.0 (lv:java/17.0.2; os:Linux; ahc:5.6.4)
+order-service/1.2.0 jdbc-v2/0.12.0 clickhouse-java-v2/0.12.0 (lv:java/17.0.2; os:Linux; hc:ahc_5.6.4)
 ```
 
-To add key/value pairs to the comment group of the header, set the `client_id_metadata` property (for example, `client_id_metadata=fv=flink/2.0.0,api=table` gives `(fv:flink/2.0.0; api:table; lv:java/17.0.2; os:Linux; ahc:5.6.4)`).
+To add key/value pairs to the comment group of the header, set the `client_id_metadata` property (for example, `client_id_metadata=fv=flink/2.0.0,api=table` gives `(fv:flink/2.0.0; api:table; lv:java/17.0.2; os:Linux; hc:ahc_5.6.4)`).
 
 Always identify the application with the client name (`client_name` or `ApplicationName`). Do not set a custom `User-Agent` HTTP header for this: it replaces the application part of the header, including `jdbc-v2/<version>`.
 

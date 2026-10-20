@@ -15,16 +15,17 @@ import java.util.StringJoiner;
  * Builds the identification of the client and of the application that uses it. The identification is the value of
  * the {@code User-Agent} header, in the standard ClickHouse client format:
  * {@code <application> clickhouse-java-v2/<version> (<key>:<value>; ...; lv:java/<java.version>; os:<os.name>;
- * ahc:<Apache HttpClient version>)}.
+ * hc:ahc_<Apache HttpClient version>)}.
  * <p>
  * The application part is the client name ({@link ClientConfigProperties#CLIENT_NAME}), or the custom
  * {@code User-Agent} header if the application set one. The key/value pairs are the client metadata
- * ({@link ClientConfigProperties#CLIENT_ID_METADATA}). A transport sends the value of
- * {@link #getUserAgent(String, Map)} with every request, so the identification is the same for every transport.
+ * ({@link ClientConfigProperties#CLIENT_ID_METADATA}). The {@code hc} entry is the HTTP client that sends the requests:
+ * {@code ahc_} (Apache HttpClient) and its version.
  * <p>
- * The client metadata is validated when {@link Client.Builder#build()} parses the configuration. The client creates
- * one instance. The instance composes the value for the client configuration when it is created and when the client
- * name changes, and keeps it.
+ * The client metadata is validated when {@link Client.Builder#build()} parses the configuration. {@link Client}
+ * creates one instance and updates it when the client name changes. The instance composes the value for the client
+ * configuration at these times, and keeps it. A transport only sends the value of {@link #getUserAgent(String, Map)}
+ * with every request.
  */
 public final class WorkloadIdentitySupport {
 
@@ -34,7 +35,7 @@ public final class WorkloadIdentitySupport {
 
     private static final String METADATA_KEY_OS = "os";
 
-    private static final String METADATA_KEY_HTTP_CLIENT = "ahc";
+    private static final String METADATA_KEY_HTTP_CLIENT = "hc";
 
     /**
      * First and last characters of the printable ASCII range, which client metadata keys and values must be in.
@@ -147,29 +148,19 @@ public final class WorkloadIdentitySupport {
     /**
      * Composes the client part: {@code clickhouse-java-v2/<version> (<key>:<value>; ...)}. The key/value pairs are the
      * client metadata, if it is set, then {@code lv:java/<java.version>}, {@code os:<os.name>} and
-     * {@code ahc:<Apache HttpClient version>} if the client metadata does not set these keys (ignoring case).
+     * {@code hc:ahc_<Apache HttpClient version>} if the client metadata does not set these keys (ignoring case). The
+     * client sends requests over HTTP with Apache HttpClient ({@code ahc}).
      */
     private static String composeClientPart(Map<String, Object> configuration) {
         Map<String, String> metadata = new LinkedHashMap<>();
         ClientConfigProperties.CLIENT_ID_METADATA.<Map<String, String>>applyIfSet(configuration, metadata::putAll);
-        addIfNotSet(metadata, METADATA_KEY_LANGUAGE_VERSION, "java/" + System.getProperty("java.version"));
-        addIfNotSet(metadata, METADATA_KEY_OS, System.getProperty("os.name"));
-        addIfNotSet(metadata, METADATA_KEY_HTTP_CLIENT, DependencyVersions.APACHE_HTTP_CLIENT);
+        ClientUtils.putIfAbsentIgnoreCase(metadata, METADATA_KEY_LANGUAGE_VERSION,
+                "java/" + System.getProperty("java.version"));
+        ClientUtils.putIfAbsentIgnoreCase(metadata, METADATA_KEY_OS, System.getProperty("os.name"));
+        ClientUtils.putIfAbsentIgnoreCase(metadata, METADATA_KEY_HTTP_CLIENT, "ahc_" + Versions.APACHE_HTTP_CLIENT);
 
         StringJoiner comment = new StringJoiner("; ", Client.CLIENT_USER_AGENT + Client.clientVersion + " (", ")");
         metadata.forEach((key, value) -> comment.add(key + ":" + value));
         return comment.toString();
-    }
-
-    /**
-     * Adds the entry if the client metadata does not have the key. Keys are compared ignoring case.
-     */
-    private static void addIfNotSet(Map<String, String> metadata, String key, String value) {
-        for (String metadataKey : metadata.keySet()) {
-            if (metadataKey.equalsIgnoreCase(key)) {
-                return;
-            }
-        }
-        metadata.put(key, value);
     }
 }

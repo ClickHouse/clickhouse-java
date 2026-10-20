@@ -1,6 +1,6 @@
 package com.clickhouse.client.api;
 
-import com.clickhouse.client.api.internal.DependencyVersions;
+import com.clickhouse.client.api.internal.Versions;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.github.tomakehurst.wiremock.WireMockServer;
@@ -101,7 +101,7 @@ public class UserAgentUnitTest {
                         userAgent("my-app/1.0", null)},
                 {(Consumer<Client.Builder>) b -> b.setClientName("my-app/1.0", osMetadata),
                         "my-app/1.0 clickhouse-java-v2/" + Client.clientVersion + " (os:Android 14; api:table; lv:java/"
-                                + System.getProperty("java.version") + "; ahc:" + DependencyVersions.APACHE_HTTP_CLIENT
+                                + System.getProperty("java.version") + "; hc:ahc_" + Versions.APACHE_HTTP_CLIENT
                                 + ")"},
         };
     }
@@ -162,6 +162,6 @@ public class UserAgentUnitTest {
                 + " (" + (metadata == null ? "" : metadata + "; ")
                 + "lv:java/" + System.getProperty("java.version")
                 + "; os:" + System.getProperty("os.name")
-                + "; ahc:" + DependencyVersions.APACHE_HTTP_CLIENT + ")";
+                + "; hc:ahc_" + Versions.APACHE_HTTP_CLIENT + ")";
     }
 }

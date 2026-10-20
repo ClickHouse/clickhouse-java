@@ -25,6 +25,8 @@ import com.clickhouse.client.api.internal.HttpAPIClientHelper;
 import com.clickhouse.client.api.internal.MapUtils;
 import com.clickhouse.client.api.internal.TableSchemaParser;
 import com.clickhouse.client.api.internal.ValidationUtils;
+import com.clickhouse.client.api.internal.Versions;
+import com.clickhouse.client.api.internal.WorkloadIdentitySupport;
 import com.clickhouse.client.api.metadata.ColumnToMethodMatchingStrategy;
 import com.clickhouse.client.api.metadata.DefaultColumnToMethodMatchingStrategy;
 import com.clickhouse.client.api.metadata.TableSchema;
@@ -49,7 +51,6 @@ import com.clickhouse.client.api.transport.Endpoint;
 import com.clickhouse.client.api.transport.HttpEndpoint;
 import com.clickhouse.client.api.transport.internal.TransportRequest;
 import com.clickhouse.client.api.transport.internal.TransportResponse;
-import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
@@ -128,6 +129,8 @@ public class Client implements AutoCloseable {
     private static final int REQ_REGISTRY_SIZE = 1000; // initial capacity hint for the ongoing-request registry, not a hard limit; no separate config needed.
 
     private HttpAPIClientHelper httpClientHelper = null;
+
+    private final WorkloadIdentitySupport workloadIdentitySupport;
 
     private final List<Endpoint> endpoints;
     private final Map<String, Object> configuration;
@@ -235,8 +238,9 @@ public class Client implements AutoCloseable {
             this.lz4Factory = LZ4Factory.fastestJavaInstance();
         }
 
+        this.workloadIdentitySupport = new WorkloadIdentitySupport(this.configuration);
         this.httpClientHelper = new HttpAPIClientHelper(this.configuration, metricsRegistry, initSslContext, lz4Factory,
-                this.spanRecorder);
+                this.spanRecorder, this.workloadIdentitySupport);
         this.serverVersion = configuration.getOrDefault(ClientConfigProperties.SERVER_VERSION.getKey(), "unknown");
         this.dbUser = configuration.getOrDefault(ClientConfigProperties.USER.getKey(), ClientConfigProperties.USER.getDefObjVal());
         this.typeHintMapping = (Map<ClickHouseDataType, Class<?>>) this.configuration.get(ClientConfigProperties.TYPE_HINT_MAPPING.getKey());
@@ -1163,10 +1167,10 @@ public class Client implements AutoCloseable {
          * Sets the client name and the client metadata, which identify the application to the server. See
          * {@link #setClientName(String)} for the client name. The client adds the metadata to the comment group of the
          * {@code User-Agent} header, in the iteration order of {@code metadata}, and then its own {@code lv},
-         * {@code os} and {@code ahc} (Apache HttpClient version) entries if the metadata does not set these keys. For
-         * example, the client name {@code my-app/1.0} and the metadata {@code fv=flink/2.0.0} and {@code api=table} give
+         * {@code os} and {@code hc} (HTTP client) entries if the metadata does not set these keys. For example, the
+         * client name {@code my-app/1.0} and the metadata {@code fv=flink/2.0.0} and {@code api=table} give
          * {@code my-app/1.0 clickhouse-java-v2/<version> (fv:flink/2.0.0; api:table; lv:java/<java.version>;
-         * os:<os.name>; ahc:<version>)}.
+         * os:<os.name>; hc:ahc_<Apache HttpClient version>)}.
          * <p>
          * Keys and values are trimmed, and entries with an empty key or value are ignored. Keys and values must be
          * printable ASCII, a key must not contain spaces or any of {@code :;(),=}, and a value must not contain any of
@@ -2607,7 +2611,7 @@ public class Client implements AutoCloseable {
      */
     public void updateClientName(String name) {
         this.configuration.put(ClientConfigProperties.CLIENT_NAME.getKey(), name);
-        this.httpClientHelper.updateClientName(this.configuration);
+        this.workloadIdentitySupport.updateClientName(this.configuration);
     }
 
     /**
@@ -2618,8 +2622,8 @@ public class Client implements AutoCloseable {
         this.session.updateSessionId(sessionId);
     }
 
-    public static final String clientVersion =
-            ClickHouseClientOption.readVersionFromResource("client-v2-version.properties");
+    // not a compile-time constant, so that code compiled against another version reads the version of this client
+    public static final String clientVersion = String.valueOf(Versions.CLIENT);
     public static final String CLIENT_USER_AGENT = "clickhouse-java-v2/";
 
     private Collection<String> unmodifiableDbRolesView = Collections.emptyList();
