@@ -1162,28 +1162,28 @@ public class Client implements AutoCloseable {
         /**
          * Sets the client name and the client metadata, which identify the application to the server. See
          * {@link #setClientName(String)} for the client name. The client adds the metadata to the comment group of the
-         * {@code User-Agent} header, in the iteration order of {@code metadata}, before its own {@code lv} and
-         * {@code os} entries. For example, the client name {@code my-app/1.0} and the metadata {@code fv=flink/2.0.0}
-         * and {@code api=table} give
-         * {@code my-app/1.0 clickhouse-java-v2/<version> (fv:flink/2.0.0; api:table; lv:java/<java.version>; os:<os.name>)}.
+         * {@code User-Agent} header, in the iteration order of {@code metadata}, and then its own {@code lv},
+         * {@code os} and {@code ahc} (Apache HttpClient version) entries if the metadata does not set these keys. For
+         * example, the client name {@code my-app/1.0} and the metadata {@code fv=flink/2.0.0} and {@code api=table} give
+         * {@code my-app/1.0 clickhouse-java-v2/<version> (fv:flink/2.0.0; api:table; lv:java/<java.version>;
+         * os:<os.name>; ahc:<version>)}.
          * <p>
          * Keys and values are trimmed, and entries with an empty key or value are ignored. Keys and values must be
-         * printable ASCII, a key must not contain spaces or any of {@code :;(),=}, a value must not contain any of
-         * {@code ;()}, and the keys {@code lv} and {@code os} are reserved; otherwise {@link #build()} throws
-         * {@link ClientMisconfigurationException}. The metadata is a client-level setting: it is kept when the client
-         * name changes with {@link Client#updateClientName(String)}.
+         * printable ASCII, a key must not contain spaces or any of {@code :;(),=}, and a value must not contain any of
+         * {@code ;()}; otherwise {@link #build()} throws {@link ClientMisconfigurationException}. The metadata is a
+         * client-level setting: it is kept when the client name changes with {@link Client#updateClientName(String)}.
          *
          * @param clientName - client application name, for example {@code my-app/1.0}
          * @param metadata - key/value pairs; {@code null} or empty removes the previously set metadata
          * @return same instance of the builder
-         * @see ClientConfigProperties#CLIENT_METADATA
+         * @see ClientConfigProperties#CLIENT_ID_METADATA
          */
         public Builder setClientName(String clientName, Map<String, String> metadata) {
             setClientName(clientName);
             if (metadata == null || metadata.isEmpty()) {
-                this.configuration.remove(ClientConfigProperties.CLIENT_METADATA.getKey());
+                this.configuration.remove(ClientConfigProperties.CLIENT_ID_METADATA.getKey());
             } else {
-                this.configuration.put(ClientConfigProperties.CLIENT_METADATA.getKey(),
+                this.configuration.put(ClientConfigProperties.CLIENT_ID_METADATA.getKey(),
                         ClientConfigProperties.fromKeyValuePairs(metadata));
             }
             return this;
@@ -2607,7 +2607,7 @@ public class Client implements AutoCloseable {
      */
     public void updateClientName(String name) {
         this.configuration.put(ClientConfigProperties.CLIENT_NAME.getKey(), name);
-        this.httpClientHelper.updateWorkloadIdentity(this.configuration);
+        this.httpClientHelper.updateClientName(this.configuration);
     }
 
     /**

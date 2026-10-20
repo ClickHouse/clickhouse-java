@@ -86,6 +86,7 @@ public class ClientConfigPropertiesTest {
                 {" api = table , os_version = Mac OS X ", new String[]{"api", "table", "os_version", "Mac OS X"}},
                 {"url=http://host:8123/path?x=1", new String[]{"url", "http://host:8123/path?x=1"}},
                 {"ver~=~1.0", new String[]{"ver~", "~1.0"}},
+                {"os=Android 14,lv=java/8", new String[]{"os", "Android 14", "lv", "java/8"}},
                 {"api=,fv=flink/2.0.0,=x", new String[]{"fv", "flink/2.0.0"}},
                 {"", new String[0]},
         };
@@ -97,7 +98,7 @@ public class ClientConfigPropertiesTest {
         for (int i = 0; i < expectedEntries.length; i += 2) {
             expected.put(expectedEntries[i], expectedEntries[i + 1]);
         }
-        Map<?, ?> parsed = (Map<?, ?>) ClientConfigProperties.CLIENT_METADATA.parseValue(raw);
+        Map<?, ?> parsed = (Map<?, ?>) ClientConfigProperties.CLIENT_ID_METADATA.parseValue(raw);
         Assert.assertEquals(new ArrayList<>(parsed.entrySet()), new ArrayList<>(expected.entrySet()));
     }
 
@@ -107,7 +108,6 @@ public class ClientConfigPropertiesTest {
                 {"a:b=c"}, {"a;b=c"}, {"a(b=c"}, {"a)b=c"}, {"a\\,b=c"}, {"a\\=b=c"}, {"my key=c"},
                 {"k=v;x"}, {"k=v(x"}, {"k=v)x"},
                 {"k=a\nb"}, {"k=a\tb"}, {"k=a\u001fb"}, {"k=a\u007fb"}, {"k\u007f=v"}, {"k=caf\u00e9"}, {"k\u00e9=v"},
-                {"lv=java/8"}, {"os=Linux"}, {"OS=Linux"},
                 {"fv=flink/2.0.0,api=table; lv:java/8"},
                 {",api=table"}, {"fv=flink/2.0.0,,api=table"}, {"fv=flink/2.0.0,api,ver=1"},
         };
@@ -116,12 +116,12 @@ public class ClientConfigPropertiesTest {
     @Test(groups = {"unit"}, dataProvider = "invalidClientMetadata")
     public void testInvalidClientMetadataRejected(String raw) {
         Assert.expectThrows(ClientMisconfigurationException.class,
-                () -> ClientConfigProperties.CLIENT_METADATA.parseValue(raw));
+                () -> ClientConfigProperties.CLIENT_ID_METADATA.parseValue(raw));
     }
 
     @Test(groups = {"unit"})
     public void testClientMetadataUnsetParsesToNull() {
-        Assert.assertNull(ClientConfigProperties.CLIENT_METADATA.parseValue(null));
+        Assert.assertNull(ClientConfigProperties.CLIENT_ID_METADATA.parseValue(null));
     }
 
     @Test(groups = {"unit"})

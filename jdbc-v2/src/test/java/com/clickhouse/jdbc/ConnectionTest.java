@@ -7,6 +7,7 @@ import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.ServerException;
+import com.clickhouse.client.api.internal.DependencyVersions;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.data.ClickHouseFormat;
@@ -391,13 +392,14 @@ public class ConnectionTest extends JdbcIntegrationTest {
         info.setProperty(ClientConfigProperties.DATABASE.getKey(), ClickHouseServerForTest.getDatabase());
         String url = getEndpointString();
         if (setInUrl) {
-            url += "?" + ClientConfigProperties.CLIENT_METADATA.getKey() + "=" + metadata;
+            url += "?" + ClientConfigProperties.CLIENT_ID_METADATA.getKey() + "=" + metadata;
         } else {
-            info.setProperty(ClientConfigProperties.CLIENT_METADATA.getKey(), metadata);
+            info.setProperty(ClientConfigProperties.CLIENT_ID_METADATA.getKey(), metadata);
         }
 
         String expectedSuffix = "clickhouse-java-v2/" + Client.clientVersion + " (fv:flink/2.0.0; api:table; lv:java/"
-                + System.getProperty("java.version") + "; os:" + System.getProperty("os.name") + ")";
+                + System.getProperty("java.version") + "; os:" + System.getProperty("os.name") + "; ahc:"
+                + DependencyVersions.APACHE_HTTP_CLIENT + ")";
         try (Connection localConnection = new ConnectionImpl(url, info);
              Statement stmt = localConnection.createStatement()) {
             String userAgent = executeQueryAndVerifyUserAgent(stmt, null);

@@ -265,7 +265,7 @@ public enum ClientConfigProperties {
      * setting: it is not read from operation settings. See {@link Client.Builder#setClientName(String, Map)} for the
      * format and the rules for keys and values.
      */
-    CLIENT_METADATA("client_metadata", Map.class) {
+    CLIENT_ID_METADATA("client_id_metadata", Map.class) {
         @Override
         @SuppressWarnings("unchecked")
         public Object parseValue(String value) {

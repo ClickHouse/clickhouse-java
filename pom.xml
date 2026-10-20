@@ -139,6 +139,7 @@
         <source-plugin.version>3.3.1</source-plugin.version>
         <staging-plugin.version>1.6.13</staging-plugin.version>
         <surefire-plugin.version>3.5.3</surefire-plugin.version>
+        <templating-plugin.version>3.0.0</templating-plugin.version>
         <toolchains-plugin.version>3.2.0</toolchains-plugin.version>
         <versions-plugin.version>2.18.0</versions-plugin.version>
         <resource-plugin.version>3.3.1</resource-plugin.version>
@@ -472,6 +473,11 @@
                     <groupId>org.codehaus.mojo</groupId>
                     <artifactId>build-helper-maven-plugin</artifactId>
                     <version>${helper-plugin.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.codehaus.mojo</groupId>
+                    <artifactId>templating-maven-plugin</artifactId>
+                    <version>${templating-plugin.version}</version>
                 </plugin>
                 <plugin>
                     <groupId>org.codehaus.mojo</groupId>

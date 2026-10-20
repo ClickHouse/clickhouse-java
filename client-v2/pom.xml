@@ -232,6 +232,19 @@
                 </configuration>
             </plugin>
             <plugin>
+                <!-- generates classes from src/main/java-templates, for example the versions of dependencies -->
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>templating-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>filter-sources</id>
+                        <goals>
+                            <goal>filter-sources</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-assembly-plugin</artifactId>
                 <configuration>

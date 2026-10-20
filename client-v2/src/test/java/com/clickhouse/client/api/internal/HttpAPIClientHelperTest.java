@@ -553,7 +553,7 @@ public class HttpAPIClientHelperTest {
 
         HttpAPIClientHelper helper = newHelper("my-app/1.0");
         assertFalse(captureStdErr(() -> userAgentHeader(helper, overLimit)).contains(warning));
-        assertTrue(captureStdErr(() -> helper.updateWorkloadIdentity(clientNameConfig(overLimit))).contains(warning));
+        assertTrue(captureStdErr(() -> helper.updateClientName(clientNameConfig(overLimit))).contains(warning));
     }
 
     private static HttpAPIClientHelper newHelper(String clientName) {
@@ -574,7 +574,7 @@ public class HttpAPIClientHelperTest {
 
     private static String clientPart() {
         return "clickhouse-java-v2/" + Client.clientVersion + " (lv:java/" + System.getProperty("java.version")
-                + "; os:" + System.getProperty("os.name") + ")";
+                + "; os:" + System.getProperty("os.name") + "; ahc:" + DependencyVersions.APACHE_HTTP_CLIENT + ")";
     }
 
     private static String headerValue(HttpPost req, String name) {

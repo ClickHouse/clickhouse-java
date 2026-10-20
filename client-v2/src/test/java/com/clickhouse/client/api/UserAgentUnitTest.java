@@ -1,5 +1,6 @@
 package com.clickhouse.client.api;
 
+import com.clickhouse.client.api.internal.DependencyVersions;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.github.tomakehurst.wiremock.WireMockServer;
@@ -54,6 +55,10 @@ public class UserAgentUnitTest {
         flinkMetadata.put("fv", "flink/2.0.0");
         flinkMetadata.put("api", "table");
 
+        Map<String, String> osMetadata = new LinkedHashMap<>();
+        osMetadata.put("os", "Android 14");
+        osMetadata.put("api", "table");
+
         Map<String, String> withEmptyValue = new LinkedHashMap<>();
         withEmptyValue.put("api", "");
         withEmptyValue.put("fv", "flink/2.0.0");
@@ -62,7 +67,7 @@ public class UserAgentUnitTest {
                 {(Consumer<Client.Builder>) b -> { }, userAgent(null, null)},
                 {(Consumer<Client.Builder>) b -> b.setClientName("Flink-ClickHouse-Sink/0.2.0", flinkMetadata),
                         userAgent("Flink-ClickHouse-Sink/0.2.0", "fv:flink/2.0.0; api:table")},
-                {(Consumer<Client.Builder>) b -> b.setOption(ClientConfigProperties.CLIENT_METADATA.getKey(),
+                {(Consumer<Client.Builder>) b -> b.setOption(ClientConfigProperties.CLIENT_ID_METADATA.getKey(),
                         "api=table, fv=flink/2.0.0"),
                         userAgent(null, "api:table; fv:flink/2.0.0")},
                 {(Consumer<Client.Builder>) b -> b.setClientName("my-app/1.0",
@@ -74,10 +79,10 @@ public class UserAgentUnitTest {
                         userAgent(null, "fv:flink/2.0.0; api:table")},
                 {(Consumer<Client.Builder>) b -> b.setClientName(" ", flinkMetadata),
                         userAgent(null, "fv:flink/2.0.0; api:table")},
-                {(Consumer<Client.Builder>) b -> b.setOption(ClientConfigProperties.CLIENT_METADATA.getKey(), "api=table")
+                {(Consumer<Client.Builder>) b -> b.setOption(ClientConfigProperties.CLIENT_ID_METADATA.getKey(), "api=table")
                         .setClientName("my-app/1.0"),
                         userAgent("my-app/1.0", "api:table")},
-                {(Consumer<Client.Builder>) b -> b.setOption(ClientConfigProperties.CLIENT_METADATA.getKey(), "api=table")
+                {(Consumer<Client.Builder>) b -> b.setOption(ClientConfigProperties.CLIENT_ID_METADATA.getKey(), "api=table")
                         .setClientName("my-app/1.0", flinkMetadata),
                         userAgent("my-app/1.0", "fv:flink/2.0.0; api:table")},
                 {(Consumer<Client.Builder>) b -> b.setClientName("my-app/1.0", flinkMetadata)
@@ -94,6 +99,10 @@ public class UserAgentUnitTest {
                         userAgent("custom-agent/2.0", "api:table")},
                 {(Consumer<Client.Builder>) b -> b.setClientName(" my-app/1.0 "),
                         userAgent("my-app/1.0", null)},
+                {(Consumer<Client.Builder>) b -> b.setClientName("my-app/1.0", osMetadata),
+                        "my-app/1.0 clickhouse-java-v2/" + Client.clientVersion + " (os:Android 14; api:table; lv:java/"
+                                + System.getProperty("java.version") + "; ahc:" + DependencyVersions.APACHE_HTTP_CLIENT
+                                + ")"},
         };
     }
 
@@ -107,8 +116,17 @@ public class UserAgentUnitTest {
             assertUserAgent(client, new QuerySettings().httpHeader(HttpHeaders.USER_AGENT, "op-agent/3.0"),
                     userAgent("op-agent/3.0", "api:table"));
             assertUserAgent(client, (QuerySettings) new QuerySettings()
-                            .setOption(ClientConfigProperties.CLIENT_METADATA.getKey(), "fv=flink/2.0.0"),
+                            .setOption(ClientConfigProperties.CLIENT_ID_METADATA.getKey(), "fv=flink/2.0.0"),
                     userAgent("new-app/2.0", "api:table"));
+        }
+    }
+
+    @Test
+    public void testBlankOperationClientNameGetsClientValue() throws Exception {
+        try (Client client = newClientBuilder().setClientName("my-app/1.0").build()) {
+            assertUserAgent(client, (QuerySettings) new QuerySettings()
+                            .setOption(ClientConfigProperties.CLIENT_NAME.getKey(), " "),
+                    userAgent("my-app/1.0", null));
         }
     }
 
@@ -143,6 +161,7 @@ public class UserAgentUnitTest {
                 + "clickhouse-java-v2/" + Client.clientVersion
                 + " (" + (metadata == null ? "" : metadata + "; ")
                 + "lv:java/" + System.getProperty("java.version")
-                + "; os:" + System.getProperty("os.name") + ")";
+                + "; os:" + System.getProperty("os.name")
+                + "; ahc:" + DependencyVersions.APACHE_HTTP_CLIENT + ")";
     }
 }

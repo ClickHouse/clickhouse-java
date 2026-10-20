@@ -264,7 +264,7 @@ Configuration is defined during client creation. See `com.clickhouse.client.api.
 | `allowBinaryReaderToReuseBuffers(boolean reuse)` | `reuse` - flag to enable/disable | If enabled, reader will use pre-allocated buffers to do numbers transcoding. Reduces GC pressure for numeric data. | - | - |
 | `columnToMethodMatchingStrategy(ColumnToMethodMatchingStrategy strategy)` | `strategy` - matching strategy implementation | Sets custom strategy to be used for matching DTO class fields and DB columns when registering DTO. | `none` | `none` |
 | `setClientName(String clientName)` | `clientName` - application name string | Sets the client name, which identifies the application. Will be passed as the first part of the `User-Agent` header. Use it instead of setting the `User-Agent` header. Does not change the client metadata. | - | `client_name` |
-| `setClientName(String clientName, Map<String, String> metadata)` | `clientName` - application name string<br/>`metadata` - key/value pairs | Sets the client name and the client metadata. The metadata is added to the comment group of the `User-Agent` header, in the iteration order of the map, before the `lv` and `os` entries. Keys and values must be printable ASCII, a key must not contain spaces or any of `:;(),=`, a value must not contain any of `;()`, and the keys `lv` and `os` are reserved. As a property, the value is written as `key1=value1,key2=value2` (escape a `,` or `\` in a value with `\`). Client-level only: not read from operation settings. | - | `client_metadata` |
+| `setClientName(String clientName, Map<String, String> metadata)` | `clientName` - application name string<br/>`metadata` - key/value pairs | Sets the client name and the client metadata. The metadata is added to the comment group of the `User-Agent` header, in the iteration order of the map, then the `lv`, `os` and `ahc` entries if the map does not set these keys. Keys and values must be printable ASCII, a key must not contain spaces or any of `:;(),=`, and a value must not contain any of `;()`. As a property, the value is written as `key1=value1,key2=value2` (escape a `,` or `\` in a value with `\`). Client-level only: not read from operation settings. | - | `client_id_metadata` |
 | `registerClientMetrics(Object registry, String name)` | `registry` - Micrometer registry instance<br/>`name` - metrics group name | Registers sensors with Micrometer (https://micrometer.io/) registry instance. | - | - |
 | `setServerVersion(String version)` | `version` - server version string | Sets server version to avoid version detection. | - | `server_version` |
 | `typeHintMapping(Map typeHintMapping)` | `typeHintMapping` - map of type hints | Sets type hint mapping for ClickHouse types. For example, to make multidimensional arrays be present as Java containers. | - | `type_hint_mapping` |
@@ -278,8 +278,8 @@ Configuration is defined during client creation. See `com.clickhouse.client.api.
 There are two fields in a query log that identify application originated a request: `client_name` and `http_user_agent`. Native TCP protocol uses
 `client_name` to identify application. HTTP protocol uses `http_user_agent` to identify application. Client builder has method `setClientName` correct values
 for both protocols.
-The field `http_user_agent` is set according to the standard ClickHouse client format: `<application>/<version> clickhouse-java-v2/<version> (<key>:<value>; ...; lv:java/<java version>; os:<operating system>)`.
-What is set by `setClientName` method comes first. Key/value pairs set by `setClientName(String, Map)` are added to the comment group before `lv` and `os`.
+The field `http_user_agent` is set according to the standard ClickHouse client format: `<application>/<version> clickhouse-java-v2/<version> (<key>:<value>; ...; lv:java/<java version>; os:<operating system>; ahc:<Apache HttpClient version>)`.
+What is set by `setClientName` method comes first. Key/value pairs set by `setClientName(String, Map)` are added to the comment group, then `lv`, `os` and `ahc` if the pairs do not set these keys.
 
 For example:
 ```java showLineNumbers
@@ -294,7 +294,7 @@ Client client = new Client.Builder()
 ```
 will result in the following `http_user_agent` value:
 ```
-my-app-01/1.0 clickhouse-java-v2/0.12.0 (fv:flink/2.0.0; api:table; lv:java/17.0.17; os:Linux)
+my-app-01/1.0 clickhouse-java-v2/0.12.0 (fv:flink/2.0.0; api:table; lv:java/17.0.17; os:Linux; ahc:5.6.4)
 ```
 
 Use `setClientName` to identify the application. Do not set the `User-Agent` header for this: a custom `User-Agent` header replaces
