@@ -792,7 +792,7 @@ public class SerializerUtilsTest {
         Assert.assertSame(SerializerUtils.stringValueToByteArray(bytes), bytes);
     }
 
-    @Test(dataProvider = "nonArrayValuesForArrayColumns", expectedExceptions = IllegalArgumentException.class)
+    @Test(dataProvider = "nonArrayValuesForArrayColumns", expectedExceptions = ClientException.class)
     public void testSerializeArrayDataRejectsNonArrayValue(String typeName, Object value) throws Exception {
         SerializerUtils.serializeData(new ByteArrayOutputStream(), value, ClickHouseColumn.of("v", typeName));
     }
@@ -818,7 +818,7 @@ public class SerializerUtilsTest {
         SerializerUtils.serializeData(out, 1, ClickHouseColumn.of("id", "UInt32"));
         int afterId = out.size();
 
-        Assert.assertThrows(IllegalArgumentException.class, () ->
+        Assert.assertThrows(ClientException.class, () ->
                 SerializerUtils.serializeData(out, "not-an-array", ClickHouseColumn.of("val", "Array(String)")));
 
         Assert.assertEquals(out.size(), afterId);
