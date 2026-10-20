@@ -17,13 +17,15 @@ public final class HttpAPIClientHelperFactory {
 
     /**
      * Creates a helper with no metrics registry, no SSL context and observability disabled - the
-     * configuration every test that does not exercise those features needs.
+     * configuration every test that does not exercise those features needs. The helper gets a new
+     * {@link WorkloadIdentitySupport} for {@code configuration}, as {@code Client} gives it one.
      *
      * @param configuration - client configuration
      * @param lz4Factory    - LZ4 factory the helper should use
      * @return a new helper instance
      */
     public static HttpAPIClientHelper newHelper(Map<String, Object> configuration, LZ4Factory lz4Factory) {
-        return new HttpAPIClientHelper(configuration, null, false, lz4Factory, DefaultSpanRecorder.NOOP);
+        return new HttpAPIClientHelper(configuration, null, false, lz4Factory, DefaultSpanRecorder.NOOP,
+                new WorkloadIdentitySupport(configuration));
     }
 }

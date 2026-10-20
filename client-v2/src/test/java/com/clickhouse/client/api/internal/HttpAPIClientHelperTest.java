@@ -1,5 +1,6 @@
 package com.clickhouse.client.api.internal;
 
+import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientFaultCause;
 import com.clickhouse.client.api.ServerException;
@@ -54,6 +55,7 @@ import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertNull;
+import static org.testng.Assert.assertSame;
 import static org.testng.Assert.assertTrue;
 
 public class HttpAPIClientHelperTest {
@@ -510,6 +512,76 @@ public class HttpAPIClientHelperTest {
         reqConfig.put(ClientConfigProperties.USE_HTTP_COMPRESSION.getKey(), useHttpCompression);
         reqConfig.put(ClientConfigProperties.HTTP_SEND_PARAMS_IN_BODY.getKey(), sendParamsInBody);
         return reqConfig;
+    }
+
+    /**
+     * {@link Client#updateClientName(String)} composes the {@code User-Agent} value again and keeps it, so every
+     * following request with that client name gets the same value.
+     */
+    @Test
+    public void testUserAgentKeptAfterClientNameUpdate() throws Exception {
+        try (Client client = newClient("my-app/1.0")) {
+            client.updateClientName("new-app/2.0");
+            HttpAPIClientHelper helper = helperOf(client);
+
+            String userAgent = userAgentHeader(helper, "new-app/2.0");
+            assertEquals(userAgent, "new-app/2.0 " + clientPart());
+            assertSame(userAgentHeader(helper, "new-app/2.0"), userAgent);
+        }
+    }
+
+    /**
+     * A {@code User-Agent} value of the client configuration that is longer than 200 characters is logged as a
+     * warning, when the client is created and when the client name changes. A value composed for one request is not
+     * logged, so that the log does not repeat for every request.
+     */
+    @Test
+    public void testLongUserAgentLoggedAsWarning() throws Exception {
+        String atLimit = String.join("", Collections.nCopies(200 - 1 - clientPart().length(), "x"));
+        String overLimit = atLimit + "x";
+        String warning = "The User-Agent value is ";
+
+        assertFalse(captureStdErr(() -> newClient(atLimit).close()).contains(warning));
+        assertTrue(captureStdErr(() -> newClient(overLimit).close())
+                .contains(warning + "201 characters long, more than 200"));
+
+        try (Client client = newClient("my-app/1.0")) {
+            HttpAPIClientHelper helper = helperOf(client);
+            assertFalse(captureStdErr(() -> userAgentHeader(helper, overLimit)).contains(warning));
+            assertTrue(captureStdErr(() -> client.updateClientName(overLimit)).contains(warning));
+        }
+    }
+
+    private static Client newClient(String clientName) {
+        return new Client.Builder()
+                .addEndpoint("http://localhost:8123")
+                .setUsername("default")
+                .setPassword("")
+                .setClientName(clientName)
+                .build();
+    }
+
+    private static HttpAPIClientHelper helperOf(Client client) throws Exception {
+        Field helperField = Client.class.getDeclaredField("httpClientHelper");
+        helperField.setAccessible(true);
+        return (HttpAPIClientHelper) helperField.get(client);
+    }
+
+    private static Map<String, Object> clientNameConfig(String clientName) {
+        Map<String, Object> config = new HashMap<>();
+        config.put(ClientConfigProperties.CLIENT_NAME.getKey(), clientName);
+        return config;
+    }
+
+    private static String userAgentHeader(HttpAPIClientHelper helper, String clientName) {
+        HttpPost req = helper.createRequest(new HttpEndpoint("localhost", 8123, false, "/"),
+                clientNameConfig(clientName), "SELECT 1").getDelegate();
+        return headerValue(req, HttpHeaders.USER_AGENT);
+    }
+
+    private static String clientPart() {
+        return "clickhouse-java-v2/" + Client.clientVersion + " (lv:java/" + System.getProperty("java.version")
+                + "; os:" + System.getProperty("os.name") + "; hc:ahc_" + Versions.APACHE_HTTP_CLIENT + ")";
     }
 
     private static String headerValue(HttpPost req, String name) {
