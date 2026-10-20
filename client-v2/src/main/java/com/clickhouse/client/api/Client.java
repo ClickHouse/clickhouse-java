@@ -1172,10 +1172,11 @@ public class Client implements AutoCloseable {
          * {@code my-app/1.0 clickhouse-java-v2/<version> (fv:flink/2.0.0; api:table; lv:java/<java.version>;
          * os:<os.name>; hc:ahc_<Apache HttpClient version>)}.
          * <p>
-         * Keys and values are trimmed, and entries with an empty key or value are ignored. Keys and values must be
-         * printable ASCII, a key must not contain spaces or any of {@code :;(),=}, and a value must not contain any of
-         * {@code ;()}; otherwise {@link #build()} throws {@link ClientMisconfigurationException}. The metadata is a
-         * client-level setting: it is kept when the client name changes with {@link Client#updateClientName(String)}.
+         * Keys and values are trimmed, and entries with a {@code null} or empty key or value are ignored. Keys and
+         * values must be printable ASCII, a key must not contain spaces or any of {@code :;(),=}, and a value must not
+         * contain any of {@code ;()}; otherwise {@link #build()} throws {@link ClientMisconfigurationException}. The
+         * metadata is a client-level setting: it is kept when the client name changes with
+         * {@link Client#updateClientName(String)}.
          *
          * @param clientName - client application name, for example {@code my-app/1.0}
          * @param metadata - key/value pairs; {@code null} or empty removes the previously set metadata

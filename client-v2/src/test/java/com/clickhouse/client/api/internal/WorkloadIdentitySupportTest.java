@@ -7,131 +7,145 @@ import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
 public class WorkloadIdentitySupportTest {
 
-    @Test
-    public void testUserAgentComposedOncePerClient() {
-        Map<String, String> rawConfig = new HashMap<>();
-        rawConfig.put(ClientConfigProperties.CLIENT_NAME.getKey(), "my-app/1.0");
-        rawConfig.put(ClientConfigProperties.CLIENT_ID_METADATA.getKey(), "api=table");
-        Map<String, Object> config = ClientConfigProperties.parseConfigMap(rawConfig);
+    private static final String NAME = ClientConfigProperties.CLIENT_NAME.getKey();
+
+    private static final String METADATA = ClientConfigProperties.CLIENT_ID_METADATA.getKey();
+
+    private static final String USER_AGENT = ClientConfigProperties.httpHeader(HttpHeaders.USER_AGENT);
+
+    private static final String LANGUAGE_VERSION = "lv:java/" + System.getProperty("java.version");
+
+    private static final String OS = "os:" + System.getProperty("os.name");
+
+    private static final String HTTP_CLIENT = "hc:ahc_" + Versions.APACHE_HTTP_CLIENT;
+
+    @Test(dataProvider = "requestUserAgents")
+    public void testGetUserAgent(Map<String, String> clientSettings, String customUserAgent, String requestClientName,
+                                 String expected) {
+        Map<String, Object> config = ClientConfigProperties.parseConfigMap(clientSettings);
         WorkloadIdentitySupport identity = new WorkloadIdentitySupport(config);
-
-        String userAgent = identity.getUserAgent(null, config);
-        Assert.assertEquals(userAgent, userAgent("my-app/1.0 ", "api:table; "));
-        Assert.assertSame(identity.getUserAgent(null, new HashMap<>(config)), userAgent);
-        Assert.assertSame(identity.getUserAgent(" ", config), userAgent);
-
+        String clientUserAgent = clientUserAgent(identity, config);
         Map<String, Object> requestConfig = new HashMap<>(config);
-        requestConfig.put(ClientConfigProperties.CLIENT_NAME.getKey(), "op-app/3.0");
-        Assert.assertEquals(identity.getUserAgent(null, requestConfig), userAgent("op-app/3.0 ", "api:table; "));
-        Assert.assertEquals(identity.getUserAgent(" custom-agent/2.0 ", config),
-                userAgent("custom-agent/2.0 ", "api:table; "));
+        if (requestClientName != null) {
+            requestConfig.put(NAME, requestClientName);
+        }
 
-        Assert.assertSame(identity.getUserAgent(null, config), userAgent);
+        String userAgent = identity.getUserAgent(customUserAgent, requestConfig);
+
+        Assert.assertEquals(userAgent, expected);
+        if (expected.equals(clientUserAgent)) {
+            Assert.assertSame(userAgent, clientUserAgent);
+        }
+        Assert.assertSame(clientUserAgent(identity, config), clientUserAgent);
     }
 
-    @Test
-    public void testUserAgentComposedOnceForConfiguredHeader() {
-        Map<String, String> rawConfig = new HashMap<>();
-        rawConfig.put(ClientConfigProperties.CLIENT_NAME.getKey(), "my-app/1.0");
-        rawConfig.put(ClientConfigProperties.httpHeader(HttpHeaders.USER_AGENT), "custom-agent/2.0");
-        Map<String, Object> config = ClientConfigProperties.parseConfigMap(rawConfig);
+    @DataProvider(name = "requestUserAgents")
+    public static Object[][] requestUserAgents() {
+        return new Object[][]{
+                {settings(), null, null, userAgent(null)},
+                {settings(METADATA, ""), null, null, userAgent(null)},
+                {settings(NAME, "my-app/1.0"), null, null, userAgent("my-app/1.0")},
+                {settings(NAME, " my-app/1.0 "), null, null, userAgent("my-app/1.0")},
+                {settings(NAME, "my-app/1.0", METADATA, "api=table"), null, null,
+                        userAgent("my-app/1.0", "api:table")},
+                {settings(NAME, "my-app/1.0"), " ", null, userAgent("my-app/1.0")},
+                {settings(NAME, "my-app/1.0"), null, "", userAgent("my-app/1.0")},
+                {settings(NAME, "my-app/1.0"), "", " ", userAgent("my-app/1.0")},
+                {settings(NAME, "my-app/1.0", METADATA, "api=table"), null, "op-app/3.0",
+                        userAgent("op-app/3.0", "api:table")},
+                {settings(NAME, "my-app/1.0", METADATA, "api=table"), " custom-agent/2.0 ", null,
+                        userAgent("custom-agent/2.0", "api:table")},
+                {settings(NAME, "my-app/1.0", USER_AGENT, "custom-agent/2.0"), "custom-agent/2.0", null,
+                        userAgent("custom-agent/2.0")},
+                {settings(NAME, "my-app/1.0", USER_AGENT, "custom-agent/2.0"), null, null,
+                        userAgent("my-app/1.0")},
+        };
+    }
+
+    @Test(dataProvider = "clientNameUpdates")
+    public void testUpdateClientName(Map<String, String> clientSettings, String clientName, String expected) {
+        Map<String, Object> config = ClientConfigProperties.parseConfigMap(clientSettings);
         WorkloadIdentitySupport identity = new WorkloadIdentitySupport(config);
-
-        String userAgent = identity.getUserAgent("custom-agent/2.0", config);
-        Assert.assertEquals(userAgent, userAgent("custom-agent/2.0 ", ""));
-        Assert.assertSame(identity.getUserAgent("custom-agent/2.0", config), userAgent);
-        Assert.assertEquals(identity.getUserAgent(null, config), userAgent("my-app/1.0 ", ""));
-
         Map<String, Object> updatedConfig = new HashMap<>(config);
-        updatedConfig.put(ClientConfigProperties.CLIENT_NAME.getKey(), "new-app/2.0");
+        updatedConfig.put(NAME, clientName);
+
         identity.updateClientName(updatedConfig);
-        Assert.assertEquals(identity.getUserAgent("custom-agent/2.0", updatedConfig), userAgent);
+        String userAgent = clientUserAgent(identity, updatedConfig);
+
+        Assert.assertEquals(userAgent, expected);
+        Assert.assertSame(clientUserAgent(identity, updatedConfig), userAgent);
     }
 
-    @Test
-    public void testUserAgentComposedOnceOnClientNameUpdate() {
-        Map<String, Object> config = ClientConfigProperties.parseConfigMap(
-                Collections.singletonMap(ClientConfigProperties.CLIENT_NAME.getKey(), "my-app/1.0"));
-        WorkloadIdentitySupport identity = new WorkloadIdentitySupport(config);
-
-        Map<String, Object> updatedConfig = new HashMap<>(config);
-        updatedConfig.put(ClientConfigProperties.CLIENT_NAME.getKey(), "new-app/2.0");
-        identity.updateClientName(updatedConfig);
-
-        String userAgent = identity.getUserAgent(null, updatedConfig);
-        Assert.assertEquals(userAgent, userAgent("new-app/2.0 ", ""));
-        Assert.assertSame(identity.getUserAgent(null, updatedConfig), userAgent);
-        Assert.assertEquals(identity.getUserAgent(null, config), userAgent("my-app/1.0 ", ""));
-    }
-
-    @Test(dataProvider = "blankValues")
-    public void testBlankApplicationPartGetsKeptValue(String blank) {
-        Map<String, Object> config = ClientConfigProperties.parseConfigMap(
-                Collections.singletonMap(ClientConfigProperties.CLIENT_NAME.getKey(), "my-app/1.0"));
-        WorkloadIdentitySupport identity = new WorkloadIdentitySupport(config);
-        String userAgent = identity.getUserAgent(null, config);
-
-        Map<String, Object> requestConfig = new HashMap<>(config);
-        requestConfig.put(ClientConfigProperties.CLIENT_NAME.getKey(), blank);
-        Assert.assertSame(identity.getUserAgent(null, requestConfig), userAgent);
-        Assert.assertSame(identity.getUserAgent(blank, requestConfig), userAgent);
-    }
-
-    @DataProvider(name = "blankValues")
-    public static Object[][] blankValues() {
-        return new Object[][]{{""}, {" "}};
+    @DataProvider(name = "clientNameUpdates")
+    public static Object[][] clientNameUpdates() {
+        return new Object[][]{
+                {settings(NAME, "my-app/1.0"), "new-app/2.0", userAgent("new-app/2.0")},
+                {settings(NAME, "my-app/1.0", METADATA, "api=table"), "new-app/2.0",
+                        userAgent("new-app/2.0", "api:table")},
+                {settings(NAME, "my-app/1.0", USER_AGENT, "custom-agent/2.0"), "new-app/2.0",
+                        userAgent("custom-agent/2.0")},
+        };
     }
 
     @Test(dataProvider = "clientEntriesMetadata")
     public void testClientMetadataReplacesClientEntries(String metadata, String expectedComment) {
-        Map<String, Object> config = ClientConfigProperties.parseConfigMap(
-                Collections.singletonMap(ClientConfigProperties.CLIENT_ID_METADATA.getKey(), metadata));
+        Map<String, Object> config = ClientConfigProperties.parseConfigMap(settings(METADATA, metadata));
         Assert.assertEquals(new WorkloadIdentitySupport(config).getUserAgent(null, config),
                 "clickhouse-java-v2/" + Client.clientVersion + " (" + expectedComment + ")");
     }
 
     @DataProvider(name = "clientEntriesMetadata")
     public static Object[][] clientEntriesMetadata() {
-        String languageVersion = "lv:java/" + System.getProperty("java.version");
-        String os = "os:" + System.getProperty("os.name");
-        String httpClient = "hc:ahc_" + Versions.APACHE_HTTP_CLIENT;
         return new Object[][]{
-                {"os=Android 14", "os:Android 14; " + languageVersion + "; " + httpClient},
-                {"api=table,lv=kotlin/2.0", "api:table; lv:kotlin/2.0; " + os + "; " + httpClient},
-                {"hc=okhttp_4.12", "hc:okhttp_4.12; " + languageVersion + "; " + os},
-                {"OS=Android 14,LV=kotlin/2.0", "OS:Android 14; LV:kotlin/2.0; " + httpClient},
+                {"os=Android 14", "os:Android 14; " + LANGUAGE_VERSION + "; " + HTTP_CLIENT},
+                {"api=table,lv=kotlin/2.0", "api:table; lv:kotlin/2.0; " + OS + "; " + HTTP_CLIENT},
+                {"hc=okhttp_4.12", "hc:okhttp_4.12; " + LANGUAGE_VERSION + "; " + OS},
+                {"OS=Android 14,LV=kotlin/2.0", "OS:Android 14; LV:kotlin/2.0; " + HTTP_CLIENT},
                 {"os=Android 14,hc=okhttp_4.12,api=table,lv=kotlin/2.0",
                         "os:Android 14; hc:okhttp_4.12; api:table; lv:kotlin/2.0"},
         };
     }
 
     @Test
-    public void testUserAgentWithoutClientMetadata() {
-        Map<String, Object> withMetadata = ClientConfigProperties.parseConfigMap(
-                Collections.singletonMap(ClientConfigProperties.CLIENT_ID_METADATA.getKey(), "api=table"));
+    public void testClientPartComposedPerInstance() {
+        Map<String, Object> withMetadata = ClientConfigProperties.parseConfigMap(settings(METADATA, "api=table"));
         WorkloadIdentitySupport identityWithMetadata = new WorkloadIdentitySupport(withMetadata);
-
-        Map<String, Object> config = Collections.emptyMap();
-        Assert.assertEquals(new WorkloadIdentitySupport(config).getUserAgent(null, config), userAgent("", ""));
-
-        Map<String, Object> emptyMetadata = ClientConfigProperties.parseConfigMap(
-                Collections.singletonMap(ClientConfigProperties.CLIENT_ID_METADATA.getKey(), ""));
-        Assert.assertEquals(new WorkloadIdentitySupport(emptyMetadata).getUserAgent(null, emptyMetadata),
-                userAgent("", ""));
+        Map<String, Object> withoutMetadata = ClientConfigProperties.parseConfigMap(settings());
+        WorkloadIdentitySupport identityWithoutMetadata = new WorkloadIdentitySupport(withoutMetadata);
 
         Assert.assertEquals(identityWithMetadata.getUserAgent("my-app/1.0", withMetadata),
-                userAgent("my-app/1.0 ", "api:table; "));
+                userAgent("my-app/1.0", "api:table"));
+        Assert.assertEquals(identityWithoutMetadata.getUserAgent("my-app/1.0", withoutMetadata),
+                userAgent("my-app/1.0"));
+    }
+
+    /**
+     * Returns the value for a request without operation settings. The transport passes the configured
+     * {@code User-Agent} header as the custom value.
+     */
+    private static String clientUserAgent(WorkloadIdentitySupport identity, Map<String, Object> config) {
+        return identity.getUserAgent((String) config.get(USER_AGENT), config);
+    }
+
+    private static Map<String, String> settings(String... keysAndValues) {
+        Map<String, String> settings = new HashMap<>();
+        for (int i = 0; i < keysAndValues.length; i += 2) {
+            settings.put(keysAndValues[i], keysAndValues[i + 1]);
+        }
+        return settings;
+    }
+
+    private static String userAgent(String application) {
+        return userAgent(application, null);
     }
 
     private static String userAgent(String application, String metadata) {
-        return application + "clickhouse-java-v2/" + Client.clientVersion + " (" + metadata
-                + "lv:java/" + System.getProperty("java.version") + "; os:" + System.getProperty("os.name")
-                + "; hc:ahc_" + Versions.APACHE_HTTP_CLIENT + ")";
+        return (application == null ? "" : application + " ") + "clickhouse-java-v2/" + Client.clientVersion + " ("
+                + (metadata == null ? "" : metadata + "; ") + LANGUAGE_VERSION + "; " + OS + "; " + HTTP_CLIENT + ")";
     }
 }

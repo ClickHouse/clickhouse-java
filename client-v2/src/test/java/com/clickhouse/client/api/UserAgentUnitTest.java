@@ -59,9 +59,12 @@ public class UserAgentUnitTest {
         osMetadata.put("os", "Android 14");
         osMetadata.put("api", "table");
 
-        Map<String, String> withEmptyValue = new LinkedHashMap<>();
-        withEmptyValue.put("api", "");
-        withEmptyValue.put("fv", "flink/2.0.0");
+        Map<String, String> withIgnoredEntries = new LinkedHashMap<>();
+        withIgnoredEntries.put("api", "");
+        withIgnoredEntries.put(" ", "x");
+        withIgnoredEntries.put("os", null);
+        withIgnoredEntries.put(null, "x");
+        withIgnoredEntries.put("fv", "flink/2.0.0");
 
         return new Object[][]{
                 {(Consumer<Client.Builder>) b -> { }, userAgent(null, null)},
@@ -73,7 +76,7 @@ public class UserAgentUnitTest {
                 {(Consumer<Client.Builder>) b -> b.setClientName("my-app/1.0",
                         Collections.singletonMap("build", "a=b,c\\d")),
                         userAgent("my-app/1.0", "build:a=b,c\\d")},
-                {(Consumer<Client.Builder>) b -> b.setClientName("my-app/1.0", withEmptyValue),
+                {(Consumer<Client.Builder>) b -> b.setClientName("my-app/1.0", withIgnoredEntries),
                         userAgent("my-app/1.0", "fv:flink/2.0.0")},
                 {(Consumer<Client.Builder>) b -> b.setClientName("", flinkMetadata),
                         userAgent(null, "fv:flink/2.0.0; api:table")},

@@ -130,16 +130,23 @@ order-service/1.2.0 clickhouse-java-v2/0.12.0 (lv:java/17.0.2; os:Linux; hc:ahc_
 To add key/value pairs to the comment group (for example, the version of a framework that the application runs in), use `setClientName(String, Map)`. The pairs are added in the iteration order of the map, then `lv`, `os` and `hc` if the map does not set these keys (set them to replace the values of the client):
 
 ```java
-Map<String, String> metadata = new LinkedHashMap<>();
-metadata.put("fv", "flink/2.0.0");
-metadata.put("api", "table");
+import com.clickhouse.client.api.Client;
 
-Client client = new Client.Builder()
-        .addEndpoint("http://localhost:8123")
-        .setUsername("default")
-        .setPassword("secret")
-        .setClientName("Flink-ClickHouse-Sink/0.2.0", metadata)
-        .build();
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+public Client createClientWithMetadata() {
+    Map<String, String> metadata = new LinkedHashMap<>();
+    metadata.put("fv", "flink/2.0.0");
+    metadata.put("api", "table");
+
+    return new Client.Builder()
+            .addEndpoint("http://localhost:8123")
+            .setUsername("default")
+            .setPassword("secret")
+            .setClientName("Flink-ClickHouse-Sink/0.2.0", metadata)
+            .build();
+}
 ```
 
 ```text

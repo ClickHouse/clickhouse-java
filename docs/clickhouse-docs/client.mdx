@@ -283,14 +283,21 @@ What is set by `setClientName` method comes first. Key/value pairs set by `setCl
 
 For example:
 ```java showLineNumbers
-Map<String, String> metadata = new LinkedHashMap<>();
-metadata.put("fv", "flink/2.0.0");
-metadata.put("api", "table");
+import com.clickhouse.client.api.Client;
 
-Client client = new Client.Builder()
-        // ...
-        .setClientName("my-app-01/1.0", metadata)
-        .build();
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+public Client createClientWithMetadata() {
+    Map<String, String> metadata = new LinkedHashMap<>();
+    metadata.put("fv", "flink/2.0.0");
+    metadata.put("api", "table");
+
+    return new Client.Builder()
+            // ...
+            .setClientName("my-app-01/1.0", metadata)
+            .build();
+}
 ```
 will result in the following `http_user_agent` value:
 ```
