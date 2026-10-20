@@ -8,6 +8,7 @@ import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.internal.ServerSettings;
+import com.clickhouse.client.api.internal.Versions;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.data.ClickHouseFormat;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -316,6 +317,10 @@ public class ConnectionTest extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" }, dataProvider = "setAndGetClientInfoTestDataProvider")
     public void setAndGetClientInfoTest(String clientName) throws Exception {
+        if (isCloud()) {
+            throw new SkipException("Cloud does not support flushing query_log");
+        }
+
         final String unsupportedProperty = "custom-unsupported-property";
 
         // case when set via config
@@ -345,28 +350,80 @@ public class ConnectionTest extends JdbcIntegrationTest {
         }
     }
 
-    private void executeQueryAndVerifyUserAgent(Statement stmt, String clientName) throws Exception {
+    private String executeQueryAndVerifyUserAgent(Statement stmt, String clientName) throws Exception {
         final String testQuery = "SELECT '" + UUID.randomUUID() + "'";
         stmt.execute(testQuery);
         String queryId = ((StatementImpl)stmt).getLastQueryId();
         stmt.getResultSet().close(); // close result set to finalize request.
-        stmt.execute("SYSTEM FLUSH LOGS");
-
+        stmt.execute("SYSTEM FLUSH LOGS" + onCluster());
 
         final String logQuery ="SELECT http_user_agent FROM clusterAllReplicas('default', system.query_log) WHERE query_id = " +  stmt.enquoteLiteral(queryId);
-        try (ResultSet rs = stmt.executeQuery(logQuery)) {
-            Assert.assertTrue(rs.next());
-            String userAgent = rs.getString("http_user_agent");
-            if (clientName != null && !clientName.isEmpty()) {
-                Assert.assertTrue(userAgent.startsWith(clientName), "Expected to start with '" + clientName + "' but value was '" + userAgent + "'");
+        boolean found = false;
+        String userAgent = null;
+        for (int i = 0; i < 10; i++) {
+            try (ResultSet rs = stmt.executeQuery(logQuery)) {
+                if (rs.next()) {
+                    found = true;
+                    userAgent = rs.getString("http_user_agent");
+                    break;
+                }
             }
-            Assert.assertTrue(userAgent.contains(Client.CLIENT_USER_AGENT), "Expected to contain '" + Client.CLIENT_USER_AGENT + "' but value was '" + userAgent + "'");
-            Assert.assertTrue(userAgent.contains(Driver.DRIVER_CLIENT_NAME), "Expected to contain '" + Driver.DRIVER_CLIENT_NAME + "' but value was '" + userAgent + "'");
+            Thread.sleep(500);
         }
+        Assert.assertTrue(found, "Query log record not found for query_id=" + queryId);
+        if (clientName != null && !clientName.isEmpty()) {
+            Assert.assertTrue(userAgent.startsWith(clientName), "Expected to start with '" + clientName + "' but value was '" + userAgent + "'");
+        }
+        Assert.assertTrue(userAgent.contains(Client.CLIENT_USER_AGENT), "Expected to contain '" + Client.CLIENT_USER_AGENT + "' but value was '" + userAgent + "'");
+        Assert.assertTrue(userAgent.contains(Driver.DRIVER_CLIENT_NAME), "Expected to contain '" + Driver.DRIVER_CLIENT_NAME + "' but value was '" + userAgent + "'");
+        return userAgent;
+    }
+
+    @Test(groups = { "integration" }, dataProvider = "clientMetadataInUserAgentDP")
+    public void testClientMetadataInUserAgent(boolean setInUrl) throws Exception {
+        if (isCloud()) {
+            throw new SkipException("Cloud does not support flushing query_log");
+        }
+
+        final String metadata = "fv=flink/2.0.0,api=table";
+        Properties info = new Properties();
+        info.setProperty("user", "default");
+        info.setProperty("password", ClickHouseServerForTest.getPassword());
+        info.setProperty(ClientConfigProperties.DATABASE.getKey(), ClickHouseServerForTest.getDatabase());
+        String url = getEndpointString();
+        if (setInUrl) {
+            url += "?" + ClientConfigProperties.CLIENT_ID_METADATA.getKey() + "=" + metadata;
+        } else {
+            info.setProperty(ClientConfigProperties.CLIENT_ID_METADATA.getKey(), metadata);
+        }
+
+        String expectedSuffix = "clickhouse-java-v2/" + Client.clientVersion + " (fv:flink/2.0.0; api:table; lv:java/"
+                + System.getProperty("java.version") + "; os:" + System.getProperty("os.name") + "; hc:ahc_"
+                + Versions.APACHE_HTTP_CLIENT + ")";
+        try (Connection localConnection = new ConnectionImpl(url, info);
+             Statement stmt = localConnection.createStatement()) {
+            String userAgent = executeQueryAndVerifyUserAgent(stmt, null);
+            Assert.assertTrue(userAgent.endsWith(expectedSuffix),
+                    "Expected to end with '" + expectedSuffix + "' but value was '" + userAgent + "'");
+
+            localConnection.setClientInfo(ClientInfoProperties.APPLICATION_NAME.getKey(), "my-app/1.0");
+            userAgent = executeQueryAndVerifyUserAgent(stmt, "my-app/1.0");
+            Assert.assertTrue(userAgent.endsWith(expectedSuffix),
+                    "Expected to end with '" + expectedSuffix + "' but value was '" + userAgent + "'");
+        }
+    }
+
+    @DataProvider(name = "clientMetadataInUserAgentDP")
+    public static Object[][] clientMetadataInUserAgentDP() {
+        return new Object[][] {{false}, {true}};
     }
 
     @Test(groups = { "integration" })
     public void influenceUserAgentClientNameTest() throws SQLException {
+        if (isCloud()) {
+            throw new SkipException("Cloud does not support flushing query_log");
+        }
+
         String clientName = UUID.randomUUID().toString().replace("-", "");
         influenceUserAgentTest(clientName, "?" + ClientConfigProperties.CLIENT_NAME.getKey() + "=" + clientName);
         influenceUserAgentTest(clientName, "?" + ClientConfigProperties.PRODUCT_NAME.getKey() + "=" + clientName);
@@ -384,15 +441,28 @@ public class ConnectionTest extends JdbcIntegrationTest {
             final String testQuery = "SELECT '" + UUID.randomUUID() + "'";
             stmt.execute(testQuery);
             stmt.getResultSet().close(); // finalize request
-            stmt.execute("SYSTEM FLUSH LOGS");
+            stmt.execute("SYSTEM FLUSH LOGS" + onCluster());
 
             final String logQuery ="SELECT http_user_agent " +
                     " FROM clusterAllReplicas('default', system.query_log) WHERE query = '" + testQuery.replaceAll("'", "\\\\'") + "'";
-            try (ResultSet rs = stmt.executeQuery(logQuery)) {
-                Assert.assertTrue(rs.next());
-                String userAgent = rs.getString("http_user_agent");
-                Assert.assertTrue(userAgent.startsWith(clientName), "Expected to start with '" + clientName + "' but value was '" + userAgent + "'");
+            boolean found = false;
+            String userAgent = null;
+            for (int i = 0; i < 10; i++) {
+                try (ResultSet rs = stmt.executeQuery(logQuery)) {
+                    if (rs.next()) {
+                        found = true;
+                        userAgent = rs.getString("http_user_agent");
+                        break;
+                    }
+                }
+                try {
+                    Thread.sleep(500);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
             }
+            Assert.assertTrue(found, "Query log record not found for query=" + testQuery);
+            Assert.assertTrue(userAgent.startsWith(clientName), "Expected to start with '" + clientName + "' but value was '" + userAgent + "'");
         }
     }
 
@@ -413,7 +483,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
             final String tableName = "array_create_test";
             final String arrayType = "Array(" + baseType + ")";
             try (Statement stmt = conn.createStatement()) {
-                stmt.executeUpdate("CREATE TABLE " +tableName + " (v1 " + arrayType + ") ENGINE MergeTree ORDER BY ()");
+                stmt.executeUpdate("CREATE TABLE " +tableName + " (v1 " + arrayType + ") ORDER BY ()");
 
 
                 Struct tuple1 = conn.createStruct(baseType, new Object[]{"v1", (byte)10});
@@ -614,7 +684,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
             final String tableName = "test_struct_tuple";
             final String tupleType = "Tuple(Int8, String, DateTime64)";
             try (Statement stmt = conn.createStatement()) {
-                stmt.executeUpdate("CREATE TABLE " + tableName +" (v1 " + tupleType + ") ENGINE MergeTree ORDER BY ()");
+                stmt.executeUpdate("CREATE TABLE " + tableName +" (v1 " + tupleType + ") ORDER BY ()");
 
                 final java.sql.Timestamp timePart = Timestamp.valueOf(LocalDateTime.now(ZoneId.of("America/Los_Angeles")));
                 timePart.setNanos(333000000);
@@ -890,7 +960,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
         
         // Create database db1
         Connection connCreate = this.getJdbcConnection();
-        connCreate.createStatement().executeUpdate("CREATE DATABASE `db1`");
+        connCreate.createStatement().executeUpdate("CREATE DATABASE IF NOT EXISTS `db1`" + onCluster());
         
         try {
             Properties properties = new Properties();
@@ -915,7 +985,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
             }
         } finally {
             // Clean up: drop database db1
-            connCreate.createStatement().executeUpdate("DROP DATABASE `db1`");
+            connCreate.createStatement().executeUpdate("DROP DATABASE IF EXISTS `db1`" + onCluster());
             connCreate.close();
         }
     }
@@ -1059,17 +1129,21 @@ public class ConnectionTest extends JdbcIntegrationTest {
             return;
         }
         Connection connCreate = this.getJdbcConnection();
-        connCreate.createStatement().executeUpdate("CREATE DATABASE `" + dbName + "`");
-        Properties properties = new Properties();
-        properties.put(ClientConfigProperties.DATABASE.getKey(), dbName);
-        Connection connCheck = this.getJdbcConnection(properties);
-        ResultSet rs = connCheck.createStatement().executeQuery("SELECT 1");
-        rs.next();
-        Assert.assertEquals(rs.getInt(1), Integer.valueOf(1));
-        Assert.assertEquals(dbName, rs.getMetaData().getSchemaName(1));
-        connCreate.createStatement().executeUpdate("DROP DATABASE `" + dbName + "`");
-        connCreate.close();
-        connCheck.close();
+        try {
+            connCreate.createStatement().executeUpdate("DROP DATABASE IF EXISTS `" + dbName + "`" + onCluster());
+            connCreate.createStatement().executeUpdate("CREATE DATABASE `" + dbName + "`" + onCluster());
+            Properties properties = new Properties();
+            properties.put(ClientConfigProperties.DATABASE.getKey(), dbName);
+            try (Connection connCheck = this.getJdbcConnection(properties)) {
+                ResultSet rs = connCheck.createStatement().executeQuery("SELECT 1");
+                rs.next();
+                Assert.assertEquals(rs.getInt(1), Integer.valueOf(1));
+                Assert.assertEquals(dbName, rs.getMetaData().getSchemaName(1));
+            }
+        } finally {
+            connCreate.createStatement().executeUpdate("DROP DATABASE IF EXISTS `" + dbName + "`" + onCluster());
+            connCreate.close();
+        }
     }
 
     @Test(groups = { "integration" })
@@ -1276,7 +1350,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testSessionTimeout() throws Exception {
-        if (isCloud()) {
+        if (isCloud() || ClickHouseServerForTest.isCluster()) {
             return; // HTTP sessions require server affinity
         }
 

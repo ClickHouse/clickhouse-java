@@ -33,6 +33,7 @@ import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.client.config.ClickHouseSslMode;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.client.http.config.HttpConnectionProvider;
+import org.testng.SkipException;
 import com.clickhouse.config.ClickHouseOption;
 import com.clickhouse.data.ClickHouseCompression;
 import com.clickhouse.data.ClickHouseDataStreamFactory;
@@ -142,7 +143,9 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
 
     @Test(groups = "integration")
     public void testUserAgent() throws Exception {
-        if (isCloud()) return; //TODO: testUserAgent - Revisit after the issue is resolved, see: https://github.com/ClickHouse/ClickHouse/issues/68748
+        if (isCloud()) {
+            throw new SkipException("Cloud does not support flushing query_log");
+        }
         testUserAgent(ClickHouseClientOption.PRODUCT_NAME, "MyCustomProduct");
         testUserAgent(ClickHouseClientOption.CLIENT_NAME, "MyCustomClient");
     }
@@ -344,6 +347,10 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testLogComment() throws ClickHouseException {
+        if (isCloud()) {
+            throw new SkipException("Cloud does not support flushing query_log");
+        }
+
         ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
         String uuid = UUID.randomUUID().toString();
         try (ClickHouseClient client = ClickHouseClient.newInstance()) {

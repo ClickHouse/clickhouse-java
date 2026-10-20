@@ -54,7 +54,7 @@ public class WriterStatementImplTest extends JdbcIntegrationTest {
     public void testWriterNullIntoNonNullableArrayThrows(String columns) throws Exception {
         String table = "writer_stmt_arr_null_" + UUID.randomUUID().toString().replace('-', '_');
         runQuery("DROP TABLE IF EXISTS " + table);
-        runQuery("CREATE TABLE " + table + " (" + columns + ") Engine = MergeTree ORDER BY id");
+        runQuery("CREATE TABLE " + table + " (" + columns + ") ORDER BY id");
 
         Properties properties = new Properties();
         properties.setProperty(DriverProperties.BETA_ROW_BINARY_WRITER.getKey(), "true");
@@ -83,7 +83,7 @@ public class WriterStatementImplTest extends JdbcIntegrationTest {
     public void testWriterNonNullableArrayRoundTrips(List<Integer> arr, int expectedLength, String expectedConcat) throws Exception {
         String table = "writer_stmt_arr_round_trip_" + UUID.randomUUID().toString().replace('-', '_');
         runQuery("DROP TABLE IF EXISTS " + table);
-        runQuery("CREATE TABLE " + table + " (id Int32, arr Array(Int32), tail Int32) Engine = MergeTree ORDER BY id");
+        runQuery("CREATE TABLE " + table + " (id Int32, arr Array(Int32), tail Int32) ORDER BY id");
 
         Properties properties = new Properties();
         properties.setProperty(DriverProperties.BETA_ROW_BINARY_WRITER.getKey(), "true");
@@ -111,7 +111,7 @@ public class WriterStatementImplTest extends JdbcIntegrationTest {
     public void testWriterNullIntoDefaultedArrayUsesDefault() throws Exception {
         String table = "writer_stmt_arr_null_default_" + UUID.randomUUID().toString().replace('-', '_');
         runQuery("DROP TABLE IF EXISTS " + table);
-        runQuery("CREATE TABLE " + table + " (id Int32, arr Array(Int32) DEFAULT [1, 2], tail Int32) Engine = MergeTree ORDER BY id");
+        runQuery("CREATE TABLE " + table + " (id Int32, arr Array(Int32) DEFAULT [1, 2], tail Int32) ORDER BY id");
 
         Properties properties = new Properties();
         properties.setProperty(DriverProperties.BETA_ROW_BINARY_WRITER.getKey(), "true");
@@ -163,7 +163,7 @@ public class WriterStatementImplTest extends JdbcIntegrationTest {
             try (Statement stmt = connection.createStatement()) {
                 stmt.execute("DROP TABLE IF EXISTS " + table);
                 stmt.execute("CREATE TABLE " + table +
-                        " (field1 String, field2 Int32, field3 String) Engine MergeTree ORDER BY ()");
+                        " (field1 String, field2 Int32, field3 String) ORDER BY ()");
             }
 
             try (PreparedStatement ps = connection.prepareStatement(String.format(sqlTemplate, table))) {
@@ -204,7 +204,7 @@ public class WriterStatementImplTest extends JdbcIntegrationTest {
         try (Connection connection = getJdbcConnection(properties)) {
             try (Statement stmt = connection.createStatement()) {
                 stmt.execute("DROP TABLE IF EXISTS " + table);
-                stmt.execute("CREATE TABLE " + table + " (field1 Int32) Engine MergeTree ORDER BY ()");
+                stmt.execute("CREATE TABLE " + table + " (field1 Int32) ORDER BY ()");
             }
 
             final int[] closeAttempts = {0};
@@ -299,7 +299,7 @@ public class WriterStatementImplTest extends JdbcIntegrationTest {
         try (Connection connection = getJdbcConnection(properties)) {
             try (Statement stmt = connection.createStatement()) {
                 stmt.execute("DROP TABLE IF EXISTS " + table);
-                stmt.execute("CREATE TABLE " + table + " (id Int32) Engine MergeTree ORDER BY ()");
+                stmt.execute("CREATE TABLE " + table + " (id Int32) ORDER BY ()");
             }
 
             try (PreparedStatement ps = connection.prepareStatement(String.format(sqlTemplate, table))) {
@@ -333,7 +333,7 @@ public class WriterStatementImplTest extends JdbcIntegrationTest {
         try (Connection connection = getJdbcConnection(properties)) {
             try (Statement stmt = connection.createStatement()) {
                 stmt.execute("DROP TABLE IF EXISTS " + table);
-                stmt.execute("CREATE TABLE " + table + " (v1 Int32, v2 String) Engine MergeTree ORDER BY ()");
+                stmt.execute("CREATE TABLE " + table + " (v1 Int32, v2 String) ORDER BY ()");
             }
 
             try (PreparedStatement ps = connection.prepareStatement(
@@ -397,7 +397,7 @@ public class WriterStatementImplTest extends JdbcIntegrationTest {
         properties.setProperty(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF);
         try (Connection connection = getJdbcConnection(properties)) {
             try (Statement stmt = connection.createStatement()) {
-                stmt.execute("CREATE TABLE " + table + " (a Int32, b Int32, c Nullable(Int32)) Engine MergeTree ORDER BY ()");
+                stmt.execute("CREATE TABLE " + table + " (a Int32, b Int32, c Nullable(Int32)) ORDER BY ()");
             }
 
             try {

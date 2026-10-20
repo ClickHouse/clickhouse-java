@@ -43,7 +43,7 @@ public class DetachedResultSetTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void shouldReturnColumnIndex() throws SQLException {
-        runQuery("CREATE TABLE detached_rs_test_data (id UInt32, val UInt8) ENGINE = MergeTree ORDER BY (id)");
+        runQuery("CREATE TABLE detached_rs_test_data (id UInt32, val UInt8) ORDER BY (id)");
         runQuery("INSERT INTO detached_rs_test_data VALUES (1, 10), (2, 20)");
 
         try (Connection conn = getJdbcConnection()) {
@@ -361,7 +361,7 @@ public class DetachedResultSetTest extends JdbcIntegrationTest {
                 + "date Date, date32 Date32, " +
                 "dateTime DateTime, dateTime32 DateTime32, " +
                 "dateTime643 DateTime64(3), dateTime646 DateTime64(6), dateTime649 DateTime64(9)"
-                + ") ENGINE = MergeTree ORDER BY ()");
+                + ") ORDER BY ()");
 
         // Insert minimum values
         insertData("INSERT INTO detached_rs_test_dates VALUES ( 1, '1970-01-01', '1970-01-01', " +

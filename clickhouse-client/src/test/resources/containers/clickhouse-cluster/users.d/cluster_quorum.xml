@@ -1,0 +1,10 @@
+<clickhouse>
+    <profiles>
+        <default>
+            <!-- Wait until every replica in the shard has the insert before the query returns. -->
+            <insert_quorum>3</insert_quorum>
+            <insert_quorum_timeout>600000</insert_quorum_timeout>
+            <default_table_engine>ReplicatedMergeTree</default_table_engine>
+        </default>
+    </profiles>
+</clickhouse>

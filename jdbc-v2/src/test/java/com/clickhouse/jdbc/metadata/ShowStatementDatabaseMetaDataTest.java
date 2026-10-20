@@ -109,12 +109,12 @@ public class ShowStatementDatabaseMetaDataTest extends DatabaseMetaDataTest {
                     "sa SimpleAggregateFunction(sum, UInt64), " +
                     "nsa SimpleAggregateFunction(anyLast, Nullable(Decimal(9, 3))), " +
                     "mat Int64 MATERIALIZED id * 2, al String ALIAS toString(id), eph Int32 EPHEMERAL" +
-                    ") ENGINE = MergeTree ORDER BY id COMMENT 'table comment'");
+                    ") ORDER BY id COMMENT 'table comment'");
             stmt.executeUpdate("CREATE VIEW " + SHOW_STATEMENTS_TABLE + "_view AS SELECT id, d FROM " + SHOW_STATEMENTS_TABLE);
-            stmt.executeUpdate("CREATE MATERIALIZED VIEW " + SHOW_STATEMENTS_TABLE + "_mv ENGINE = MergeTree ORDER BY id " +
+            stmt.executeUpdate("CREATE MATERIALIZED VIEW " + SHOW_STATEMENTS_TABLE + "_mv ORDER BY id " +
                     "AS SELECT id, s FROM " + SHOW_STATEMENTS_TABLE);
             stmt.executeUpdate("CREATE TABLE " + quoteIdentifier(SHOW_STATEMENTS_ODD_TABLE) + " (id Int32, " +
-                    quoteIdentifier("odd \"col\"?\\") + " String) ENGINE = MergeTree ORDER BY id");
+                    quoteIdentifier("odd \"col\"?\\") + " String) ORDER BY id");
         }
 
         Properties systemTablesProps = new Properties();
@@ -181,7 +181,7 @@ public class ShowStatementDatabaseMetaDataTest extends DatabaseMetaDataTest {
         try (Connection conn = flag == null ? getJdbcConnectionWithDefaultFlag() : getJdbcConnection(props)) {
             try (Statement stmt = conn.createStatement()) {
                 stmt.executeUpdate("DROP TABLE IF EXISTS " + tableName);
-                stmt.executeUpdate("CREATE TABLE " + tableName + " (id Int32) ENGINE = MergeTree ORDER BY id " +
+                stmt.executeUpdate("CREATE TABLE " + tableName + " (id Int32) ORDER BY id " +
                         "COMMENT 'flag table comment'");
             }
             try (ResultSet rs = conn.getMetaData().getTables(null, getDatabase(), tableName, null)) {
@@ -217,9 +217,9 @@ public class ShowStatementDatabaseMetaDataTest extends DatabaseMetaDataTest {
             stmt.executeUpdate("DROP TABLE IF EXISTS metadata_show_statements_granted");
             stmt.executeUpdate("DROP TABLE IF EXISTS metadata_show_statements_restricted");
             stmt.executeUpdate("CREATE TABLE metadata_show_statements_granted (id Int32, t Tuple(a Int32, b String)) " +
-                    "ENGINE = MergeTree ORDER BY id");
+                    "ORDER BY id");
             stmt.executeUpdate("CREATE TABLE metadata_show_statements_restricted (id Int32, secret String) " +
-                    "ENGINE = MergeTree ORDER BY id");
+                    "ORDER BY id");
             stmt.executeUpdate("DROP USER IF EXISTS " + user);
             stmt.executeUpdate("CREATE USER " + user + " IDENTIFIED WITH plaintext_password BY '" + password +
                     "' SETTINGS readonly = 1");
