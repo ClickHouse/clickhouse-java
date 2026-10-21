@@ -652,6 +652,15 @@
   column-name component before the by-name server-schema lookup, matching how the table and database identifiers are
   already handled. (https://github.com/ClickHouse/clickhouse-java/issues/2896)
 
+- **[client-v2, jdbc-v2]** Fixed `ResultSet#close()`, `QueryResponse#close()`, and closing a reader or the response
+  stream when the result was not read to the end, which could fail with `Premature end of chunk coded message body:
+  closing chunk expected`. To close a partly read response, the HTTP client reads and discards the rest of the body.
+  When a query fails after the response started, the server ends the body early, and that read failed. When the result
+  stream was opened, this failure on close is now logged at `DEBUG` and not thrown. Errors while the response is read
+  are not changed, and a command or update that does not read the result (`Client#execute`, `Statement#executeUpdate`)
+  still reports the failure.
+  (https://github.com/ClickHouse/clickhouse-java/issues/3203)
+
 ## Documentation 
 
 - **[examples]** - New `demo-spring-service` added to demonstrate usage of observability SPI.

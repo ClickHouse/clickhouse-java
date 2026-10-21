@@ -286,6 +286,65 @@ public class HttpTransportTests extends BaseIntegrationTest {
         }
     }
 
+    @Test(groups = {"integration"}, dataProvider = "testClosingNotFullyReadResponseDataProvider")
+    public void testClosingNotFullyReadResponse(boolean serverCompression, boolean useHttpCompression) throws Exception {
+        if (isCloud()) {
+            throw new SkipException("Test depends on how the server ends a failed response, a proxy can change it");
+        }
+        ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
+        // The query fails after the first rows are sent, so the server ends the response body early.
+        final String query = "SELECT number, randomPrintableASCII(100), throwIf(number = 100000)"
+                + " FROM numbers(200000) SETTINGS max_block_size = 1000";
+
+        try (Client client = new Client.Builder()
+                .addEndpoint(Protocol.HTTP, server.getHost(), server.getPort(), false)
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
+                .compressServerResponse(serverCompression)
+                .useHttpCompression(useHttpCompression)
+                .setMaxConnections(1)
+                .setConnectionRequestTimeout(1, ChronoUnit.SECONDS)
+                .build()) {
+            QueryResponse response = client.query(query).get(10, TimeUnit.SECONDS);
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+            Assert.assertNotNull(reader.next());
+            reader.close();
+            response.close();
+
+            response = client.query(query).get(10, TimeUnit.SECONDS);
+            Assert.assertNotNull(client.newBinaryFormatReader(response).next());
+            response.close();
+
+            try (QueryResponse readResponse = client.query(query).get(10, TimeUnit.SECONDS);
+                 ClickHouseBinaryFormatReader readReader = client.newBinaryFormatReader(readResponse)) {
+                Assert.expectThrows(ClientException.class, () -> {
+                    while (readReader.next() != null) {
+                        // read to the end
+                    }
+                });
+            }
+
+            // A command does not read the response body, so closing it still reports the failure.
+            Throwable thrown = Assert.expectThrows(Exception.class, () -> client.execute(query).get(10, TimeUnit.SECONDS));
+            Assert.assertNotNull(findCause(thrown, ConnectionClosedException.class), "Unexpected command failure: " + thrown);
+
+            try (QueryResponse nextResponse = client.query("SELECT 1").get(10, TimeUnit.SECONDS)) {
+                Assert.assertNotEquals(nextResponse.getInputStream().read(), -1);
+            }
+        }
+    }
+
+    @DataProvider(name = "testClosingNotFullyReadResponseDataProvider")
+    public static Object[][] testClosingNotFullyReadResponseDataProvider() {
+        return new Object[][] {
+                // serverCompression, useHttpCompression
+                {false, false},
+                {true, false},
+                {true, true},
+        };
+    }
+
     @Test(groups = {"integration"})
     public void testConnectionReuseStrategy() {
         if (isCloud()) {
