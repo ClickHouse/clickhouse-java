@@ -22,7 +22,7 @@
         <opentelemetry.javaagent.version>2.30.0</opentelemetry.javaagent.version>
         <opentelemetry.javaagent.traces.exporter>otlp</opentelemetry.javaagent.traces.exporter>
         <opentelemetry.javaagent.traces.endpoint>http://localhost:4318/v1/traces</opentelemetry.javaagent.traces.endpoint>
-        <clickhouse-java.version>0.11.0-rc1-SNAPSHOT</clickhouse-java.version>
+        <clickhouse-java.version>0.11.0-SNAPSHOT</clickhouse-java.version>
     </properties>
 
     <dependencies>
