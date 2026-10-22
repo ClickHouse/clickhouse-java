@@ -1,0 +1,55 @@
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:25.8
+    environment:
+      CLICKHOUSE_PASSWORD: benchmark
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8123/ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 60
+
+  benchmark:
+    build:
+      context: ..
+      dockerfile: performance/Dockerfile.write-stream
+    cpus: 3.5
+    mem_limit: 8g
+    environment:
+      CLICKHOUSE_URL: http://default:benchmark@clickhouse:8123
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    volumes:
+      - ./results/write-stream:/results
+    command:
+      - "com.clickhouse.benchmark.clients.WriteStream.(v1NonBlocking|v1BlockingQueue|v2Direct)"
+      - "-f"
+      - "1"
+      - "-wi"
+      - "1"
+      - "-w"
+      - "5s"
+      - "-i"
+      - "5"
+      - "-r"
+      - "20s"
+      - "-t"
+      - "3"
+      - "-bm"
+      - "thrpt"
+      - "-tu"
+      - "s"
+      - "-prof"
+      - "gc"
+      - "-prof"
+      - "mempool"
+      - "-rf"
+      - "json"
+      - "-rff"
+      - "/results/jmh-results.json"
+      - "-o"
+      - "/results/jmh-results.out"
+      - "-jvmArgs"
+      - "-Xms6g -Xmx6g -agentpath:/opt/async-profiler/lib/libasyncProfiler.so=start,event=itimer,interval=1ms,file=/results/cpu-%p.html"
