@@ -10,6 +10,11 @@ import com.clickhouse.client.api.internal.HttpAPIClientHelper.CustomSSLConnectio
 import com.clickhouse.client.api.transport.Endpoint;
 import com.clickhouse.client.api.transport.HttpEndpoint;
 import com.clickhouse.client.api.transport.internal.TransportRequest;
+import com.github.tomakehurst.wiremock.WireMockServer;
+import com.github.tomakehurst.wiremock.client.WireMock;
+import com.github.tomakehurst.wiremock.common.ConsoleNotifier;
+import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
+import com.github.tomakehurst.wiremock.matching.RequestPatternBuilder;
 import net.jpountz.lz4.LZ4Factory;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
@@ -23,6 +28,10 @@ import org.apache.hc.core5.http.io.SocketConfig;
 import org.apache.hc.core5.http.message.BasicHeader;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedConstruction;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.simple.SimpleLogger;
+import org.slf4j.spi.LocationAwareLogger;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
@@ -38,12 +47,15 @@ import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.net.ConnectException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -658,6 +670,100 @@ public class HttpAPIClientHelperTest {
         assertTrue(logged.contains("Server returned error response"), "the server error must be logged: " + logged);
         assertTrue(logged.contains("241"), "the exception-code header value must be logged: " + logged);
         assertFalse(logged.contains("<none>"), "a present exception-code header must not log the placeholder: " + logged);
+    }
+
+    private static final String WIRE_LOGGER = "org.apache.hc.client5.http.wire";
+    private static final String CONNECTION_OPERATOR_LOGGER =
+            "org.apache.hc.client5.http.impl.io.DefaultHttpClientConnectionOperator";
+    private static final String CANARY_USER = "canary_user";
+    private static final String CANARY_PASSWORD = "canary-password-7f3a";
+    private static final String CANARY_BASIC = Base64.getEncoder()
+            .encodeToString((CANARY_USER + ":" + CANARY_PASSWORD).getBytes(StandardCharsets.UTF_8));
+    private static final String CANARY_TOKEN = "canary-token-2c9e";
+    private static final String CANARY_HEADER_NAME = "X-Canary-Secret";
+    private static final String CANARY_HEADER_VALUE = "canary-header-5b1d";
+    private static final String CANARY_SQL = "SELECT 'canary-sql-8d4f'";
+    private static final String CANARY_RESPONSE = "canary-response-1e6c";
+
+    @DataProvider(name = "wireLoggingCases")
+    public static Object[][] wireLoggingCases() {
+        return new Object[][] {
+                // connection pool, HTTPS, authentication
+                {true, false, "basic"},
+                {false, false, "password_header"},
+                {true, true, "bearer"},
+                {false, true, "basic"},
+        };
+    }
+
+    @Test(dataProvider = "wireLoggingCases")
+    public void testNoWireLoggingWhenWireLoggerIsDebug(boolean connectionPool, boolean secure, String auth)
+            throws Exception {
+        WireMockServer server = new WireMockServer(WireMockConfiguration.options().dynamicPort().dynamicHttpsPort()
+                .notifier(new ConsoleNotifier(false)));
+        int wireLevel = setLogLevel(WIRE_LOGGER, LocationAwareLogger.DEBUG_INT);
+        int operatorLevel = setLogLevel(CONNECTION_OPERATOR_LOGGER, LocationAwareLogger.DEBUG_INT);
+        try {
+            server.start();
+            server.stubFor(WireMock.post(WireMock.anyUrl()).willReturn(WireMock.ok(CANARY_RESPONSE)));
+            Client.Builder builder = new Client.Builder()
+                    .addEndpoint(secure ? "https://localhost:" + server.httpsPort() : "http://localhost:" + server.port())
+                    .enableConnectionPool(connectionPool)
+                    .compressServerResponse(false)
+                    .httpHeader(CANARY_HEADER_NAME, CANARY_HEADER_VALUE);
+            if (secure) {
+                builder.setSSLMode(SSLMode.TRUST);
+            }
+            if ("bearer".equals(auth)) {
+                builder.useBearerTokenAuth(CANARY_TOKEN);
+            } else {
+                builder.setUsername(CANARY_USER).setPassword(CANARY_PASSWORD)
+                        .useHTTPBasicAuth("basic".equals(auth));
+            }
+
+            assertTrue(LoggerFactory.getLogger(WIRE_LOGGER).isDebugEnabled());
+            String logged = captureStdErr(() -> {
+                try (Client client = builder.build()) {
+                    client.execute(CANARY_SQL).get(10, TimeUnit.SECONDS).close();
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            assertTrue(LoggerFactory.getLogger(WIRE_LOGGER).isDebugEnabled(), "the client must not change logger levels");
+
+            RequestPatternBuilder sent = WireMock.postRequestedFor(WireMock.anyUrl())
+                    .withHeader(CANARY_HEADER_NAME, WireMock.equalTo(CANARY_HEADER_VALUE))
+                    .withRequestBody(WireMock.containing(CANARY_SQL));
+            if ("bearer".equals(auth)) {
+                sent.withHeader(HttpHeaders.AUTHORIZATION, WireMock.equalTo("Bearer " + CANARY_TOKEN));
+            } else if ("basic".equals(auth)) {
+                sent.withHeader(HttpHeaders.AUTHORIZATION, WireMock.equalTo("Basic " + CANARY_BASIC));
+            } else {
+                sent.withHeader(ClickHouseHttpProto.HEADER_DB_PASSWORD, WireMock.equalTo(CANARY_PASSWORD));
+            }
+            server.verify(1, sent);
+
+            assertTrue(logged.contains(" connected "), "DEBUG logs of other Apache HttpClient loggers must stay: "
+                    + logged);
+            for (String canary : Arrays.asList(CANARY_PASSWORD, CANARY_BASIC, CANARY_TOKEN, CANARY_HEADER_VALUE,
+                    CANARY_SQL, CANARY_RESPONSE)) {
+                assertFalse(logged.contains(canary), "'" + canary + "' must not be logged: " + logged);
+            }
+        } finally {
+            setLogLevel(WIRE_LOGGER, wireLevel);
+            setLogLevel(CONNECTION_OPERATOR_LOGGER, operatorLevel);
+            server.stop();
+        }
+    }
+
+    /** Returns the previous level. slf4j-simple, the test logging backend, has no API to change a logger level. */
+    private static int setLogLevel(String loggerName, int level) throws Exception {
+        Field levelField = SimpleLogger.class.getDeclaredField("currentLogLevel");
+        levelField.setAccessible(true);
+        Logger logger = LoggerFactory.getLogger(loggerName);
+        int previous = levelField.getInt(logger);
+        levelField.setInt(logger, level);
+        return previous;
     }
 
     private static void invokeQuietly(Method method, Object target, Object... args) {

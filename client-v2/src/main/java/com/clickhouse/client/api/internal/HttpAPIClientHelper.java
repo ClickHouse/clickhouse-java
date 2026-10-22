@@ -32,7 +32,7 @@ import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.classic.RequestFailedException;
 import org.apache.hc.client5.http.impl.io.BasicHttpClientConnectionManager;
-import org.apache.hc.client5.http.impl.io.ManagedHttpClientConnectionFactory;
+import org.apache.hc.client5.http.impl.io.DefaultManagedHttpClientConnection;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
 import org.apache.hc.client5.http.io.HttpClientConnectionManager;
@@ -41,9 +41,11 @@ import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.client5.http.socket.LayeredConnectionSocketFactory;
 import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
 import org.apache.hc.client5.http.ssl.TlsSocketStrategy;
+import org.apache.hc.core5.http.ClassicHttpRequest;
 import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.ConnectionClosedException;
 import org.apache.hc.core5.http.ConnectionRequestTimeoutException;
+import org.apache.hc.core5.http.ContentLengthStrategy;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpEntity;
@@ -59,7 +61,16 @@ import org.apache.hc.core5.http.config.CharCodingConfig;
 import org.apache.hc.core5.http.config.Http1Config;
 import org.apache.hc.core5.http.config.Lookup;
 import org.apache.hc.core5.http.config.RegistryBuilder;
+import org.apache.hc.core5.http.impl.CharCodingSupport;
+import org.apache.hc.core5.http.impl.DefaultContentLengthStrategy;
+import org.apache.hc.core5.http.impl.io.DefaultHttpRequestWriterFactory;
 import org.apache.hc.core5.http.impl.io.DefaultHttpResponseParserFactory;
+import org.apache.hc.core5.http.impl.io.NoResponseOutOfOrderStrategy;
+import org.apache.hc.core5.http.impl.io.SocketHolder;
+import org.apache.hc.core5.http.io.HttpConnectionFactory;
+import org.apache.hc.core5.http.io.HttpMessageParserFactory;
+import org.apache.hc.core5.http.io.HttpMessageWriterFactory;
+import org.apache.hc.core5.http.io.ResponseOutOfOrderStrategy;
 import org.apache.hc.core5.http.io.SocketConfig;
 import org.apache.hc.core5.http.io.entity.ByteArrayEntity;
 import org.apache.hc.core5.http.io.entity.EntityTemplate;
@@ -96,6 +107,8 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLEncoder;
 import java.net.UnknownHostException;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.CharsetEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
@@ -246,7 +259,7 @@ public class HttpAPIClientHelper {
                 .build();
 
         BasicHttpClientConnectionManager connManager = BasicHttpClientConnectionManager.create(
-                null, null, tlsSocketStrategyLookup, null);
+                null, null, tlsSocketStrategyLookup, new NoWireLoggingConnectionFactory(null, null, null));
         connManager.setConnectionConfig(createConnectionConfig(configuration));
         connManager.setSocketConfig(socketConfig);
 
@@ -1290,7 +1303,70 @@ public class HttpAPIClientHelper {
         }
     }
 
-    public static class MeteredManagedHttpClientConnectionFactory extends ManagedHttpClientConnectionFactory {
+    /**
+     * Creates connections that never write request and response bytes to the Apache HttpClient wire logger,
+     * whatever the logging configuration is. Other settings are the defaults of
+     * {@code ManagedHttpClientConnectionFactory}.
+     */
+    static class NoWireLoggingConnectionFactory implements HttpConnectionFactory<ManagedHttpClientConnection> {
+
+        private static final AtomicLong COUNTER = new AtomicLong();
+
+        private final Http1Config http1Config;
+        private final CharCodingConfig charCodingConfig;
+        private final HttpMessageWriterFactory<ClassicHttpRequest> requestWriterFactory;
+        private final HttpMessageParserFactory<ClassicHttpResponse> responseParserFactory;
+
+        NoWireLoggingConnectionFactory(Http1Config http1Config, CharCodingConfig charCodingConfig,
+                                       HttpMessageParserFactory<ClassicHttpResponse> responseParserFactory) {
+            this.http1Config = http1Config != null ? http1Config : Http1Config.DEFAULT;
+            this.charCodingConfig = charCodingConfig != null ? charCodingConfig : CharCodingConfig.DEFAULT;
+            this.requestWriterFactory = new DefaultHttpRequestWriterFactory(this.http1Config);
+            this.responseParserFactory = responseParserFactory != null ? responseParserFactory
+                    : new DefaultHttpResponseParserFactory(this.http1Config);
+        }
+
+        @Override
+        public ManagedHttpClientConnection createConnection(Socket socket) throws IOException {
+            NoWireLoggingConnection conn = new NoWireLoggingConnection("http-outgoing-" + COUNTER.getAndIncrement(),
+                    CharCodingSupport.createDecoder(charCodingConfig), CharCodingSupport.createEncoder(charCodingConfig),
+                    http1Config, DefaultContentLengthStrategy.INSTANCE, DefaultContentLengthStrategy.INSTANCE,
+                    NoResponseOutOfOrderStrategy.INSTANCE, requestWriterFactory, responseParserFactory);
+            if (socket != null) {
+                conn.bind(socket);
+            }
+            return conn;
+        }
+    }
+
+    /**
+     * Binds sockets without the wire-logging wrapper ({@code LoggingSocketHolder}) that the parent class
+     * installs when the wire logger is enabled for DEBUG.
+     */
+    private static final class NoWireLoggingConnection extends DefaultManagedHttpClientConnection {
+
+        NoWireLoggingConnection(String id, CharsetDecoder charDecoder, CharsetEncoder charEncoder,
+                                Http1Config http1Config, ContentLengthStrategy incomingContentStrategy,
+                                ContentLengthStrategy outgoingContentStrategy,
+                                ResponseOutOfOrderStrategy responseOutOfOrderStrategy,
+                                HttpMessageWriterFactory<ClassicHttpRequest> requestWriterFactory,
+                                HttpMessageParserFactory<ClassicHttpResponse> responseParserFactory) {
+            super(id, charDecoder, charEncoder, http1Config, incomingContentStrategy, outgoingContentStrategy,
+                    responseOutOfOrderStrategy, requestWriterFactory, responseParserFactory);
+        }
+
+        @Override
+        public void bind(Socket socket) throws IOException {
+            bind(new SocketHolder(socket));
+        }
+
+        @Override
+        public void bind(SSLSocket sslSocket, Socket socket) throws IOException {
+            bind(new SocketHolder(sslSocket, socket));
+        }
+    }
+
+    public static class MeteredManagedHttpClientConnectionFactory extends NoWireLoggingConnectionFactory {
         public MeteredManagedHttpClientConnectionFactory(Http1Config http1Config, CharCodingConfig charCodingConfig, DefaultHttpResponseParserFactory defaultHttpResponseParserFactory) {
             super(http1Config, charCodingConfig, defaultHttpResponseParserFactory);
         }
