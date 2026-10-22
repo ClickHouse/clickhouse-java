@@ -47,6 +47,8 @@ import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.net.ConnectException;
+import java.net.Socket;
+import java.net.SocketException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -754,6 +756,23 @@ public class HttpAPIClientHelperTest {
             setLogLevel(CONNECTION_OPERATOR_LOGGER, operatorLevel);
             server.stop();
         }
+    }
+
+    @Test
+    public void testConnectionFactoryClosesSocketWhenBindFails() {
+        SocketException bindFailure = new SocketException("bind failure");
+        Socket socket = new Socket() {
+            @Override
+            public synchronized int getSoTimeout() throws SocketException {
+                throw bindFailure;
+            }
+        };
+        HttpAPIClientHelper.NoWireLoggingConnectionFactory factory =
+                new HttpAPIClientHelper.NoWireLoggingConnectionFactory(null, null, null);
+
+        SocketException thrown = Assert.expectThrows(SocketException.class, () -> factory.createConnection(socket));
+        assertSame(thrown, bindFailure);
+        assertTrue(socket.isClosed(), "the socket of a connection that failed to bind must be closed");
     }
 
     /** Returns the previous level. slf4j-simple, the test logging backend, has no API to change a logger level. */

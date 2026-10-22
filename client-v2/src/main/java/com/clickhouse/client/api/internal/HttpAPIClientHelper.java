@@ -45,7 +45,6 @@ import org.apache.hc.core5.http.ClassicHttpRequest;
 import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.ConnectionClosedException;
 import org.apache.hc.core5.http.ConnectionRequestTimeoutException;
-import org.apache.hc.core5.http.ContentLengthStrategy;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpEntity;
@@ -70,7 +69,6 @@ import org.apache.hc.core5.http.impl.io.SocketHolder;
 import org.apache.hc.core5.http.io.HttpConnectionFactory;
 import org.apache.hc.core5.http.io.HttpMessageParserFactory;
 import org.apache.hc.core5.http.io.HttpMessageWriterFactory;
-import org.apache.hc.core5.http.io.ResponseOutOfOrderStrategy;
 import org.apache.hc.core5.http.io.SocketConfig;
 import org.apache.hc.core5.http.io.entity.ByteArrayEntity;
 import org.apache.hc.core5.http.io.entity.EntityTemplate;
@@ -107,8 +105,6 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLEncoder;
 import java.net.UnknownHostException;
-import java.nio.charset.CharsetDecoder;
-import java.nio.charset.CharsetEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
@@ -1329,11 +1325,18 @@ public class HttpAPIClientHelper {
         @Override
         public ManagedHttpClientConnection createConnection(Socket socket) throws IOException {
             NoWireLoggingConnection conn = new NoWireLoggingConnection("http-outgoing-" + COUNTER.getAndIncrement(),
-                    CharCodingSupport.createDecoder(charCodingConfig), CharCodingSupport.createEncoder(charCodingConfig),
-                    http1Config, DefaultContentLengthStrategy.INSTANCE, DefaultContentLengthStrategy.INSTANCE,
-                    NoResponseOutOfOrderStrategy.INSTANCE, requestWriterFactory, responseParserFactory);
+                    charCodingConfig, http1Config, requestWriterFactory, responseParserFactory);
             if (socket != null) {
-                conn.bind(socket);
+                try {
+                    conn.bind(socket);
+                } catch (IOException | RuntimeException e) {
+                    try {
+                        conn.close();
+                    } catch (IOException closeException) {
+                        e.addSuppressed(closeException);
+                    }
+                    throw e;
+                }
             }
             return conn;
         }
@@ -1345,14 +1348,12 @@ public class HttpAPIClientHelper {
      */
     private static final class NoWireLoggingConnection extends DefaultManagedHttpClientConnection {
 
-        NoWireLoggingConnection(String id, CharsetDecoder charDecoder, CharsetEncoder charEncoder,
-                                Http1Config http1Config, ContentLengthStrategy incomingContentStrategy,
-                                ContentLengthStrategy outgoingContentStrategy,
-                                ResponseOutOfOrderStrategy responseOutOfOrderStrategy,
+        NoWireLoggingConnection(String id, CharCodingConfig charCodingConfig, Http1Config http1Config,
                                 HttpMessageWriterFactory<ClassicHttpRequest> requestWriterFactory,
                                 HttpMessageParserFactory<ClassicHttpResponse> responseParserFactory) {
-            super(id, charDecoder, charEncoder, http1Config, incomingContentStrategy, outgoingContentStrategy,
-                    responseOutOfOrderStrategy, requestWriterFactory, responseParserFactory);
+            super(id, CharCodingSupport.createDecoder(charCodingConfig), CharCodingSupport.createEncoder(charCodingConfig),
+                    http1Config, DefaultContentLengthStrategy.INSTANCE, DefaultContentLengthStrategy.INSTANCE,
+                    NoResponseOutOfOrderStrategy.INSTANCE, requestWriterFactory, responseParserFactory);
         }
 
         @Override
