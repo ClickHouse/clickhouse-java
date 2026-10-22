@@ -2,17 +2,25 @@ name: Release
 
 on:
   workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish to Maven Central and create the GitHub release"
+        required: true
+        default: false
+        type: boolean
 
 env:
   CH_VERSION: "25.8"
 
 jobs:
   release:
-    name: "Build and Publish Artifact"
+    name: Verify release artifacts
     runs-on: "ubuntu-latest"
-
+    timeout-minutes: 60
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     permissions:
-      contents: write
+      contents: read
 
     steps:
       - name: Check out Git repository
@@ -20,70 +28,146 @@ jobs:
       - name: Read release version
         id: version
         shell: bash
-        run: echo "version=$(cat VERSION)" >> "$GITHUB_OUTPUT"
-      - name: Install JDK and Maven
+        run: |
+          python3 scripts/release/validate_version.py
+          echo "version=$(cat VERSION)" >> "$GITHUB_OUTPUT"
+      - name: Install JDKs and Maven cache
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: |
-            8
+            11
             17
           cache: 'maven'
-          server-id: central
-          server-username: MAVEN_USERNAME
-          server-password: MAVEN_PASSWORD
-          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
-          gpg-passphrase: MAVEN_GPG_PASSPHRASE
       - name: Setup Toolchain
         shell: bash
         run: |
-          mkdir -p $HOME/.m2 \
-          && cat << EOF > $HOME/.m2/toolchains.xml
+          mkdir -p "$HOME/.m2"
+          cat > "$HOME/.m2/toolchains.xml" << EOF
           <?xml version="1.0" encoding="UTF8"?>
           <toolchains>
+            <toolchain>
+              <type>jdk</type>
+              <provides>
+                <version>11</version>
+              </provides>
+              <configuration>
+                <jdkHome>${JAVA_HOME_11_X64}</jdkHome>
+              </configuration>
+            </toolchain>
             <toolchain>
               <type>jdk</type>
               <provides>
                 <version>17</version>
               </provides>
               <configuration>
-                <jdkHome>${{ env.JAVA_HOME }}</jdkHome>
+                <jdkHome>${JAVA_HOME_17_X64}</jdkHome>
               </configuration>
             </toolchain>
           </toolchains>
           EOF
-      - name: Update Configuration
+      - name: Verify release build
+        env:
+          TEST_CLICKHOUSE_IMAGE_VERSION: ${{ env.CH_VERSION }}
         run: |
-          sed -i 's|<revision>.*</revision>|<revision>${{ steps.version.outputs.version }}</revision>|g' pom.xml
-          find . -type f -name "simplelogger.*" -exec rm -fv '{}' \;
-      - name: Release Maven package
+          mvn --batch-mode --no-transfer-progress \
+            -Drevision="${{ steps.version.outputs.version }}" \
+            -Dgpg.skip=true -DskipITs \
+            -P release clean verify
+      - name: Inventory release artifacts
+        run: |
+          python3 scripts/release/inventory_artifacts.py \
+            --version "${{ steps.version.outputs.version }}"
+      - name: Upload dry-run artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ steps.version.outputs.version }}
+          path: release-assets/
+          if-no-files-found: error
+
+  publish:
+    name: Publish verified release
+    needs: release
+    if: ${{ inputs.publish }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - name: Check out verified commit
+        uses: actions/checkout@v4
+      - name: Download verified release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-${{ needs.release.outputs.version }}
+          path: release-assets
+      - name: Install JDK 11
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 11
+      - name: Configure Maven Central signing
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: maven
+          server-id: central
+          server-username: MAVEN_USERNAME
+          server-password: MAVEN_PASSWORD
+          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+          gpg-passphrase: MAVEN_GPG_PASSPHRASE
+      - name: Set up JDK toolchain
+        shell: bash
+        run: |
+          mkdir -p "$HOME/.m2"
+          cat > "$HOME/.m2/toolchains.xml" << EOF
+          <?xml version="1.0" encoding="UTF8"?>
+          <toolchains>
+            <toolchain>
+              <type>jdk</type>
+              <provides><version>11</version></provides>
+              <configuration><jdkHome>${JAVA_HOME_11_X64}</jdkHome></configuration>
+            </toolchain>
+            <toolchain>
+              <type>jdk</type>
+              <provides><version>17</version></provides>
+              <configuration><jdkHome>${JAVA_HOME_17_X64}</jdkHome></configuration>
+            </toolchain>
+          </toolchains>
+          EOF
+      - name: Publish verified version to Maven Central
         env:
           MAVEN_USERNAME: ${{ secrets.SONATYPE_TOKEN_USER }}
           MAVEN_PASSWORD: ${{ secrets.SONATYPE_TOKEN }}
           MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-          TEST_CLICKHOUSE_IMAGE_VERSION: ${{ env.CH_VERSION }}
-        run: mvn -q --batch-mode -P release clean deploy
-      - name: Create Pre-release on Github
+        run: |
+          mvn --batch-mode --no-transfer-progress \
+            -Drevision="${{ needs.release.outputs.version }}" \
+            -DskipTests \
+            -P release deploy
+      - name: Create RC or GA GitHub release
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "v${{ steps.version.outputs.version }}" \
-            --prerelease \
-            --title "Release v${{ steps.version.outputs.version }}" \
-            LICENSE \
-            clickhouse-client/target/clickhouse*.jar \
-            clickhouse-data/target/clickhouse*.jar \
-            clickhouse-http-client/target/clickhouse*.jar \
-            clickhouse-jdbc/target/clickhouse*.jar \
-            clickhouse-jdbc/target/bundle/clickhouse*.jar \
-            clickhouse-r2dbc/target/clickhouse*.jar \
-            client-v2/target/client-v2*.jar \
-            jdbc-v2/target/jdbc-v2*.jar
+          version="${{ needs.release.outputs.version }}"
+          release_flags=(--generate-notes --target "$GITHUB_SHA")
+          if [[ "$version" == *-* ]]; then
+            release_flags+=(--prerelease --latest=false)
+          else
+            release_flags+=(--latest)
+          fi
+          gh release create "v${version}" \
+            --title "Release v${version}" \
+            "${release_flags[@]}" \
+            release-assets/*
   # Mirror Tableau TDVT after release (non-blocking).
   tdvt:
     name: "Tableau TDVT"
-    needs: release
-    if: ${{ needs.release.result == 'success' && startsWith(github.repository, 'ClickHouse/') }}
+    needs: publish
+    if: ${{ needs.publish.result == 'success' && startsWith(github.repository, 'ClickHouse/') }}
     runs-on: "ubuntu-latest"
     timeout-minutes: 150 # the TDVT matrix (latest/head/cloud, single-threaded) runs ~1h; allow for a queue
     steps:

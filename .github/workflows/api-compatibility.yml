@@ -1,0 +1,75 @@
+name: API compatibility
+
+on:
+  pull_request:
+    paths:
+      - "**/pom.xml"
+      - "**/src/main/java/**"
+      - "VERSION"
+      - ".github/workflows/api-compatibility.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compare-last-ga:
+    name: Compare public API with last GA
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository and release tags
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install JDKs and Maven cache
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: |
+            11
+            17
+          cache: maven
+      - name: Set up JDK toolchain
+        shell: bash
+        run: |
+          mkdir -p "$HOME/.m2"
+          cat > "$HOME/.m2/toolchains.xml" <<EOF
+          <?xml version="1.0" encoding="UTF8"?>
+          <toolchains>
+            <toolchain>
+              <type>jdk</type>
+              <provides><version>11</version></provides>
+              <configuration><jdkHome>${JAVA_HOME_11_X64}</jdkHome></configuration>
+            </toolchain>
+            <toolchain>
+              <type>jdk</type>
+              <provides><version>17</version></provides>
+              <configuration><jdkHome>${JAVA_HOME_17_X64}</jdkHome></configuration>
+            </toolchain>
+          </toolchains>
+          EOF
+      - name: Resolve last GA version
+        id: baseline
+        shell: bash
+        run: |
+          tag="$(
+            git tag --list 'v[0-9]*' --sort=-version:refname |
+              awk '/^v[0-9]+\.[0-9]+\.[0-9]+$/ { print; exit }'
+          )"
+          test -n "$tag" || {
+            echo "No vMAJOR.MINOR.PATCH GA tag was found" >&2
+            exit 1
+          }
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+          echo "Comparing against $tag"
+      - name: Validate development version
+        run: python3 scripts/release/validate_version.py
+      - name: Check binary compatibility
+        run: |
+          mvn --batch-mode --no-transfer-progress \
+            -DskipTests -Dmaven.javadoc.skip=true install
+          mvn --batch-mode --no-transfer-progress \
+            --projects clickhouse-data,clickhouse-client,clickhouse-http-client,client-v2,jdbc-v2,clickhouse-jdbc,clickhouse-r2dbc \
+            -Dapi.compatibility.version="${{ steps.baseline.outputs.version }}" \
+            -Papi-compatibility japicmp:cmp

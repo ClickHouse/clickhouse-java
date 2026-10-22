@@ -17,6 +17,11 @@
     <description>JDBC driver for ClickHouse</description>
     <url>https://github.com/ClickHouse/clickhouse-java/tree/main/clickhouse-jdbc-all</url>
 
+    <properties>
+        <!-- This artifact is a shaded distribution; API is checked in its source modules. -->
+        <japicmp.skip>true</japicmp.skip>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>com.clickhouse</groupId>
