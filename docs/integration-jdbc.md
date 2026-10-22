@@ -2,7 +2,7 @@
 
 This guide is a **step-by-step integration path** for the **JDBC Driver V2** (`jdbc-v2`, published as `com.clickhouse:clickhouse-jdbc`). It is written to be used as context for building an application or a downstream integration spec: each step states the decisions you must make, how to configure them, and the common pitfalls to avoid.
 
-**Prerequisites:** Read [integration-common.md](integration-common.md) to understand the JDBC trade-offs before committing to this path.
+**Prerequisites:** Read the [integration overview](integration-index.md) to understand the JDBC trade-offs before committing to this path.
 
 
 > **Architecture in one line.** Every JDBC `Connection` wraps a `client-v2` [`Client`](../client-v2/src/main/java/com/clickhouse/client/api/Client.java) internally. JDBC is not a separate protocol stack — it is a `java.sql.*` façade over the Java Client.
@@ -775,7 +775,8 @@ public int getParameterCount(PreparedStatement ps) throws SQLException {
 
 ### Type mapping
 
-The driver maps ClickHouse types to JDBC types (e.g. `UInt64` → `NUMERIC`, `Tuple` → `STRUCT`); see [type_mapping.md](../type_mapping.md). Override defaults:
+The driver maps ClickHouse types to JDBC types (e.g. `UInt64` → `NUMERIC`, `Tuple` → `STRUCT`); see the
+[JDBC type mapping reference](clickhouse-docs/jdbc.mdx#jdbc-type-mapping). Override defaults:
 
 
 ```java
@@ -838,6 +839,10 @@ Key JDBC-specific properties (see [`DriverProperties`](../jdbc-v2/src/main/java/
 | `default_query_settings` | — | Default settings for all queries |
 | `jdbc_metrics_recorder` | — | Custom `MetricsRecorder` implementation class name |
 | `jdbc_metadata_use_show_statements` | `true` | `DatabaseMetaData` schemas, tables and columns via `SHOW` / `DESCRIBE` instead of `system.*` tables |
+
+Tools and connection pools can discover both JDBC and forwarded client options through
+`java.sql.Driver#getPropertyInfo`. The returned entries include defaults and descriptions; the enums linked above
+remain the source for property keys used in application code.
 
 
 ## Observability & Monitoring
@@ -910,10 +915,11 @@ For a complete sample demonstrating JDBC driver setup and telemetry in a Spring 
 
 **Related documents in this repository:**
 
-- [integration-common.md](integration-common.md) — choosing JDBC vs Client
+- [integration-index.md](integration-index.md) — choosing JDBC vs Client
 - [integration-client.md](integration-client.md) — Java Client integration path
 - [integration-ops.md](integration-ops.md) — operations and observability guide
 - [authentication.md](authentication.md) — full authentication and TLS reference
 - [features.md](features.md) — compatibility contract
-- [type_mapping.md](../type_mapping.md) — JDBC type mapping recommendations
+- [JDBC type mapping](clickhouse-docs/jdbc.mdx#jdbc-type-mapping) — JDBC type mapping recommendations
 - [integration-testing.md](integration-testing.md) — integration testing recommendations and practices
+- [migration-helpers](../migration-helpers/) — helpers for converting legacy client and JDBC configuration

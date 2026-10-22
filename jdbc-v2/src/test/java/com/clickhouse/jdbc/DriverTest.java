@@ -88,6 +88,23 @@ public class DriverTest extends JdbcIntegrationTest {
         }
     }
 
+    @Test
+    public void testKnownPropertiesHaveDescriptions() throws SQLException {
+        DriverPropertyInfo[] properties = new Driver().getPropertyInfo("jdbc:ch://localhost:8123", new Properties());
+        Map<String, DriverPropertyInfo> propertiesByName = new HashMap<>();
+        for (DriverPropertyInfo property : properties) {
+            propertiesByName.put(property.name, property);
+            Assert.assertNotNull(property.description, property.name);
+            Assert.assertFalse(property.description.trim().isEmpty(), property.name);
+            Assert.assertNotEquals(property.description, "ClickHouse configuration property.", property.name);
+        }
+
+        assertEquals(propertiesByName.get(ClientConfigProperties.USER.getKey()).description,
+                "ClickHouse user name.");
+        assertEquals(propertiesByName.get(DriverProperties.SQL_PARSER.getKey()).description,
+                "SQL parser implementation used by the JDBC driver.");
+    }
+
     @DataProvider(name = "testGetPropertyInfoDP")
     public Object[][] testGetPropertyInfoDP() {
         return new Object[][]{

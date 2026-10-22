@@ -12,6 +12,8 @@ import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -35,6 +37,9 @@ import javax.net.ssl.SSLContext;
 
 public class JdbcConfiguration {
     public static final Logger LOG = LoggerFactory.getLogger(JdbcConfiguration.class);
+    private static final String PROPERTY_DESCRIPTIONS_RESOURCE =
+            "com/clickhouse/jdbc/driver-property-descriptions.properties";
+    private static final Properties PROPERTY_DESCRIPTIONS = loadPropertyDescriptions();
 
     private static final String PREFIX_CLICKHOUSE = "jdbc:clickhouse:";
     private static final String PREFIX_CLICKHOUSE_SHORT = "jdbc:ch:";
@@ -426,9 +431,9 @@ public class JdbcConfiguration {
             DriverPropertyInfo propertyInfo = propertyInfos.get(clientProp.getKey());
             if (propertyInfo == null) {
                 propertyInfo = new DriverPropertyInfo(clientProp.getKey(), clientProp.getDefaultValue());
-                // TODO: read description from resource file
                 propertyInfos.put(clientProp.getKey(), propertyInfo);
             }
+            propertyInfo.description = getPropertyDescription(clientProp.getKey());
         }
 
         // Fill list of driver properties information, add not specified properties,
@@ -439,9 +444,27 @@ public class JdbcConfiguration {
                 propertyInfo = new DriverPropertyInfo(driverProp.getKey(), driverProp.getDefaultValue());
                 propertyInfos.put(driverProp.getKey(), propertyInfo);
             }
+            propertyInfo.description = getPropertyDescription(driverProp.getKey());
         }
 
         listOfProperties = propertyInfos.values().stream().sorted(Comparator.comparing(o -> o.name)).collect(Collectors.toList());
+    }
+
+    private static Properties loadPropertyDescriptions() {
+        Properties descriptions = new Properties();
+        ClassLoader classLoader = JdbcConfiguration.class.getClassLoader();
+        try (InputStream input = classLoader.getResourceAsStream(PROPERTY_DESCRIPTIONS_RESOURCE)) {
+            if (input != null) {
+                descriptions.load(input);
+            }
+        } catch (IOException e) {
+            LOG.warn("Unable to load JDBC property descriptions", e);
+        }
+        return descriptions;
+    }
+
+    private static String getPropertyDescription(String key) {
+        return PROPERTY_DESCRIPTIONS.getProperty(key, "ClickHouse configuration property.");
     }
 
     /**
