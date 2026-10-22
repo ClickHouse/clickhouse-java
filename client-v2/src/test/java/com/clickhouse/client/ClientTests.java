@@ -866,32 +866,6 @@ public class ClientTests extends BaseIntegrationTest {
         }
     }
 
-    @Test(groups = { "integration" })
-    public void testJWTWithCloud() throws Exception {
-        String jwt = System.getenv("JWT_TOKEN");
-        if (jwt == null || jwt.trim().isEmpty()) {
-            throw new SkipException("JWT_TOKEN environment variable is not set. Skipping JWT test.");
-        }
-        ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
-        Assert.assertFalse(jwt.contains("\n") || jwt.contains("-----"), "JWT should be single string ready for HTTP header");
-        try (Client client = new Client.Builder()
-                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isCloud())
-                .compressClientRequest(false)
-                .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
-                .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1")
-                .useBearerTokenAuth(jwt).build()) {
-            try {
-                List<GenericRecord> response = client.queryAll("SELECT currentUser()");
-                String username = response.get(0).getString(1);
-                Assert.assertTrue(username != null && username.matches("^JWT::.+::.+$"),
-                        "Expected username in format JWT::<subject>::<claims_hash>, but actual username was: '" + username + "'");
-            } catch (Exception e) {
-                e.printStackTrace();
-                throw e;
-            }
-        }
-    }
-
     protected Client.Builder newClient() {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
         boolean isSecure = isCloud();

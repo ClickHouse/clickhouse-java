@@ -1,4 +1,0 @@
-jwcrypto==1.6.1
-PyJWT==2.15.1
-urllib3==2.8.0
-
