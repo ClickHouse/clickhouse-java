@@ -1358,11 +1358,17 @@ public class HttpAPIClientHelper {
 
         @Override
         public void bind(Socket socket) throws IOException {
+            // This is not a call back into DefaultManagedHttpClientConnection#bind(Socket), which selects the
+            // wire-logging LoggingSocketHolder. It calls the other overload, bind(SocketHolder), which this class
+            // inherits from DefaultManagedHttpClientConnection without an override. That overload binds the given
+            // plain holder through the httpcore5 BHttpConnectionBase#bind(SocketHolder) and then sets the socket
+            // timeout, the same steps as the parent's bind(Socket) without the logging wrapper.
             bind(new SocketHolder(socket));
         }
 
         @Override
         public void bind(SSLSocket sslSocket, Socket socket) throws IOException {
+            // Calls the inherited DefaultManagedHttpClientConnection#bind(SocketHolder), as bind(Socket) above does.
             bind(new SocketHolder(sslSocket, socket));
         }
     }
