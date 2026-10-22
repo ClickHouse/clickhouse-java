@@ -838,6 +838,7 @@ Key JDBC-specific properties (see [`DriverProperties`](../jdbc-v2/src/main/java/
 | `default_query_settings` | — | Default settings for all queries |
 | `jdbc_metrics_recorder` | — | Custom `MetricsRecorder` implementation class name |
 | `jdbc_metadata_use_show_statements` | `true` | `DatabaseMetaData` schemas, tables and columns via `SHOW` / `DESCRIBE` instead of `system.*` tables |
+| `jdbc_multi_dimensional_array_element_type` | `true` | `Array#getBaseType()` / `getBaseTypeName()` of a multi-dimensional array return the next array level; `false` returns the innermost non-array type |
 
 
 ## Observability & Monitoring

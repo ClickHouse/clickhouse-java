@@ -291,6 +291,15 @@ public class JdbcUtils {
     }
 
     public static Object convert(Object value, Class<?> type, ClickHouseColumn column) throws SQLException {
+        return convert(value, type, column, true);
+    }
+
+    /**
+     * @param multiDimensionalArrayElementType passed to the created {@link Array}, see
+     *                                         {@link Array#Array(ClickHouseColumn, Object[], boolean)}
+     */
+    public static Object convert(Object value, Class<?> type, ClickHouseColumn column,
+                                 boolean multiDimensionalArrayElementType) throws SQLException {
         if (value == null || type == null) {
             return value;
         }
@@ -316,16 +325,16 @@ public class JdbcUtils {
                 ClickHouseDataType baseType = baseColumn.isNested() ? ClickHouseDataType.Tuple : baseColumn.getDataType();
                 Object[] convertedValues = convertList(listValue, convertToJavaClass(baseType),
                         getArrayDimensions(column));
-                return new Array(column, convertedValues);
+                return new Array(column, convertedValues, multiDimensionalArrayElementType);
             }
 
             // base type is unknown. all objects should be converted
-            return new Array(column, listValue.toArray());
+            return new Array(column, listValue.toArray(), multiDimensionalArrayElementType);
         }
 
         if (value.getClass().isArray()) {
             if (type == java.sql.Array.class) {
-                return new Array(column, arrayToObjectArray(value));
+                return new Array(column, arrayToObjectArray(value), multiDimensionalArrayElementType);
             } else if (type == Tuple.class) {
                 return new Tuple(true, value);
             }
@@ -338,10 +347,10 @@ public class JdbcUtils {
                 ClickHouseDataType baseType = column.getArrayBaseColumn().getDataType();
                 Object[] convertedValues = convertArray(arrayValue.getArray(), convertToJavaClass(baseType),
                         column.getArrayNestedLevel());
-                return new Array(column, convertedValues);
+                return new Array(column, convertedValues, multiDimensionalArrayElementType);
             }
 
-            return new Array(column, arrayValue.getArrayOfObjects());
+            return new Array(column, arrayValue.getArrayOfObjects(), multiDimensionalArrayElementType);
         }
 
         return convertObject(value, type, column);
