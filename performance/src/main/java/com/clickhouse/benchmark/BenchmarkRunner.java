@@ -10,6 +10,7 @@ import com.clickhouse.benchmark.clients.JDBCQuery;
 import com.clickhouse.benchmark.clients.MixedWorkload;
 import com.clickhouse.benchmark.clients.QueryClient;
 import com.clickhouse.benchmark.clients.Serializers;
+import com.clickhouse.benchmark.clients.WriteStream;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.profile.GCProfiler;
@@ -56,6 +57,13 @@ public class BenchmarkRunner {
         final String outputFile = String.format("jmh-results-%s-%s.out", env, time);
         final String datasetName = options.getOrDefault("-d", "file://default.csv");
         final String[] limits = options.getOrDefault("-l", "300000,100000,10000").split(",");
+        String testMask = options.getOrDefault("-b", "q,i");
+        String[] testMaskParts = testMask.split(",");
+        boolean runAll = testMaskParts[0].equalsIgnoreCase("all");
+        boolean writeStreamOnly = testMaskParts.length == 1 && "ws".equalsIgnoreCase(testMaskParts[0]);
+        if (!writeStreamOnly && Arrays.asList(testMaskParts).contains("ws")) {
+            throw new IllegalArgumentException("The ws benchmark uses throughput mode and must be run by itself");
+        }
 
         System.out.println("Measurement iterations: " + measurementIterations);
         System.out.println("Measurement time: " + measurementTime + "s");
@@ -66,9 +74,6 @@ public class BenchmarkRunner {
 
         ChainedOptionsBuilder optBuilder = new OptionsBuilder()
                 .forks(1) // must be a fork. No fork only for debugging
-                .mode(Mode.SampleTime)
-                .param("datasetSourceName", datasetName)
-                .param("limit", limits)
                 .timeUnit(TimeUnit.MILLISECONDS)
                 .addProfiler(GCProfiler.class)
                 .addProfiler(MemPoolProfiler.class)
@@ -82,15 +87,21 @@ public class BenchmarkRunner {
                 .result(resultFile)
                 .shouldFailOnError(true);
 
-        String testMask = options.getOrDefault("-b", "q,i");
-        String[] testMaskParts = testMask.split(",");
+        if (writeStreamOnly) {
+            optBuilder.mode(Mode.Throughput);
+        } else {
+            optBuilder.mode(Mode.SampleTime)
+                    .param("datasetSourceName", datasetName)
+                    .param("limit", limits);
+        }
 
         SortedSet<String> benchmarks = new TreeSet<>();
-        boolean runAll = testMaskParts[0].equalsIgnoreCase("all");
         if (runAll) {
             BENCHMARK_FLAGS.values().forEach((b) -> {
-                optBuilder.include(b);
-                benchmarks.add(b);
+                if (!b.equals(WriteStream.class.getName())) {
+                    optBuilder.include(b);
+                    benchmarks.add(b);
+                }
             });
         } else {
             for (String p : testMaskParts) {
@@ -134,6 +145,7 @@ public class BenchmarkRunner {
         map.put("mixed", MixedWorkload.class.getName());
         map.put("jq", JDBCQuery.class.getName());
         map.put("ji", JDBCInsert.class.getName());
+        map.put("ws", WriteStream.class.getName());
         return map;
     }
 

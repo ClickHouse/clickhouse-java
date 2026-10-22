@@ -60,6 +60,7 @@ jdbc-v2/src/main/antlr4/com/clickhouse/jdbc/internal/ClickHouseLexer.tokens
 # test configuration
 **/test/resources/test.properties
 performance/jmh-simple-results.json
+performance/results/
 *.csv
 *.sql
 *.json

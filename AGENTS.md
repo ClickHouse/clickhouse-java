@@ -40,7 +40,7 @@ Prefer targeted Maven commands over full-repo runs.
 
 Also compile examples or packaging modules (e.g. `packages/clickhouse-jdbc-all`) when a change affects examples, packaging, public APIs, or other user-facing behavior — running the touched module's tests alone isn't enough.
 
-Run benchmarks under `clickhouse-benchmark` when a change touches a performance-sensitive path (see
+Run benchmarks under `performance` when a change touches a performance-sensitive path (see
 `docs/ai-review.md`); this is optional and only worth doing when performance is actually in question.
 
 Avoid broad dependency, formatting, or unrelated cleanup churn unless required by the task.
