@@ -193,4 +193,10 @@ This is going to depend on the logging framework you're using. For example, if y
 </configuration>
 ```
 
+#### HTTP wire logs {#http-wire-logs}
+
+The client (`client-v2`) and the JDBC driver (`jdbc-v2`) never write HTTP wire logs, which are the bytes of requests and responses, to the Apache HttpClient logger `org.apache.hc.client5.http.wire`. This is also true when that logger or the root logger is set to `DEBUG`. Wire logs contain credentials, SQL, and data. To examine HTTP traffic, use a packet capture in a test environment with test credentials.
+
+The Apache HttpClient logger `org.apache.hc.client5.http.headers` writes the request headers, including `Authorization`, at `DEBUG`. Keep it at `INFO` or higher in production. In a shaded artifact (for example `client-v2` with the `all` classifier, or `clickhouse-jdbc-all`), the Apache HttpClient logger names start with the relocation prefix of that artifact, for example `com.clickhouse.shaded.org.apache.hc.client5.http.headers`.
+
 [Changelog](https://github.com/ClickHouse/clickhouse-java/blob/main/CHANGELOG.md)
