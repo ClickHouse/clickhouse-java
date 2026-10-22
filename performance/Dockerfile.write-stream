@@ -1,0 +1,47 @@
+FROM eclipse-temurin:11-jdk AS jdk11
+
+FROM maven:3.9.11-eclipse-temurin-17 AS build
+
+COPY --from=jdk11 /opt/java/openjdk /opt/java/openjdk-11
+
+RUN mkdir -p /root/.m2 \
+    && printf '%s\n' \
+        '<?xml version="1.0" encoding="UTF-8"?>' \
+        '<toolchains>' \
+        '  <toolchain><type>jdk</type><provides><version>11</version></provides><configuration><jdkHome>/opt/java/openjdk-11</jdkHome></configuration></toolchain>' \
+        '  <toolchain><type>jdk</type><provides><version>17</version></provides><configuration><jdkHome>/opt/java/openjdk</jdkHome></configuration></toolchain>' \
+        '</toolchains>' \
+        > /root/.m2/toolchains.xml
+
+WORKDIR /source
+COPY . .
+
+RUN mvn -B -DskipTests -pl packages/clickhouse-jdbc-all -am install
+RUN mvn -B -DskipTests -f performance/pom.xml package
+
+FROM eclipse-temurin:17-jre
+
+ARG TARGETARCH
+ARG ASYNC_PROFILER_VERSION=3.0
+
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y ca-certificates curl \
+    && case "${TARGETARCH}" in \
+        amd64) profiler_arch=x64 ;; \
+        arm64) profiler_arch=arm64 ;; \
+        *) echo "Unsupported architecture: ${TARGETARCH}" >&2; exit 1 ;; \
+       esac \
+    && curl --fail --location --silent --show-error \
+        "https://github.com/async-profiler/async-profiler/releases/download/v${ASYNC_PROFILER_VERSION}/async-profiler-${ASYNC_PROFILER_VERSION}-linux-${profiler_arch}.tar.gz" \
+        | tar --extract --gzip --directory /opt \
+    && mv "/opt/async-profiler-${ASYNC_PROFILER_VERSION}-linux-${profiler_arch}" /opt/async-profiler \
+    && apt-get purge -y curl \
+    && apt-get autoremove -y \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=build /source/performance/target/jmh-benchmark-0.1-SNAPSHOT-jar-with-dependencies.jar \
+    /opt/benchmark/benchmarks.jar
+
+WORKDIR /results
+
+ENTRYPOINT ["java", "-cp", "/opt/benchmark/benchmarks.jar", "org.openjdk.jmh.Main"]
