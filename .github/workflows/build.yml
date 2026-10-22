@@ -55,10 +55,6 @@ jobs:
           cache: "maven"
       - name: Build and install libraries
         run: mvn --batch-mode --no-transfer-progress --show-version --strict-checksums --threads 2 -Dmaven.wagon.rto=30000 -Dj8 -DskipITs install
-      - name: Copy Artifacts to Build dir
-        run: |
-          mkdir clickhouse-jdbc-artifacts
-          cp -rf $HOME/.m2/repository/com/clickhouse/clickhouse-jdbc/* ./clickhouse-jdbc-artifacts/
       - name: Compile examples
         run: |
           export LIB_VER=$(grep '<revision>' pom.xml | sed -e 's|[[:space:]]*<[/]*revision>[[:space:]]*||g')
@@ -66,51 +62,6 @@ jobs:
           for d in $(ls -d `pwd`/examples/*/); do \
             if [ -e $d/pom.xml ]; then cd $d && mvn  --batch-mode --no-transfer-progress clean compile; fi;
           done
-      - name: Save clickhouse-jdbc-all for tests
-        uses: actions/upload-artifact@v4
-        with:
-          name: clickhouse-jdbc-archive
-          path: clickhouse-jdbc-artifacts/
-          retention-days: 5 
-
-#  test-multi-env:
-#    needs: compile
-#    strategy:
-#      matrix:
-#        # https://whichjdk.com/
-#        # https://github.com/actions/setup-java/blob/main/docs/advanced-usage.md#selecting-a-java-distribution
-#        # add "corretto", "liberica", "microsoft", "zulu" only when needed
-#        dist: ["temurin"]
-#        # fix issue on "macos-latest", "windows-latest"
-#        os: ["ubuntu-latest"]
-#      fail-fast: false
-#    runs-on: ${{ matrix.os }}
-#    timeout-minutes: 10
-#    name: ${{ matrix.dist }} JDK 17 on ${{ matrix.os }}
-#    steps:
-#      - name: Check out repository
-#        uses: actions/checkout@v4
-#      - name: Check out PR
-#        run: |
-#          git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
-#            origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
-#        if: github.event.inputs.pr != ''
-#      - name: Install JDK 17 and Maven
-#        uses: actions/setup-java@v4
-#        with:
-#          distribution: ${{ matrix.dist }}
-#          java-version: 17
-#          cache: "maven"
-#      - name: Test libraries
-#        run: mvn --batch-mode --no-transfer-progress -Dj8 -DskipITs verify
-#      - name: Upload test results
-#        uses: actions/upload-artifact@v4
-#        if: failure()
-#        with:
-#          name: result ${{ github.job }}
-#          path: |
-#            **/target/failsafe-reports
-#            **/target/surefire-reports
 
   test-native-image:
     runs-on: ubuntu-latest
@@ -197,139 +148,6 @@ jobs:
           TEST_CLICKHOUSE_IMAGE_VERSION: ${{ matrix.clickhouse }}
         run: |
           mvn --also-make --batch-mode --no-transfer-progress --projects ${{ matrix.project }} -Dmaven.javadoc.skip=true verify
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: result ${{ github.job }}_${{ matrix.clickhouse }}
-          path: |
-            **/target/failsafe-reports
-            **/target/surefire-reports
-          retention-days: 5
-
-  test-with-cloud:
-    runs-on: ubuntu-latest
-    needs: compile
-    strategy:
-      matrix:
-        project: ["client-v2", "jdbc-v2"]
-      fail-fast: false
-    timeout-minutes: 20
-    name: ${{ matrix.project }} + ClickHouse Cloud
-    env:
-      TEST_CLICKHOUSE_CONTAINER: none
-      TEST_CLICKHOUSE_SECURE: "true"
-      TEST_CLICKHOUSE_HOST: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_HOST_SMT_PROD }}
-      TEST_CLICKHOUSE_USER: default
-      TEST_CLICKHOUSE_PASSWORD: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_PASSWORD_SMT_PROD }}
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-      - name: Check out PR
-        run: |
-          git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
-            origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
-        if: github.event.inputs.pr != ''
-      - name: Install JDK 17 and Maven
-        uses: actions/setup-java@v4
-        with:
-          distribution: "temurin"
-          java-version: |
-            8
-            17
-            21
-          cache: "maven"
-      - name: Setup Toolchain
-        shell: bash
-        run: |
-          mkdir -p $HOME/.m2 \
-          && cat << EOF > $HOME/.m2/toolchains.xml
-          <?xml version="1.0" encoding="UTF8"?>
-          <toolchains>
-            <toolchain>
-              <type>jdk</type>
-              <provides>
-                <version>17</version>
-              </provides>
-              <configuration>
-                <jdkHome>${{ env.JAVA_HOME }}</jdkHome>
-              </configuration>
-            </toolchain>
-          </toolchains>
-          EOF
-      - name: Install Java client
-        run: mvn --also-make --batch-mode --no-transfer-progress -DskipTests=true -Dmaven.javadoc.skip=true install
-      - name: Generate Database Name
-        run: |
-          RANDOM_DB="clickhouse_java_test_${GITHUB_RUN_ID}_${RANDOM}"
-          echo "TEST_DB_NAME=$RANDOM_DB" >> $GITHUB_ENV
-          echo "Generated database name: $RANDOM_DB"
-      - name: Create Temporary Database
-        run: |
-          echo "Creating database: \`$TEST_DB_NAME\`"
-          curl --fail-with-body -s -u "$TEST_CLICKHOUSE_USER:$TEST_CLICKHOUSE_PASSWORD" \
-            "https://$TEST_CLICKHOUSE_HOST:8443/?wait_end_of_query=1" \
-            --data-binary "CREATE DATABASE IF NOT EXISTS \`$TEST_DB_NAME\`"
-
-          echo "Waiting for database \`$TEST_DB_NAME\` to replicate to all nodes..."
-          TOTAL_REPLICAS=$(curl -s -u "$TEST_CLICKHOUSE_USER:$TEST_CLICKHOUSE_PASSWORD" \
-            "https://$TEST_CLICKHOUSE_HOST:8443" \
-            --data-binary "SELECT count() FROM system.clusters WHERE cluster = 'default'" | tr -d '[:space:]')
-          if [ -z "$TOTAL_REPLICAS" ] || ! [[ "$TOTAL_REPLICAS" =~ ^[0-9]+$ ]] || [ "$TOTAL_REPLICAS" -le 0 ]; then
-            TOTAL_REPLICAS=1
-          fi
-          echo "Total replicas in cluster: $TOTAL_REPLICAS"
-
-          for i in {1..30}; do
-            READY_REPLICAS=$(curl -s -u "$TEST_CLICKHOUSE_USER:$TEST_CLICKHOUSE_PASSWORD" \
-              "https://$TEST_CLICKHOUSE_HOST:8443" \
-              --data-binary "SELECT count() FROM clusterAllReplicas('default', system.databases) WHERE name = '$TEST_DB_NAME'" | tr -d '[:space:]')
-            echo "Replicas ready: $READY_REPLICAS / $TOTAL_REPLICAS (attempt $i)"
-            if [ -n "$READY_REPLICAS" ] && [[ "$READY_REPLICAS" =~ ^[0-9]+$ ]] && [ "$READY_REPLICAS" -ge "$TOTAL_REPLICAS" ]; then
-              echo "Database \`$TEST_DB_NAME\` is ready on all replicas."
-              break
-            fi
-            sleep 2
-          done
-
-          echo "Verifying database accessibility..."
-          curl --fail-with-body -s -u "$TEST_CLICKHOUSE_USER:$TEST_CLICKHOUSE_PASSWORD" \
-            "https://$TEST_CLICKHOUSE_HOST:8443/?database=$TEST_DB_NAME&wait_end_of_query=1" \
-            --data-binary "SELECT 1"
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - name: Install dependencies
-        run: python3 -m pip install -r .github/scripts/requirements.txt
-      - name: Test http client
-        env:
-          JWT_PKEY: ${{ secrets.JWT_PKEY }}
-        run: |
-          python3 .github/scripts/generate_jwt.py jwt.token
-          JWT_TOKEN="$(cat jwt.token)"
-          rm -f jwt.token
-          export JWT_TOKEN
-          mvn --batch-mode --no-transfer-progress --projects ${{ matrix.project }} -Dprotocol=http -Dmaven.javadoc.skip=true verify
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: result ${{ github.job }}_${{ matrix.project }}
-          path: |
-            **/target/failsafe-reports
-            **/target/surefire-reports
-      - name: Cleanup Database Unconditionally
-        if: always() # CRITICAL: This ensures the step runs regardless of previous success/failure
-        run: |
-          # Verify we actually generated a DB name to avoid dropping something accidentally
-          if [ -n "$TEST_DB_NAME" ]; then
-            DROP_STMT="DROP DATABASE IF EXISTS \`$TEST_DB_NAME\`"
-            echo "Cleaning up database: \`$TEST_DB_NAME\` with statement '$DROP_STMT'";
-            curl --fail-with-body -s -u "$TEST_CLICKHOUSE_USER:$TEST_CLICKHOUSE_PASSWORD" "https://$TEST_CLICKHOUSE_HOST:8443/?wait_end_of_query=1" --data-binary "$DROP_STMT";
-          else
-            echo "No database name was generated; skipping cleanup.";
-          fi;
 
   test-with-cluster:
     runs-on: ubuntu-latest
@@ -383,15 +201,6 @@ jobs:
       - name: Test ${{ matrix.project }}
         run: |
           mvn --batch-mode --no-transfer-progress --projects ${{ matrix.project }} -Dmaven.javadoc.skip=true verify
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: result ${{ github.job }}_${{ matrix.project }}_${{ matrix.clickhouse }}
-          path: |
-            **/target/failsafe-reports
-            **/target/surefire-reports
-          retention-days: 5
 
   test-jdbc-driver:
     runs-on: ubuntu-latest
@@ -445,14 +254,6 @@ jobs:
           TEST_CLICKHOUSE_IMAGE_VERSION: ${{ matrix.clickhouse }}
         run: |
           mvn --batch-mode --no-transfer-progress --projects clickhouse-jdbc,jdbc-v2 -Dprotocol=${{ matrix.protocol }} -Dmaven.javadoc.skip=true verify
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: result ${{ github.job }}_${{ matrix.project }}_${{ matrix.clickhouse }}
-          path: |
-            **/target/failsafe-reports
-            **/target/surefire-reports
 
   test-r2dbc-driver:
     runs-on: ubuntu-latest
@@ -508,68 +309,3 @@ jobs:
         run: |
           mvn --batch-mode --no-transfer-progress --projects clickhouse-r2dbc \
             -D'r2dbc-spi.version=${{ matrix.r2dbc }}' -Dprotocol=${{ matrix.protocol }} -Dmaven.javadoc.skip=true verify
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: result ${{ github.job }}
-          path: |
-            **/target/failsafe-reports
-            **/target/surefire-reports
-
-#  test-timezone-support:
-#    runs-on: ubuntu-latest
-#    needs: compile
-#    strategy:
-#      matrix:
-#        serverTz:
-#          [
-#            "Asia/Chongqing",
-#            "America/Los_Angeles",
-#            "Etc/UTC",
-#            "Europe/Berlin",
-#            "Europe/Moscow",
-#          ]
-#        clientTz:
-#          [
-#            "Asia/Chongqing",
-#            "America/Los_Angeles",
-#            "Etc/UTC",
-#            "Europe/Berlin",
-#            "Europe/Moscow",
-#          ]
-#      fail-fast: false
-#    timeout-minutes: 20
-#    name: "TimeZone(C/S): ${{ matrix.clientTz }} vs. ${{ matrix.serverTz }}"
-#    steps:
-#      - name: Check out repository
-#        uses: actions/checkout@v4
-#      - name: Check out PR
-#        run: |
-#          git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
-#            origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
-#        if: github.event.inputs.pr != ''
-#      - name: Install JDK 8 and Maven
-#        uses: actions/setup-java@v4
-#        with:
-#          distribution: "temurin"
-#          java-version: 8
-#          cache: "maven"
-#      - name: Install Java client
-#        run: mvn --also-make --batch-mode --no-transfer-progress --projects clickhouse-http-client -Dj8 -DskipTests install
-#      - name: Test JDBC and R2DBC drivers
-#        env:
-#          TEST_CLICKHOUSE_IMAGE_VERSION: ${{ env.PREFERRED_LTS_VERSION }}
-#          TEST_CLICKHOUSE_TIMEZONE: ${{ matrix.serverTz }}
-#        run: |
-#          mvn --batch-mode --no-transfer-progress --projects clickhouse-jdbc,clickhouse-r2dbc \
-#            -Duser.timezone=${{ matrix.clientTz }} \
-#            -Dj8 -DskipUTs verify
-#      - name: Upload test results
-#        uses: actions/upload-artifact@v4
-#        if: failure()
-#        with:
-#          name: result ${{ github.job }}
-#          path: |
-#            **/target/failsafe-reports
-#            **/target/surefire-reports

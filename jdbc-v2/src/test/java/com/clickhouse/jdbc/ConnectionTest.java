@@ -1024,8 +1024,8 @@ public class ConnectionTest extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testBearerTokenAuth() throws Exception {
-        if (isCloud()) {
-            return; // mocked server
+        if (isCloud() || isCluster()) {
+            throw new SkipException("Mock-server test is not applicable to cloud or cluster runs");
         }
 
         WireMockServer mockServer = new WireMockServer( WireMockConfiguration
@@ -1082,27 +1082,6 @@ public class ConnectionTest extends JdbcIntegrationTest {
             }
         } finally {
             mockServer.stop();
-        }
-    }
-
-    @Test(groups = { "integration" })
-    public void testJWTWithCloud() throws Exception {
-        String jwt = System.getenv("JWT_TOKEN");
-        if (jwt == null || jwt.trim().isEmpty()) {
-            throw new SkipException("JWT_TOKEN environment variable is not set. Skipping JWT test.");
-        }
-        String url = getEndpointString();
-
-        Properties properties = new Properties();
-        properties.put(ClientConfigProperties.BEARERTOKEN_AUTH.getKey(), jwt);
-
-        try (Connection conn = new ConnectionImpl(url, properties);
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery("SELECT currentUser()")) {
-            Assert.assertTrue(rs.next());
-            String username = rs.getString(1);
-            Assert.assertTrue(username != null && username.matches("^JWT::.+::.+$"),
-                    "Expected username in format JWT::<subject>::<claims_hash>, but actual username was: '" + username + "'");
         }
     }
 

@@ -45,15 +45,6 @@ jobs:
           TEST_CLICKHOUSE_IMAGE_VERSION: ${{ env.CH_VERSION }}
         run: |
           mvn --batch-mode --no-transfer-progress --projects ${{ matrix.project }} -Dmaven.javadoc.skip=true clean install
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: result ${{ github.job }}_${{ matrix.project }}
-          path: |
-            **/target/failsafe-reports
-            **/target/surefire-reports
-          retention-days: 5
 
   test-r2dbc-driver:
     runs-on: ubuntu-latest
@@ -81,11 +72,3 @@ jobs:
         run: |
           mvn --batch-mode --no-transfer-progress --projects clickhouse-r2dbc \
             -D'r2dbc-spi.version=${{ matrix.r2dbc }}' -Dprotocol=${{ matrix.protocol }} -Dmaven.javadoc.skip=true clean install
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: result ${{ github.job }}_${{ matrix.r2dbc }}_${{ matrix.protocol }}
-          path: |
-            **/target/failsafe-reports
-            **/target/surefire-reports

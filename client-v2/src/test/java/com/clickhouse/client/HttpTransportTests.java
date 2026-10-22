@@ -1385,8 +1385,8 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testBearerTokenAuth() throws Exception {
-        if (isCloud()) {
-            return; // mocked server
+        if (isCloud() || isCluster()) {
+            throw new SkipException("Mock-server test is not applicable to cloud or cluster runs");
         }
 
         WireMockServer mockServer = new WireMockServer( WireMockConfiguration
