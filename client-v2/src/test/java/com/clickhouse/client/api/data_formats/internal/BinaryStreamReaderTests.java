@@ -51,6 +51,45 @@ public class BinaryStreamReaderTests {
         }
     }
 
+    @DataProvider(name = "invalidVarInts")
+    private Object[][] invalidVarInts() {
+        return new Object[][] {
+                {"truncated", new byte[] {(byte) 0x80}, null},
+                {"unterminated", new byte[] {
+                        (byte) 0x80, (byte) 0x80, (byte) 0x80, (byte) 0x80, (byte) 0x80
+                }, "too large for int"},
+                {"int overflow", new byte[] {
+                        (byte) 0x80, (byte) 0x80, (byte) 0x80, (byte) 0x80, (byte) 0x08
+                }, "too large for int"},
+        };
+    }
+
+    @Test(dataProvider = "invalidVarInts")
+    public void testInvalidVarIntIsRejected(String label, byte[] bytes, String expectedMessage) {
+        IOException ex = Assert.expectThrows(IOException.class,
+                () -> BinaryStreamReader.readVarInt(new ByteArrayInputStream(bytes)));
+        if (expectedMessage != null) {
+            Assert.assertTrue(ex.getMessage().contains(expectedMessage), label + ": " + ex.getMessage());
+        }
+    }
+
+    @DataProvider(name = "truncatedLengthPrefixedValues")
+    private Object[][] truncatedLengthPrefixedValues() {
+        return new Object[][] {
+                {"String payload", "String", new byte[] {2, 'a'}},
+                {"Array fixed-width element", "Array(Int32)", new byte[] {2, 1, 0, 0, 0}},
+                {"Array variable-width element", "Array(String)", new byte[] {1, 2, 'a'}},
+        };
+    }
+
+    @Test(dataProvider = "truncatedLengthPrefixedValues")
+    public void testTruncatedLengthPrefixedValueIsRejected(String label, String typeName, byte[] bytes) {
+        BinaryStreamReader reader = qbitReader(bytes);
+        IOException ex = Assert.expectThrows(IOException.class,
+                () -> reader.readValue(ClickHouseColumn.of("v", typeName)));
+        Assert.assertNotNull(ex, label);
+    }
+
     @Test(dataProvider = "dateTestData")
     void readDateZonedDateTimeNoTimeZone(ZonedDateTime zdt, ZoneId writeTZ, ZoneId readTZ,
         ZonedDateTime expectedZDT) throws IOException
