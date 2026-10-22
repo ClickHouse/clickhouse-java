@@ -76,7 +76,9 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
                 .setPassword(ClickHouseServerForTest.getPassword())
                 .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
                 .serverSetting(ServerSettings.ASYNC_INSERT, "0")
-                .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1");
+                .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1")
+                // Cloud can route a query to a replica that has not seen the previous insert yet
+                .serverSetting("select_sequential_consistency", isCloud() ? "1" : "0");
 
         if (isVersionMatch("[24.10,)")) {
             builder.serverSetting(ServerSettings.INPUT_FORMAT_BINARY_READ_JSON_AS_STRING, "1");

@@ -42,7 +42,9 @@ public class BinaryReaderBackedRecordTest extends BaseIntegrationTest {
                 .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isCloud())
                 .setUsername("default")
                 .setPassword(ClickHouseServerForTest.getPassword())
-                .setDefaultDatabase(ClickHouseServerForTest.getDatabase());
+                .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
+                // Cloud can route a query to a replica that has not seen the previous insert yet
+                .serverSetting("select_sequential_consistency", isCloud() ? "1" : "0");
     }
 
     @Test(groups = {"integration"})
