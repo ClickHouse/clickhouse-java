@@ -1071,6 +1071,13 @@ public class HttpTransportTests extends BaseIntegrationTest {
         }
     }
 
+    /**
+     * Tag for {@link ClickHouseHttpProto#HEADER_REPLICA_TAG} that sends every request to the same server of a
+     * cluster. The other servers learn about a new user a moment later, so a test that creates one and
+     * then connects as it stays on one server.
+     */
+    private static final String SAME_SERVER_TAG = "http_transport_tests_access";
+
     @Test(groups = { "integration" }, dataProvider = "testPasswordAuthenticationProvider", dataProviderClass = HttpTransportTests.class)
     public void testPasswordAuthentication(String identifyWith, String identifyBy, boolean failsWithHeaders) throws Exception {
         if (isCloud()) {
@@ -1079,6 +1086,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
         ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
 
         try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
+                .httpHeader(ClickHouseHttpProto.HEADER_REPLICA_TAG, SAME_SERVER_TAG)
                 .setUsername("dba")
                 .setPassword("dba")
                 .build()) {
@@ -1093,6 +1101,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
 
         try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
+                .httpHeader(ClickHouseHttpProto.HEADER_REPLICA_TAG, SAME_SERVER_TAG)
                 .setUsername("some_user")
                 .setPassword(identifyBy)
                 .build()) {
@@ -1104,6 +1113,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
         if (failsWithHeaders) {
             try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
+                    .httpHeader(ClickHouseHttpProto.HEADER_REPLICA_TAG, SAME_SERVER_TAG)
                     .setUsername("some_user")
                     .setPassword(identifyBy)
                     .useHTTPBasicAuth(false)
@@ -1142,6 +1152,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
         String identifyWith = "sha256_password";
         String identifyBy = "123§";
         try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
+                .httpHeader(ClickHouseHttpProto.HEADER_REPLICA_TAG, SAME_SERVER_TAG)
                 .setUsername("dba")
                 .setPassword("dba")
                 .build()) {
@@ -1156,6 +1167,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
 
         try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
+                .httpHeader(ClickHouseHttpProto.HEADER_REPLICA_TAG, SAME_SERVER_TAG)
                 .setUsername("some_user")
                 .setPassword(identifyBy)
                 .useHTTPBasicAuth(false) // disable basic auth to produce CH headers

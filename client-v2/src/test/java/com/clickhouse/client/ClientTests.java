@@ -11,6 +11,7 @@ import com.clickhouse.client.api.ConnectionReuseStrategy;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.enums.Protocol;
+import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.internal.CompressedBlockOutputStream;
 import com.clickhouse.client.api.internal.CredentialsManager;
@@ -441,7 +442,7 @@ public class ClientTests extends BaseIntegrationTest {
 
         String password = "^1A" + RandomStringUtils.random(12, true, true) + "3b$";
         final String rolesList = "\"" + Strings.join("\",\"", roles) + "\"";
-        try (Client client = newClient().build()) {
+        try (Client client = newClientOnSameServer().build()) {
             client.execute("DROP ROLE IF EXISTS " + rolesList).get().close();
             client.execute("CREATE ROLE " + rolesList).get().close();
             client.execute("DROP USER IF EXISTS some_user").get().close();
@@ -449,7 +450,7 @@ public class ClientTests extends BaseIntegrationTest {
             client.execute("GRANT " + rolesList + " TO some_user").get().close();
         }
 
-        try (Client userClient = newClient().setUsername("some_user").setPassword(password).build()) {
+        try (Client userClient = newClientOnSameServer().setUsername("some_user").setPassword(password).build()) {
             QuerySettings settings = new QuerySettings().setDBRoles(Arrays.asList(roles));
             List<GenericRecord> resp = userClient.queryAll("SELECT currentRoles()", settings);
             Set<String> roleSet = new HashSet<>(Arrays.asList(roles));
@@ -473,7 +474,7 @@ public class ClientTests extends BaseIntegrationTest {
 
         String password = "^1A" + RandomStringUtils.insecure().next(12, true, true) + "3B$";
         final String rolesList = "\"" + Strings.join("\",\"", roles) + "\"";
-        try (Client client = newClient().build()) {
+        try (Client client = newClientOnSameServer().build()) {
             client.execute("DROP ROLE IF EXISTS " + rolesList).get().close();
             client.execute("CREATE ROLE " + rolesList).get().close();
             client.execute("DROP USER IF EXISTS some_user").get().close();
@@ -481,7 +482,7 @@ public class ClientTests extends BaseIntegrationTest {
             client.execute("GRANT " + rolesList + " TO some_user").get().close();
         }
 
-        try (Client userClient = newClient().setUsername("some_user").setPassword(password).build()) {
+        try (Client userClient = newClientOnSameServer().setUsername("some_user").setPassword(password).build()) {
             userClient.setDBRoles(Arrays.asList(roles));
             List<GenericRecord> resp = userClient.queryAll("SELECT currentRoles()");
             Set<String> roleSet = new HashSet<>(Arrays.asList(roles));
@@ -874,5 +875,14 @@ public class ClientTests extends BaseIntegrationTest {
                 .setUsername("default")
                 .setPassword(ClickHouseServerForTest.getPassword())
                 .setDefaultDatabase(ClickHouseServerForTest.getDatabase());
+    }
+
+    /**
+     * Sends every request to the same server of a cluster or ClickHouse Cloud. The other servers learn
+     * about a new user or role a moment later, so a test that creates one and then connects as it
+     * stays on one server.
+     */
+    private Client.Builder newClientOnSameServer() {
+        return newClient().httpHeader(ClickHouseHttpProto.HEADER_REPLICA_TAG, "client_tests_access");
     }
 }
