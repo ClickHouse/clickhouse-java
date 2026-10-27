@@ -100,11 +100,20 @@ The `sql` output can be loaded with `clickhouse client --multiquery < data.sql`.
   `SELECT * FROM test_data ORDER BY id FORMAT TSV` after running `<type>.sql`. Use it to verify how a client
   reads or writes the values.
 
-The TSV text follows the server defaults, for example `output_format_decimal_trailing_zeros = 0`. In Java the
-same text is available from `TestDataSet.getTsv()`.
+The TSV text follows the server defaults, for example `output_format_decimal_trailing_zeros = 0`, and was
+verified with ClickHouse 26.10. Older versions write some values differently, for example 25.8 and 26.3 write
+`DateTime64` values after 2299 in a non-UTC timezone with a wrong offset. In Java the same text is available
+from `TestDataSet.getTsv()`.
+
+In `.sql` files floats are written as their bits, for example `reinterpretAsFloat64(toUInt64(4607182418800017408))`
+for `1`, and maps with the `map()` function: older ClickHouse versions parse float literals inexactly, so this is
+the only way to load the same values into every supported version.
+
+`client-v2` reads every data set with each binary format reader and verifies all reader accessors, see
+`com.clickhouse.client.datatypes.readers.AbstractBinaryReaderDataSetTest`.
 
 To regenerate them after changing the generators, or to add a type to the `STORABLE_TYPES` or
-`VALUES_ONLY_TYPES` lists in the script, run:
+`VALUES_ONLY_TYPES` lists in `GenerateTestDataSet` (client tests use the same lists), run:
 
 ```bash
 clickhouse-client/scripts/generate-datasets.sh              # builds test classes first

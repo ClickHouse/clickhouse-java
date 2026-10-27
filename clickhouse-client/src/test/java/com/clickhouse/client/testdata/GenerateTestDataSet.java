@@ -9,6 +9,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +33,48 @@ import java.util.regex.Pattern;
  */
 public final class GenerateTestDataSet {
 
+    /**
+     * Types of the pre-generated data sets in {@code src/test/resources/datasets}, also used by tests that
+     * verify how clients handle every type.
+     */
+    public static final List<String> STORABLE_TYPES = Collections.unmodifiableList(Arrays.asList(
+            // Integers and floating point
+            "Int8", "UInt8", "Int16", "UInt16", "Int32", "UInt32", "Int64", "UInt64",
+            "Int128", "UInt128", "Int256", "UInt256",
+            "Float32", "Float64",
+            // Decimals
+            "Decimal(9, 2)", "Decimal(18, 6)", "Decimal(38, 0)", "Decimal(76, 38)",
+            "Decimal32(4)", "Decimal64(8)", "Decimal128(18)", "Decimal256(38)",
+            // Bool and strings
+            "Bool", "String", "BinaryString", "FixedString(1)", "FixedString(16)",
+            // Dates and time
+            "Date", "Date32", "Time", "Time64(3)", "Time64(9)",
+            "DateTime('UTC')", "DateTime('America/New_York')",
+            "DateTime64(0, 'UTC')", "DateTime64(3, 'UTC')", "DateTime64(6, 'Europe/Berlin')",
+            "DateTime64(9, 'Asia/Kolkata')",
+            // Network, identifiers and enums
+            "IPv4", "IPv6", "UUID", "Enum8", "Enum16",
+            // Geo
+            "Point", "Ring", "LineString", "Polygon", "MultiLineString", "MultiPolygon",
+            // Composite
+            "Nullable(Int32)", "Nullable(String)", "Nullable(Decimal(18, 6))", "Nullable(DateTime64(3, 'UTC'))",
+            "Nullable(UUID)",
+            "LowCardinality(String)", "LowCardinality(Nullable(String))", "LowCardinality(FixedString(16))",
+            "Array(Int32)", "Array(String)", "Array(Nullable(String))", "Array(Array(Int8))",
+            "Array(LowCardinality(String))",
+            "Tuple(Int32, String)", "Tuple(a Int64, b Nullable(String), c Array(UInt8))",
+            "Map(String, Int32)", "Map(Int8, String)", "Map(String, Array(Nullable(Float64)))",
+            "Map(UUID, Tuple(Int32, String))",
+            "Nested(id UInt32, name String)"));
+
+    /**
+     * Types of the pre-generated data sets that cannot be stored in a table.
+     */
+    public static final List<String> VALUES_ONLY_TYPES = Collections.unmodifiableList(Arrays.asList(
+            "IntervalNanosecond", "IntervalMicrosecond", "IntervalMillisecond", "IntervalSecond", "IntervalMinute",
+            "IntervalHour", "IntervalDay", "IntervalWeek", "IntervalMonth", "IntervalQuarter", "IntervalYear",
+            "Nothing", "Array(Nullable(Nothing))"));
+
     private static final Pattern NAMED_ELEMENT = Pattern.compile(
             "(`(?:[^`\\\\]|\\\\.)*`|[A-Za-z_][A-Za-z0-9_]*)\\s+(\\S.*)",
             Pattern.DOTALL);
@@ -50,6 +94,8 @@ public final class GenerateTestDataSet {
             "                           tsv    - rows in the TabSeparated format, as ClickHouse writes them",
             "  -t, --table <name>       table name for the sql format (default: test_data)",
             "  -s, --seed <long>        random seed (default: " + TestDataSet.DEFAULT_SEED + ")",
+            "  --list-types <kind>      print types of the pre-generated data sets, one per line, and exit:",
+            "                           storable or values-only",
             "  -h, --help               print this help",
             "",
             "Types:",
@@ -102,6 +148,15 @@ public final class GenerateTestDataSet {
                     case "--seed":
                         builder.seed(Long.parseLong(optionValue(args, ++i, arg)));
                         break;
+                    case "--list-types":
+                        String kind = optionValue(args, ++i, arg);
+                        if (!"storable".equals(kind) && !"values-only".equals(kind)) {
+                            throw new IllegalArgumentException("Unknown type kind: " + kind);
+                        }
+                        for (String type : "storable".equals(kind) ? STORABLE_TYPES : VALUES_ONLY_TYPES) {
+                            System.out.println(type);
+                        }
+                        return;
                     default:
                         if (arg.startsWith("-")) {
                             throw new IllegalArgumentException("Unknown option: " + arg);
@@ -162,7 +217,7 @@ public final class GenerateTestDataSet {
      * @return generator of the type
      * @throws IllegalArgumentException when the type is unknown or malformed
      */
-    static DataTypeGenerator parseType(String expression) {
+    public static DataTypeGenerator parseType(String expression) {
         String type = expression.trim();
         int open = type.indexOf('(');
         String name = open < 0 ? type : type.substring(0, open).trim();

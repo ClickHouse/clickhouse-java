@@ -122,7 +122,7 @@ public final class DataTypeGenerators {
                 }
             }
             return values;
-        }, DataTypeGenerators::floatLiteral).plainText(DataTypeGenerators::floatText);
+        }, v -> float32Literal((Float) v)).plainText(DataTypeGenerators::floatText);
     }
 
     public static DataTypeGenerator float64() {
@@ -140,7 +140,7 @@ public final class DataTypeGenerators {
                 }
             }
             return values;
-        }, DataTypeGenerators::floatLiteral).plainText(DataTypeGenerators::floatText);
+        }, v -> float64Literal((Double) v)).plainText(DataTypeGenerators::floatText);
     }
 
     public static DataTypeGenerator decimal(int precision, int scale) {
@@ -435,7 +435,7 @@ public final class DataTypeGenerators {
             return values;
         }, v -> {
             double[] point = (double[]) v;
-            return "(" + floatLiteral(point[0]) + ", " + floatLiteral(point[1]) + ")";
+            return "(" + float64Literal(point[0]) + ", " + float64Literal(point[1]) + ")";
         }).plainText(v -> {
             double[] point = (double[]) v;
             return "(" + floatText(point[0]) + "," + floatText(point[1]) + ")";
@@ -503,9 +503,10 @@ public final class DataTypeGenerators {
             }
             return maps;
         }, v -> {
-            StringJoiner literal = new StringJoiner(", ", "{", "}");
+            // map() instead of a {k: v} literal, which cannot contain expressions like float literals
+            StringJoiner literal = new StringJoiner(", ", "map(", ")");
             for (Map.Entry<?, ?> entry : ((Map<?, ?>) v).entrySet()) {
-                literal.add(key.toSqlLiteral(entry.getKey()) + ": " + value.toSqlLiteral(entry.getValue()));
+                literal.add(key.toSqlLiteral(entry.getKey())).add(value.toSqlLiteral(entry.getValue()));
             }
             return literal.toString();
         }, key, value).plainText(v -> {
@@ -887,24 +888,16 @@ public final class DataTypeGenerators {
         }
     }
 
-    private static String floatLiteral(Object value) {
-        double v = ((Number) value).doubleValue();
-        if (Double.isNaN(v)) {
-            return "nan";
-        } else if (Double.isInfinite(v)) {
-            return v > 0 ? "inf" : "-inf";
-        }
-        return value.toString();
-    }
-
     /**
      * Shortest decimal representation that parses back to the same value, formatted like ClickHouse does:
      * positional notation for decimal exponents from -5 to 20, scientific notation otherwise.
      */
     private static String floatText(Object value) {
         double v = ((Number) value).doubleValue();
-        if (Double.isNaN(v) || Double.isInfinite(v)) {
-            return floatLiteral(value);
+        if (Double.isNaN(v)) {
+            return "nan";
+        } else if (Double.isInfinite(v)) {
+            return v > 0 ? "inf" : "-inf";
         } else if (v == 0) {
             return 1 / v < 0 ? "-0" : "0";
         }
@@ -936,6 +929,18 @@ public final class DataTypeGenerators {
             text.append(digits, 0, point).append('.').append(digits, point, digits.length());
         }
         return text.toString();
+    }
+
+    /**
+     * Floats are written as their bits, because older ClickHouse versions (for example 25.8) parse float literals
+     * inexactly: subnormal values become zero and some values are one unit in the last place off.
+     */
+    private static String float64Literal(double value) {
+        return "reinterpretAsFloat64(toUInt64(" + Long.toUnsignedString(Double.doubleToRawLongBits(value)) + "))";
+    }
+
+    private static String float32Literal(float value) {
+        return "reinterpretAsFloat32(toUInt32(" + Integer.toUnsignedString(Float.floatToRawIntBits(value)) + "))";
     }
 
     /**
