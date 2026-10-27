@@ -44,7 +44,7 @@ public class MicrometerMetricsRecorderTest extends BaseIntegrationTest {
                 .setMetricsRecorder(new MicrometerMetricsRecorder(registry))
                 .build();
         client.execute("DROP TABLE IF EXISTS " + TABLE).get();
-        client.execute("CREATE TABLE " + TABLE + " (value String) ENGINE = MergeTree ORDER BY value").get();
+        client.execute("CREATE TABLE " + TABLE + " (value String) ORDER BY value").get();
         registry.clear();
     }
 

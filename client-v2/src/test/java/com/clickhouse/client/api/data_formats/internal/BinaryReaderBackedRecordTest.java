@@ -58,7 +58,7 @@ public class BinaryReaderBackedRecordTest extends BaseIntegrationTest {
                 "int_arr Array(Int32), " +
                 "arr2d Array(Array(Int64)), " +
                 "arr3d Array(Array(Array(Int32)))" +
-                ") Engine = MergeTree ORDER BY rowId").get();
+                ") ORDER BY rowId").get();
 
         client.execute("INSERT INTO " + table + " VALUES " +
                 "(1, " +
@@ -150,7 +150,7 @@ public class BinaryReaderBackedRecordTest extends BaseIntegrationTest {
                 "empty_arr Array(Int32), " +
                 "single_arr Array(String), " +
                 "arr2d_empty Array(Array(Int64))" +
-                ") Engine = MergeTree ORDER BY rowId").get();
+                ") ORDER BY rowId").get();
 
         client.execute("INSERT INTO " + table + " VALUES (1, [], ['single'], [[]])").get();
 

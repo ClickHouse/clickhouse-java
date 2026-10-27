@@ -3,10 +3,13 @@ package com.clickhouse.client.api.internal;
 import org.mockito.Mockito;
 import org.slf4j.Logger;
 import org.testng.Assert;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 public class ClientUtilsTest {
 
@@ -44,5 +47,37 @@ public class ClientUtilsTest {
 
         Mockito.verifyNoInteractions(log);
         Assert.assertTrue(true);
+    }
+
+    @Test(groups = {"unit"}, dataProvider = "putIfAbsentIgnoreCase")
+    public void testPutIfAbsentIgnoreCase(String[] existingKeys, String key, String expectedMap) {
+        Map<String, String> map = new LinkedHashMap<>();
+        for (String existingKey : existingKeys) {
+            map.put(existingKey, "set");
+        }
+
+        ClientUtils.putIfAbsentIgnoreCase(map, key, "added");
+
+        Assert.assertEquals(map.toString(), expectedMap);
+    }
+
+    @DataProvider(name = "putIfAbsentIgnoreCase")
+    public static Object[][] putIfAbsentIgnoreCaseData() {
+        return new Object[][]{
+                {new String[]{}, "os", "{os=added}"},
+                {new String[]{"os"}, "lv", "{os=set, lv=added}"},
+                {new String[]{"os"}, "os", "{os=set}"},
+                {new String[]{"os"}, "OS", "{os=set}"},
+                {new String[]{"OS"}, "os", "{OS=set}"},
+                {new String[]{"api", "OS"}, "os", "{api=set, OS=set}"},
+        };
+    }
+
+    @Test(groups = {"unit"})
+    public void testPutIfAbsentIgnoreCaseNullKey() {
+        Map<String, String> map = new LinkedHashMap<>();
+
+        Assert.expectThrows(NullPointerException.class, () -> ClientUtils.putIfAbsentIgnoreCase(map, null, "added"));
+        Assert.assertTrue(map.isEmpty());
     }
 }

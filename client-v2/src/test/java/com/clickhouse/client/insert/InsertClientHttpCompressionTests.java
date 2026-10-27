@@ -29,7 +29,7 @@ public class InsertClientHttpCompressionTests extends InsertTests {
     public void insertRawDataCompressed(String compressionAlgo) throws Exception {
         final String tableName = "raw_data_table";
         final String createSQL = "CREATE TABLE " + tableName +
-                " (Id UInt32, event_ts Timestamp, name String, p1 Int64, p2 String) ENGINE = MergeTree() ORDER BY ()";
+                " (Id UInt32, event_ts Timestamp, name String, p1 Int64, p2 String) ORDER BY ()";
 
         initTable(tableName, createSQL);
 

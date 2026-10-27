@@ -78,10 +78,18 @@ public abstract class BaseIntegrationTest {
         return ClickHouseServerForTest.runQuery(query);
     }
 
+    protected static boolean isCluster() {
+        return ClickHouseServerForTest.isCluster();
+    }
+
+    protected static String onCluster() {
+        return ClickHouseServerForTest.isCluster() ? " ON CLUSTER 'test_cluster'" : "";
+    }
+
     protected boolean createDatabase(String dbName) {
-        return ClickHouseServerForTest.runQuery("CREATE DATABASE IF NOT EXISTS `" + dbName + "`");
+        return ClickHouseServerForTest.runQuery("CREATE DATABASE IF NOT EXISTS `" + dbName + "`" + onCluster());
     }
     protected boolean dropDatabase(String dbName) {
-        return ClickHouseServerForTest.runQuery("DROP DATABASE IF EXISTS `" + dbName + "`");
+        return ClickHouseServerForTest.runQuery("DROP DATABASE IF EXISTS `" + dbName + "`" + onCluster());
     }
 }

@@ -96,7 +96,7 @@ public class ClientFailoverTest extends BaseIntegrationTest {
                 .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
                 .build()) {
             adminClient.execute("DROP TABLE IF EXISTS failover_insert_test").get(10, TimeUnit.SECONDS).close();
-            adminClient.execute("CREATE TABLE failover_insert_test (val UInt32) ENGINE MergeTree ORDER BY ()").get(10, TimeUnit.SECONDS).close();
+            adminClient.execute("CREATE TABLE failover_insert_test (val UInt32) ORDER BY ()").get(10, TimeUnit.SECONDS).close();
         }
 
         try (Client client = new Client.Builder()

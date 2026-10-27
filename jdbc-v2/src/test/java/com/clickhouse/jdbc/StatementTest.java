@@ -1,5 +1,6 @@
 package com.clickhouse.jdbc;
 
+import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.Session;
 import com.clickhouse.client.api.data_formats.GsonJsonParserFactory;
@@ -146,7 +147,7 @@ public class StatementTest extends JdbcIntegrationTest {
     public void testExecuteUpdateSimpleNumbers() throws Exception {
         try (Connection conn = getJdbcConnection(Map.of(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF))) {
             try (Statement stmt = conn.createStatement()) {
-                assertEquals(stmt.executeUpdate("CREATE TABLE IF NOT EXISTS " + getDatabase() + ".simpleNumbers (num UInt8) ENGINE = MergeTree ORDER BY ()"), 0);
+                assertEquals(stmt.executeUpdate("CREATE TABLE IF NOT EXISTS " + getDatabase() + ".simpleNumbers (num UInt8) ORDER BY ()"), 0);
                 assertEquals(stmt.executeUpdate("INSERT INTO " + getDatabase() + ".simpleNumbers VALUES (1), (2), (3)"), 3);
                 try (ResultSet rs = stmt.executeQuery("SELECT num FROM " + getDatabase() + ".simpleNumbers ORDER BY num")) {
                     assertTrue(rs.next());
@@ -165,7 +166,7 @@ public class StatementTest extends JdbcIntegrationTest {
     public void testExecuteUpdateSimpleFloats() throws Exception {
         try (Connection conn = getJdbcConnection(Map.of(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF))) {
             try (Statement stmt = conn.createStatement()) {
-                assertEquals(stmt.executeUpdate("CREATE TABLE IF NOT EXISTS " + getDatabase() + ".simpleFloats (num Float32) ENGINE = MergeTree ORDER BY ()"), 0);
+                assertEquals(stmt.executeUpdate("CREATE TABLE IF NOT EXISTS " + getDatabase() + ".simpleFloats (num Float32) ORDER BY ()"), 0);
                 assertEquals(stmt.executeUpdate("INSERT INTO " + getDatabase() + ".simpleFloats VALUES (1.1), (2.2), (3.3)"), 3);
                 try (ResultSet rs = stmt.executeQuery("SELECT num FROM " + getDatabase() + ".simpleFloats ORDER BY num")) {
                     assertTrue(rs.next());
@@ -185,7 +186,7 @@ public class StatementTest extends JdbcIntegrationTest {
     public void testExecuteUpdateBooleans() throws Exception {
         try (Connection conn = getJdbcConnection(Map.of(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF))) {
             try (Statement stmt = conn.createStatement()) {
-                assertEquals(stmt.executeUpdate("CREATE TABLE IF NOT EXISTS " + getDatabase() + ".booleans (id UInt8, flag Boolean) ENGINE = MergeTree ORDER BY ()"), 0);
+                assertEquals(stmt.executeUpdate("CREATE TABLE IF NOT EXISTS " + getDatabase() + ".booleans (id UInt8, flag Boolean) ORDER BY ()"), 0);
                 assertEquals(stmt.executeUpdate("INSERT INTO " + getDatabase() + ".booleans VALUES (0, true), (1, false), (2, true)"), 3);
                 try (ResultSet rs = stmt.executeQuery("SELECT flag FROM " + getDatabase() + ".booleans ORDER BY id")) {
                     assertTrue(rs.next());
@@ -204,7 +205,7 @@ public class StatementTest extends JdbcIntegrationTest {
     public void testExecuteUpdateStrings() throws Exception {
         try (Connection conn = getJdbcConnection(Map.of(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF))) {
             try (Statement stmt = conn.createStatement()) {
-                assertEquals(stmt.executeUpdate("CREATE TABLE IF NOT EXISTS " + getDatabase() + ".strings (id UInt8, words String) ENGINE = MergeTree ORDER BY ()"), 0);
+                assertEquals(stmt.executeUpdate("CREATE TABLE IF NOT EXISTS " + getDatabase() + ".strings (id UInt8, words String) ORDER BY ()"), 0);
                 assertEquals(stmt.executeUpdate("INSERT INTO " + getDatabase() + ".strings VALUES (0, 'Hello'), (1, 'World'), (2, 'ClickHouse')"), 3);
                 try (ResultSet rs = stmt.executeQuery("SELECT words FROM " + getDatabase() + ".strings ORDER BY id")) {
                     assertTrue(rs.next());
@@ -223,7 +224,7 @@ public class StatementTest extends JdbcIntegrationTest {
     public void testExecuteUpdateNulls() throws Exception {
         try (Connection conn = getJdbcConnection(Map.of(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF))) {
             try (Statement stmt = conn.createStatement()) {
-                assertEquals(stmt.executeUpdate("CREATE TABLE IF NOT EXISTS " + getDatabase() + ".nulls (id UInt8, nothing Nullable(String)) ENGINE = MergeTree ORDER BY ()"), 0);
+                assertEquals(stmt.executeUpdate("CREATE TABLE IF NOT EXISTS " + getDatabase() + ".nulls (id UInt8, nothing Nullable(String)) ORDER BY ()"), 0);
                 assertEquals(stmt.executeUpdate("INSERT INTO " + getDatabase() + ".nulls VALUES (0, 'Hello'), (1, NULL), (2, 'ClickHouse')"), 3);
                 try (ResultSet rs = stmt.executeQuery("SELECT nothing FROM " + getDatabase() + ".nulls ORDER BY id")) {
                     assertTrue(rs.next());
@@ -242,7 +243,7 @@ public class StatementTest extends JdbcIntegrationTest {
     public void testExecuteUpdateDates() throws Exception {
         try (Connection conn = getJdbcConnection(Map.of(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF))) {
             try (Statement stmt = conn.createStatement()) {
-                assertEquals(stmt.executeUpdate("CREATE TABLE IF NOT EXISTS " + getDatabase() + ".dates (id UInt8, date Nullable(Date), datetime Nullable(DateTime)) ENGINE = MergeTree ORDER BY ()"), 0);
+                assertEquals(stmt.executeUpdate("CREATE TABLE IF NOT EXISTS " + getDatabase() + ".dates (id UInt8, date Nullable(Date), datetime Nullable(DateTime)) ORDER BY ()"), 0);
                 assertEquals(stmt.executeUpdate("INSERT INTO " + getDatabase() + ".dates VALUES (0, '2020-01-01', '2020-01-01 10:11:12'), (1, NULL, '2020-01-01 12:10:07'), (2, '2020-01-01', NULL)"), 3);
                 try (ResultSet rs = stmt.executeQuery("SELECT date, datetime FROM " + getDatabase() + ".dates ORDER BY id")) {
                     assertTrue(rs.next());
@@ -300,7 +301,7 @@ public class StatementTest extends JdbcIntegrationTest {
 
         try (Connection conn = getJdbcConnection(props)) {
             try (Statement stmt = conn.createStatement()) {
-                stmt.execute("CREATE TABLE IF NOT EXISTS " + getDatabase() + "." + tableName + " (id UInt32, name String, value Float64, status Int8, timestamp DateTime) ENGINE = MergeTree ORDER BY id");
+                stmt.execute("CREATE TABLE IF NOT EXISTS " + getDatabase() + "." + tableName + " (id UInt32, name String, value Float64, status Int8, timestamp DateTime) ORDER BY id");
                 stmt.execute("TRUNCATE TABLE " + getDatabase() + "." + tableName);
 
                 int updateCount = stmt.executeUpdate(insertStatement);
@@ -336,7 +337,7 @@ public class StatementTest extends JdbcIntegrationTest {
     public void testExecuteUpdateBatch() throws Exception {
         try (Connection conn = getJdbcConnection(Map.of(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF))) {
             try (Statement stmt = conn.createStatement()) {
-                assertEquals(stmt.executeUpdate("CREATE TABLE IF NOT EXISTS " + getDatabase() + ".batch (id UInt8, num UInt8) ENGINE = MergeTree ORDER BY ()"), 0);
+                assertEquals(stmt.executeUpdate("CREATE TABLE IF NOT EXISTS " + getDatabase() + ".batch (id UInt8, num UInt8) ORDER BY ()"), 0);
                 stmt.addBatch("INSERT INTO " + getDatabase() + ".batch VALUES (0, 1)");
                 stmt.addBatch("INSERT INTO " + getDatabase() + ".batch VALUES (1, 2)");
                 stmt.addBatch("INSERT INTO " + getDatabase() + ".batch VALUES (2, 3), (3, 4)");
@@ -365,7 +366,7 @@ public class StatementTest extends JdbcIntegrationTest {
         String tableClause = getDatabase() + ".batch_reuse";
         try (Connection conn = getJdbcConnection(Map.of(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF))) {
             try (Statement stmt = conn.createStatement()) {
-                assertEquals(stmt.executeUpdate("CREATE TABLE IF NOT EXISTS " + tableClause + " (id UInt8, num UInt8) ENGINE = MergeTree ORDER BY ()"), 0);
+                assertEquals(stmt.executeUpdate("CREATE TABLE IF NOT EXISTS " + tableClause + " (id UInt8, num UInt8) ORDER BY ()"), 0);
                 // add and execute first invalid batch
                 stmt.addBatch("INSERT INTO " + tableClause + " VALUES (0, 'invalid')");
                 assertThrows(SQLException.class, stmt::executeBatch);
@@ -817,7 +818,7 @@ public class StatementTest extends JdbcIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testCancelQueryWithSession() throws Exception {
-        if (isCloud()) {
+        if (isCloud() || ClickHouseServerForTest.isCluster()) {
             throw new SkipException("Cloud + HTTP doesn't work well. Enough to test locally");
         }
 
@@ -872,7 +873,7 @@ public class StatementTest extends JdbcIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testCancelInsertWithSession() throws Exception {
-        if (isCloud()) {
+        if (isCloud() || ClickHouseServerForTest.isCluster()) {
             throw new SkipException("Cloud + HTTP doesn't work well. Enough to test locally");
         }
         // Regression test for #2690 covering a long-running INSERT executed inside a session.
@@ -886,7 +887,7 @@ public class StatementTest extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection(properties)) {
             try (Statement setup = conn.createStatement()) {
                 setup.execute("DROP TABLE IF EXISTS " + tableName);
-                setup.execute("CREATE TABLE " + tableName + " (num UInt64) ENGINE = MergeTree ORDER BY ()");
+                setup.execute("CREATE TABLE " + tableName + " (num UInt64) ORDER BY ()");
             }
 
             try (StatementImpl stmt = (StatementImpl) conn.createStatement()) {
@@ -1055,26 +1056,35 @@ public class StatementTest extends JdbcIntegrationTest {
     @Test(groups = {"integration"})
     public void testSwitchDatabase() throws Exception {
         String databaseName = getDatabase() + "_test_switch";
-        String createSql = "CREATE TABLE switchDatabaseWithUse (id UInt8, words String) ENGINE = MergeTree ORDER BY ()";
+        String createSql = "CREATE TABLE IF NOT EXISTS switchDatabaseWithUse (id UInt8, words String) ORDER BY ()";
+        String createSqlInDb = "CREATE TABLE IF NOT EXISTS switchDatabaseWithUse" + onCluster() + " (id UInt8, words String) ORDER BY ()";
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
+                stmt.executeUpdate("DROP TABLE IF EXISTS switchDatabaseWithUse");
                 assertEquals(stmt.executeUpdate(createSql), 0);
-                assertEquals(stmt.executeUpdate("CREATE DATABASE \"" + databaseName + "\""), 0);
+                assertEquals(stmt.executeUpdate("CREATE DATABASE IF NOT EXISTS \"" + databaseName + "\"" + onCluster()), 0);
                 assertFalse(stmt.execute("USE \"" + databaseName + "\""));
-                assertEquals(stmt.executeUpdate(createSql), 0);
+                assertEquals(stmt.executeUpdate(createSqlInDb), 0);
             }
 
-            try (Statement stmt = conn.createStatement()) {
-                stmt.execute("USE system");
-                ResultSet rs = stmt.executeQuery("SELECT name FROM settings LIMIT 1;");
-                assertTrue(rs.next());
-                assertNotNull(rs.getString(1));
-                assertFalse(rs.next());
-                stmt.execute("USE \"" + databaseName + "\"");
-                rs = stmt.executeQuery("SHOW TABLES LIMIT 1");
-                assertTrue(rs.next());
-                assertEquals(rs.getString(1), "switchDatabaseWithUse");
-                assertFalse(rs.next());
+            try {
+                try (Statement stmt = conn.createStatement()) {
+                    stmt.execute("USE system");
+                    ResultSet rs = stmt.executeQuery("SELECT name FROM settings LIMIT 1;");
+                    assertTrue(rs.next());
+                    assertNotNull(rs.getString(1));
+                    assertFalse(rs.next());
+                    stmt.execute("USE \"" + databaseName + "\"");
+                    rs = stmt.executeQuery("SHOW TABLES LIMIT 1");
+                    assertTrue(rs.next());
+                    assertEquals(rs.getString(1), "switchDatabaseWithUse");
+                    assertFalse(rs.next());
+                }
+            } finally {
+                try (Statement stmt = conn.createStatement()) {
+                    stmt.executeUpdate("DROP DATABASE IF EXISTS \"" + databaseName + "\"" + onCluster());
+                    stmt.executeUpdate("DROP TABLE IF EXISTS switchDatabaseWithUse");
+                }
             }
         }
     }
@@ -1083,22 +1093,27 @@ public class StatementTest extends JdbcIntegrationTest {
     @Test(groups = {"integration"})
     public void testNewLineSQLParsing() throws Exception {
         try (Connection conn = getJdbcConnection(Map.of(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF))) {
-            String sqlCreate = "CREATE TABLE balance ( `id` UUID, `currency` String, `amount` Decimal(64, 18), `create_time` DateTime64(6), `_version` UInt64, `_sign` UInt8 ) ENGINE = ReplacingMergeTree PRIMARY KEY id ORDER BY id;";
+            try (Statement stmt = conn.createStatement()) {
+                stmt.executeUpdate("DROP TABLE IF EXISTS balance");
+            }
+            String engine = ClickHouseServerForTest.isCluster() ? "ReplicatedReplacingMergeTree" : "ReplacingMergeTree";
+            String sqlCreate = "CREATE TABLE balance ( `id` UUID, `currency` String, `amount` Decimal(64, 18), `create_time` DateTime64(6), `_version` UInt64, `_sign` UInt8 ) ENGINE = " + engine + " PRIMARY KEY id ORDER BY id;";
             try (Statement stmt = conn.createStatement()) {
                 int r = stmt.executeUpdate(sqlCreate);
                 assertEquals(r, 0);
             }
-            try (Statement stmt = conn.createStatement()) {
-                String sqlInsert = "INSERT INTO balance VALUES (generateUUIDv4(), 'EUR', '42.42', now(), 144, 255);";
-                int r = stmt.executeUpdate(sqlInsert);
-                assertEquals(r, 1);
-            }
-            try (Statement stmt = conn.createStatement()) {
-                String sqlSelect = new StringBuilder("-- SELECT amount FROM balance FINAL;\n")
-                        .append("SELECT amount FROM balance FINAL;").toString();
-                ResultSet rs = stmt.executeQuery(sqlSelect);
-                assertTrue(rs.next());
-            }
+            try {
+                try (Statement stmt = conn.createStatement()) {
+                    String sqlInsert = "INSERT INTO balance VALUES (generateUUIDv4(), 'EUR', '42.42', now(), 144, 255);";
+                    int r = stmt.executeUpdate(sqlInsert);
+                    assertEquals(r, 1);
+                }
+                try (Statement stmt = conn.createStatement()) {
+                    String sqlSelect = new StringBuilder("-- SELECT amount FROM balance FINAL;\n")
+                            .append("SELECT amount FROM balance FINAL;").toString();
+                    ResultSet rs = stmt.executeQuery(sqlSelect);
+                    assertTrue(rs.next());
+                }
             try (Statement stmt = conn.createStatement()) {
                 String sqlSelect = new StringBuilder("-- SELECT * FROM balance\n")
                         .append("\n")
@@ -1141,6 +1156,11 @@ public class StatementTest extends JdbcIntegrationTest {
                 ResultSet rs = stmt.executeQuery(sqlSelect);
                 assertTrue(rs.next());
             }
+            } finally {
+                try (Statement stmt = conn.createStatement()) {
+                    stmt.executeUpdate("DROP TABLE IF EXISTS balance");
+                }
+            }
         }
     }
 
@@ -1148,31 +1168,40 @@ public class StatementTest extends JdbcIntegrationTest {
     @Test(groups = {"integration"})
     public void testNullableFixedStringType() throws Exception {
         try (Connection conn = getJdbcConnection(Map.of(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF))) {
-            String sqlCreate = "CREATE TABLE `data_types` (`f1` FixedString(4),`f2` LowCardinality(FixedString(4)), `f3` Nullable(FixedString(4)), `f4` LowCardinality(Nullable(FixedString(4))) ) ENGINE Memory;";
+            try (Statement stmt = conn.createStatement()) {
+                stmt.executeUpdate("DROP TABLE IF EXISTS `data_types`");
+            }
+            String sqlCreate = "CREATE TABLE `data_types` (`f1` FixedString(4),`f2` LowCardinality(FixedString(4)), `f3` Nullable(FixedString(4)), `f4` LowCardinality(Nullable(FixedString(4))) ) ORDER BY ();";
             try (Statement stmt = conn.createStatement()) {
                 int r = stmt.executeUpdate(sqlCreate);
                 assertEquals(r, 0);
             }
-            try (Statement stmt = conn.createStatement()) {
-                String sqlInsert = "INSERT INTO `data_types` VALUES ('val1', 'val2', 'val3', 'val4')";
-                int r = stmt.executeUpdate(sqlInsert);
-                assertEquals(r, 1);
-            }
-            try (Statement stmt = conn.createStatement()) {
-                String sqlSelect = "SELECT * FROM `data_types`";
-                ResultSet rs = stmt.executeQuery(sqlSelect);
-                assertTrue(rs.next());
-                assertEquals(rs.getString(1), "val1");
-                assertEquals(rs.getString(2), "val2");
-                assertEquals(rs.getString(3), "val3");
-                assertEquals(rs.getString(4), "val4");
-                assertFalse(rs.next());
-            }
-            try (Statement stmt = conn.createStatement()) {
-                String sqlSelect = "SELECT f4 FROM `data_types`";
-                ResultSet rs = stmt.executeQuery(sqlSelect);
-                assertTrue(rs.next());
-                assertEquals(rs.getString(1), "val4");
+            try {
+                try (Statement stmt = conn.createStatement()) {
+                    String sqlInsert = "INSERT INTO `data_types` VALUES ('val1', 'val2', 'val3', 'val4')";
+                    int r = stmt.executeUpdate(sqlInsert);
+                    assertEquals(r, 1);
+                }
+                try (Statement stmt = conn.createStatement()) {
+                    String sqlSelect = "SELECT * FROM `data_types`";
+                    ResultSet rs = stmt.executeQuery(sqlSelect);
+                    assertTrue(rs.next());
+                    assertEquals(rs.getString(1), "val1");
+                    assertEquals(rs.getString(2), "val2");
+                    assertEquals(rs.getString(3), "val3");
+                    assertEquals(rs.getString(4), "val4");
+                    assertFalse(rs.next());
+                }
+                try (Statement stmt = conn.createStatement()) {
+                    String sqlSelect = "SELECT f4 FROM `data_types`";
+                    ResultSet rs = stmt.executeQuery(sqlSelect);
+                    assertTrue(rs.next());
+                    assertEquals(rs.getString(1), "val4");
+                }
+            } finally {
+                try (Statement stmt = conn.createStatement()) {
+                    stmt.executeUpdate("DROP TABLE IF EXISTS `data_types`");
+                }
             }
         }
     }
@@ -1553,7 +1582,7 @@ public class StatementTest extends JdbcIntegrationTest {
 
         try (Connection conn = getJdbcConnection(Map.of(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF)); Statement stmt = conn.createStatement()) {
             // no result set and update count
-            Assert.assertFalse(stmt.execute("CREATE TABLE test_multi_result (id Int32) Engine MergeTree ORDER BY ()"));
+            Assert.assertFalse(stmt.execute("CREATE TABLE test_multi_result (id Int32) ORDER BY ()"));
             Assert.assertNull(stmt.getResultSet());
             Assert.assertEquals(stmt.getUpdateCount(), 0);
             Assert.assertFalse(stmt.getMoreResults());
@@ -1586,8 +1615,8 @@ public class StatementTest extends JdbcIntegrationTest {
         String db1 = getDatabase() + "_schema1";
         String db2 = getDatabase() + "_schema2";
         try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
-            stmt.execute("CREATE DATABASE " + db1);
-            stmt.execute("CREATE DATABASE " + db2);
+            stmt.execute("CREATE DATABASE IF NOT EXISTS " + db1 + onCluster());
+            stmt.execute("CREATE DATABASE IF NOT EXISTS " + db2 + onCluster());
         }
 
         try (Connection conn = getJdbcConnection()) {
@@ -1599,6 +1628,11 @@ public class StatementTest extends JdbcIntegrationTest {
                 assertEquals(getDBName(stmt), db1);
             }
 
+        } finally {
+            try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
+                stmt.execute("DROP DATABASE IF EXISTS " + db1 + onCluster());
+                stmt.execute("DROP DATABASE IF EXISTS " + db2 + onCluster());
+            }
         }
     }
 
@@ -1609,18 +1643,18 @@ public class StatementTest extends JdbcIntegrationTest {
                     () -> stmt.execute("SELECT 1", Statement.RETURN_GENERATED_KEYS),
                     () -> stmt.execute("SELECT 1", new int[] {1}),
                     () -> stmt.execute("SELECT 1", new String[] {"1"}),
-                    () -> stmt.executeUpdate("CREATE TABLE IF NOT EXISTS test_unsupported_01 (id Int32) Engine MergeTree ORDER BY ()", Statement.RETURN_GENERATED_KEYS),
-                    () -> stmt.executeUpdate("CREATE TABLE IF NOT EXISTS test_unsupported_02 (id Int32) Engine MergeTree ORDER BY ()", new int[] {1}),
-                    () -> stmt.executeUpdate("CREATE TABLE IF NOT EXISTS test_unsupported_03 (id Int32) Engine MergeTree ORDER BY ()", new String[] {"1"}),
-                    () -> stmt.executeLargeUpdate("CREATE TABLE IF NOT EXISTS test_unsupported_01 (id Int32) Engine MergeTree ORDER BY ()", Statement.RETURN_GENERATED_KEYS),
-                    () -> stmt.executeLargeUpdate("CREATE TABLE IF NOT EXISTS test_unsupported_02 (id Int32) Engine MergeTree ORDER BY ()", new int[] {1}),
-                    () -> stmt.executeLargeUpdate("CREATE TABLE IF NOT EXISTS test_unsupported_03 (id Int32) Engine MergeTree ORDER BY ()", new String[] {"1"}),
+                    () -> stmt.executeUpdate("CREATE TABLE IF NOT EXISTS test_unsupported_01 (id Int32) ORDER BY ()", Statement.RETURN_GENERATED_KEYS),
+                    () -> stmt.executeUpdate("CREATE TABLE IF NOT EXISTS test_unsupported_02 (id Int32) ORDER BY ()", new int[] {1}),
+                    () -> stmt.executeUpdate("CREATE TABLE IF NOT EXISTS test_unsupported_03 (id Int32) ORDER BY ()", new String[] {"1"}),
+                    () -> stmt.executeLargeUpdate("CREATE TABLE IF NOT EXISTS test_unsupported_01 (id Int32) ORDER BY ()", Statement.RETURN_GENERATED_KEYS),
+                    () -> stmt.executeLargeUpdate("CREATE TABLE IF NOT EXISTS test_unsupported_02 (id Int32) ORDER BY ()", new int[] {1}),
+                    () -> stmt.executeLargeUpdate("CREATE TABLE IF NOT EXISTS test_unsupported_03 (id Int32) ORDER BY ()", new String[] {"1"}),
                     () -> stmt.setCursorName("CURSOR_NAME_IGNORED")
             );
 
             stmt.execute("SELECT 1", Statement.NO_GENERATED_KEYS); // supported
-            stmt.executeUpdate("CREATE TABLE IF NOT EXISTS test_unsupported_04 (id Int32) Engine MergeTree ORDER BY ()", Statement.NO_GENERATED_KEYS); // supported
-            stmt.executeLargeUpdate("CREATE TABLE IF NOT EXISTS test_unsupported_04 (id Int32) Engine MergeTree ORDER BY ()", Statement.NO_GENERATED_KEYS); // supported
+            stmt.executeUpdate("CREATE TABLE IF NOT EXISTS test_unsupported_04 (id Int32) ORDER BY ()", Statement.NO_GENERATED_KEYS); // supported
+            stmt.executeLargeUpdate("CREATE TABLE IF NOT EXISTS test_unsupported_04 (id Int32) ORDER BY ()", Statement.NO_GENERATED_KEYS); // supported
 
             assertNull(stmt.getGeneratedKeys());
 
@@ -1681,9 +1715,9 @@ public class StatementTest extends JdbcIntegrationTest {
             {
                 stmt.execute("DROP TABLE IF EXISTS test_jdbc_duplicate_column_names1");
                 stmt.execute("DROP TABLE IF EXISTS test_jdbc_duplicate_column_names2");
-                stmt.execute("CREATE TABLE test_jdbc_duplicate_column_names1 (name String ) ENGINE = MergeTree ORDER BY ()");
+                stmt.execute("CREATE TABLE test_jdbc_duplicate_column_names1 (name String ) ORDER BY ()");
                 stmt.execute("INSERT INTO test_jdbc_duplicate_column_names1 VALUES ('some name')");
-                stmt.execute("CREATE TABLE test_jdbc_duplicate_column_names2 (name String ) ENGINE = MergeTree ORDER BY ()");
+                stmt.execute("CREATE TABLE test_jdbc_duplicate_column_names2 (name String ) ORDER BY ()");
                 stmt.execute("INSERT INTO test_jdbc_duplicate_column_names2 VALUES ('another name')");
 
                 try (ResultSet rs = stmt.executeQuery("SELECT * FROM test_jdbc_duplicate_column_names1, test_jdbc_duplicate_column_names2")) {
@@ -1759,7 +1793,7 @@ public class StatementTest extends JdbcIntegrationTest {
 
 
                 stmt.execute("DROP TABLE IF EXISTS test_unknown_statement_test");
-                stmt.execute("CREATE TABLE test_unknown_statement_test (v Int32) Engine MergeTree ORDER BY ()");
+                stmt.execute("CREATE TABLE test_unknown_statement_test (v Int32) ORDER BY ()");
 
                 // INSERT via execute(...) must not produce a ResultSet and should return false
                 boolean hasResultSet = stmt.execute("INSERT INTO test_unknown_statement_test VALUES (1);");
