@@ -30,9 +30,11 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Array(Nullable(String)) -> array_nullable_string, DateTime64(3, 'UTC') -> datetime64_3_utc
+# Array(Nullable(String)) -> array_nullable_string, DateTime64(3, 'UTC') -> date_time64_3_utc,
+# IntervalDay -> interval_day
 file_name() {
-    echo "$1" | tr '[:upper:]' '[:lower:]' | sed -e 's/[^a-z0-9]\{1,\}/_/g' -e 's/^_//' -e 's/_$//'
+    echo "$1" | sed -e 's/\([a-z0-9]\)\([A-Z]\)/\1_\2/g' | tr '[:upper:]' '[:lower:]' \
+        | sed -e 's/[^a-z0-9]\{1,\}/_/g' -e 's/^_//' -e 's/_$//'
 }
 
 generate() {

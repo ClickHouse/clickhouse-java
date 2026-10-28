@@ -90,8 +90,9 @@ The `sql` output can be loaded with `clickhouse client --multiquery < data.sql`.
 ### Pre-generated data sets
 
 `src/test/resources/datasets` contains a data set for every supported type, with the data in a single
-`value` column. Files are named after the type, for example `array_nullable_string.*` for
-`Array(Nullable(String))`. Every data set has two files with the same rows:
+`value` column. Files are named after the type with words separated by underscores, for example
+`array_nullable_string.*` for `Array(Nullable(String))` and `interval_day.*` for `IntervalDay`. Every data set
+has two files with the same rows:
 
 - `<type>.sql` - `SET` statements for required settings, `CREATE TABLE test_data` and `INSERT ... VALUES`.
   Interval and `Nothing` types cannot be stored in a table, so for them it is `<type>.txt` with the rows as
