@@ -1,5 +1,8 @@
 package com.clickhouse.client.testdata;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -43,6 +46,13 @@ public final class DataTypeGenerators {
     static final int RANDOM_COUNT = 50;
     static final int BLOCK_SIZE = 60;
     static final int NULL_FREQUENCY = 5;
+    private static final int LONG_STRING_LENGTH = 10_000;
+    private static final String CLICKHOUSE = "ClickHouse";
+    private static final String HEBREW = "אבגדהוזחטיכלמנסעפצקרשת";
+    private static final String RUSSIAN = "абвгдеёжзийклмнопрстуфхцчшщъыьэюяАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ";
+    private static final String[] SMILES = {
+            "😀", "😁", "😂", "😊", "😉", "😍", "😎", "🙂", "👍", "👎", "🔥", "🎉", "🙏"};
+    private static final byte[] CLICKHOUSE_LOGO = loadClickHouseLogo();
 
     private static final int[] CHUNK_SIZES = {1, 2, 3, 5, 8, 13};
     private static final int[] POWER_OF_TWO_BOUNDARIES = {7, 8, 15, 16, 31, 32, 63, 64, 127, 128, 255};
@@ -171,44 +181,50 @@ public final class DataTypeGenerators {
     }
 
     /**
-     * UTF-8 strings: special characters, escape sequences, all UTF-8 sequence lengths and a long string.
+     * UTF-8 strings: escaping edge cases, Hebrew, Russian and emoji, and long strings built by repeating
+     * pieces of {@code ClickHouse}.
      */
     public static DataTypeGenerator string() {
         return simple("String", random -> {
             List<Object> values = new ArrayList<>(Arrays.<Object>asList("", "a", " ", " padded ", "'", "''", "\\",
-                    "\\'", "\"", "`", "\t\n\r", "\0", "a\0b", "NULL", "null", "Привет, мир", "日本語テキスト",
-                    "😀👍🏽", "é", "   ", "﻿",
-                    repeat('x', 10_000)));
+                    "\\'", "\"", "`", "\t\n\r", "\0", "a\0b", "NULL", "null",
+                    "Привет, мир", "שלום, עולם", "😀😂👍", "Привет שלום 😀",
+                    repeatPattern("Click", 200), repeatPattern("House", 200), repeatPattern("HouseClick", 200),
+                    repeatPattern(CLICKHOUSE, LONG_STRING_LENGTH)));
             for (int i = 0; i < RANDOM_COUNT; i++) {
-                values.add(randomUtf8(random, random.nextInt(64)));
+                values.add(randomText(random, 1 + random.nextInt(32)));
             }
             return values;
         }, v -> quote((String) v)).quotedText(v -> utf8((String) v));
     }
 
     /**
-     * Strings with arbitrary bytes, including invalid UTF-8 sequences, represented as {@code byte[]}.
+     * Arbitrary bytes taken from {@code clickhouse-logo.png} in the test resources, represented as {@code byte[]}.
      */
     public static DataTypeGenerator binaryString() {
         return simple("String", random -> {
-            byte[] allBytes = new byte[256];
-            for (int i = 0; i < allBytes.length; i++) {
-                allBytes[i] = (byte) i;
+            byte[] logo = CLICKHOUSE_LOGO;
+            List<Object> values = new ArrayList<>();
+            values.add(new byte[0]);
+            values.add(logo.clone());
+            for (int size : new int[] {1, 16, 64, 256, 1024, 4096}) {
+                if (size < logo.length) {
+                    values.add(Arrays.copyOf(logo, size));
+                    values.add(Arrays.copyOfRange(logo, logo.length - size, logo.length));
+                }
             }
-            List<Object> values = new ArrayList<>(Arrays.<Object>asList(new byte[0], new byte[] {0}, allBytes,
-                    new byte[] {(byte) 0xC3}, new byte[] {(byte) 0xFF, (byte) 0xFE},
-                    new byte[] {(byte) 0xC0, (byte) 0xAF}, new byte[] {(byte) 0xED, (byte) 0xA0, (byte) 0x80}));
             for (int i = 0; i < RANDOM_COUNT; i++) {
-                byte[] bytes = new byte[1 + random.nextInt(64)];
-                random.nextBytes(bytes);
-                values.add(bytes);
+                int length = 1 + random.nextInt(Math.min(64, logo.length));
+                int offset = random.nextInt(logo.length - length + 1);
+                values.add(Arrays.copyOfRange(logo, offset, offset + length));
             }
             return values;
         }, v -> binaryLiteral((byte[]) v)).quotedText(v -> new String((byte[]) v, StandardCharsets.ISO_8859_1));
     }
 
     /**
-     * Strings of exactly {@code length} UTF-8 bytes; shorter content is padded with {@code '\0'}.
+     * Strings of exactly {@code length} UTF-8 bytes. Content is Hebrew, Russian, emoji or a repeating
+     * {@code ClickHouse} pattern; shorter content is padded with {@code '\0'}.
      */
     public static DataTypeGenerator fixedString(int length) {
         if (length < 1) {
@@ -218,7 +234,8 @@ public final class DataTypeGenerators {
             Set<Object> values = new LinkedHashSet<>();
             values.add(padToBytes("", length));
             values.add(padToBytes("a", length));
-            values.add(repeat('z', length));
+            values.add(repeatPattern(CLICKHOUSE, length));
+            values.add(padToBytes(fillUtf8("א", length), length));
             values.add(padToBytes(fillUtf8("ж", length), length));
             values.add(padToBytes(fillUtf8("😀", length), length));
             for (int i = 0; i < RANDOM_COUNT; i++) {
@@ -985,43 +1002,79 @@ public final class DataTypeGenerators {
         return value.toString();
     }
 
-    /**
-     * Random code points covering all UTF-8 sequence lengths (1 to 4 bytes).
-     */
-    private static String randomUtf8(Random random, int length) {
-        StringBuilder value = new StringBuilder(length * 2);
-        for (int i = 0; i < length; i++) {
-            int codePoint;
-            switch (random.nextInt(4)) {
-                case 0:
-                    codePoint = 0x20 + random.nextInt(0x7F - 0x20);
-                    break;
-                case 1:
-                    codePoint = 0x80 + random.nextInt(0x800 - 0x80);
-                    break;
-                case 2:
-                    do {
-                        codePoint = 0x800 + random.nextInt(0x10000 - 0x800);
-                    } while (codePoint >= Character.MIN_SURROGATE && codePoint <= Character.MAX_SURROGATE);
-                    break;
-                default:
-                    codePoint = 0x10000 + random.nextInt(Character.MAX_CODE_POINT + 1 - 0x10000);
+    private static byte[] loadClickHouseLogo() {
+        try (InputStream in = DataTypeGenerators.class.getResourceAsStream("/clickhouse-logo.png")) {
+            if (in == null) {
+                throw new IllegalStateException("clickhouse-logo.png is missing from test resources");
             }
-            value.appendCodePoint(codePoint);
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            byte[] buffer = new byte[4096];
+            int read;
+            while ((read = in.read(buffer)) >= 0) {
+                out.write(buffer, 0, read);
+            }
+            if (out.size() == 0) {
+                throw new IllegalStateException("clickhouse-logo.png is empty");
+            }
+            return out.toByteArray();
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to read clickhouse-logo.png", e);
+        }
+    }
+
+    /**
+     * Repeats {@code pattern} until {@code length} characters, cutting the last copy so the result is exact.
+     */
+    private static String repeatPattern(String pattern, int length) {
+        StringBuilder value = new StringBuilder(length);
+        while (value.length() + pattern.length() <= length) {
+            value.append(pattern);
+        }
+        if (value.length() < length) {
+            value.append(pattern, 0, length - value.length());
         }
         return value.toString();
+    }
+
+    /**
+     * A string of {@code units} characters from one script: Hebrew, Russian or emoji.
+     */
+    private static String randomText(Random random, int units) {
+        int script = random.nextInt(3);
+        StringBuilder value = new StringBuilder(units * 2);
+        for (int i = 0; i < units; i++) {
+            value.append(nextTextUnit(random, script));
+        }
+        return value.toString();
+    }
+
+    private static String nextTextUnit(Random random, int script) {
+        switch (script) {
+            case 0:
+                return String.valueOf(HEBREW.charAt(random.nextInt(HEBREW.length())));
+            case 1:
+                return String.valueOf(RUSSIAN.charAt(random.nextInt(RUSSIAN.length())));
+            default:
+                return SMILES[random.nextInt(SMILES.length)];
+        }
     }
 
     private static String randomFixedString(Random random, int length) {
         StringBuilder value = new StringBuilder();
         int bytes = 0;
+        int script = random.nextInt(3);
+        int patternIndex = random.nextInt(CLICKHOUSE.length());
         while (bytes < length) {
-            String c = randomUtf8(random, 1);
-            if (bytes + utf8Length(c) > length) {
-                c = "a";
+            String unit = nextTextUnit(random, script);
+            int unitBytes = utf8Length(unit);
+            if (bytes + unitBytes > length) {
+                value.append(CLICKHOUSE.charAt(patternIndex % CLICKHOUSE.length()));
+                patternIndex++;
+                bytes++;
+            } else {
+                value.append(unit);
+                bytes += unitBytes;
             }
-            value.append(c);
-            bytes += utf8Length(c);
         }
         return value.toString();
     }

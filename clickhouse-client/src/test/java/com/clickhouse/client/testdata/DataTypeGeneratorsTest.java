@@ -4,6 +4,8 @@ import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet6Address;
@@ -19,6 +21,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.UUID;
 
 import static com.clickhouse.client.testdata.DataTypeGenerators.*;
@@ -168,7 +171,7 @@ public class DataTypeGeneratorsTest {
                 {float32(), new Object[] {Float.NaN, -0f, Float.MIN_VALUE, Float.MAX_VALUE}},
                 {decimal(5, 2), new Object[] {new BigDecimal("999.99"), new BigDecimal("-999.99"), new BigDecimal("0.01")}},
                 {decimal(3, 3), new Object[] {new BigDecimal("0.999"), new BigDecimal("-0.001")}},
-                {fixedString(3), new Object[] {"a\0\0", "\0\0\0", "zzz"}},
+                {fixedString(3), new Object[] {"a\0\0", "\0\0\0", "Cli"}},
                 {date(), new Object[] {LocalDate.of(1970, 1, 1), LocalDate.of(1972, 2, 29), LocalDate.of(2149, 6, 6)}},
                 {date32(), new Object[] {LocalDate.of(1900, 1, 1), LocalDate.of(1969, 12, 31), LocalDate.of(2299, 12, 31)}},
                 {time(), new Object[] {Duration.ofSeconds(-maxTime), Duration.ofSeconds(maxTime), Duration.ofSeconds(-1)}},
@@ -269,5 +272,103 @@ public class DataTypeGeneratorsTest {
         Assert.expectThrows(IllegalArgumentException.class, () -> decimal(10, 11));
         Assert.expectThrows(IllegalArgumentException.class, () -> dateTime64(10, "UTC"));
         Assert.expectThrows(IllegalArgumentException.class, () -> interval("Century"));
+    }
+
+    @Test(groups = {"unit"})
+    public void testUtf8StringsUseReadableText() {
+        List<Object> values = string().generate(new Random(1));
+        boolean hebrew = false;
+        boolean russian = false;
+        boolean smile = false;
+        boolean longPattern = false;
+        for (Object value : values) {
+            String text = (String) value;
+            if (STRING_EDGES.contains(text)) {
+                continue;
+            }
+            if (text.length() == 10_000) {
+                Assert.assertEquals(text, pattern("ClickHouse", 10_000));
+                longPattern = true;
+            }
+            text.codePoints().forEach(cp -> {
+                Assert.assertTrue(isReadableText(cp), "unexpected code point U+" + Integer.toHexString(cp));
+            });
+            hebrew |= text.codePoints().anyMatch(cp -> Character.UnicodeBlock.of(cp) == Character.UnicodeBlock.HEBREW);
+            russian |= text.codePoints().anyMatch(cp -> Character.UnicodeBlock.of(cp) == Character.UnicodeBlock.CYRILLIC);
+            smile |= text.codePoints().anyMatch(DataTypeGeneratorsTest::isSmile);
+        }
+        Assert.assertTrue(values.contains(pattern("Click", 200)));
+        Assert.assertTrue(values.contains(pattern("House", 200)));
+        Assert.assertTrue(values.contains(pattern("HouseClick", 200)));
+        Assert.assertTrue(hebrew && russian && smile && longPattern);
+    }
+
+    @Test(groups = {"unit"})
+    public void testBinaryStringsAreLogoSlices() throws Exception {
+        byte[] logo = readLogo();
+        List<Object> values = binaryString().generate(new Random(1));
+        boolean full = false;
+        for (Object value : values) {
+            byte[] bytes = (byte[]) value;
+            Assert.assertTrue(isSlice(logo, bytes), "binary value is not a slice of clickhouse-logo.png");
+            full |= Arrays.equals(bytes, logo);
+        }
+        Assert.assertTrue(full);
+    }
+
+    private static final Set<String> STRING_EDGES = new HashSet<>(Arrays.asList("", "a", " ", " padded ", "'", "''",
+            "\\", "\\'", "\"", "`", "\t\n\r", "\0", "a\0b", "NULL", "null"));
+
+    private static boolean isReadableText(int codePoint) {
+        if (codePoint == ' ' || codePoint == ',') {
+            return true;
+        }
+        if (codePoint < 128 && "ClickHouse".indexOf(codePoint) >= 0) {
+            return true;
+        }
+        Character.UnicodeBlock block = Character.UnicodeBlock.of(codePoint);
+        return block == Character.UnicodeBlock.HEBREW || block == Character.UnicodeBlock.CYRILLIC || isSmile(codePoint);
+    }
+
+    private static boolean isSmile(int codePoint) {
+        Character.UnicodeBlock block = Character.UnicodeBlock.of(codePoint);
+        return block == Character.UnicodeBlock.EMOTICONS
+                || block == Character.UnicodeBlock.MISCELLANEOUS_SYMBOLS_AND_PICTOGRAPHS;
+    }
+
+    private static String pattern(String unit, int length) {
+        StringBuilder value = new StringBuilder(length);
+        while (value.length() < length) {
+            value.append(unit);
+        }
+        return value.substring(0, length);
+    }
+
+    private static boolean isSlice(byte[] logo, byte[] bytes) {
+        if (bytes.length == 0) {
+            return true;
+        }
+        if (bytes.length > logo.length) {
+            return false;
+        }
+        for (int i = 0; i <= logo.length - bytes.length; i++) {
+            if (Arrays.equals(Arrays.copyOfRange(logo, i, i + bytes.length), bytes)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static byte[] readLogo() throws Exception {
+        try (InputStream in = DataTypeGeneratorsTest.class.getResourceAsStream("/clickhouse-logo.png")) {
+            Assert.assertNotNull(in, "clickhouse-logo.png");
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            byte[] buffer = new byte[4096];
+            int read;
+            while ((read = in.read(buffer)) >= 0) {
+                out.write(buffer, 0, read);
+            }
+            return out.toByteArray();
+        }
     }
 }
