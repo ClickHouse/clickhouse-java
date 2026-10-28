@@ -54,7 +54,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
-        <clickhouse-java.version>0.11.0-rc1-SNAPSHOT</clickhouse-java.version>
+        <clickhouse-java.version>0.12.0-rc1-SNAPSHOT</clickhouse-java.version>
 
         <compiler-plugin.version>3.8.1</compiler-plugin.version>
 
@@ -74,13 +74,12 @@
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-core</artifactId>
-            <version>2.18.8</version>
+            <version>2.18.11</version>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-            <scope>test</scope>
-            <version>2.18.9</version>
+            <version>2.18.11</version>
         </dependency>
 
         <!-- Popular Alternative to Jackson -->
@@ -121,12 +120,6 @@
             <version>2.0.13</version>
             <scope>runtime</scope>
         </dependency>
-        <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
-            <version>2.18.9</version>
-            <scope>compile</scope>
-        </dependency>
 
         <!-- For the SSL examples: local ClickHouse server in Docker with a self-signed certificate -->
         <dependency>
@@ -137,7 +130,7 @@
         <dependency>
             <groupId>org.bouncycastle</groupId>
             <artifactId>bcprov-jdk18on</artifactId>
-            <version>1.84</version>
+            <version>1.85</version>
         </dependency>
         <dependency>
             <groupId>org.bouncycastle</groupId>

@@ -34,7 +34,7 @@ public class SimplePOJO {
                 "str_lower String ALIAS lower(str), " +
                 "unhexed String EPHEMERAL, " +
                 "hexed FixedString(4) DEFAULT unhex(unhexed), " +
-                ") ENGINE = MergeTree ORDER BY ()";
+                ") ORDER BY ()";
     }
 
 }

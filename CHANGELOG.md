@@ -1620,3 +1620,5 @@ By default, connection is validated after being in the pool for 5 seconds. (http
 - missing the verb "be" in error messages. [#1137](https://github.com/ClickHouse/clickhouse-java/pull/1137)
 - write time field data loss precision. [#1127](https://github.com/ClickHouse/clickhouse-java/pull/1127)
 - fixed a few copy-paste error causing problem handling Geo types
+<!-- DO NOT EDIT. Content Moved to `/history` -->
+<!-- PR changes add as separate file to `/history/latest`. Filename should be in format `<issue ref number>.md` --> 

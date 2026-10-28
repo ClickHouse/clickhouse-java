@@ -30,8 +30,8 @@ public class ConcurrentQueryClient extends BenchmarkBase {
     private Client clientV2Shared;
     @Setup(Level.Trial)
     public void setUpIteration() {
-        clientV1Shared = getClientV1();
-        clientV2Shared = getClientV2();
+        clientV1Shared = getClientV1(false);
+        clientV2Shared = getClientV2IncludeDb(false);
     }
 
     @TearDown(Level.Trial)

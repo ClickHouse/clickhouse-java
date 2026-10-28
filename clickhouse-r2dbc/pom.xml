@@ -127,31 +127,6 @@
                 </plugins>
             </build>
         </profile>
-        <profile>
-            <id>r2dbc-0.9.1</id>
-            <activation>
-                <property>
-                    <name>r2dbc-spi.version</name>
-                    <value>0.9.1.RELEASE</value>
-                </property>
-            </activation>
-            <properties>
-                <release_suffix>_0.9.1</release_suffix>
-            </properties>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-compiler-plugin</artifactId>
-                        <configuration>
-                            <excludes>
-                                <exclude>**/com/clickhouse/r2dbc/ClickHouseResult.java</exclude>
-                            </excludes>
-                        </configuration>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
     </profiles>
 
     <build>

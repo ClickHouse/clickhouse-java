@@ -93,7 +93,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
         runQuery("CREATE TABLE test_integers (order Int8, "
                 + "int8 Int8, int16 Int16, int32 Int32, int64 Int64, int128 Int128, int256 Int256, "
                 + "uint8 UInt8, uint16 UInt16, uint32 UInt32, uint64 UInt64, uint128 UInt128, uint256 UInt256"
-                + ") ENGINE = MergeTree ORDER BY ()");
+                + ") ORDER BY ()");
 
         // Insert minimum values
         insertData("INSERT INTO test_integers VALUES ( 1, "
@@ -263,7 +263,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
                 + "uint64_null Nullable(UInt64), "
                 + "uint128_null Nullable(UInt128), "
                 + "uint256_null Nullable(UInt256)"
-                + ") ENGINE = MergeTree ORDER BY id");
+                + ") ORDER BY id");
 
         // Test values
         BigInteger int128Min = new BigInteger("-170141183460469231731687303715884105728"); // -2^127
@@ -439,7 +439,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
                 + "uint64 Nullable(UInt64), "
                 + "uint128 Nullable(UInt128), "
                 + "uint256 Nullable(UInt256)"
-                + ") ENGINE = MergeTree ORDER BY ()");
+                + ") ORDER BY ()");
 
         // Insert null values
         insertData("INSERT INTO test_unsigned_integers VALUES ( 1, "
@@ -522,7 +522,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
         final int batchSize = 4096; // keep each INSERT well under max_query_size
         runQuery("DROP TABLE IF EXISTS " + table);
         runQuery("CREATE TABLE " + table
-                + " (rowId Int32, v BFloat16, vNull Nullable(BFloat16)) ENGINE = MergeTree ORDER BY rowId");
+                + " (rowId Int32, v BFloat16, vNull Nullable(BFloat16)) ORDER BY rowId");
 
         try (Connection conn = getJdbcConnection();
                 Statement stmt = conn.createStatement()) {
@@ -594,7 +594,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
         properties.setProperty(ClientConfigProperties.serverSetting("allow_experimental_qbit_type"), "1");
         runQuery("DROP TABLE IF EXISTS " + table);
         runQuery("CREATE TABLE " + table
-                + " (rowId Int32, vec QBit(Float32, 8)) ENGINE = MergeTree ORDER BY rowId", properties);
+                + " (rowId Int32, vec QBit(Float32, 8)) ORDER BY rowId", properties);
 
         final float[] expected = { 1f, 2f, 3f, 4f, 5f, 6f, 7f, 8f };
 
@@ -643,7 +643,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
         final String table = "test_bfloat16_write";
         runQuery("DROP TABLE IF EXISTS " + table);
         runQuery("CREATE TABLE " + table
-                + " (rowId Int32, v BFloat16, vNull Nullable(BFloat16)) ENGINE = MergeTree ORDER BY rowId");
+                + " (rowId Int32, v BFloat16, vNull Nullable(BFloat16)) ORDER BY rowId");
 
         float[] inputs = { 0f, 0.5f, 1.5f, -2.5f, 3.14f, 128.0f };
         try (Connection conn = getJdbcConnection();
@@ -732,7 +732,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
         Random rand = new Random();
         runQuery("CREATE TABLE test_uuids (order Int8, "
                 + "uuid Nullable(UUID) "
-                + ") ENGINE = MergeTree ORDER BY ()");
+                + ") ORDER BY ()");
 
         // Insert null values
         insertData("INSERT INTO test_uuids VALUES ( 1, NULL)");
@@ -780,7 +780,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
     public void testDecimalTypes() throws SQLException {
         runQuery("CREATE TABLE test_decimals (order Int8, "
                 + "dec Decimal(9, 2), dec32 Decimal32(4), dec64 Decimal64(8), dec128 Decimal128(18), dec256 Decimal256(18)"
-                + ") ENGINE = MergeTree ORDER BY ()");
+                + ") ORDER BY ()");
 
         // Insert minimum values
         insertData("INSERT INTO test_decimals VALUES ( 1, -9999999.99, -99999.9999, -9999999999.99999999, -99999999999999999999.999999999999999999, " +
@@ -880,7 +880,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
         runQuery("DROP TABLE IF EXISTS " + tableName);
         runQuery("CREATE TABLE " + tableName + " (order Int8, "
                 + "dec Decimal(9, 2), dec32 Decimal32(4), dec64 Decimal64(8), dec128 Decimal128(18), dec256 Decimal256(18)"
-                + ") ENGINE = MergeTree ORDER BY ()");
+                + ") ORDER BY ()");
 
         BigDecimal[] positiveWritten = new BigDecimal[] {
                 new BigDecimal("1234567.899"),
@@ -990,7 +990,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
         runQuery("DROP TABLE IF EXISTS " + tableName);
         runQuery("CREATE TABLE " + tableName + " (order Int8, "
                 + "dec Decimal(9, 4), dec32 Decimal32(4), dec64 Decimal64(8)"
-                + ") ENGINE = MergeTree ORDER BY ()");
+                + ") ORDER BY ()");
 
         try (Connection conn = getJdbcConnection();
              PreparedStatement stmt = conn.prepareStatement("INSERT INTO " + tableName + " VALUES (?, ?, ?, ?)")) {
@@ -1034,7 +1034,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
         runQuery("CREATE TABLE test_datetimes (order Int8, " +
                 "dateTime DateTime, dateTime32 DateTime32, " +
                 "dateTime643 DateTime64(3), dateTime646 DateTime64(6), dateTime649 DateTime64(9)"
-                + ") ENGINE = MergeTree ORDER BY ()");
+                + ") ORDER BY ()");
 
         // Insert minimum values
         insertData("INSERT INTO test_datetimes VALUES ( 1, " +
@@ -1186,7 +1186,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
     public void testDateTypes() throws SQLException {
         runQuery("CREATE TABLE test_dates (order Int8, "
                 + "date Date, date32 Date32"
-                + ") ENGINE = MergeTree ORDER BY ()");
+                + ") ORDER BY ()");
 
         // Insert minimum values
         insertData("INSERT INTO test_dates VALUES ( 1, '1970-01-01', '1970-01-01')");
@@ -1285,7 +1285,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
         createProperties.put(ClientConfigProperties.serverSetting("allow_experimental_time_time64_type"), "1");
         runQuery("CREATE TABLE test_time64 (order Int8, "
                 + "time Time, time64 Time64(9) "
-                + ") ENGINE = MergeTree ORDER BY ()",
+                + ") ORDER BY ()",
                 createProperties);
 
         runQuery("INSERT INTO test_time64 (order, time, time64) VALUES " +
@@ -1346,7 +1346,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
                 + "str String, fixed FixedString(6), "
                 + "enum Enum8('a' = 6, 'b' = 7, 'c' = 8), enum8 Enum8('a' = 1, 'b' = 2, 'c' = 3), enum16 Enum16('a' = 1, 'b' = 2, 'c' = 3), "
                 + "uuid UUID, escaped String "
-                + ") ENGINE = MergeTree ORDER BY ()");
+                + ") ORDER BY ()");
 
         // Insert random (valid) values
         long seed = System.currentTimeMillis();
@@ -1415,7 +1415,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
         runQuery("DROP TABLE IF EXISTS test_enum_zero_like");
         runQuery("CREATE TABLE test_enum_zero_like (order Int8, "
                 + "e8 Enum8('' = 0, 'a' = 1, 'neg' = -5), e16 Enum16('zero' = 0, 'big' = 30000, 'nb' = -20000)"
-                + ") ENGINE = MergeTree ORDER BY ()");
+                + ") ORDER BY ()");
 
         try (Connection conn = getJdbcConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement("INSERT INTO test_enum_zero_like VALUES ( ?, ?, ? )")) {
@@ -1476,7 +1476,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
     public void testIpAddressTypes() throws SQLException, UnknownHostException {
         runQuery("CREATE TABLE test_ips (order Int8, "
                 + "ipv4_ip IPv4, ipv4_name IPv4, ipv6 IPv6, ipv4_as_ipv6 IPv6"
-                + ") ENGINE = MergeTree ORDER BY ()");
+                + ") ORDER BY ()");
 
         // Insert random (valid) values
         long seed = System.currentTimeMillis();
@@ -1573,7 +1573,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
     public void testFloatTypes() throws SQLException {
         runQuery("CREATE TABLE test_floats (order Int8, "
                 + "float32 Float32, float64 Float64"
-                + ") ENGINE = MergeTree ORDER BY ()");
+                + ") ORDER BY ()");
 
         // Insert minimum values
         insertData("INSERT INTO test_floats VALUES ( 1, -3.4028233E38, -1.7976931348623157E308 )");
@@ -1648,7 +1648,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
     public void testBooleanTypes() throws SQLException {
         runQuery("CREATE TABLE test_booleans (order Int8, "
                 + "bool Boolean"
-                + ") ENGINE = MergeTree ORDER BY ()");
+                + ") ORDER BY ()");
 
         // Insert random (valid) values
         long seed = System.currentTimeMillis();
@@ -1695,7 +1695,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
                 + "array Array(Int8), arraystr Array(String), "
                 + "arraytuple Array(Tuple(Int8, String)), "
                 + "arraydate Array(Date)"
-                + ") ENGINE = MergeTree ORDER BY ()");
+                + ") ORDER BY ()");
 
         // Insert random (valid) values
         long seed = System.currentTimeMillis();
@@ -1818,7 +1818,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
         runQuery("CREATE TABLE test_nested_jdbc (order Int8, "
                 + "n Nested(a Int8, b Nullable(String)), "
                 + "tail Int32"
-                + ") ENGINE = MergeTree ORDER BY (order) SETTINGS flatten_nested = 0");
+                + ") ORDER BY (order) SETTINGS flatten_nested = 0");
 
         // A null in the Nullable field exercises null propagation through every read path.
         Tuple[] nested = new Tuple[] {
@@ -1899,8 +1899,78 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
     }
 
     @Test(groups = { "integration" })
+    public void testArrayOfNestedType() throws SQLException {
+        runQuery("DROP TABLE IF EXISTS test_array_of_nested_jdbc");
+        runQuery("CREATE TABLE test_array_of_nested_jdbc (order Int8, "
+                + "an Array(Nested(a Int8, b Nullable(String))), "
+                + "aan Array(Array(Nested(a Int8, b Nullable(String)))), "
+                + "aat Array(Array(Tuple(a Int8, b Nullable(String)))), "
+                + "tail Int32"
+                + ") ORDER BY (order)");
+        runQuery("INSERT INTO test_array_of_nested_jdbc VALUES "
+                + "(1, [[(1, 'x'), (2, NULL)], [], [(3, 'y')]], [[[(1, 'x'), (2, NULL)]], [], [[], [(3, 'y')]]], "
+                + "[[(1, 'x'), (2, NULL)], [], [(3, 'y')]], 100), "
+                + "(2, [], [], [], 200)");
+
+        Tuple[][] an = new Tuple[][] {
+                { new Tuple((byte) 1, "x"), new Tuple((byte) 2, null) },
+                {},
+                { new Tuple((byte) 3, "y") },
+        };
+        Tuple[][][] aan = new Tuple[][][] {
+                { { new Tuple((byte) 1, "x"), new Tuple((byte) 2, null) } },
+                {},
+                { {}, { new Tuple((byte) 3, "y") } },
+        };
+
+        try (Connection conn = getJdbcConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT order, an, aan, aat, tail FROM test_array_of_nested_jdbc ORDER BY order")) {
+            assertTrue(rs.next());
+            assertEquals(rs.getByte("order"), (byte) 1);
+            assertArrayOfNestedEquals(rs.getArray("an"), an);
+            assertArrayOfNestedEquals((Array) rs.getObject("an"), an);
+            Object[] aanValue = (Object[]) rs.getArray("aan").getArray();
+            assertEquals(aanValue.length, aan.length);
+            try (ResultSet ars = rs.getArray("aan").getResultSet()) {
+                for (Tuple[][] expected : aan) {
+                    assertTrue(ars.next());
+                    assertArrayOfNestedEquals((Array) ars.getObject(2), expected);
+                }
+                assertFalse(ars.next());
+            }
+            assertArrayOfNestedEquals(rs.getArray("aat"), an);
+            assertTrue(Arrays.deepEquals((Object[]) rs.getArray("an").getArray(), (Object[]) rs.getArray("aat").getArray()));
+            assertTrue(Arrays.deepEquals(rs.getObject("an", Object[].class), rs.getObject("aat", Object[].class)));
+            assertEquals(rs.getInt("tail"), 100);
+
+            assertTrue(rs.next());
+            assertEquals(rs.getByte("order"), (byte) 2);
+            assertEquals(((Object[]) rs.getArray("an").getArray()).length, 0);
+            assertEquals(((Object[]) rs.getArray("aan").getArray()).length, 0);
+            assertEquals(((Object[]) rs.getArray("aat").getArray()).length, 0);
+            assertEquals(rs.getInt("tail"), 200);
+
+            assertFalse(rs.next());
+        }
+    }
+
+    private static void assertArrayOfNestedEquals(Array array, Tuple[][] expected) throws SQLException {
+        Object[] elements = (Object[]) array.getArray();
+        assertEquals(elements.length, expected.length);
+        try (ResultSet ars = array.getResultSet()) {
+            for (int i = 0; i < expected.length; i++) {
+                assertTrue(ars.next());
+                assertEquals(((Object[]) elements[i]).length, expected[i].length);
+                assertNestedEquals((Array) ars.getObject(2), expected[i]);
+            }
+            assertFalse(ars.next());
+        }
+    }
+
+    @Test(groups = { "integration" })
     public void testStringsUsedAsBytes() throws Exception {
-        runQuery("CREATE TABLE test_strings_as_bytes (order Int8, str String, fixed FixedString(10)) ENGINE = MergeTree ORDER BY ()");
+        runQuery("CREATE TABLE test_strings_as_bytes (order Int8, str String, fixed FixedString(10)) ORDER BY ()");
 
         String[][] testData = {{"Hello, World!", "FixedStr"}, {"Test String 123", "ABC"}};
 
@@ -1949,7 +2019,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
         // ch_logo.png is real binary content that is not valid UTF-8, so it must survive a
         // round-trip through a String column byte-for-byte when binary_string_support is enabled.
 
-        runQuery("CREATE TABLE test_binary_string_get_bytes (id Int8, str String) ENGINE = MergeTree ORDER BY ()");
+        runQuery("CREATE TABLE test_binary_string_get_bytes (id Int8, str String) ORDER BY ()");
 
         try (Connection conn = getJdbcConnection();
              PreparedStatement insert = conn.prepareStatement("INSERT INTO test_binary_string_get_bytes VALUES (?, ?)")) {
@@ -1974,7 +2044,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testBinaryStringSupportGetBinaryStream() throws Exception {
-        runQuery("CREATE TABLE test_binary_string_stream (id Int8, str String, nullable_str Nullable(String)) ENGINE = MergeTree ORDER BY ()");
+        runQuery("CREATE TABLE test_binary_string_stream (id Int8, str String, nullable_str Nullable(String)) ORDER BY ()");
 
         try (Connection conn = getJdbcConnection();
              PreparedStatement insert = conn.prepareStatement("INSERT INTO test_binary_string_stream VALUES (?, ?, ?)")) {
@@ -2021,7 +2091,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
         // With binary_string_support enabled the read path returns an internal StringValue holder for
         // String/FixedString columns. getObject must never leak that holder: it should return a decoded
         // String for Object.class and the no-type overload, and exact raw bytes for byte[].class.
-        runQuery("CREATE TABLE test_binary_string_get_object (id Int8, str String, txt String) ENGINE = MergeTree ORDER BY ()");
+        runQuery("CREATE TABLE test_binary_string_get_object (id Int8, str String, txt String) ORDER BY ()");
 
         String text = "Hello, ClickHouse!";
         try (Connection conn = getJdbcConnection();
@@ -2165,7 +2235,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
     public void testMapTypes() throws SQLException {
         runQuery("CREATE TABLE test_maps (order Int8, "
                 + "map Map(String, Int8), mapstr Map(String, String)"
-                + ") ENGINE = MergeTree ORDER BY ()");
+                + ") ORDER BY ()");
 
         // Insert random (valid) values
         long seed = System.currentTimeMillis();
@@ -2220,7 +2290,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
         runQuery("CREATE TABLE test_maps (order Int8, "
                 + "map Map(String, Array(Int32)), "
                 + "map2 Map(String, Array(Int32))"
-                + ") ENGINE = MergeTree ORDER BY ()");
+                + ") ORDER BY ()");
 
         // Insert random (valid) values
         long seed = System.currentTimeMillis();
@@ -2306,7 +2376,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
         runQuery("CREATE TABLE test_array_map_lc_empty ("
                 + "StartedDateTime DateTime, "
                 + "traits Array(Map(LowCardinality(String), String))"
-                + ") ENGINE = MergeTree ORDER BY StartedDateTime");
+                + ") ORDER BY StartedDateTime");
 
         try (Connection conn = getJdbcConnection();
              Statement stmt = conn.createStatement()) {
@@ -2384,7 +2454,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
                 + "enum Nullable(Enum8('a' = 6, 'b' = 7, 'c' = 8)), enum8 Nullable(Enum8('a' = 1, 'b' = 2, 'c' = 3)), enum16 Nullable(Enum16('a' = 1, 'b' = 2, 'c' = 3)), "
                 + "uuid Nullable(UUID), ipv4 Nullable(IPv4), ipv6 Nullable(IPv6), "
                 + "float32 Nullable(Float32), float64 Nullable(Float64), "
-                + ") ENGINE = MergeTree ORDER BY ()");
+                + ") ORDER BY ()");
 
         // Insert null values
         insertData("INSERT INTO test_nullable VALUES ( 1, "
@@ -2412,7 +2482,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
     public void testLowCardinalityTypeSimpleStatement() throws SQLException {
         runQuery("CREATE TABLE test_low_cardinality (order Int8, "
                 + "lowcardinality LowCardinality(String)"
-                + ") ENGINE = MergeTree ORDER BY ()");
+                + ") ORDER BY ()");
 
         // Insert random (valid) values
         long seed = System.currentTimeMillis();
@@ -2442,7 +2512,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
         runQuery("CREATE TABLE test_aggregate (order Int8," +
                 " int8 Int8," +
                 " val SimpleAggregateFunction(any, Nullable(Int8))" +
-                ") ENGINE = MergeTree ORDER BY ()");
+                ") ORDER BY ()");
 
         // Insert random (valid) values
         long seed = System.currentTimeMillis();
@@ -2476,7 +2546,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
     public void testNestedTypeSimpleStatement() throws SQLException {
         runQuery("CREATE TABLE test_nested (order Int8, "
                 + "nested Nested (int8 Int8, int16 Int16, int32 Int32, int64 Int64, int128 Int128, int256 Int256)"
-                + ") ENGINE = MergeTree ORDER BY ()");
+                + ") ORDER BY ()");
 
         // Insert random (valid) values
         long seed = System.currentTimeMillis();
@@ -2524,7 +2594,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
                 stmt.execute("SET flatten_nested = 0");
                 stmt.execute("CREATE TABLE test_nested_not_flatten (order Int8, "
                         + "nested Nested (int8 Int8, int16 Int16, int32 Int32, int64 Int64, int128 Int128, int256 Int256)"
-                        + ") ENGINE = MergeTree ORDER BY () SETTINGS flatten_nested = 0");
+                        + ") ORDER BY () SETTINGS flatten_nested = 0");
                 // Insert random (valid) values
                 long seed = System.currentTimeMillis();
                 Random rand = new Random(seed);
@@ -2579,7 +2649,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
     public void testTupleTypeSimpleStatement() throws SQLException {
         runQuery("CREATE TABLE test_tuple (order Int8, "
                 + "tuple Tuple(int8 Int8, int16 Int16, int32 Int32, int64 Int64, int128 Int128, int256 Int256)"
-                + ") ENGINE = MergeTree ORDER BY ()");
+                + ") ORDER BY ()");
 
         // Insert random (valid) values
         long seed = System.currentTimeMillis();
@@ -2627,7 +2697,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
         createProperties.put(ClientConfigProperties.serverSetting("allow_experimental_json_type"), "1");
         runQuery("CREATE TABLE test_json (order Int8, "
                 + "json JSON"
-                + ") ENGINE = MergeTree ORDER BY ()", createProperties);
+                + ") ORDER BY ()", createProperties);
 
         // Insert random (valid) values
         long seed = System.currentTimeMillis();
@@ -2687,7 +2757,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
         // TODO: add LineString and MultiLineString support
         runQuery("CREATE TABLE test_geometric (order Int8, "
                 + "point Point, ring Ring, linestring LineString, multilinestring MultiLineString, polygon Polygon, multipolygon MultiPolygon"
-                + ") ENGINE = MergeTree ORDER BY ()");
+                + ") ORDER BY ()");
 
         // Insert random (valid) values
         long seed = System.currentTimeMillis();
@@ -2733,7 +2803,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
         properties.setProperty(ClientConfigProperties.serverSetting("allow_experimental_dynamic_type"), "1");
         runQuery("CREATE TABLE test_dynamic (order Int8, "
                 + "dynamic Dynamic"
-                + ") ENGINE = MergeTree ORDER BY ()",
+                + ") ORDER BY ()",
                 properties);
 
         // Insert random (valid) values
@@ -2849,7 +2919,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
         properties.setProperty(ClientConfigProperties.serverSetting("allow_experimental_variant_type"), "1");
         runQuery("CREATE TABLE test_variant (order Int8, "
                         + "v Variant(String, Int32)"
-                        + ") ENGINE = MergeTree ORDER BY ()",
+                        + ") ORDER BY ()",
                 properties);
 
         // Insert random (valid) values
@@ -2943,7 +3013,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
             String table = "test_geo_point";
             stmt.executeUpdate("DROP TABLE IF EXISTS " + table);
-            stmt.executeUpdate("CREATE TABLE " + table + " (geom Point) ENGINE = MergeTree ORDER BY ()");
+            stmt.executeUpdate("CREATE TABLE " + table + " (geom Point) ORDER BY ()");
 
             try (PreparedStatement pstmt = conn.prepareStatement("INSERT INTO " + table + " VALUES (?)")) {
                 Double[] rowObj = Arrays.stream(row).boxed().toArray(Double[]::new);
@@ -2981,7 +3051,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
             final String table = "test_geo_ring";
             stmt.executeUpdate("DROP TABLE IF EXISTS " + table);
-            stmt.executeUpdate("CREATE TABLE " + table + " (geom Ring) ENGINE = MergeTree ORDER BY ()");
+            stmt.executeUpdate("CREATE TABLE " + table + " (geom Ring) ORDER BY ()");
 
             try (PreparedStatement pstmt = conn.prepareStatement("INSERT INTO " + table + " VALUES (?)")) {
                 pstmt.setObject(1, conn.createArrayOf("Array(Point)", row));
@@ -3018,7 +3088,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
             final String table = "test_geo_line_string";
             stmt.executeUpdate("DROP TABLE IF EXISTS " + table);
-            stmt.executeUpdate("CREATE TABLE " + table +" (geom LineString) ENGINE = MergeTree ORDER BY ()");
+            stmt.executeUpdate("CREATE TABLE " + table +" (geom LineString) ORDER BY ()");
 
             try (PreparedStatement pstmt = conn.prepareStatement("INSERT INTO " + table + " VALUES (?)")) {
                 pstmt.setObject(1, conn.createArrayOf("Array(Point)", row));
@@ -3067,7 +3137,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
             final String table = "test_geo_multi_point";
             stmt.executeUpdate("DROP TABLE IF EXISTS " + table);
             stmt.executeUpdate("CREATE TABLE " + table
-                    + " (rowId Int32, geom MultiPoint, marker Float64) ENGINE = MergeTree ORDER BY rowId");
+                    + " (rowId Int32, geom MultiPoint, marker Float64) ORDER BY rowId");
 
             try (PreparedStatement pstmt =
                          conn.prepareStatement("INSERT INTO " + table + " VALUES (?, ?, ?)")) {
@@ -3125,7 +3195,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
             final String table = "test_geo_multi_line_string";
             stmt.executeUpdate("DROP TABLE IF EXISTS " + table);
-            stmt.executeUpdate("CREATE TABLE " + table +" (geom MultiLineString) ENGINE = MergeTree ORDER BY ()");
+            stmt.executeUpdate("CREATE TABLE " + table +" (geom MultiLineString) ORDER BY ()");
 
             try (PreparedStatement pstmt = conn.prepareStatement("INSERT INTO " + table + " VALUES (?)")) {
                 pstmt.setObject(1, conn.createArrayOf("Array(Array(Point))", row));
@@ -3170,7 +3240,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
             final String table = "test_geo_polygon";
             stmt.executeUpdate("DROP TABLE IF EXISTS " + table);
-            stmt.executeUpdate("CREATE TABLE " + table +" (geom Polygon) ENGINE = MergeTree ORDER BY ()");
+            stmt.executeUpdate("CREATE TABLE " + table +" (geom Polygon) ORDER BY ()");
 
             try (PreparedStatement pstmt = conn.prepareStatement("INSERT INTO " + table + " VALUES (?)")) {
                 pstmt.setObject(1, conn.createArrayOf("Array(Array(Point))", row));
@@ -3231,7 +3301,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
             final String table = "test_geo_muti_polygon";
             stmt.executeUpdate("DROP TABLE IF EXISTS " + table);
-            stmt.executeUpdate("CREATE TABLE " + table +" (geom MultiPolygon) ENGINE = MergeTree ORDER BY ()");
+            stmt.executeUpdate("CREATE TABLE " + table +" (geom MultiPolygon) ORDER BY ()");
 
             try (PreparedStatement pstmt = conn.prepareStatement("INSERT INTO " + table + " VALUES (?)")) {
                 pstmt.setObject(1, conn.createArrayOf("Array(Array(Array(Point)))", row));
@@ -3277,7 +3347,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
 
         try (Connection conn = getJdbcConnection(properties); Statement stmt = conn.createStatement()) {
             stmt.executeUpdate("DROP TABLE IF EXISTS " + table);
-            stmt.executeUpdate("CREATE TABLE " + table + " (rowId Int32, geom Geometry) ENGINE = MergeTree ORDER BY ()");
+            stmt.executeUpdate("CREATE TABLE " + table + " (rowId Int32, geom Geometry) ORDER BY ()");
             stmt.executeUpdate("INSERT INTO " + table + " VALUES "
                     + "(0, (1, 2)), "
                     + "(1, [(1, 2), (3, 4), (1, 2)]), "
@@ -3331,7 +3401,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
 
         try (Connection conn = getJdbcConnection(properties); Statement stmt = conn.createStatement()) {
             stmt.executeUpdate("DROP TABLE IF EXISTS " + table);
-            stmt.executeUpdate("CREATE TABLE " + table + " (rowId Int32, geom Geometry) ENGINE = MergeTree ORDER BY ()");
+            stmt.executeUpdate("CREATE TABLE " + table + " (rowId Int32, geom Geometry) ORDER BY ()");
 
             try (PreparedStatement pstmt = conn.prepareStatement("INSERT INTO " + table + " VALUES (?, ?)")) {
                 for (int i = 0; i < expectedValues.length; i++) {
@@ -3431,7 +3501,7 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
         Properties createProperties = new Properties();
         createProperties.put(ClientConfigProperties.serverSetting("allow_experimental_json_type"), "1");
         runQuery("DROP TABLE IF EXISTS test_jdbc_json_read");
-        runQuery("CREATE TABLE test_jdbc_json_read (data JSON) ENGINE = MergeTree ORDER BY ()", createProperties);
+        runQuery("CREATE TABLE test_jdbc_json_read (data JSON) ORDER BY ()", createProperties);
 
         try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
             final String sql = "INSERT INTO test_jdbc_json_read (data) VALUES ('%s'), ('{}')";
@@ -3547,10 +3617,10 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
                 ? "CREATE TABLE test_time_compat (order Int8, "
                   + "time Time, time64 Time64(3), "
                   + "dateTime DateTime('UTC'), dateTime64 DateTime64(3, 'UTC') "
-                  + ") ENGINE = MergeTree ORDER BY ()"
+                  + ") ORDER BY ()"
                 : "CREATE TABLE test_time_compat (order Int8, "
                   + "dateTime DateTime('UTC'), dateTime64 DateTime64(3, 'UTC') "
-                  + ") ENGINE = MergeTree ORDER BY ()";
+                  + ") ORDER BY ()";
 
         runQuery(tableDDL, createProperties);
 

@@ -1,7 +1,15 @@
 package com.clickhouse.client;
 
-import com.clickhouse.client.api.*;
 import com.clickhouse.client.api.ClickHouseException;
+import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.ClientFaultCause;
+import com.clickhouse.client.api.ClientMisconfigurationException;
+import com.clickhouse.client.api.ConnectionInitiationException;
+import com.clickhouse.client.api.ConnectionReuseStrategy;
+import com.clickhouse.client.api.ServerException;
+import com.clickhouse.client.api.Session;
 import com.clickhouse.client.api.command.CommandResponse;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
@@ -11,7 +19,11 @@ import com.clickhouse.client.api.enums.SSLMode;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
-import com.clickhouse.client.api.internal.*;
+import com.clickhouse.client.api.internal.DataTypeConverter;
+import com.clickhouse.client.api.internal.HttpAPIClientHelper;
+import com.clickhouse.client.api.internal.HttpAPIClientHelperFactory;
+import com.clickhouse.client.api.internal.ServerSettings;
+import com.clickhouse.client.api.internal.ValidationUtils;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
@@ -36,7 +48,11 @@ import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.net.URIBuilder;
 import org.bouncycastle.asn1.x500.X500Name;
-import org.bouncycastle.asn1.x509.*;
+import org.bouncycastle.asn1.x509.BasicConstraints;
+import org.bouncycastle.asn1.x509.Extension;
+import org.bouncycastle.asn1.x509.GeneralName;
+import org.bouncycastle.asn1.x509.GeneralNames;
+import org.bouncycastle.asn1.x509.KeyUsage;
 import org.bouncycastle.cert.X509v3CertificateBuilder;
 import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
 import org.bouncycastle.cert.jcajce.JcaX509ExtensionUtils;
@@ -62,13 +78,35 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.*;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.KeyStore;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.SecureRandom;
+import java.security.Security;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.Date;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -78,6 +116,9 @@ import java.util.regex.Pattern;
 import java.util.zip.GZIPOutputStream;
 
 import static com.github.tomakehurst.wiremock.stubbing.Scenario.STARTED;
+import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertNotEquals;
+import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.fail;
 
@@ -243,6 +284,65 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 Assert.assertNotEquals(secondResponse.getInputStream().read(), -1);
             }
         }
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "testClosingNotFullyReadResponseDataProvider")
+    public void testClosingNotFullyReadResponse(boolean serverCompression, boolean useHttpCompression) throws Exception {
+        if (isCloud()) {
+            throw new SkipException("Test depends on how the server ends a failed response, a proxy can change it");
+        }
+        ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
+        // The query fails after the first rows are sent, so the server ends the response body early.
+        final String query = "SELECT number, randomPrintableASCII(100), throwIf(number = 100000)"
+                + " FROM numbers(200000) SETTINGS max_block_size = 1000";
+
+        try (Client client = new Client.Builder()
+                .addEndpoint(Protocol.HTTP, server.getHost(), server.getPort(), false)
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
+                .compressServerResponse(serverCompression)
+                .useHttpCompression(useHttpCompression)
+                .setMaxConnections(1)
+                .setConnectionRequestTimeout(1, ChronoUnit.SECONDS)
+                .build()) {
+            QueryResponse response = client.query(query).get(10, TimeUnit.SECONDS);
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+            Assert.assertNotNull(reader.next());
+            reader.close();
+            response.close();
+
+            response = client.query(query).get(10, TimeUnit.SECONDS);
+            Assert.assertNotNull(client.newBinaryFormatReader(response).next());
+            response.close();
+
+            try (QueryResponse readResponse = client.query(query).get(10, TimeUnit.SECONDS);
+                 ClickHouseBinaryFormatReader readReader = client.newBinaryFormatReader(readResponse)) {
+                Assert.expectThrows(ClientException.class, () -> {
+                    while (readReader.next() != null) {
+                        // read to the end
+                    }
+                });
+            }
+
+            // A command does not read the response body, so closing it still reports the failure.
+            Throwable thrown = Assert.expectThrows(Exception.class, () -> client.execute(query).get(10, TimeUnit.SECONDS));
+            Assert.assertNotNull(findCause(thrown, ConnectionClosedException.class), "Unexpected command failure: " + thrown);
+
+            try (QueryResponse nextResponse = client.query("SELECT 1").get(10, TimeUnit.SECONDS)) {
+                Assert.assertNotEquals(nextResponse.getInputStream().read(), -1);
+            }
+        }
+    }
+
+    @DataProvider(name = "testClosingNotFullyReadResponseDataProvider")
+    public static Object[][] testClosingNotFullyReadResponseDataProvider() {
+        return new Object[][] {
+                // serverCompression, useHttpCompression
+                {false, false},
+                {true, false},
+                {true, true},
+        };
     }
 
     @Test(groups = {"integration"})
@@ -577,7 +677,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
             }
 
 
-            try (QueryResponse response = client.query("CREATE TABLE table_from_csv ENGINE MergeTree ORDER BY () AS SELECT * FROM file('empty.csv') ", querySettings)
+            try (QueryResponse response = client.query("CREATE TABLE table_from_csv ORDER BY () AS SELECT * FROM file('empty.csv') ", querySettings)
                     .get(1, TimeUnit.SECONDS)) {
                 Assert.fail("Expected exception");
             } catch (ServerException e) {
@@ -638,7 +738,8 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 client.queryAll("select 1");
                 fail("Exception expected");
             } catch (ClientException e) {
-                Assert.assertTrue(e.getCause().getMessage().contains("no handle /some-path?"));
+                Assert.assertTrue(e.getCause() instanceof ServerException, "cause should be " + ServerException.class + " but was " + e.getCause().getClass());
+                Assert.assertEquals(((ServerException)e.getCause()).getTransportProtocolCode(), 404, "Transport code should be NOT_FOUND 404");
             }
         }
     }
@@ -1094,15 +1195,11 @@ public class HttpTransportTests extends BaseIntegrationTest {
             return; // mocked server
         }
 
-        ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
-        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
-                .setUsername("default")
-                .setPassword(ClickHouseServerForTest.getPassword())
-                .build()) {
+        try (Client client = newClient().build()) {
 
             try (CommandResponse resp = client.execute("DROP TABLE IF EXISTS test_omm_table").get()) {
             }
-            try (CommandResponse resp = client.execute("CREATE TABLE test_omm_table ( val String) Engine = MergeTree ORDER BY () ").get()) {
+            try (CommandResponse resp = client.execute("CREATE TABLE test_omm_table ( val String) ORDER BY () ").get()) {
             }
 
             QuerySettings settings = new QuerySettings()
@@ -1122,7 +1219,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
     @Test(groups = { "integration" }, dataProvider = "testUserAgentHasCompleteProductName_dataProvider", dataProviderClass = HttpTransportTests.class)
     public void testUserAgentHasCompleteProductName(String clientName, Pattern userAgentPattern) throws Exception {
         if (isCloud()) {
-            return; // mocked server
+            throw new SkipException("Cloud does not support flushing query_log");
         }
 
         ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
@@ -1136,10 +1233,17 @@ public class HttpTransportTests extends BaseIntegrationTest {
             String q1Id = UUID.randomUUID().toString();
 
             client.execute("SELECT 1", (CommandSettings) new CommandSettings().setQueryId(q1Id)).get().close();
-            client.execute("SYSTEM FLUSH LOGS").get().close();
+            client.execute("SYSTEM FLUSH LOGS" + onCluster()).get().close();
 
-            List<GenericRecord> logRecords = client.queryAll("SELECT http_user_agent, http_referer, " +
-                    " forwarded_for  FROM clusterAllReplicas('default', system.query_log) WHERE query_id = '" + q1Id + "'");
+            List<GenericRecord> logRecords = null;
+            for (int i = 0; i < 10; i++) {
+                logRecords = client.queryAll("SELECT http_user_agent, http_referer, " +
+                        " forwarded_for  FROM clusterAllReplicas('default', system.query_log) WHERE query_id = '" + q1Id + "'");
+                if (!logRecords.isEmpty()) {
+                    break;
+                }
+                Thread.sleep(500);
+            }
             Assert.assertFalse(logRecords.isEmpty(), "No records found in query log");
 
             for (GenericRecord record : logRecords) {
@@ -1156,13 +1260,16 @@ public class HttpTransportTests extends BaseIntegrationTest {
     @DataProvider(name = "testUserAgentHasCompleteProductName_dataProvider")
     public static Object[][] testUserAgentHasCompleteProductName_dataProvider() {
         return new Object[][] {
-                { "", Pattern.compile("clickhouse-java-v2\\/.+ \\(.+\\) Apache-HttpClient\\/[\\d\\.]+$") },
-                { "test-client/1.0", Pattern.compile("test-client/1.0 clickhouse-java-v2\\/.+ \\(.+\\) Apache-HttpClient\\/[\\d\\.]+$")},
-                { "test-client/", Pattern.compile("test-client/ clickhouse-java-v2\\/.+ \\(.+\\) Apache-HttpClient\\/[\\d\\.]+$")}};
+                { "", Pattern.compile("clickhouse-java-v2/[^ ]+ \\(lv:java/[^;]+; os:[^;()]+; hc:ahc_[\\d.]+\\)") },
+                { "test-client/1.0", Pattern.compile("test-client/1.0 clickhouse-java-v2/[^ ]+ \\(lv:java/[^;]+; os:[^;()]+; hc:ahc_[\\d.]+\\)")},
+                { "test-client/", Pattern.compile("test-client/ clickhouse-java-v2/[^ ]+ \\(lv:java/[^;]+; os:[^;()]+; hc:ahc_[\\d.]+\\)")}};
     }
 
     @Test(dataProvider = "testClientNameDataProvider")
     public void testClientName(String clientName, boolean setWithUpdate, String userAgentHeader, boolean setForRequest) throws Exception {
+        if (isCloud()) {
+            throw new SkipException("Cloud does not support flushing query_log");
+        }
 
         final String initialClientName = setWithUpdate ? "init clientName" : clientName;
         final String initialUserAgentHeader = setForRequest ? "init userAgentHeader" : userAgentHeader;
@@ -1194,10 +1301,18 @@ public class HttpTransportTests extends BaseIntegrationTest {
             }
 
             client.query("SELECT 1", settings).get().close();
-            client.execute("SYSTEM FLUSH LOGS").get().close();
+            client.execute("SYSTEM FLUSH LOGS" + onCluster()).get().close();
 
-            List<GenericRecord> logRecords = client.queryAll("SELECT query_id, client_name, http_user_agent, http_referer " +
-                    " FROM clusterAllReplicas('default', system.query_log) WHERE query_id = '" + settings.getQueryId() + "'");
+            List<GenericRecord> logRecords = null;
+            for (int i = 0; i < 10; i++) {
+                logRecords = client.queryAll("SELECT query_id, client_name, http_user_agent, http_referer " +
+                        " FROM clusterAllReplicas('default', system.query_log) WHERE query_id = '" + settings.getQueryId() + "'");
+                if (!logRecords.isEmpty()) {
+                    break;
+                }
+                Thread.sleep(500);
+            }
+            Assert.assertFalse(logRecords.isEmpty(), "No records found in query log");
             Assert.assertEquals(logRecords.get(0).getString("query_id"), settings.getQueryId());
             final String logUserAgent = logRecords.get(0).getString("http_user_agent");
             Assert.assertTrue(logUserAgent.startsWith(expectedClientNameStartsWith),
@@ -1220,6 +1335,9 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
     @Test(dataProvider = "testClientNameThruRawOptionsDataProvider")
     public void testClientNameThruRawOptions(String property, String value, boolean setInClient) throws Exception {
+        if (isCloud()) {
+            throw new SkipException("Cloud does not support flushing query_log");
+        }
         Client.Builder builder = newClient();
         if (setInClient) {
             builder.setOption(property, value);
@@ -1235,10 +1353,18 @@ public class HttpTransportTests extends BaseIntegrationTest {
             }
 
             client.query("SELECT 1", settings).get().close();
-            client.execute("SYSTEM FLUSH LOGS").get().close();
+            client.execute("SYSTEM FLUSH LOGS" + onCluster()).get().close();
 
-            List<GenericRecord> logRecords = client.queryAll("SELECT query_id, client_name, http_user_agent, http_referer " +
-                    " FROM clusterAllReplicas('default', system.query_log) WHERE query_id = '" + settings.getQueryId() + "'");
+            List<GenericRecord> logRecords = null;
+            for (int i = 0; i < 10; i++) {
+                logRecords = client.queryAll("SELECT query_id, client_name, http_user_agent, http_referer " +
+                        " FROM clusterAllReplicas('default', system.query_log) WHERE query_id = '" + settings.getQueryId() + "'");
+                if (!logRecords.isEmpty()) {
+                    break;
+                }
+                Thread.sleep(500);
+            }
+            Assert.assertFalse(logRecords.isEmpty(), "No records found in query log");
             Assert.assertEquals(logRecords.get(0).getString("query_id"), settings.getQueryId());
             final String logUserAgent = logRecords.get(0).getString("http_user_agent");
             Assert.assertTrue(logUserAgent.startsWith(value),
@@ -1259,8 +1385,8 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testBearerTokenAuth() throws Exception {
-        if (isCloud()) {
-            return; // mocked server
+        if (isCloud() || isCluster()) {
+            throw new SkipException("Mock-server test is not applicable to cloud or cluster runs");
         }
 
         WireMockServer mockServer = new WireMockServer( WireMockConfiguration
@@ -1563,33 +1689,6 @@ public class HttpTransportTests extends BaseIntegrationTest {
     }
 
     @Test(groups = { "integration" })
-    public void testJWTWithCloud() throws Exception {
-        if (!isCloud()) {
-            return; // only for cloud
-        }
-        final String jwt = System.getenv("CLIENT_JWT");
-        final String host = System.getenv("JWT_TEST_HOST");
-        Assert.assertTrue(jwt != null && !jwt.trim().isEmpty(), "CLIENT_JWT is not set.");
-        Assert.assertTrue(host != null && !host.trim().isEmpty(), "JWT_TEST_HOST is not set");
-        Assert.assertFalse(jwt.contains("\n") || jwt.contains("-----"), "JWT should be single string ready for HTTP header");
-        try (Client client = new Client.Builder()
-                .addEndpoint(Protocol.HTTP, host, 8443, true)
-                .setUsername("default")
-                .compressClientRequest(false)
-                .setDefaultDatabase("default")
-                .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1")
-                .useBearerTokenAuth(jwt).build()) {
-            try {
-                List<GenericRecord> response = client.queryAll("SELECT user(), now()");
-                System.out.println("response: " + response.get(0).getString(1) + " time: " + response.get(0).getString(2));
-            } catch (Exception e) {
-                e.printStackTrace();
-                throw e;
-            }
-        }
-    }
-
-    @Test(groups = { "integration" })
     public void testWithDefaultTimeouts() {
         if (isCloud()) {
             return; // mocked server
@@ -1686,7 +1785,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 .setUsername("default")
                 .setPassword(ClickHouseServerForTest.getPassword())
                 .sslSocketSNI(node.getHost()).build()) {
-            c.execute("SELECT 1");
+            c.execute("SELECT 1").get().close();
         }
     }
 
@@ -2640,7 +2739,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
     @SuppressWarnings("java:S2925")
     public void testTransportRequestCancel() throws Exception {
         if (isCloud()) {
-            return; // relies on direct transport access and local system tables (processes / query_log)
+            throw new SkipException("Relies on direct transport access and local system tables (processes / query_log)");
         }
 
         ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
@@ -2740,7 +2839,7 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
     private static boolean isQueryRunning(Client client, String queryId) {
         List<GenericRecord> rows = client.queryAll(
-                "SELECT count() AS c FROM system.processes WHERE query_id = '" + queryId + "'");
+                "SELECT count() AS c FROM clusterAllReplicas('default', system.processes) WHERE query_id = '" + queryId + "'");
         return !rows.isEmpty() && rows.get(0).getLong("c") > 0;
     }
 
@@ -2764,9 +2863,9 @@ public class HttpTransportTests extends BaseIntegrationTest {
         long deadline = System.currentTimeMillis() + 30_000;
         String seenTypes = "";
         while (System.currentTimeMillis() < deadline) {
-            client.queryAll("SYSTEM FLUSH LOGS");
+            client.queryAll("SYSTEM FLUSH LOGS" + onCluster());
             List<GenericRecord> rows = client.queryAll(
-                    "SELECT toString(type) AS type, exception_code FROM system.query_log " +
+                    "SELECT toString(type) AS type, exception_code FROM clusterAllReplicas('default', system.query_log) " +
                             "WHERE query_id = '" + queryId + "' AND event_date >= today() - 1");
 
             StringBuilder types = new StringBuilder();
@@ -2790,5 +2889,23 @@ public class HttpTransportTests extends BaseIntegrationTest {
         }
         Assert.fail("no query_log record proving the query was interrupted (query_id=" + queryId
                 + ", seen types: [" + seenTypes + "])");
+    }
+
+    @Test(groups = {"integration"})
+    public void testStickyReplica() {
+        final String replicaKey = UUID.randomUUID().toString();
+        QuerySettings stickyReplica = new QuerySettings().httpHeader(ClickHouseHttpProto.HEADER_REPLICA_TAG, replicaKey);
+
+        String prevHostname = null;
+        for (int i = 0; i < 10; i++) {
+            try (Client client = newClient().build()) {
+                GenericRecord hostname1 = client.queryAll("SELECT hostname()", stickyReplica).get(0);
+                if (prevHostname == null) {
+                    prevHostname = hostname1.getString(1);
+                } else {
+                    assertEquals(hostname1.getString(1), prevHostname, "Failed to reach same replica on " + i + " iteration.");
+                }
+            }
+        }
     }
 }

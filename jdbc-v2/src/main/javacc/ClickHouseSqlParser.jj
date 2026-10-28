@@ -672,7 +672,7 @@ void selectStmt(): {} {
 }
 
 void withClause(): {} {
-    <WITH> { token_source.enterToken(WITH); } withExpr() (<COMMA> withExpr())*
+    <WITH> { token_source.enterToken(WITH); } (LOOKAHEAD(2) <RECURSIVE>)? withExpr() (<COMMA> withExpr())*
     { token_source.leaveToken(WITH); }
 }
 
@@ -1088,7 +1088,7 @@ Token anyKeyword(): { Token t; } {
         | t = <FUNCTION> | t = <GLOBAL> | t = <GROUP> | t = <HAVING> | t = <IF> | t = <ILIKE> | t = <IN> | t = <INFILE> | t = <INNER> 
         | t = <INPUT> | t = <INTERVAL> | t = <INTO> | t = <IS> | t = <LEVEL> | t = <JOIN> | t = <LEFT> | t = <LIKE> | t = <LIMIT> | t = <LIVE> 
         | t = <MATERIALIZED> | t = <NOT> | t = <OFFSET> | t = <ON> | t = <OR> | t = <ORDER> | t = <OUTFILE> | t = <POLICY>
-        | t = <PREWHERE> | t = <PROFILE> | t = <QUOTA> | t = <REPLACE> | t = <RIGHT> | t = <ROLE> | t = <ROLLBACK> | t = <ROW> | t = <SAMPLE>
+        | t = <PREWHERE> | t = <PROFILE> | t = <QUOTA> | t = <RECURSIVE> | t = <REPLACE> | t = <RIGHT> | t = <ROLE> | t = <ROLLBACK> | t = <ROW> | t = <SAMPLE>
         | t = <SETTINGS> | t = <STDOUT> | t = <TEMPORARY> | t = <TABLE> | t = <TABLES> | t = <THEN> | t = <TIES> | t = <TIMESTAMP> 
         | t = <TOP> | t = <TOTALS> | t = <TRANSACTION> | t = <VALUES> | t = <VIEW> | t = <USER> | t = <UNION> | t = <USING> 
         | t = <WHEN> | t = <WHERE> | t = <WITH> | t = <REGEXP>
@@ -1188,6 +1188,7 @@ TOKEN: {
     | <PREWHERE : <P> <R> <E> <W> <H> <E> <R> <E>    >
     | <PROFILE  : <P> <R> <O> <F> <I> <L> <E>        >
     | <QUOTA    : <Q> <U> <O> <T> <A>                >
+    | <RECURSIVE: <R> <E> <C> <U> <R> <S> <I> <V> <E>>
     | <REPLACE  : <R> <E> <P> <L> <A> <C> <E>        >
     | <ROLE     : <R> <O> <L> <E>                    >
     | <ROW      : <R> <O> <W>                        >

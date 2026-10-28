@@ -1,11 +1,11 @@
 package com.clickhouse.client.api.internal;
 
 import com.clickhouse.client.api.ClickHouseException;
-import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.ClientFaultCause;
 import com.clickhouse.client.api.ClientMisconfigurationException;
+import com.clickhouse.client.api.CompressionMethod;
 import com.clickhouse.client.api.ConnectionInitiationException;
 import com.clickhouse.client.api.ConnectionReuseStrategy;
 import com.clickhouse.client.api.DataTransferException;
@@ -42,6 +42,7 @@ import org.apache.hc.client5.http.socket.LayeredConnectionSocketFactory;
 import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
 import org.apache.hc.client5.http.ssl.TlsSocketStrategy;
 import org.apache.hc.core5.http.ClassicHttpResponse;
+import org.apache.hc.core5.http.ConnectionClosedException;
 import org.apache.hc.core5.http.ConnectionRequestTimeoutException;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.Header;
@@ -80,6 +81,7 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLSocket;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -104,7 +106,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
@@ -134,7 +135,11 @@ public class HttpAPIClientHelper {
 
     private final Set<ClientFaultCause> defaultRetryCauses;
 
-    private final String defaultUserAgent;
+    /**
+     * Identification of the client, which gives the value of the {@code User-Agent} header. {@code Client} creates
+     * and updates it. Never {@code null}.
+     */
+    private final WorkloadIdentitySupport workloadIdentitySupport;
     private final Object metricsRegistry;
 
     ConnPoolControl<?> poolControl;
@@ -151,9 +156,12 @@ public class HttpAPIClientHelper {
     private final SpanRecorder spanRecorder;
 
     public HttpAPIClientHelper(Map<String, Object> configuration, Object metricsRegistry, boolean initSslContext,
-                               LZ4Factory lz4Factory, SpanRecorder spanRecorder) {
+                               LZ4Factory lz4Factory, SpanRecorder spanRecorder,
+                               WorkloadIdentitySupport workloadIdentitySupport) {
         this.spanRecorder = Objects.requireNonNull(spanRecorder,
                 "spanRecorder is required; use DefaultSpanRecorder.NOOP to record nothing");
+        this.workloadIdentitySupport = Objects.requireNonNull(workloadIdentitySupport,
+                "workloadIdentitySupport is required");
         this.metricsRegistry = metricsRegistry;
         this.httpClient = createHttpClient(initSslContext, configuration);
         this.lz4Factory = lz4Factory;
@@ -169,8 +177,6 @@ public class HttpAPIClientHelper {
         if (defaultRetryCauses.contains(ClientFaultCause.None)) {
             defaultRetryCauses.removeIf(c -> c != ClientFaultCause.None);
         }
-
-        this.defaultUserAgent = buildDefaultUserAgent();
     }
 
     /**
@@ -448,8 +454,8 @@ public class HttpAPIClientHelper {
                 break;
             } catch (ClientException e) {
                 // Invalid LZ4 Magic
-                if (body instanceof ClickHouseLZ4InputStream) {
-                    ClickHouseLZ4InputStream stream = (ClickHouseLZ4InputStream) body;
+                if (body instanceof CompressedBlockInputStream) {
+                    CompressedBlockInputStream stream = (CompressedBlockInputStream) body;
                     body = stream.getInputStream();
                     byte[] lzHeader = stream.getHeaderBuffer(); // Here is read part of original body
                     offset = Math.min(lzHeader.length, buffer.length);
@@ -479,8 +485,8 @@ public class HttpAPIClientHelper {
                 rBytes = body.read(buffer);
             } catch (ClientException e) {
                 // Invalid LZ4 Magic
-                if (body instanceof ClickHouseLZ4InputStream) {
-                    ClickHouseLZ4InputStream stream = (ClickHouseLZ4InputStream) body;
+                if (body instanceof CompressedBlockInputStream) {
+                    CompressedBlockInputStream stream = (CompressedBlockInputStream) body;
                     body = stream.getInputStream();
                     byte[] headerBuffer = stream.getHeaderBuffer();
                     System.arraycopy(headerBuffer, 0, buffer, 0, headerBuffer.length);
@@ -657,6 +663,8 @@ public class HttpAPIClientHelper {
 
         private final ClassicHttpResponse delegate;
 
+        private boolean dataStreamCreated;
+
         TransportResponseImpl(ClassicHttpResponse delegate) {
             this.delegate = delegate;
         }
@@ -692,17 +700,55 @@ public class HttpAPIClientHelper {
 
         @Override
         public void close() throws IOException {
-            delegate.close();
+            try {
+                delegate.close();
+            } catch (ConnectionClosedException e) {
+                // Without a data stream nobody reads the body, and this is the only report of a failed query.
+                if (!dataStreamCreated) {
+                    throw e;
+                }
+                logIncompleteBodyOnClose(getQueryId(), e);
+            }
         }
 
         @Override
         public InputStream createDataInputStream() {
             try {
-                return delegate.getEntity().getContent();
+                InputStream stream = new ResponseBodyInputStream(delegate.getEntity().getContent(), getQueryId());
+                dataStreamCreated = true;
+                return stream;
             } catch (Exception e) {
                 throw new ClientException("Failed to construct input stream", e);
             }
         }
+    }
+
+    /**
+     * Closing a response body that is not read to the end makes the HTTP client read and discard the rest of it.
+     * When the server ends the body early (it does so when a query fails after the response started), that read
+     * fails with {@link ConnectionClosedException}. The caller stopped reading, so it is logged only; reads still throw.
+     */
+    private static final class ResponseBodyInputStream extends FilterInputStream {
+
+        private final String queryId;
+
+        ResponseBodyInputStream(InputStream in, String queryId) {
+            super(in);
+            this.queryId = queryId;
+        }
+
+        @Override
+        public void close() throws IOException {
+            try {
+                super.close();
+            } catch (ConnectionClosedException e) {
+                logIncompleteBodyOnClose(queryId, e);
+            }
+        }
+    }
+
+    private static void logIncompleteBodyOnClose(String queryId, ConnectionClosedException e) {
+        LOG.debug("Ignoring incomplete response body on close (queryId = {})", queryId, e);
     }
 
     /**
@@ -876,6 +922,19 @@ public class HttpAPIClientHelper {
 
     private void addHeaders(HttpPost req, Map<String, Object> requestConfig) {
         setHeader(req, HttpHeaders.CONTENT_TYPE, CONTENT_TYPE.getMimeType());
+        String socketSNI = (String) requestConfig.get(ClientConfigProperties.SSL_SOCKET_SNI.getKey());
+        if (ClientUtils.isNotBlank(socketSNI) && !req.containsHeader(HttpHeaders.HOST)) {
+            int port = -1;
+            try {
+                if (req.getUri() != null) {
+                    port = req.getUri().getPort();
+                }
+            } catch (Exception ignore) {
+                // ignore
+            }
+            String hostHeader = (port > 0 && port != 80 && port != 443) ? socketSNI + ":" + port : socketSNI;
+            setHeader(req, HttpHeaders.HOST, hostHeader);
+        }
         if (requestConfig.containsKey(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey())) {
             Object formatObj = requestConfig.get(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey());
             if (formatObj != null) {
@@ -1029,8 +1088,9 @@ public class HttpAPIClientHelper {
             return new CompressedEntity(httpEntity, false, CompressorStreamFactory.getSingleton());
         } else if (clientCompression && !appCompressedData) {
             int buffSize = ClientConfigProperties.COMPRESSION_LZ4_UNCOMPRESSED_BUF_SIZE.getOrDefault(requestConfig);
-            return new LZ4Entity(httpEntity, useHttpCompression, false, true,
-                    buffSize, false, lz4Factory);
+            CompressionMethod compressMethod = ClientConfigProperties.COMPRESSION_METHOD.getOrDefault(requestConfig);
+            return new CompressedBlockEntity(httpEntity, useHttpCompression, false, true,
+                    buffSize, false, lz4Factory, compressMethod);
         } else {
             return httpEntity;
         }
@@ -1048,7 +1108,8 @@ public class HttpAPIClientHelper {
         // data compression
         if (serverCompression && !(httpStatus == HttpStatus.SC_FORBIDDEN || httpStatus == HttpStatus.SC_UNAUTHORIZED)) {
             int buffSize = ClientConfigProperties.COMPRESSION_LZ4_UNCOMPRESSED_BUF_SIZE.getOrDefault(requestConfig);
-            return new LZ4Entity(httpEntity, useHttpCompression, true, false, buffSize, true, lz4Factory);
+            return new CompressedBlockEntity(httpEntity, useHttpCompression, true, false, buffSize, true, lz4Factory,
+                    ClientConfigProperties.COMPRESSION_METHOD.getDefObjVal());
         }
 
         return httpEntity;
@@ -1130,6 +1191,9 @@ public class HttpAPIClientHelper {
         // there are some db retryable error codes
         if (ex instanceof ServerException || ex.getCause() instanceof ServerException) {
             ServerException se = (ServerException) (ex instanceof ServerException ? ex : ex.getCause());
+            if (se.getCode() == ServerException.EXECUTION_TIMEOUT) {
+                return retryCauses.contains(ClientFaultCause.ServerTimeoutExceeded);
+            }
             return se.isRetryable() && retryCauses.contains(ClientFaultCause.ServerRetryable);
         }
 
@@ -1171,62 +1235,11 @@ public class HttpAPIClientHelper {
     }
 
     private void correctUserAgentHeader(HttpRequest request, Map<String, Object> requestConfig) {
-        //TODO: implement cache for user-agent
         Header userAgentHeader = request.getLastHeader(HttpHeaders.USER_AGENT);
         request.removeHeaders(HttpHeaders.USER_AGENT);
 
-        String clientName = ClientConfigProperties.CLIENT_NAME.getOrDefault(requestConfig);
-        String userAgentValue = defaultUserAgent;
-        if (userAgentHeader == null && clientName != null && !clientName.isEmpty()) {
-            userAgentValue = clientName + " " + defaultUserAgent;
-        } else if (userAgentHeader != null) {
-            userAgentValue = userAgentHeader.getValue() + " " + defaultUserAgent;
-        }
-        request.setHeader(HttpHeaders.USER_AGENT, userAgentValue);
-    }
-
-    private String buildDefaultUserAgent() {
-        StringBuilder userAgent = new StringBuilder();
-        userAgent.append(Client.CLIENT_USER_AGENT);
-
-        String clientVersion = Client.clientVersion;
-
-        userAgent.append(clientVersion);
-
-        userAgent.append(" (");
-        userAgent.append(System.getProperty("os.name"));
-        userAgent.append("; ");
-        userAgent.append("jvm:").append(System.getProperty("java.version"));
-        userAgent.append("; ");
-
-        userAgent.setLength(userAgent.length() - 2);
-        userAgent.append(')');
-
-        try {
-            String httpClientVersion = this.httpClient.getClass().getPackage().getImplementationVersion();
-            if (Objects.equals(this.httpClient.getClass().getPackage().getImplementationTitle(), this.getClass().getPackage().getImplementationTitle())) {
-                // shaded jar - all packages have same implementation title
-                httpClientVersion = "unknown";
-                try (InputStream in = Thread.currentThread().getContextClassLoader().getResourceAsStream("client-v2-version.properties")) {
-                    Properties p = new Properties();
-                    p.load(in);
-
-                    String tmp = p.getProperty("apache.http.client.version");
-                    if (tmp != null && !tmp.isEmpty() && !tmp.equals("${apache.httpclient.version}")) {
-                        httpClientVersion = tmp;
-                    }
-                } catch (Exception e) {
-                    LOG.debug("Failed to read HTTP client version from client-v2-version.properties", e);
-                }
-            }
-            userAgent.append(" ")
-                    .append("Apache-HttpClient")
-                    .append('/')
-                    .append(httpClientVersion);
-        } catch (Exception e) {
-            LOG.warn("failed to construct http client version string", e);
-        }
-        return userAgent.toString();
+        request.setHeader(HttpHeaders.USER_AGENT, workloadIdentitySupport.getUserAgent(
+                userAgentHeader == null ? null : userAgentHeader.getValue(), requestConfig));
     }
 
     public void close() {

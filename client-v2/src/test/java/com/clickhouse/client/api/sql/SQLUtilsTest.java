@@ -18,7 +18,12 @@ public class SQLUtilsTest {
             {"O'Reilly", "'O''Reilly'"},
             {"😊👍", "'😊👍'"},
             {"", "''"},
-            {"single'quote'double''quote\"", "'single''quote''double''''quote\"'"}
+            {"single'quote'double''quote\"", "'single''quote''double''''quote\"'"},
+            // backslash is an escape character inside ClickHouse single-quoted strings
+            {"C:\\temp", "'C:\\\\temp'"},
+            {"ends with backslash\\", "'ends with backslash\\\\'"},
+            {"double\\\\backslash", "'double\\\\\\\\backslash'"},
+            {"quote and slash \\'", "'quote and slash \\\\'''"}
         };
     }
 
@@ -35,7 +40,11 @@ public class SQLUtilsTest {
             {"1column", "\"1column\""},
             {"column-with-hyphen", "\"column-with-hyphen\""},
             {"😊👍", "\"😊👍\""},
-            {"", "\"\""}
+            {"", "\"\""},
+            // backslash is also an escape character inside double-quoted identifiers
+            {"col\\tname", "\"col\\\\tname\""},
+            {"ends with backslash\\", "\"ends with backslash\\\\\""},
+            {"quote\\\"and\\slash", "\"quote\\\\\"\"and\\\\slash\""}
         };
     }
     

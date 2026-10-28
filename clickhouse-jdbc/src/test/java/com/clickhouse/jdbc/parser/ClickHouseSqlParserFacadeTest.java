@@ -907,6 +907,49 @@ public class ClickHouseSqlParserFacadeTest {
         };
     }
 
+    @Test(groups = "unit", dataProvider = "recursiveCteProvider")
+    public void testRecursiveCte(String sql, StatementType stmtType, String database, String table) {
+        checkSingleStatement(parse(sql), sql, stmtType, database, table);
+    }
+
+    @DataProvider(name = "recursiveCteProvider")
+    private static Object[][] getRecursiveCtes() {
+        return new Object[][] {
+                { "WITH RECURSIVE t AS (SELECT 1 AS n UNION ALL SELECT n + 1 FROM t WHERE n < 5) SELECT sum(n) FROM t",
+                        StatementType.SELECT, "system", "t" },
+                { "with recursive t as (select 1 as n union all select n + 1 from t where n < 5) select sum(n) from t",
+                        StatementType.SELECT, "system", "t" },
+                { "WITH RECURSIVE a AS (SELECT 1 AS n), b AS (SELECT 2 AS n) SELECT n FROM a",
+                        StatementType.SELECT, "system", "a" },
+                { "WITH RECURSIVE 1 AS x, a AS (SELECT 1 AS n) SELECT n + x FROM a",
+                        StatementType.SELECT, "system", "a" },
+                { "WITH RECURSIVE `recursive` AS (SELECT 1 AS n) SELECT n FROM `recursive`",
+                        StatementType.SELECT, "system", "recursive" },
+                { "WITH RECURSIVE recursive AS (SELECT 1 AS n) SELECT n FROM recursive", StatementType.SELECT,
+                        "system", "recursive" },
+                { "INSERT INTO dst WITH RECURSIVE r AS (SELECT 1 AS n UNION ALL SELECT n + 1 FROM r WHERE n < 3)"
+                        + " SELECT n FROM r", StatementType.INSERT, "system", "dst" },
+                { "SELECT sum(n) FROM (WITH RECURSIVE r AS (SELECT 1 AS n UNION ALL SELECT n + 1 FROM r WHERE n < 3)"
+                        + " SELECT n FROM r)", StatementType.SELECT,
+                        ClickHouseSqlStatement.DEFAULT_DATABASE, ClickHouseSqlStatement.DEFAULT_TABLE },
+                // a malformed recursive CTE is still rejected
+                { "WITH RECURSIVE FROM t", StatementType.UNKNOWN,
+                        ClickHouseSqlStatement.DEFAULT_DATABASE, ClickHouseSqlStatement.DEFAULT_TABLE },
+                // a non-recursive CTE keeps its existing handling
+                { "WITH t AS (SELECT 1 AS n) SELECT n FROM t", StatementType.SELECT, "system", "t" },
+                { "WITH 2 AS two SELECT two * two", StatementType.SELECT,
+                        ClickHouseSqlStatement.DEFAULT_DATABASE, ClickHouseSqlStatement.DEFAULT_TABLE },
+                // recursive stays an ordinary identifier outside of the WITH keyword position
+                { "SELECT recursive FROM t", StatementType.SELECT, "system", "t" },
+                { "SELECT n AS recursive FROM t", StatementType.SELECT, "system", "t" },
+                { "SELECT n recursive FROM t", StatementType.SELECT, "system", "t" },
+                { "SELECT n FROM recursive", StatementType.SELECT, "system", "recursive" },
+                { "WITH 1 AS recursive SELECT recursive", StatementType.SELECT,
+                        ClickHouseSqlStatement.DEFAULT_DATABASE, ClickHouseSqlStatement.DEFAULT_TABLE },
+                { "SELECT n FROM t SETTINGS recursive = 1", StatementType.SELECT, "system", "t" },
+        };
+    }
+
     // known issue
     public void testTernaryOperator() {
         String sql = "select x > 2 ? 'a' : 'b' from (select number as x from system.numbers limit ?)";

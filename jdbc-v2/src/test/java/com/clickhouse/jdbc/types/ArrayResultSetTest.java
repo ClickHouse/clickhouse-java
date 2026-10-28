@@ -308,10 +308,11 @@ public class ArrayResultSetTest {
 
         assertFalse(rs.next());
 
-        Assert.assertTrue(rs.isBeforeFirst());
-        Assert.assertFalse(rs.isAfterLast());
+        Assert.assertFalse(rs.isBeforeFirst());
+        Assert.assertTrue(rs.isAfterLast());
         Assert.assertFalse(rs.isLast());
         Assert.assertFalse(rs.isFirst());
+        Assert.assertEquals(rs.getRow(), 0);
 
         Assert.assertThrows(SQLException.class, () -> rs.getString("col1"));
         Assert.assertThrows(SQLException.class, () -> rs.getObject("col1"));
@@ -573,7 +574,9 @@ public class ArrayResultSetTest {
         ArrayResultSet rs = new ArrayResultSet(array, ClickHouseColumn.parse("v Array(Int32)").get(0));
 
         assertFalse(rs.next(), "next() should return false immediately for an empty array");
+        assertTrue(rs.isAfterLast(), "next() should move an empty array after-last");
         assertFalse(rs.next(), "next() should keep returning false on subsequent calls");
+        assertTrue(rs.isAfterLast(), "next() should keep the cursor after-last");
     }
 
     @Test
@@ -584,6 +587,11 @@ public class ArrayResultSetTest {
         assertTrue(rs.next());
         assertEquals(rs.getInt(2), 42);
         assertFalse(rs.next(), "next() should return false after the only element");
+        assertTrue(rs.isAfterLast());
+        assertFalse(rs.isLast());
+        assertEquals(rs.getRow(), 0);
+        assertTrue(rs.previous());
+        assertEquals(rs.getInt(2), 42);
     }
 
     @Test

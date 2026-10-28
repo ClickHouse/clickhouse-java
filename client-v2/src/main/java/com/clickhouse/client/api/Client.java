@@ -25,6 +25,8 @@ import com.clickhouse.client.api.internal.HttpAPIClientHelper;
 import com.clickhouse.client.api.internal.MapUtils;
 import com.clickhouse.client.api.internal.TableSchemaParser;
 import com.clickhouse.client.api.internal.ValidationUtils;
+import com.clickhouse.client.api.internal.Versions;
+import com.clickhouse.client.api.internal.WorkloadIdentitySupport;
 import com.clickhouse.client.api.metadata.ColumnToMethodMatchingStrategy;
 import com.clickhouse.client.api.metadata.DefaultColumnToMethodMatchingStrategy;
 import com.clickhouse.client.api.metadata.TableSchema;
@@ -49,7 +51,6 @@ import com.clickhouse.client.api.transport.Endpoint;
 import com.clickhouse.client.api.transport.HttpEndpoint;
 import com.clickhouse.client.api.transport.internal.TransportRequest;
 import com.clickhouse.client.api.transport.internal.TransportResponse;
-import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
@@ -128,6 +129,8 @@ public class Client implements AutoCloseable {
     private static final int REQ_REGISTRY_SIZE = 1000; // initial capacity hint for the ongoing-request registry, not a hard limit; no separate config needed.
 
     private HttpAPIClientHelper httpClientHelper = null;
+
+    private final WorkloadIdentitySupport workloadIdentitySupport;
 
     private final List<Endpoint> endpoints;
     private final Map<String, Object> configuration;
@@ -235,8 +238,9 @@ public class Client implements AutoCloseable {
             this.lz4Factory = LZ4Factory.fastestJavaInstance();
         }
 
+        this.workloadIdentitySupport = new WorkloadIdentitySupport(this.configuration);
         this.httpClientHelper = new HttpAPIClientHelper(this.configuration, metricsRegistry, initSslContext, lz4Factory,
-                this.spanRecorder);
+                this.spanRecorder, this.workloadIdentitySupport);
         this.serverVersion = configuration.getOrDefault(ClientConfigProperties.SERVER_VERSION.getKey(), "unknown");
         this.dbUser = configuration.getOrDefault(ClientConfigProperties.USER.getKey(), ClientConfigProperties.USER.getDefObjVal());
         this.typeHintMapping = (Map<ClickHouseDataType, Class<?>>) this.configuration.get(ClientConfigProperties.TYPE_HINT_MAPPING.getKey());
@@ -1004,6 +1008,8 @@ public class Client implements AutoCloseable {
          * Defines list of headers that should be sent with each request. The Client will use a header value
          * defined in {@code headers} instead of any other.
          * Operation settings may override these headers.
+         * The {@code User-Agent} header is different: the client adds its own part to the end of the value. To identify
+         * the application, use {@link #setClientName(String)} instead of the {@code User-Agent} header.
          *
          * @see InsertSettings#httpHeaders(Map)
          * @see QuerySettings#httpHeaders(Map)
@@ -1139,17 +1145,52 @@ public class Client implements AutoCloseable {
         }
 
         /**
-         * Sets additional information about calling application. This string will be passed to server as a client name.
-         * In case of HTTP protocol it will be passed as a {@code User-Agent} header.
-         * Warn: If custom value of User-Agent header is set it will override this value for HTTP transport
-         * Client name is used by server to identify client application when investigating {@code system.query_log}. In case of HTTP
-         * transport this value will be in the {@code system.query_log.http_user_agent} column. Currently only HTTP transport is used.
+         * Sets the client name, which identifies the application to the server. The client sends it in the
+         * {@code User-Agent} header, before its own part {@code clickhouse-java-v2/<version> (...)}. The server records
+         * the header in the {@code http_user_agent} column of {@code system.query_log}.
+         * <p>
+         * To identify the application, set the client name. Do not set the {@code User-Agent} header with
+         * {@link #httpHeader(String, String)}: a custom {@code User-Agent} header replaces the client name.
+         * <p>
+         * This method does not change the client metadata. To also add key/value pairs to the {@code User-Agent}
+         * header, use {@link #setClientName(String, Map)}.
          *
-         * @param clientName - client application display name.
+         * @param clientName - client application name, for example {@code my-app/1.0}
          * @return same instance of the builder
          */
         public Builder setClientName(String clientName) {
             this.configuration.put(ClientConfigProperties.CLIENT_NAME.getKey(), clientName);
+            return this;
+        }
+
+        /**
+         * Sets the client name and the client metadata, which identify the application to the server. See
+         * {@link #setClientName(String)} for the client name. The client adds the metadata to the comment group of the
+         * {@code User-Agent} header, in the iteration order of {@code metadata}, and then its own {@code lv},
+         * {@code os} and {@code hc} (HTTP client) entries if the metadata does not set these keys. For example, the
+         * client name {@code my-app/1.0} and the metadata {@code fv=flink/2.0.0} and {@code api=table} give
+         * {@code my-app/1.0 clickhouse-java-v2/<version> (fv:flink/2.0.0; api:table; lv:java/<java.version>;
+         * os:<os.name>; hc:ahc_<Apache HttpClient version>)}.
+         * <p>
+         * Keys and values are trimmed, and entries with a {@code null} or empty key or value are ignored. Keys and
+         * values must be printable ASCII, a key must not contain spaces or any of {@code :;(),=}, and a value must not
+         * contain any of {@code ;()}; otherwise {@link #build()} throws {@link ClientMisconfigurationException}. The
+         * metadata is a client-level setting: it is kept when the client name changes with
+         * {@link Client#updateClientName(String)}.
+         *
+         * @param clientName - client application name, for example {@code my-app/1.0}
+         * @param metadata - key/value pairs; {@code null} or empty removes the previously set metadata
+         * @return same instance of the builder
+         * @see ClientConfigProperties#CLIENT_ID_METADATA
+         */
+        public Builder setClientName(String clientName, Map<String, String> metadata) {
+            setClientName(clientName);
+            if (metadata == null || metadata.isEmpty()) {
+                this.configuration.remove(ClientConfigProperties.CLIENT_ID_METADATA.getKey());
+            } else {
+                this.configuration.put(ClientConfigProperties.CLIENT_ID_METADATA.getKey(),
+                        ClientConfigProperties.fromKeyValuePairs(metadata));
+            }
             return this;
         }
 
@@ -1330,6 +1371,16 @@ public class Client implements AutoCloseable {
             } catch (IllegalArgumentException e) {
                 this.setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), format.trim());
             }
+            return this;
+        }
+
+        /**
+         * Compression method used by client when sending data to server.
+         * @param method - method to use for compression (ex.: LZ4, ZSTD)
+         * @return this instance of builder
+         */
+        public Builder compressionMethod(CompressionMethod method) {
+            this.configuration.put(ClientConfigProperties.COMPRESSION_METHOD.getKey(), method.name());
             return this;
         }
 
@@ -2280,6 +2331,9 @@ public class Client implements AutoCloseable {
     /**
      * <p>Fetches schema of a table and returns complete information about each column.
      * Information includes column name, type, default value, etc.</p>
+     * <p>Important: table name should be properly escaped
+     * (see @link com.clickhouse.client.api.sql.SQLUtils#enquoteIdentifier(java.lang.String, boolean)).
+     * This method uses table name as is because method is not aware if database name also present and cannot properly escape it.</p>
      *
      * <p>See {@link #register(Class, TableSchema)}</p>
      *
@@ -2294,6 +2348,9 @@ public class Client implements AutoCloseable {
      * <p>Fetches schema of a table and returns complete information about each column.
      * Information includes column name, type, default value, etc.</p>
      * <p>See {@link #register(Class, TableSchema)}</p>
+     * <p>Important: table name should be properly escaped
+     * (see @link com.clickhouse.client.api.sql.SQLUtils#enquoteIdentifier(java.lang.String, boolean))
+     * and should not contain database name</p>
      *
      * @param table - table name
      * @param database - database name
@@ -2306,6 +2363,9 @@ public class Client implements AutoCloseable {
 
     /**
      * <p>Creates table schema from a query.</p>
+     * <p>Important: table name should be properly escaped
+     * (see @link com.clickhouse.client.api.sql.SQLUtils#enquoteIdentifier(java.lang.String, boolean)).
+     * This method doesn't validate or parse the SQL query</p>
      * @param sql - SQL query which schema to return
      * @return table schema for the query
      */
@@ -2313,6 +2373,15 @@ public class Client implements AutoCloseable {
         return getTableSchemaFromQuery(sql, null);
     }
 
+    /**
+     * <p>Creates table schema from a query.</p>
+     * <p>Important: table name should be properly escaped
+     * (see @link com.clickhouse.client.api.sql.SQLUtils#enquoteIdentifier(java.lang.String, boolean)).
+     * This method doesn't validate or parse the SQL query</p>
+     * @param sql - SQL query which schema to return
+     * @param params - server bound parameters
+     * @return table schema for the query
+     */
     public TableSchema getTableSchemaFromQuery(String sql, Map<String, Object> params) {
         final String describeQuery = "DESC (" + sql + ")";
         return getTableSchemaImpl(describeQuery, null, sql, getDefaultDatabase(), params);
@@ -2535,8 +2604,15 @@ public class Client implements AutoCloseable {
         this.unmodifiableDbRolesView = ImmutableList.copyOf(tmp);
     }
 
+    /**
+     * Updates the client name for all subsequent requests created by this client. The client composes the value of
+     * the {@code User-Agent} header again, and keeps it.
+     *
+     * @param name - client application name, for example {@code my-app/1.0}
+     */
     public void updateClientName(String name) {
         this.configuration.put(ClientConfigProperties.CLIENT_NAME.getKey(), name);
+        this.workloadIdentitySupport.updateClientName(this.configuration);
     }
 
     /**
@@ -2547,8 +2623,8 @@ public class Client implements AutoCloseable {
         this.session.updateSessionId(sessionId);
     }
 
-    public static final String clientVersion =
-            ClickHouseClientOption.readVersionFromResource("client-v2-version.properties");
+    // not a compile-time constant, so that code compiled against another version reads the version of this client
+    public static final String clientVersion = String.valueOf(Versions.CLIENT);
     public static final String CLIENT_USER_AGENT = "clickhouse-java-v2/";
 
     private Collection<String> unmodifiableDbRolesView = Collections.emptyList();

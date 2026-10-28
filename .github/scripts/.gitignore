@@ -1,0 +1,5 @@
+__pycache__
+.venv 
+*.token
+*.json
+*.pem

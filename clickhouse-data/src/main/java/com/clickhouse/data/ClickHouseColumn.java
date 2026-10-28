@@ -598,8 +598,14 @@ public final class ClickHouseColumn implements Serializable {
                 }
             }
         } else if (args.startsWith(KEYWORD_JSON, i)) {
-            int index = args.indexOf('(', i + KEYWORD_JSON.length());
-            if (index > i) {
+            // JSON is valid with and without a parameter list, so only a bracket immediately after the
+            // keyword opens it - otherwise the brackets of a following element would be consumed here,
+            // for example the ones of FixedString(3) in Tuple(JSON, FixedString(3)).
+            int index = i + KEYWORD_JSON.length();
+            while (index < len && Character.isWhitespace(args.charAt(index))) {
+                index++;
+            }
+            if (index < len && args.charAt(index) == '(') {
                 i = ClickHouseUtils.skipBrackets(args, index, len, '(');
                 String originalTypeName = args.substring(startIndex, i);
                 List<ClickHouseColumn> nestedColumns = new ArrayList<>();

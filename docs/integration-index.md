@@ -1,4 +1,4 @@
-# ClickHouse Java Integration
+# ClickHouse Java Client Integration Guide
 
 ## Abstract
 

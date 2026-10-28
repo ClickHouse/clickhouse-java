@@ -16,6 +16,6 @@ public class NoSettersPOJO {
     }
 
     public static String generateTableCreateSQL(String tableName) {
-        return "CREATE TABLE " + tableName + " (p1 Int32, p2 Int32) ENGINE = MergeTree() ORDER BY ()";
+        return "CREATE TABLE " + tableName + " (p1 Int32, p2 Int32) ORDER BY ()";
     }
 }

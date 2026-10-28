@@ -18,7 +18,9 @@ import java.util.concurrent.TimeUnit;
 public class ErrorHandlingTests extends BaseIntegrationTest {
 
     static {
-        System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "DEBUG");
+        if (Boolean.getBoolean("test.debug")) {
+            System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "DEBUG");
+        }
     }
 
     /**

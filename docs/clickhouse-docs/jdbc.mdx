@@ -27,36 +27,15 @@ We recommend using the latest java client directly if performance/direct access 
 
 ### Setup {#setup}
 
-<Tabs>
-    <Tab title="Maven">
-
-        ```xml
-        {/* https://mvnrepository.com/artifact/com.clickhouse/clickhouse-jdbc */}
-        <dependency>
-            <groupId>com.clickhouse</groupId>
-            <artifactId>clickhouse-jdbc</artifactId>
-            <version>0.9.8</version>
-            <classifier>all</classifier>
-        </dependency>
-        ```
-
-    </Tab>
-    <Tab title="Gradle (Kotlin)">
-
-        ```kotlin
-        // https://mvnrepository.com/artifact/com.clickhouse/clickhouse-jdbc
-        implementation("com.clickhouse:clickhouse-jdbc:0.9.8:all")
-        ```
-    </Tab>
-    <Tab title="Gradle">
-
-        ```groovy
-        // https://mvnrepository.com/artifact/com.clickhouse/clickhouse-jdbc
-        implementation 'com.clickhouse:clickhouse-jdbc:0.9.8:all'
-        ```
-
-    </Tab>
-</Tabs>
+```xml
+{/* https://mvnrepository.com/artifact/com.clickhouse/clickhouse-jdbc */}
+<dependency>
+    <groupId>com.clickhouse</groupId>
+    <artifactId>clickhouse-jdbc</artifactId>
+    <version>0.10.0</version>
+    <classifier>all</classifier>
+</dependency>
+```
 
 If you are using JDBC driver within an application that requires jar to be added to the classpath, you need to add download the jar from:
 - [Maven Central](https://mvnrepository.com/artifact/com.clickhouse/clickhouse-jdbc) and add it to the classpath
@@ -167,10 +146,14 @@ conn.setClientInfo(com.clickhouse.jdbc.ClientInfoProperties.APPLICATION_NAME.get
 
 Both ways will result in the following `http_user_agent` value in the query log:
 ```
-my-app-01/1.0 jdbc-v2/0.9.7 clickhouse-java-v2/0.9.6 (Linux; jvm:17.0.17) Apache-HttpClient/5.4.4
+my-app-01/1.0 jdbc-v2/0.12.0 clickhouse-java-v2/0.12.0 (lv:java/17.0.17; os:Linux; hc:ahc_5.6.4)
 ```
 
+To add key/value pairs to the comment group of the header, set the `client_id_metadata` property. For example,
+`client_id_metadata=fv=flink/2.0.0,api=table` gives `(fv:flink/2.0.0; api:table; lv:java/17.0.17; os:Linux; hc:ahc_5.6.4)`.
+
 **Note:** We recommend using `app_name/version` format for `client_name` property because it helps to identify the application in the query log.
+Use the client name to identify the application. Do not set a custom `User-Agent` HTTP header for this: it replaces the application part of the header, including `jdbc-v2/<version>`.
 
 ### Operation Identification {#operation-identification}
 
@@ -226,6 +209,55 @@ Connection conn = Driver.connect("jdbc:ch:https://your-service.clickhouse.cloud:
 // URL equivalent:
 // jdbc:ch:https://your-service.clickhouse.cloud:8443?http_header_X-CLICKHOUSE-REPLICA-TAG=my-app-session-1
 ```
+
+### JWT Authentication (CLOUD) {#jwt-authentication}
+
+[JWT Authentication](/concepts/features/security/external-authenticators/jwt) allows authenticating with JSON Web Tokens (JWTs) in ClickHouse Cloud. ClickHouse dynamically creates **ephemeral users** derived from token claims.
+
+#### Initial Configuration
+
+To configure initial JWT authentication in JDBC, pass the `bearer_token` property in connection properties or directly in the JDBC URL:
+
+```java showLineNumbers
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+import java.util.Properties;
+
+public Connection createJwtConnection(String jwtToken) throws SQLException {
+    Properties properties = new Properties();
+    properties.setProperty("bearer_token", jwtToken);
+
+    return DriverManager.getConnection("jdbc:ch:https://your-service.clickhouse.cloud:8443", properties);
+}
+```
+
+URL equivalent:
+```plaintext
+jdbc:ch:https://your-service.clickhouse.cloud:8443?bearer_token=<your_jwt_token>
+```
+
+#### Updating Token at Runtime
+
+Because JWTs have a limited validity period, new JWT tokens should be set **before** the current token expires so no operations fail.
+
+To update the JWT token on an active JDBC connection at runtime, unwrap the connection to access the underlying `com.clickhouse.client.api.Client` instance and call `updateBearerToken`:
+
+```java showLineNumbers
+import com.clickhouse.jdbc.ConnectionImpl;
+import java.sql.Connection;
+import java.sql.SQLException;
+
+public void refreshJwtToken(Connection connection, String newJwtToken) throws SQLException {
+    // Unwrap the connection to get the underlying Client instance
+    ConnectionImpl connImpl = connection.unwrap(ConnectionImpl.class);
+
+    // Set the new JWT before the current token expires
+    connImpl.getClient().updateBearerToken(newJwtToken);
+}
+```
+
+Subsequent statements executed on this JDBC connection will use the updated JWT token.
 
 ## Supported data types {#supported-data-types}
 
