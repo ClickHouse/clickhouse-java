@@ -26,6 +26,22 @@
 
 ### New Features
 
+- **[client-v2]** Added an experimental streaming RowBinary reader and writer
+  (`com.clickhouse.client.api.data_formats.stream`). Nested values used to be written only after the whole
+  container existed in memory, because `Array`, `Map`, unflattened `Nested`, and `QBit` put a length in front of
+  their elements, and they were read only after the whole container had been allocated. `RowBinaryStreamWriter`
+  and `RowBinaryStreamReader` treat a row and each nested value as a scope that is opened and closed explicitly.
+  A container opened with a known size writes that length immediately and sends the element bytes straight to the
+  stream; a container opened without a size buffers the encoded bytes and writes the length when the scope closes.
+  `writeString(byte[])` keeps bytes that are not valid UTF-8. The writer accepts `RowBinary` and
+  `RowBinaryWithDefaults`. The reader accepts `RowBinary` (schema supplied by the caller), `RowBinaryWithNames`,
+  and `RowBinaryWithNamesAndTypes` (schema taken from the header). A column that was not written is an error.
+  `RowBinaryFormatWriter`, POJO insert, and JDBC are unchanged, and `Native` is not supported on this path.
+  A `JSON` column can be written as a binary object with `beginJson`: each path is a name plus a value, a nested
+  object is dotted paths, a JSON null is `writeNull(path)`, and an array of objects is an `Array(JSON)` path whose
+  elements are themselves JSON documents. `writeString` without a path is still the string form.
+  See `docs/reader_writer_api.md`.
+
 - **[migration-helpers]** Added `migration-helpers` module containing `ConfigurationMigrationHelper` and
   `ConfigPropertyCache` to convert configuration properties and connection URLs from v1 (0.7.1) format to v2 (0.9.8+)
   format (automatically prefixing ClickHouse server settings with `clickhouse_setting_`, custom headers with
