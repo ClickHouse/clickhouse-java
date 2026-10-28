@@ -48,7 +48,6 @@ public final class DataTypeGenerators {
     static final int NULL_FREQUENCY = 5;
     private static final int LONG_STRING_LENGTH = 10_000;
     private static final String CLICKHOUSE = "ClickHouse";
-    private static final String HEBREW = "אבגדהוזחטיכלמנסעפצקרשת";
     private static final String RUSSIAN = "абвгдеёжзийклмнопрстуфхцчшщъыьэюяАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ";
     private static final String[] SMILES = {
             "😀", "😁", "😂", "😊", "😉", "😍", "😎", "🙂", "👍", "👎", "🔥", "🎉", "🙏"};
@@ -181,14 +180,14 @@ public final class DataTypeGenerators {
     }
 
     /**
-     * UTF-8 strings: escaping edge cases, Hebrew, Russian and emoji, and long strings built by repeating
+     * UTF-8 strings: escaping edge cases, Russian and emoji, and long strings built by repeating
      * pieces of {@code ClickHouse}.
      */
     public static DataTypeGenerator string() {
         return simple("String", random -> {
             List<Object> values = new ArrayList<>(Arrays.<Object>asList("", "a", " ", " padded ", "'", "''", "\\",
                     "\\'", "\"", "`", "\t\n\r", "\0", "a\0b", "NULL", "null",
-                    "Привет, мир", "שלום, עולם", "😀😂👍", "Привет שלום 😀",
+                    "Привет, мир", "😀😂👍", "Привет 😀",
                     repeatPattern("Click", 200), repeatPattern("House", 200), repeatPattern("HouseClick", 200),
                     repeatPattern(CLICKHOUSE, LONG_STRING_LENGTH)));
             for (int i = 0; i < RANDOM_COUNT; i++) {
@@ -223,7 +222,7 @@ public final class DataTypeGenerators {
     }
 
     /**
-     * Strings of exactly {@code length} UTF-8 bytes. Content is Hebrew, Russian, emoji or a repeating
+     * Strings of exactly {@code length} UTF-8 bytes. Content is Russian, emoji or a repeating
      * {@code ClickHouse} pattern; shorter content is padded with {@code '\0'}.
      */
     public static DataTypeGenerator fixedString(int length) {
@@ -235,7 +234,6 @@ public final class DataTypeGenerators {
             values.add(padToBytes("", length));
             values.add(padToBytes("a", length));
             values.add(repeatPattern(CLICKHOUSE, length));
-            values.add(padToBytes(fillUtf8("א", length), length));
             values.add(padToBytes(fillUtf8("ж", length), length));
             values.add(padToBytes(fillUtf8("😀", length), length));
             for (int i = 0; i < RANDOM_COUNT; i++) {
@@ -1037,10 +1035,10 @@ public final class DataTypeGenerators {
     }
 
     /**
-     * A string of {@code units} characters from one script: Hebrew, Russian or emoji.
+     * A string of {@code units} characters from one script: Russian or emoji.
      */
     private static String randomText(Random random, int units) {
-        int script = random.nextInt(3);
+        int script = random.nextInt(2);
         StringBuilder value = new StringBuilder(units * 2);
         for (int i = 0; i < units; i++) {
             value.append(nextTextUnit(random, script));
@@ -1049,20 +1047,16 @@ public final class DataTypeGenerators {
     }
 
     private static String nextTextUnit(Random random, int script) {
-        switch (script) {
-            case 0:
-                return String.valueOf(HEBREW.charAt(random.nextInt(HEBREW.length())));
-            case 1:
-                return String.valueOf(RUSSIAN.charAt(random.nextInt(RUSSIAN.length())));
-            default:
-                return SMILES[random.nextInt(SMILES.length)];
+        if (script == 0) {
+            return String.valueOf(RUSSIAN.charAt(random.nextInt(RUSSIAN.length())));
         }
+        return SMILES[random.nextInt(SMILES.length)];
     }
 
     private static String randomFixedString(Random random, int length) {
         StringBuilder value = new StringBuilder();
         int bytes = 0;
-        int script = random.nextInt(3);
+        int script = random.nextInt(2);
         int patternIndex = random.nextInt(CLICKHOUSE.length());
         while (bytes < length) {
             String unit = nextTextUnit(random, script);

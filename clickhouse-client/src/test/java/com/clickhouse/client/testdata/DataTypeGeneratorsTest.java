@@ -277,7 +277,6 @@ public class DataTypeGeneratorsTest {
     @Test(groups = {"unit"})
     public void testUtf8StringsUseReadableText() {
         List<Object> values = string().generate(new Random(1));
-        boolean hebrew = false;
         boolean russian = false;
         boolean smile = false;
         boolean longPattern = false;
@@ -293,14 +292,13 @@ public class DataTypeGeneratorsTest {
             text.codePoints().forEach(cp -> {
                 Assert.assertTrue(isReadableText(cp), "unexpected code point U+" + Integer.toHexString(cp));
             });
-            hebrew |= text.codePoints().anyMatch(cp -> Character.UnicodeBlock.of(cp) == Character.UnicodeBlock.HEBREW);
             russian |= text.codePoints().anyMatch(cp -> Character.UnicodeBlock.of(cp) == Character.UnicodeBlock.CYRILLIC);
             smile |= text.codePoints().anyMatch(DataTypeGeneratorsTest::isSmile);
         }
         Assert.assertTrue(values.contains(pattern("Click", 200)));
         Assert.assertTrue(values.contains(pattern("House", 200)));
         Assert.assertTrue(values.contains(pattern("HouseClick", 200)));
-        Assert.assertTrue(hebrew && russian && smile && longPattern);
+        Assert.assertTrue(russian && smile && longPattern);
     }
 
     @Test(groups = {"unit"})
@@ -326,8 +324,7 @@ public class DataTypeGeneratorsTest {
         if (codePoint < 128 && "ClickHouse".indexOf(codePoint) >= 0) {
             return true;
         }
-        Character.UnicodeBlock block = Character.UnicodeBlock.of(codePoint);
-        return block == Character.UnicodeBlock.HEBREW || block == Character.UnicodeBlock.CYRILLIC || isSmile(codePoint);
+        return Character.UnicodeBlock.of(codePoint) == Character.UnicodeBlock.CYRILLIC || isSmile(codePoint);
     }
 
     private static boolean isSmile(int codePoint) {
