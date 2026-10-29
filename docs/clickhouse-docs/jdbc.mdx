@@ -619,14 +619,14 @@ try (Connection conn = ...) {
 |-----------------------------|------------------------------|-----------------------------|
 | UUID                        | OTHER                        | java.util.UUID              |
 | IPv4                        | OTHER                        | java.net.Inet4Address       |
-| IPv6                        | OTHER                        | java.net.Inet6Address       |
+| IPv6                        | OTHER                        | java.net.InetAddress        |
 | JSON                        | OTHER                        | java.lang.String            |
 | AggregateFunction           | OTHER                        | (binary representation)     |
 | SimpleAggregateFunction     | (wrapped type)               | (wrapped class)             |
 
 - `UUID` isn't JDBC standard type. However it is part of JDK. By default `java.util.UUID` is returned on `getObject()` method.
 - `UUID` can be read/written as `String` by using `getObject(columnIndex, String.class)` method.
-- `IPv4` and `IPv6` aren't JDBC standard types. However they're part of JDK. By default `java.net.Inet4Address` and `java.net.Inet6Address` are returned on `getObject()` method.
+- `IPv4` and `IPv6` aren't JDBC standard types. However they're part of JDK. By default `java.net.Inet4Address` and `java.net.Inet6Address` are returned on `getObject()` method. An IPv4-mapped `IPv6` value (`::ffff:a.b.c.d`) is returned as a `java.net.Inet4Address`. For this reason `ResultSetMetaData#getColumnClassName` reports `java.net.InetAddress` for `IPv6`.
 - `IPv4` and `IPv6` can be read/written as `String` by using `getObject(columnIndex, String.class)` method.
 
 **JSON Type**
@@ -1023,12 +1023,13 @@ try (Connection conn = DriverManager.getConnection(url, properties)) {
 | SimpleAggregateFunction     | ✅                 | (wrapped type)             | (wrapped class)            | (wrapped type)             | (wrapped class)                         |
 | UUID                        | ✅                 | OTHER                      | java.util.UUID             | VARCHAR                    | java.util.UUID                          |
 | IPv4                        | ✅                 | OTHER                      | java.net.Inet4Address      | VARCHAR                    | java.net.Inet4Address                   |
-| IPv6                        | ✅                 | OTHER                      | java.net.Inet6Address      | VARCHAR                    | java.net.Inet6Address                   |
+| IPv6                        | ❌                 | OTHER                      | java.net.InetAddress       | VARCHAR                    | java.net.Inet6Address                   |
 | Dynamic                     | ❌                 | OTHER                      | java.Object                | not supported              | not supported                           |
 | Variant                     | ❌                 | OTHER                      | java.Object                | not supported              | not supported                           |
 
 - V1 uses `VARCHAR` for `UUID` but returns `java.util.UUID` object always. V2 fixes this by mapping `UUID` to `OTHER` and returns `java.util.UUID` object.
 - V1 uses `VARCHAR` for `IPv4` and `IPv6` but returns `java.net.Inet4Address` and `java.net.Inet6Address` objects always. V2 fixes this by mapping `IPv4` and `IPv6` to `OTHER` and returns `java.net.Inet4Address` and `java.net.Inet6Address` objects.
+- V2 returns an IPv4-mapped `IPv6` value (`::ffff:a.b.c.d`) as a `java.net.Inet4Address`, V1 returns it as a `java.net.Inet6Address`. Use `getObject(columnIndex, Inet6Address.class)` to always get a `java.net.Inet6Address`.
 - `Dynamic` and `Variant` are new types in V2. Not supported in V1.
 - `JSON` is based on `Dynamic` type. Therefore it is supported only in V2.
 - IPv4 and IPv6 values can be read as `byte[]` by using `getBytes(columnIndex)` method. However it is recommended to use designated classes for these types.

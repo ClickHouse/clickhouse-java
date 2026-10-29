@@ -130,7 +130,7 @@ public class ArrayResultSet implements ResultSet {
     }
 
     private Object convertValue(Object value, Class<?> targetType, Map<Class<?>, Function<Object, Object>> valueConverterMap) throws SQLException {
-        if (value == null || targetType == value.getClass() || targetType == Object.class) {
+        if (value == null || (targetType != null && targetType.isInstance(value))) {
             return value;
         }
 

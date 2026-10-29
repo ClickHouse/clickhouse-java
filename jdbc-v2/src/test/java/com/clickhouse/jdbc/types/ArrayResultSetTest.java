@@ -10,6 +10,8 @@ import java.io.Reader;
 import java.io.StringReader;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
+import java.net.Inet4Address;
+import java.net.InetAddress;
 import java.net.URL;
 import java.sql.Blob;
 import java.sql.Clob;
@@ -295,6 +297,24 @@ public class ArrayResultSetTest {
                 assertEquals(rs.getBytes(valueColumn), value.getBytes());
             }
         }
+    }
+
+    @Test
+    void testInetAddressValues() throws Exception {
+        InetAddress[] array = new InetAddress[] {
+                InetAddress.getByName("2001:db8::1"), InetAddress.getByName("10.0.0.1"), null};
+        ArrayResultSet rs = new ArrayResultSet(array, ClickHouseColumn.parse("v Array(Nullable(IPv6))").get(0));
+
+        assertEquals(rs.getMetaData().getColumnClassName(2), InetAddress.class.getName());
+        for (InetAddress value : array) {
+            assertTrue(rs.next());
+            assertEquals(rs.getObject(2), value);
+            assertEquals(rs.getObject(2, InetAddress.class), value);
+            assertEquals(rs.getObject(2, Object.class), value);
+        }
+
+        rs.absolute(1);
+        expectThrows(SQLException.class, () -> rs.getObject(2, Inet4Address.class));
     }
 
     @Test
