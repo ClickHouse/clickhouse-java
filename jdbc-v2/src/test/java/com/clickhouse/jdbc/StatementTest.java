@@ -2,6 +2,7 @@ package com.clickhouse.jdbc;
 
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.Session;
 import com.clickhouse.client.api.data_formats.GsonJsonParserFactory;
 import com.clickhouse.client.api.data_formats.JacksonJsonParserFactory;
@@ -11,6 +12,10 @@ import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseVersion;
 import com.clickhouse.jdbc.internal.SqlParserFacade;
+import com.github.tomakehurst.wiremock.WireMockServer;
+import com.github.tomakehurst.wiremock.client.WireMock;
+import com.github.tomakehurst.wiremock.common.ConsoleNotifier;
+import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -819,6 +824,39 @@ public class StatementTest extends JdbcIntegrationTest {
                 {false},
                 {true},
         };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "testCancelWhenQueryIsNotRunningDP")
+    public void testCancelIgnoresNothingToKillError(boolean asyncOperations) throws Exception {
+        if (isCloud()) {
+            return; // mocked server
+        }
+
+        WireMockServer mockServer = new WireMockServer(WireMockConfiguration
+                .options().dynamicPort().notifier(new ConsoleNotifier(false)));
+        mockServer.start();
+        try {
+            // Response of a server with `kill_throw_if_noop` enabled
+            mockServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .withRequestBody(WireMock.matching("KILL QUERY WHERE .*"))
+                    .willReturn(WireMock.serverError()
+                            .withHeader("X-ClickHouse-Exception-Code", String.valueOf(ServerException.NOTHING_TO_KILL))
+                            .withBody("Code: 785. DB::Exception: No query to kill. (NOTHING_TO_KILL)"))
+                    .build());
+
+            Properties p = new Properties();
+            p.setProperty(ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getKey(), "false");
+            p.setProperty(ClientConfigProperties.SERVER_TIMEZONE.getKey(), "UTC"); // no server info query
+            p.setProperty(ClientConfigProperties.ASYNC_OPERATIONS.getKey(), String.valueOf(asyncOperations));
+            try (Connection conn = new ConnectionImpl("jdbc:clickhouse://localhost:" + mockServer.port() + "/default", p);
+                 Statement stmt = conn.createStatement()) {
+                stmt.cancel();
+            }
+            mockServer.verify(1, WireMock.postRequestedFor(WireMock.anyUrl())
+                    .withRequestBody(WireMock.matching("KILL QUERY WHERE .*")));
+        } finally {
+            mockServer.stop();
+        }
     }
 
     /**
