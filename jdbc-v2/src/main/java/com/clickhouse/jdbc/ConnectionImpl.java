@@ -646,7 +646,8 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
 
         ClickHouseColumn column = ClickHouseColumn.of("array", typeName);
         try {
-            return new com.clickhouse.jdbc.types.Array(column, elements);
+            return new com.clickhouse.jdbc.types.Array(column, elements,
+                    config.isFlagSet(DriverProperties.MULTI_DIMENSIONAL_ARRAY_ELEMENT_TYPE));
         } catch (Exception e) {
             throw new SQLException("Failed to create array", ExceptionUtils.SQL_STATE_CLIENT_ERROR, e);
         }
