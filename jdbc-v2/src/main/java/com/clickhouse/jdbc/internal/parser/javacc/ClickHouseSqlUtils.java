@@ -81,7 +81,9 @@ public final class ClickHouseSqlUtils {
                 // Appended 10/05/2026
                 "LATERAL", "SIMILAR",
                 // Appended 10/17/2026
-                "RANGES"
+                "RANGES",
+                // Appended 10/29/2026
+                "RETURNING", "SHARED"
             );
     }
 
