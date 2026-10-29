@@ -739,10 +739,9 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
             return defaultQuerySettings.getNetworkTimeout().intValue();
         }
         // Without a connection override, requests use the socket timeout from the client configuration.
-        String socketTimeout = client.getConfiguration().getOrDefault(
+        return Integer.parseInt(client.getConfiguration().getOrDefault(
                 ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey(),
-                ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getDefaultValue());
-        return ((Number) ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.parseValue(socketTimeout)).intValue();
+                ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getDefaultValue()));
     }
 
     /**
