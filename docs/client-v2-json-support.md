@@ -291,7 +291,7 @@ selected factory to their runtime classpath:
 - Gson — `com.google.code.gson:gson`
   (required when using `GsonJsonParserFactory`).
 
-The repository builds against Jackson `2.17.2` and Gson `2.10.1`. The parser
+The repository builds against Jackson `2.22.4` and Gson `2.10.1`. The parser
 implementations rely only on the streaming token API and a single
 `Map<String, Object>` materialization call, so other recent versions of
 either library are expected to be compatible.
