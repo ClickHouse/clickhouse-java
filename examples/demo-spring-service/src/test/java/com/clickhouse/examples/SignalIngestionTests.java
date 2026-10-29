@@ -20,12 +20,15 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.sql.ResultSet;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -150,6 +153,42 @@ class SignalIngestionTests {
                   AND attributes['outcome'] = 'success'
                 """, Double.class);
         assertThat(durationSamples).isNotNull().isGreaterThanOrEqualTo(1.0);
+    }
+
+    @Test
+    void selectDataViaRowSet() {
+        int eventCount = 100;
+        UUID locationId = UUID.randomUUID();
+        Instant start = Instant.now().minusSeconds(60).truncatedTo(ChronoUnit.MILLIS);
+
+        for (int i = 0; i < eventCount; i++) {
+            boolean temperature = i % 2 == 0;
+            postSignal(
+                    locationId,
+                    "rowset-device-" + (i % 5),
+                    temperature ? "TEMPERATURE" : "HUMIDITY",
+                    i,
+                    temperature ? "C" : "%",
+                    start.plusMillis(i * 10L));
+        }
+
+        AtomicInteger read = new AtomicInteger();
+        jdbc.query("""
+                SELECT device_id, signal_type, value, unit, event_time
+                FROM iot_signals
+                WHERE location_id = ?
+                ORDER BY event_time
+                """, new Object[] {locationId}, (ResultSet rs) -> {
+            int i = read.getAndIncrement();
+            boolean temperature = i % 2 == 0;
+            assertThat(rs.getString("device_id")).isEqualTo("rowset-device-" + (i % 5));
+            assertThat(rs.getString("signal_type")).isEqualTo(temperature ? "TEMPERATURE" : "HUMIDITY");
+            assertThat(rs.getDouble("value")).isEqualTo(i);
+            assertThat(rs.getString("unit")).isEqualTo(temperature ? "C" : "%");
+            assertThat(rs.getObject("event_time", ZonedDateTime.class).toInstant())
+                    .isEqualTo(start.plusMillis(i * 10L));
+        });
+        assertThat(read.get()).isEqualTo(eventCount);
     }
 
     @Test
