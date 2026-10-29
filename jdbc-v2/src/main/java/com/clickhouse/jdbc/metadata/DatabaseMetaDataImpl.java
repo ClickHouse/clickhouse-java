@@ -924,6 +924,9 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         // Obfuscate (appended 10/17/2026)
         map.put("Obfuscate", TableType.TABLE.getTypeName());
 
+        // Remote engines (appended 10/29/2026)
+        map.put("Elasticsearch", TableType.REMOTE_TABLE.getTypeName());
+
         // Special
         map.put("TimeSeries", TableType.TABLE.getTypeName());
         map.put("Null", TableType.TABLE.getTypeName());
