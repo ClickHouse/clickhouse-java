@@ -9,6 +9,9 @@ import org.testng.annotations.BeforeSuite;
 
 import com.clickhouse.client.ClickHouseTestEnvironment.ContainerMode;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
@@ -277,6 +280,48 @@ public class ClickHouseServerForTest {
         }
 
         return false;
+    }
+
+    /**
+     * Runs a query once and returns the response body (TabSeparated).
+     *
+     * @throws IOException when the request fails or the server returns an error
+     */
+    public static String queryForResult(String sql) throws IOException {
+        ClickHouseNode server = getClickHouseNode(ClickHouseProtocol.HTTP, isCloud(), ClickHouseNode.builder().build());
+        byte[] postData = sql.getBytes(StandardCharsets.UTF_8);
+        String authorization = Base64.getEncoder()
+                .encodeToString((getUsername() + ":" + getPassword()).getBytes(StandardCharsets.UTF_8));
+        HttpURLConnection httpConn = (HttpURLConnection) new URL(server.getBaseUri()).openConnection();
+        try {
+            httpConn.setConnectTimeout(10000);
+            httpConn.setReadTimeout(10000);
+            httpConn.setRequestMethod("POST");
+            httpConn.setDoOutput(true);
+            httpConn.setRequestProperty("Authorization", "Basic " + authorization);
+            httpConn.setFixedLengthStreamingMode(postData.length);
+            try (OutputStream out = httpConn.getOutputStream()) {
+                out.write(postData, 0, postData.length);
+            }
+
+            boolean ok = httpConn.getResponseCode() == HttpURLConnection.HTTP_OK;
+            ByteArrayOutputStream body = new ByteArrayOutputStream();
+            try (InputStream in = ok ? httpConn.getInputStream() : httpConn.getErrorStream()) {
+                if (in != null) {
+                    byte[] buffer = new byte[4096];
+                    for (int read; (read = in.read(buffer)) != -1; ) {
+                        body.write(buffer, 0, read);
+                    }
+                }
+            }
+            String result = new String(body.toByteArray(), StandardCharsets.UTF_8);
+            if (!ok) {
+                throw new IOException("HTTP " + httpConn.getResponseCode() + ": " + result);
+            }
+            return result;
+        } finally {
+            httpConn.disconnect();
+        }
     }
 
     private static Endpoint resolve(ClickHouseProtocol protocol, int port, boolean applyOverride) {

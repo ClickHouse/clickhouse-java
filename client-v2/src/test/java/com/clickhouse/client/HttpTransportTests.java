@@ -1044,29 +1044,31 @@ public class HttpTransportTests extends BaseIntegrationTest {
             return; // Current test is working only with local server because of self-signed certificates.
         }
         ClickHouseNode server = getSecureServer(ClickHouseProtocol.HTTP);
-        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), true)
+        String user = "some_user_" + UUID.randomUUID().toString().replace("-", "");
+        try (Client adminClient = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), true)
                 .setUsername("dba")
                 .setPassword("dba")
                 .setRootCertificate("containers/clickhouse-server/certs/localhost.crt")
                 .build()) {
 
-            try (CommandResponse resp = client.execute("DROP USER IF EXISTS some_user").get()) {
-            }
-            try (CommandResponse resp = client.execute("CREATE USER some_user IDENTIFIED WITH ssl_certificate CN 'some_user'").get()) {
-            }
-        }
+            try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), true)
+                    .useSSLAuthentication(true)
+                    .setUsername(user)
+                    .setRootCertificate("containers/clickhouse-server/certs/localhost.crt")
+                    .setClientCertificate("some_user.crt")
+                    .setClientKey("some_user.key")
+                    .compressServerResponse(false)
+                    .build()) {
 
-        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), true)
-                .useSSLAuthentication(true)
-                .setUsername("some_user")
-                .setRootCertificate("containers/clickhouse-server/certs/localhost.crt")
-                .setClientCertificate("some_user.crt")
-                .setClientKey("some_user.key")
-                .compressServerResponse(false)
-                .build()) {
+                try (CommandResponse resp = adminClient.execute("CREATE USER " + user + " IDENTIFIED WITH ssl_certificate CN 'some_user'").get()) {
+                }
+                waitForAllReplicas("users", "name = '" + user + "'", 1);
 
-            try (QueryResponse resp = client.query("SELECT 1").get()) {
-                Assert.assertEquals(resp.getReadRows(), 1);
+                try (QueryResponse resp = client.query("SELECT 1").get()) {
+                    Assert.assertEquals(resp.getReadRows(), 1);
+                }
+            } finally {
+                adminClient.execute("DROP USER IF EXISTS " + user).get().close();
             }
         }
     }
@@ -1077,43 +1079,46 @@ public class HttpTransportTests extends BaseIntegrationTest {
             return; // Current test is working only with local server because of self-signed certificates.
         }
         ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
+        String user = "some_user_" + UUID.randomUUID().toString().replace("-", "");
 
-        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
+        try (Client adminClient = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
                 .setUsername("dba")
                 .setPassword("dba")
                 .build()) {
 
-            try (CommandResponse resp = client.execute("DROP USER IF EXISTS some_user").get()) {
-            }
-            try (CommandResponse resp = client.execute("CREATE USER some_user IDENTIFIED WITH " + identifyWith + " BY '" + identifyBy + "'").get()) {
-            }
-        } catch (Exception e) {
-            Assert.fail("Failed on setup", e);
-        }
+            try {
+                try (CommandResponse resp = adminClient.execute("CREATE USER " + user + " IDENTIFIED WITH " + identifyWith + " BY '" + identifyBy + "'").get()) {
+                } catch (Exception e) {
+                    Assert.fail("Failed on setup", e);
+                }
+                waitForAllReplicas("users", "name = '" + user + "'", 1);
 
+                try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
+                        .setUsername(user)
+                        .setPassword(identifyBy)
+                        .build()) {
 
-        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
-                .setUsername("some_user")
-                .setPassword(identifyBy)
-                .build()) {
+                    Assert.assertEquals(client.queryAll("SELECT user()").get(0).getString(1), user);
+                } catch (Exception e) {
+                    Assert.fail("Failed to authenticate", e);
+                }
 
-            Assert.assertEquals(client.queryAll("SELECT user()").get(0).getString(1), "some_user");
-        } catch (Exception e) {
-            Assert.fail("Failed to authenticate", e);
-        }
+                if (failsWithHeaders) {
+                    try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
+                            .setUsername(user)
+                            .setPassword(identifyBy)
+                            .useHTTPBasicAuth(false)
+                            .build()) {
 
-        if (failsWithHeaders) {
-            try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
-                    .setUsername("some_user")
-                    .setPassword(identifyBy)
-                    .useHTTPBasicAuth(false)
-                    .build()) {
+                        Assert.expectThrows(ClientException.class, () ->
+                                client.queryAll("SELECT user()").get(0).getString(1));
 
-                Assert.expectThrows(ClientException.class, () ->
-                        client.queryAll("SELECT user()").get(0).getString(1));
-
-            } catch (Exception e) {
-                Assert.fail("Unexpected exception", e);
+                    } catch (Exception e) {
+                        Assert.fail("Unexpected exception", e);
+                    }
+                }
+            } finally {
+                adminClient.execute("DROP USER IF EXISTS " + user).get().close();
             }
         }
     }
@@ -1141,30 +1146,33 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
         String identifyWith = "sha256_password";
         String identifyBy = "123§";
-        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
+        String user = "some_user_" + UUID.randomUUID().toString().replace("-", "");
+        try (Client adminClient = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
                 .setUsername("dba")
                 .setPassword("dba")
                 .build()) {
 
-            try (CommandResponse resp = client.execute("DROP USER IF EXISTS some_user").get()) {
+            try {
+                try (CommandResponse resp = adminClient.execute("CREATE USER " + user + " IDENTIFIED WITH " + identifyWith + " BY '" + identifyBy + "'").get()) {
+                } catch (Exception e) {
+                    Assert.fail("Failed on setup", e);
+                }
+                waitForAllReplicas("users", "name = '" + user + "'", 1);
+
+                try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
+                        .setUsername(user)
+                        .setPassword(identifyBy)
+                        .useHTTPBasicAuth(false) // disable basic auth to produce CH headers
+                        .httpHeader(HttpHeaders.AUTHORIZATION, "Basic " + Base64.getEncoder().encodeToString((user + ":" +identifyBy).getBytes()))
+                        .build()) {
+
+                    Assert.assertEquals(client.queryAll("SELECT user()").get(0).getString(1), user);
+                } catch (Exception e) {
+                    Assert.fail("Failed to authenticate", e);
+                }
+            } finally {
+                adminClient.execute("DROP USER IF EXISTS " + user).get().close();
             }
-            try (CommandResponse resp = client.execute("CREATE USER some_user IDENTIFIED WITH " + identifyWith + " BY '" + identifyBy + "'").get()) {
-            }
-        } catch (Exception e) {
-            Assert.fail("Failed on setup", e);
-        }
-
-
-        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
-                .setUsername("some_user")
-                .setPassword(identifyBy)
-                .useHTTPBasicAuth(false) // disable basic auth to produce CH headers
-                .httpHeader(HttpHeaders.AUTHORIZATION, "Basic " + Base64.getEncoder().encodeToString(("some_user:" +identifyBy).getBytes()))
-                .build()) {
-
-            Assert.assertEquals(client.queryAll("SELECT user()").get(0).getString(1), "some_user");
-        } catch (Exception e) {
-            Assert.fail("Failed to authenticate", e);
         }
     }
 
