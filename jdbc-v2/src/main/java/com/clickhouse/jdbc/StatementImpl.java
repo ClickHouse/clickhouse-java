@@ -522,11 +522,19 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         // KILL QUERY must not run inside the same session as the query being canceled otherwise it will
         // cause "Session is locked by a concurrent client" (SESSION_IS_LOCKED) error.
         QuerySettings cancelSettings = QuerySettings.merge(getLocalSettings(), new QuerySettings()).clearSession();
+        final String queryId = lastQueryId;
         try (QueryResponse response = connection.getClient().query(String.format("KILL QUERY%sWHERE query_id = '%s'",
                 connection.onCluster ? " ON CLUSTER " + SQLUtils.enquoteIdentifier(connection.cluster, true) + ' ' : ' ',
-                lastQueryId), cancelSettings).get()){
-            LOG.debug("Query {} was killed by {}", lastQueryId, response.getQueryId());
+                queryId), cancelSettings).get()){
+            LOG.debug("Query {} was killed by {}", queryId, response.getQueryId());
         } catch (Exception e) {
+            ServerException se = e instanceof ServerException ? (ServerException) e : e.getCause() instanceof ServerException ? (ServerException) e.getCause() : null;
+            if (se != null && se.getCode() == ServerException.NOTHING_TO_KILL) {
+                // The query is not running (it is finished or not started yet). A server with `kill_throw_if_noop`
+                // enabled (the default since 26.11) reports this as an error, but there is nothing to cancel.
+                LOG.debug("Query {} was not killed because it is not running: {}", queryId, se.getMessage());
+                return;
+            }
             throw new SQLException(e);
         }
     }

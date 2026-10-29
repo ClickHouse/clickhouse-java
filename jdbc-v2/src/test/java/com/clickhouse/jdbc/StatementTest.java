@@ -781,6 +781,46 @@ public class StatementTest extends JdbcIntegrationTest {
         }
     }
 
+    @Test(groups = {"integration"}, dataProvider = "testCancelWhenQueryIsNotRunningDP")
+    public void testCancelWhenQueryIsNotRunning(boolean asyncOperations) throws Exception {
+        Properties p = new Properties();
+        p.setProperty(ClientConfigProperties.ASYNC_OPERATIONS.getKey(), String.valueOf(asyncOperations));
+        if (isVersionMatch("[26.10,)")) {
+            p.setProperty(ClientConfigProperties.serverSetting("kill_throw_if_noop"), "1");
+        }
+        try (Connection conn = getJdbcConnection(p);
+             Statement stmt = conn.createStatement()) {
+            stmt.cancel();
+
+            try (ResultSet rs = stmt.executeQuery("SELECT 1")) {
+                assertTrue(rs.next());
+                assertEquals(rs.getInt(1), 1);
+            }
+            stmt.cancel();
+
+            try (ResultSet rs = stmt.executeQuery("SELECT 2")) {
+                assertTrue(rs.next());
+                assertEquals(rs.getInt(1), 2);
+            }
+        }
+
+        String testCluster = "test_cluster_" + RandomStringUtils.randomAlphanumeric(10);
+        p.setProperty(DriverProperties.CLUSTER_NAME.getKey(), testCluster);
+        try (Connection conn = getJdbcConnection(p);
+             Statement stmt = conn.createStatement()) {
+            SQLException e = expectThrows(SQLException.class, stmt::cancel);
+            assertTrue(e.getMessage().contains(testCluster), "Exception should mention the missing cluster");
+        }
+    }
+
+    @DataProvider
+    public static Object[][] testCancelWhenQueryIsNotRunningDP() {
+        return new Object[][] {
+                {false},
+                {true},
+        };
+    }
+
     /**
      * Waits until the given query id appears in {@code system.processes}, so we know the operation has actually
      * started on the server before attempting to cancel it. Uses a dedicated connection (no session) to observe.
