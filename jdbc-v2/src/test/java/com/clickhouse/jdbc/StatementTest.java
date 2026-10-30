@@ -561,118 +561,130 @@ public class StatementTest extends JdbcIntegrationTest {
             return;
         }
 
-        List<String> roles = Arrays.asList("role1", "role2", "role3");
+        String suffix = "_" + RandomStringUtils.insecure().next(8, true, true);
+        String user = "some_user" + suffix;
+        String role1 = "role1" + suffix;
+        String role2 = "role2" + suffix;
+        String role3 = "role3" + suffix;
+        List<String> roles = Arrays.asList(role1, role2, role3);
+        String roleNames = "'" + String.join("','", roles) + "'";
 
         final String userPass = "^1A" + RandomStringUtils.random(12, true, true) + "3B$";
         Properties properties = new Properties();
         properties.setProperty(DriverProperties.SQL_PARSER.getKey(), parser.name());
-        try (ConnectionImpl conn = (ConnectionImpl) getJdbcConnection(properties)) {
-            try (Statement stmt = conn.createStatement()) {
-                stmt.execute("DROP ROLE IF EXISTS " + String.join(", ", roles));
-                stmt.execute("DROP USER IF EXISTS some_user");
-                stmt.execute("CREATE ROLE " + String.join(", ", roles));
-                stmt.execute("CREATE USER some_user IDENTIFIED BY '" + userPass + "'");
-                stmt.execute("GRANT " + String.join(", ", roles) + " TO some_user");
-                stmt.execute("SET DEFAULT ROLE NONE TO some_user");
+        try (ConnectionImpl adminConn = (ConnectionImpl) getJdbcConnection(properties);
+             Statement adminStmt = adminConn.createStatement()) {
+            try {
+                adminStmt.execute("CREATE ROLE " + String.join(", ", roles));
+                adminStmt.execute("CREATE USER " + user + " IDENTIFIED BY '" + userPass + "'");
+                waitForAllReplicas("roles", "name IN (" + roleNames + ")", roles.size());
+                waitForAllReplicas("users", "name = '" + user + "'", 1);
+                adminStmt.execute("GRANT " + String.join(", ", roles) + " TO " + user);
+                adminStmt.execute("SET DEFAULT ROLE NONE TO " + user);
+                waitForAllReplicas("role_grants", "user_name = '" + user + "' AND granted_role_is_default = 0",
+                        roles.size());
+
+                Properties info = new Properties();
+                info.setProperty("user", user);
+                info.setProperty("password", userPass);
+                info.setProperty(DriverProperties.SQL_PARSER.getKey(), parser.name());
+                try (ConnectionImpl conn = new ConnectionImpl(getEndpointString(), info)) {
+                    GenericRecord dataRecord = conn.getClient().queryAll("SELECT currentRoles()").get(0);
+                    assertEquals(dataRecord.getList(1).size(), 0);
+
+                    try (Statement stmt = conn.createStatement()) {
+                        stmt.execute("SET ROLE " + role1);
+                    }
+
+                    dataRecord = conn.getClient().queryAll("SELECT currentRoles()").get(0);
+                    assertEquals(dataRecord.getList(1).size(), 1);
+                    assertEquals(dataRecord.getList(1).get(0), role1);
+
+                    try (Statement stmt = conn.createStatement()) {
+                        stmt.execute("SET ROLE " + role2);
+                    }
+
+                    dataRecord = conn.getClient().queryAll("SELECT currentRoles()").get(0);
+                    assertEquals(dataRecord.getList(1).size(), 1);
+                    assertEquals(dataRecord.getList(1).get(0), role2);
+
+                    try (Statement stmt = conn.createStatement()) {
+                        stmt.execute("SET ROLE NONE");
+                    }
+
+                    dataRecord = conn.getClient().queryAll("SELECT currentRoles()").get(0);
+                    assertEquals(dataRecord.getList(1).size(), 0);
+
+                    try (Statement stmt = conn.createStatement()) {
+                        stmt.execute("SET ROLE \"" + role1 + "\",\"" + role2 + "\"");
+                    }
+
+                    dataRecord = conn.getClient().queryAll("SELECT currentRoles()").get(0);
+                    assertEquals(dataRecord.getList(1).size(), 2);
+                    assertEquals(dataRecord.getList(1).get(0), role1);
+                    assertEquals(dataRecord.getList(1).get(1), role2);
+
+                    try (Statement stmt = conn.createStatement()) {
+                        stmt.execute("SET ROLE \"" + role1 + "\",\"" + role2 + "\",\"" + role3 + "\"");
+                    }
+
+                    dataRecord = conn.getClient().queryAll("SELECT currentRoles()").get(0);
+                    assertEquals(dataRecord.getList(1).size(), 3);
+                    assertEquals(dataRecord.getList(1).get(0), role1);
+                    assertEquals(dataRecord.getList(1).get(1), role2);
+                    assertEquals(dataRecord.getList(1).get(2), role3);
+                }
+
+
+                Properties disableSavingRoles = new Properties();
+                disableSavingRoles.setProperty("user", user);
+                disableSavingRoles.setProperty("password", userPass);
+                disableSavingRoles.setProperty(DriverProperties.REMEMBER_LAST_SET_ROLES.getKey(), "false");
+                disableSavingRoles.setProperty(DriverProperties.SQL_PARSER.getKey(), parser.name());
+                try (ConnectionImpl conn = new ConnectionImpl(getEndpointString(), disableSavingRoles)) {
+                    GenericRecord dataRecord = conn.getClient().queryAll("SELECT currentRoles()").get(0);
+                    assertEquals(dataRecord.getList(1).size(), 0);
+
+                    try (Statement stmt = conn.createStatement()) {
+                        stmt.execute("SET ROLE " + role1);
+                    }
+
+                    dataRecord = conn.getClient().queryAll("SELECT currentRoles()").get(0);
+                    assertEquals(dataRecord.getList(1).size(), 0);
+
+                    try (Statement stmt = conn.createStatement()) {
+                        stmt.execute("SET ROLE " + role2);
+                    }
+
+                    dataRecord = conn.getClient().queryAll("SELECT currentRoles()").get(0);
+                    assertEquals(dataRecord.getList(1).size(), 0);
+
+                    try (Statement stmt = conn.createStatement()) {
+                        stmt.execute("SET ROLE NONE");
+                    }
+
+                    dataRecord = conn.getClient().queryAll("SELECT currentRoles()").get(0);
+                    assertEquals(dataRecord.getList(1).size(), 0);
+
+
+                    try (Statement stmt = conn.createStatement()) {
+                        stmt.execute("SET ROLE \"" + role1 + "\",\"" + role2 + "\"");
+                    }
+
+                    dataRecord = conn.getClient().queryAll("SELECT currentRoles()").get(0);
+                    assertEquals(dataRecord.getList(1).size(), 0);
+
+                    try (Statement stmt = conn.createStatement()) {
+                        stmt.execute("SET ROLE \"" + role1 + "\",\"" + role2 + "\",\"" + role3 + "\"");
+                    }
+
+                    dataRecord = conn.getClient().queryAll("SELECT currentRoles()").get(0);
+                    assertEquals(dataRecord.getList(1).size(), 0);
+                }
+            } finally {
+                adminStmt.execute("DROP USER IF EXISTS " + user);
+                adminStmt.execute("DROP ROLE IF EXISTS " + String.join(", ", roles));
             }
-        }
-
-        Properties info = new Properties();
-        info.setProperty("user", "some_user");
-        info.setProperty("password", userPass);
-        info.setProperty(DriverProperties.SQL_PARSER.getKey(), parser.name());
-        try (ConnectionImpl conn = new ConnectionImpl(getEndpointString(), info)) {
-            GenericRecord dataRecord = conn.getClient().queryAll("SELECT currentRoles()").get(0);
-            assertEquals(dataRecord.getList(1).size(), 0);
-
-            try (Statement stmt = conn.createStatement()) {
-                stmt.execute("SET ROLE role1");
-            }
-
-            dataRecord = conn.getClient().queryAll("SELECT currentRoles()").get(0);
-            assertEquals(dataRecord.getList(1).size(), 1);
-            assertEquals(dataRecord.getList(1).get(0), "role1");
-
-            try (Statement stmt = conn.createStatement()) {
-                stmt.execute("SET ROLE role2");
-            }
-
-            dataRecord = conn.getClient().queryAll("SELECT currentRoles()").get(0);
-            assertEquals(dataRecord.getList(1).size(), 1);
-            assertEquals(dataRecord.getList(1).get(0), "role2");
-
-            try (Statement stmt = conn.createStatement()) {
-                stmt.execute("SET ROLE NONE");
-            }
-
-            dataRecord = conn.getClient().queryAll("SELECT currentRoles()").get(0);
-            assertEquals(dataRecord.getList(1).size(), 0);
-
-            try (Statement stmt = conn.createStatement()) {
-                stmt.execute("SET ROLE \"role1\",\"role2\"");
-            }
-
-            dataRecord = conn.getClient().queryAll("SELECT currentRoles()").get(0);
-            assertEquals(dataRecord.getList(1).size(), 2);
-            assertEquals(dataRecord.getList(1).get(0), "role1");
-            assertEquals(dataRecord.getList(1).get(1), "role2");
-
-            try (Statement stmt = conn.createStatement()) {
-                stmt.execute("SET ROLE \"role1\",\"role2\",\"role3\"");
-            }
-
-            dataRecord = conn.getClient().queryAll("SELECT currentRoles()").get(0);
-            assertEquals(dataRecord.getList(1).size(), 3);
-            assertEquals(dataRecord.getList(1).get(0), "role1");
-            assertEquals(dataRecord.getList(1).get(1), "role2");
-            assertEquals(dataRecord.getList(1).get(2), "role3");
-        }
-
-
-        Properties disableSavingRoles = new Properties();
-        disableSavingRoles.setProperty("user", "some_user");
-        disableSavingRoles.setProperty("password", userPass);
-        disableSavingRoles.setProperty(DriverProperties.REMEMBER_LAST_SET_ROLES.getKey(), "false");
-        disableSavingRoles.setProperty(DriverProperties.SQL_PARSER.getKey(), parser.name());
-        try (ConnectionImpl conn = new ConnectionImpl(getEndpointString(), disableSavingRoles)) {
-            GenericRecord dataRecord = conn.getClient().queryAll("SELECT currentRoles()").get(0);
-            assertEquals(dataRecord.getList(1).size(), 0);
-
-            try (Statement stmt = conn.createStatement()) {
-                stmt.execute("SET ROLE role1");
-            }
-
-            dataRecord = conn.getClient().queryAll("SELECT currentRoles()").get(0);
-            assertEquals(dataRecord.getList(1).size(), 0);
-
-            try (Statement stmt = conn.createStatement()) {
-                stmt.execute("SET ROLE role2");
-            }
-
-            dataRecord = conn.getClient().queryAll("SELECT currentRoles()").get(0);
-            assertEquals(dataRecord.getList(1).size(), 0);
-
-            try (Statement stmt = conn.createStatement()) {
-                stmt.execute("SET ROLE NONE");
-            }
-
-            dataRecord = conn.getClient().queryAll("SELECT currentRoles()").get(0);
-            assertEquals(dataRecord.getList(1).size(), 0);
-
-
-            try (Statement stmt = conn.createStatement()) {
-                stmt.execute("SET ROLE \"role1\",\"role2\"");
-            }
-
-            dataRecord = conn.getClient().queryAll("SELECT currentRoles()").get(0);
-            assertEquals(dataRecord.getList(1).size(), 0);
-
-            try (Statement stmt = conn.createStatement()) {
-                stmt.execute("SET ROLE \"role1\",\"role2\",\"role3\"");
-            }
-
-            dataRecord = conn.getClient().queryAll("SELECT currentRoles()").get(0);
-            assertEquals(dataRecord.getList(1).size(), 0);
         }
     }
 
@@ -1437,18 +1449,24 @@ public class StatementTest extends JdbcIntegrationTest {
         if (isCloud()) {
             return; // skip because we do not want to create extra on cloud instance
         }
+        String user = "user011_" + RandomStringUtils.insecure().next(8, true, true);
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
-                Assert.assertFalse(stmt.execute("CREATE USER IF NOT EXISTS 'user011' IDENTIFIED BY 'password'"));
+                try {
+                    Assert.assertFalse(stmt.execute("CREATE USER IF NOT EXISTS '" + user + "' IDENTIFIED BY 'password'"));
+                    waitForAllReplicas("users", "name = '" + user + "'", 1);
 
-                try (ResultSet rs = stmt.executeQuery("SHOW USERS")) {
-                    boolean found = false;
-                    while (rs.next()) {
-                        if (rs.getString("name").equals("user011")) {
-                            found = true;
+                    try (ResultSet rs = stmt.executeQuery("SHOW USERS")) {
+                        boolean found = false;
+                        while (rs.next()) {
+                            if (rs.getString("name").equals(user)) {
+                                found = true;
+                            }
                         }
+                        Assert.assertTrue(found);
                     }
-                    Assert.assertTrue(found);
+                } finally {
+                    stmt.execute("DROP USER IF EXISTS '" + user + "'");
                 }
             }
         }

@@ -434,28 +434,43 @@ public class ClientTests extends BaseIntegrationTest {
     }
 
     @Test(groups = {"integration"}, dataProvider = "sessionRoles")
-    public void testOperationCustomRoles(String[] roles) throws Exception {
+    public void testOperationCustomRoles(String[] roleNames) throws Exception {
         if (isVersionMatch("(,24.3]", newClient().build())) {
             return;
         }
 
+        String suffix = "_" + RandomStringUtils.insecure().next(8, true, true);
+        String user = "some_user" + suffix;
+        String[] roles = Arrays.stream(roleNames).map(role -> role + suffix).toArray(String[]::new);
         String password = "^1A" + RandomStringUtils.random(12, true, true) + "3b$";
         final String rolesList = "\"" + Strings.join("\",\"", roles) + "\"";
-        try (Client client = newClient().build()) {
-            client.execute("DROP ROLE IF EXISTS " + rolesList).get().close();
-            client.execute("CREATE ROLE " + rolesList).get().close();
-            client.execute("DROP USER IF EXISTS some_user").get().close();
-            client.execute("CREATE USER some_user IDENTIFIED BY '" + password + "'").get().close();
-            client.execute("GRANT " + rolesList + " TO some_user").get().close();
+        try (Client client = newClient().build();
+             Client userClient = newClient().setUsername(user).setPassword(password).build()) {
+            try {
+                createUserWithRoles(client, user, "IDENTIFIED BY '" + password + "'", roles);
+                QuerySettings settings = new QuerySettings().setDBRoles(Arrays.asList(roles));
+                List<GenericRecord> resp = userClient.queryAll("SELECT currentRoles()", settings);
+                Set<String> roleSet = new HashSet<>(Arrays.asList(roles));
+                Set<String> currentRoles = new  HashSet<String> (resp.get(0).getList(1));
+                Assert.assertEquals(currentRoles, roleSet, "Roles " + roleSet + " not found in " + currentRoles);
+            } finally {
+                client.execute("DROP USER IF EXISTS " + user).get().close();
+                client.execute("DROP ROLE IF EXISTS " + rolesList).get().close();
+            }
         }
+    }
 
-        try (Client userClient = newClient().setUsername("some_user").setPassword(password).build()) {
-            QuerySettings settings = new QuerySettings().setDBRoles(Arrays.asList(roles));
-            List<GenericRecord> resp = userClient.queryAll("SELECT currentRoles()", settings);
-            Set<String> roleSet = new HashSet<>(Arrays.asList(roles));
-            Set<String> currentRoles = new  HashSet<String> (resp.get(0).getList(1));
-            Assert.assertEquals(currentRoles, roleSet, "Roles " + roleSet + " not found in " + currentRoles);
-        }
+    private static void createUserWithRoles(Client client, String user, String identification, String[] roles)
+            throws Exception {
+        final String rolesList = "\"" + Strings.join("\",\"", roles) + "\"";
+        final String roleNames = "'" + Strings.join("','", roles) + "'";
+        client.execute("CREATE ROLE " + rolesList).get().close();
+        client.execute("CREATE USER " + user + " " + identification).get().close();
+        waitForAllReplicas("roles", "name IN (" + roleNames + ")", roles.length);
+        waitForAllReplicas("users", "name = '" + user + "'", 1);
+        client.execute("GRANT " + rolesList + " TO " + user).get().close();
+        waitForAllReplicas("role_grants", "user_name = '" + user + "' AND granted_role_name IN (" + roleNames + ")",
+                roles.length);
     }
 
     @DataProvider(name = "clientSessionRoles")
@@ -466,27 +481,29 @@ public class ClientTests extends BaseIntegrationTest {
         };
     }
     @Test(groups = {"integration"}, dataProvider = "clientSessionRoles")
-    public void testClientCustomRoles(String[] roles) throws Exception {
+    public void testClientCustomRoles(String[] roleNames) throws Exception {
         if (isVersionMatch("(,24.3]", newClient().build())) {
             return;
         }
 
+        String suffix = "_" + RandomStringUtils.insecure().next(8, true, true);
+        String user = "some_user" + suffix;
+        String[] roles = Arrays.stream(roleNames).map(role -> role + suffix).toArray(String[]::new);
         String password = "^1A" + RandomStringUtils.insecure().next(12, true, true) + "3B$";
         final String rolesList = "\"" + Strings.join("\",\"", roles) + "\"";
-        try (Client client = newClient().build()) {
-            client.execute("DROP ROLE IF EXISTS " + rolesList).get().close();
-            client.execute("CREATE ROLE " + rolesList).get().close();
-            client.execute("DROP USER IF EXISTS some_user").get().close();
-            client.execute("CREATE USER some_user IDENTIFIED WITH sha256_password BY '" + password + "'").get().close();
-            client.execute("GRANT " + rolesList + " TO some_user").get().close();
-        }
-
-        try (Client userClient = newClient().setUsername("some_user").setPassword(password).build()) {
-            userClient.setDBRoles(Arrays.asList(roles));
-            List<GenericRecord> resp = userClient.queryAll("SELECT currentRoles()");
-            Set<String> roleSet = new HashSet<>(Arrays.asList(roles));
-            Set<String> currentRoles = new  HashSet<String> (resp.get(0).getList(1));
-            Assert.assertEquals(currentRoles, roleSet, "Roles " + roleSet + " not found in " + currentRoles);
+        try (Client client = newClient().build();
+             Client userClient = newClient().setUsername(user).setPassword(password).build()) {
+            try {
+                createUserWithRoles(client, user, "IDENTIFIED WITH sha256_password BY '" + password + "'", roles);
+                userClient.setDBRoles(Arrays.asList(roles));
+                List<GenericRecord> resp = userClient.queryAll("SELECT currentRoles()");
+                Set<String> roleSet = new HashSet<>(Arrays.asList(roles));
+                Set<String> currentRoles = new  HashSet<String> (resp.get(0).getList(1));
+                Assert.assertEquals(currentRoles, roleSet, "Roles " + roleSet + " not found in " + currentRoles);
+            } finally {
+                client.execute("DROP USER IF EXISTS " + user).get().close();
+                client.execute("DROP ROLE IF EXISTS " + rolesList).get().close();
+            }
         }
     }
 
@@ -507,36 +524,15 @@ public class ClientTests extends BaseIntegrationTest {
                 adminClient.execute("DROP USER IF EXISTS " + user2).get().close();
                 adminClient.execute("CREATE USER " + user1 + " IDENTIFIED BY '" + password1 + "'").get().close();
                 adminClient.execute("CREATE USER " + user2 + " IDENTIFIED BY '" + password2 + "'").get().close();
+                waitForAllReplicas("users", "name IN ('" + user1 + "', '" + user2 + "')", 2);
 
                 try (Client userClient = newClient().setUsername(user1).setPassword(password1).build()) {
-                    List<GenericRecord> firstResponse = null;
-                    for (int i = 0; i < 20; i++) {
-                        try {
-                            firstResponse = userClient.queryAll("SELECT currentUser() AS user");
-                            break;
-                        } catch (ClientException e) {
-                            if (i == 19) {
-                                throw e;
-                            }
-                            Thread.sleep(250);
-                        }
-                    }
+                    List<GenericRecord> firstResponse = userClient.queryAll("SELECT currentUser() AS user");
                     Assert.assertEquals(firstResponse.get(0).getString("user"), user1);
 
                     userClient.updateUserAndPassword(user2, password2);
 
-                    List<GenericRecord> secondResponse = null;
-                    for (int i = 0; i < 20; i++) {
-                        try {
-                            secondResponse = userClient.queryAll("SELECT currentUser() AS user");
-                            break;
-                        } catch (ClientException e) {
-                            if (i == 19) {
-                                throw e;
-                            }
-                            Thread.sleep(250);
-                        }
-                    }
+                    List<GenericRecord> secondResponse = userClient.queryAll("SELECT currentUser() AS user");
                     Assert.assertEquals(secondResponse.get(0).getString("user"), user2);
                 }
             } finally {
