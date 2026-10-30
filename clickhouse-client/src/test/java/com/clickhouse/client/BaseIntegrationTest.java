@@ -82,8 +82,15 @@ public abstract class BaseIntegrationTest {
         return ClickHouseServerForTest.isCluster();
     }
 
+    /**
+     * @return name of the cluster in the cluster mode, {@code null} otherwise
+     */
+    protected static String getClusterName() {
+        return ClickHouseServerForTest.isCluster() ? "test_cluster" : null;
+    }
+
     protected static String onCluster() {
-        return ClickHouseServerForTest.isCluster() ? " ON CLUSTER 'test_cluster'" : "";
+        return ClickHouseServerForTest.isCluster() ? " ON CLUSTER '" + getClusterName() + "'" : "";
     }
 
     protected boolean createDatabase(String dbName) {

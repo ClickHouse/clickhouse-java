@@ -95,8 +95,8 @@ public abstract class AbstractBinaryReaderDataSetTest extends BaseIntegrationTes
                 + type.toLowerCase().replaceAll("[^a-z0-9]+", "_").replaceAll("^_|_$", "");
         Map<String, String> settings = dataSet.getRequiredSettings();
 
-        client.execute("DROP TABLE IF EXISTS " + table).get(TIMEOUT_SECONDS, TimeUnit.SECONDS).close();
-        client.execute(dataSet.getCreateTableSql(table), commandSettings(settings))
+        dropTable(table);
+        client.execute(dataSet.getCreateTableSql(table, getClusterName()), commandSettings(settings))
                 .get(TIMEOUT_SECONDS, TimeUnit.SECONDS).close();
         client.execute(dataSet.getInsertSql(table), commandSettings(settings))
                 .get(TIMEOUT_SECONDS, TimeUnit.SECONDS).close();
@@ -116,8 +116,13 @@ public abstract class AbstractBinaryReaderDataSetTest extends BaseIntegrationTes
                 Assert.fail(getFormat() + " reader deviates for " + type + ":\n  " + String.join("\n  ", failures));
             }
         } finally {
-            client.execute("DROP TABLE IF EXISTS " + table).get(TIMEOUT_SECONDS, TimeUnit.SECONDS).close();
+            dropTable(table);
         }
+    }
+
+    private void dropTable(String table) throws Exception {
+        client.execute("DROP TABLE IF EXISTS " + table + onCluster() + " SYNC")
+                .get(TIMEOUT_SECONDS, TimeUnit.SECONDS).close();
     }
 
     @Test(groups = {"integration"}, dependsOnMethods = "testReadDataSet", alwaysRun = true)

@@ -236,6 +236,9 @@ public class DataTypeGeneratorsTest {
 
         Assert.assertEquals(dataSet.getCreateTableSql("t"),
                 "CREATE TABLE t (id Int32, `flag` Bool, `e` Enum8('a' = 1, 'b' = 2, 'c' = 3)) ENGINE = MergeTree ORDER BY id");
+        Assert.assertEquals(dataSet.getCreateTableSql("t", "c1"),
+                "CREATE TABLE t ON CLUSTER `c1` (id Int32, `flag` Bool, `e` Enum8('a' = 1, 'b' = 2, 'c' = 3)) "
+                        + "ENGINE = ReplicatedMergeTree ORDER BY id");
         Assert.assertEquals(dataSet.getInsertSql("t"),
                 "INSERT INTO t (id, `flag`, `e`) VALUES (0, true, 'a'),\n(1, false, 'b'),\n(2, true, 'c')");
         Assert.assertEquals(dataSet.getTsv(), "0\ttrue\ta\n1\tfalse\tb\n2\ttrue\tc\n");

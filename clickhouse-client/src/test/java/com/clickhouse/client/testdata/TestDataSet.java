@@ -101,8 +101,20 @@ public final class TestDataSet {
     }
 
     public String getCreateTableSql(String table) {
-        StringJoiner definition = new StringJoiner(", ", "CREATE TABLE " + table + " (",
-                ") ENGINE = MergeTree ORDER BY " + ID_COLUMN);
+        return getCreateTableSql(table, null);
+    }
+
+    /**
+     * @param table   table name
+     * @param cluster cluster to create a {@code ReplicatedMergeTree} table on, or {@code null} to create a
+     *                {@code MergeTree} table on a single server
+     * @return CREATE TABLE statement
+     */
+    public String getCreateTableSql(String table, String cluster) {
+        String prefix = cluster == null ? "CREATE TABLE " + table + " ("
+                : "CREATE TABLE " + table + " ON CLUSTER " + DataTypeGenerators.quoteIdentifier(cluster) + " (";
+        String engine = cluster == null ? "MergeTree" : "ReplicatedMergeTree";
+        StringJoiner definition = new StringJoiner(", ", prefix, ") ENGINE = " + engine + " ORDER BY " + ID_COLUMN);
         definition.add(ID_COLUMN + " Int32");
         for (Map.Entry<String, DataTypeGenerator> column : columns.entrySet()) {
             if (!column.getValue().isStorable()) {
