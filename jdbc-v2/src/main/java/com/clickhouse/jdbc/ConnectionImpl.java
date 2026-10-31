@@ -762,7 +762,13 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     }
 
     private void ensureOpenForClientInfo() throws SQLClientInfoException {
-        if (closed) {
+        boolean connectionClosed;
+        try {
+            connectionClosed = isClosed();
+        } catch (SQLException e) {
+            throw new SQLClientInfoException(e.getMessage(), e.getSQLState(), Collections.emptyMap(), e);
+        }
+        if (connectionClosed) {
             throw new SQLClientInfoException("Connection is closed",
                     ExceptionUtils.SQL_STATE_CONNECTION_EXCEPTION, Collections.emptyMap());
         }
