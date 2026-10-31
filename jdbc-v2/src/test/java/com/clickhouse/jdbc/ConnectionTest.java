@@ -33,6 +33,7 @@ import java.sql.Date;
 import java.sql.JDBCType;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLClientInfoException;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.Statement;
@@ -177,6 +178,28 @@ public class ConnectionTest extends JdbcIntegrationTest {
         }
     }
 
+
+    @Test(groups = { "integration" })
+    public void testClosedConnectionThrows() throws SQLException {
+        for (boolean ignoreUnsupported : new boolean[] { false, true }) {
+            Properties prop = new Properties();
+            prop.setProperty(DriverProperties.IGNORE_UNSUPPORTED_VALUES.getKey(), String.valueOf(ignoreUnsupported));
+            Connection conn = this.getJdbcConnection(prop);
+            conn.close();
+
+            assertThrows(SQLException.class, conn::getNetworkTimeout);
+            assertThrows(SQLException.class, conn::getCatalog);
+            assertThrows(SQLException.class, conn::commit);
+            assertThrows(SQLException.class, conn::rollback);
+            assertThrows(SQLClientInfoException.class, () -> conn.setClientInfo("ApplicationName", "x"));
+            assertThrows(SQLClientInfoException.class, () -> conn.setClientInfo(new Properties()));
+
+            // these stay allowed on a closed connection
+            conn.close();
+            Assert.assertTrue(conn.isClosed());
+            Assert.assertFalse(conn.isValid(1));
+        }
+    }
 
     @Test(groups = { "integration" })
     public void closeTest() throws SQLException {
