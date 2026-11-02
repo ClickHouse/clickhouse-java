@@ -1062,7 +1062,8 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
                 try (CommandResponse resp = adminClient.execute("CREATE USER " + user + " IDENTIFIED WITH ssl_certificate CN 'some_user'").get()) {
                 }
-                waitForAllReplicas("users", "name = '" + user + "'", 1);
+                waitForAllReplicas("users", "name = '" + user + "'", 1,
+                        sql -> adminClient.queryAll(sql).stream().mapToLong(row -> row.getLong("matching_rows")).toArray());
 
                 try (QueryResponse resp = client.query("SELECT 1").get()) {
                     Assert.assertEquals(resp.getReadRows(), 1);
@@ -1091,7 +1092,8 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 } catch (Exception e) {
                     Assert.fail("Failed on setup", e);
                 }
-                waitForAllReplicas("users", "name = '" + user + "'", 1);
+                waitForAllReplicas("users", "name = '" + user + "'", 1,
+                        sql -> adminClient.queryAll(sql).stream().mapToLong(row -> row.getLong("matching_rows")).toArray());
 
                 try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
                         .setUsername(user)
@@ -1157,7 +1159,8 @@ public class HttpTransportTests extends BaseIntegrationTest {
                 } catch (Exception e) {
                     Assert.fail("Failed on setup", e);
                 }
-                waitForAllReplicas("users", "name = '" + user + "'", 1);
+                waitForAllReplicas("users", "name = '" + user + "'", 1,
+                        sql -> adminClient.queryAll(sql).stream().mapToLong(row -> row.getLong("matching_rows")).toArray());
 
                 try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
                         .setUsername(user)

@@ -466,11 +466,14 @@ public class ClientTests extends BaseIntegrationTest {
         final String roleNames = "'" + Strings.join("','", roles) + "'";
         client.execute("CREATE ROLE " + rolesList).get().close();
         client.execute("CREATE USER " + user + " " + identification).get().close();
-        waitForAllReplicas("roles", "name IN (" + roleNames + ")", roles.length);
-        waitForAllReplicas("users", "name = '" + user + "'", 1);
+        waitForAllReplicas("roles", "name IN (" + roleNames + ")", roles.length,
+                sql -> client.queryAll(sql).stream().mapToLong(row -> row.getLong("matching_rows")).toArray());
+        waitForAllReplicas("users", "name = '" + user + "'", 1,
+                sql -> client.queryAll(sql).stream().mapToLong(row -> row.getLong("matching_rows")).toArray());
         client.execute("GRANT " + rolesList + " TO " + user).get().close();
-        waitForAllReplicas("role_grants", "user_name = '" + user + "' AND granted_role_name IN (" + roleNames + ")",
-                roles.length);
+        waitForAllReplicas("role_grants",
+                "user_name = '" + user + "' AND granted_role_name IN (" + roleNames + ")", roles.length,
+                sql -> client.queryAll(sql).stream().mapToLong(row -> row.getLong("matching_rows")).toArray());
     }
 
     @DataProvider(name = "clientSessionRoles")
@@ -524,7 +527,8 @@ public class ClientTests extends BaseIntegrationTest {
                 adminClient.execute("DROP USER IF EXISTS " + user2).get().close();
                 adminClient.execute("CREATE USER " + user1 + " IDENTIFIED BY '" + password1 + "'").get().close();
                 adminClient.execute("CREATE USER " + user2 + " IDENTIFIED BY '" + password2 + "'").get().close();
-                waitForAllReplicas("users", "name IN ('" + user1 + "', '" + user2 + "')", 2);
+                waitForAllReplicas("users", "name IN ('" + user1 + "', '" + user2 + "')", 2,
+                        sql -> adminClient.queryAll(sql).stream().mapToLong(row -> row.getLong("matching_rows")).toArray());
 
                 try (Client userClient = newClient().setUsername(user1).setPassword(password1).build()) {
                     List<GenericRecord> firstResponse = userClient.queryAll("SELECT currentUser() AS user");
