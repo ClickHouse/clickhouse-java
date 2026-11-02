@@ -6,7 +6,8 @@
     "integrations/language-clients/java/client",
     "integrations/language-clients/java/jdbc",
     "integrations/language-clients/java/r2dbc",
-    "integrations/language-clients/java/date-time-guide"
+    "integrations/language-clients/java/date-time-guide",
+    "integrations/language-clients/java/spring-io-integration"
   ],
   "root": "integrations/language-clients/java/index"
 }
