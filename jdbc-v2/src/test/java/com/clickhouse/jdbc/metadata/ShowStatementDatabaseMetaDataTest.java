@@ -211,22 +211,23 @@ public class ShowStatementDatabaseMetaDataTest extends DatabaseMetaDataTest {
             throw new SkipException("Should not be tested in cloud because creates users");
         }
         final String db = getDatabase();
-        final String user = "metadata_show_statements_user";
+        final String user = "metadata_show_statements_user_" + UUID.randomUUID().toString().replace("-", "");
         final String password = UUID.randomUUID() + "Aa1!";
-        try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
-            stmt.executeUpdate("DROP TABLE IF EXISTS metadata_show_statements_granted");
-            stmt.executeUpdate("DROP TABLE IF EXISTS metadata_show_statements_restricted");
-            stmt.executeUpdate("CREATE TABLE metadata_show_statements_granted (id Int32, t Tuple(a Int32, b String)) " +
-                    "ORDER BY id");
-            stmt.executeUpdate("CREATE TABLE metadata_show_statements_restricted (id Int32, secret String) " +
-                    "ORDER BY id");
-            stmt.executeUpdate("DROP USER IF EXISTS " + user);
-            stmt.executeUpdate("CREATE USER " + user + " IDENTIFIED WITH plaintext_password BY '" + password +
-                    "' SETTINGS readonly = 1");
-            stmt.executeUpdate("GRANT SELECT ON " + db + ".metadata_show_statements_granted TO " + user);
-            stmt.executeUpdate("GRANT SELECT(id) ON " + db + ".metadata_show_statements_restricted TO " + user);
-        }
         try {
+            try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
+                stmt.executeUpdate("DROP TABLE IF EXISTS metadata_show_statements_granted");
+                stmt.executeUpdate("DROP TABLE IF EXISTS metadata_show_statements_restricted");
+                stmt.executeUpdate("CREATE TABLE metadata_show_statements_granted (id Int32, t Tuple(a Int32, b String)) " +
+                        "ORDER BY id");
+                stmt.executeUpdate("CREATE TABLE metadata_show_statements_restricted (id Int32, secret String) " +
+                        "ORDER BY id");
+                stmt.executeUpdate("CREATE USER " + user + " IDENTIFIED WITH plaintext_password BY '" + password +
+                        "' SETTINGS readonly = 1");
+                waitForAllReplicas("users", "name = '" + user + "'", 1);
+                stmt.executeUpdate("GRANT SELECT ON " + db + ".metadata_show_statements_granted TO " + user);
+                stmt.executeUpdate("GRANT SELECT(id) ON " + db + ".metadata_show_statements_restricted TO " + user);
+                waitForAllReplicas("grants", "user_name = '" + user + "'", 2);
+            }
             Properties props = new Properties();
             props.setProperty("user", user);
             props.setProperty("password", password);
