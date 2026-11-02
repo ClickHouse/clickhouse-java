@@ -828,6 +828,7 @@ For more information, see our [GitHub repository](https://github.com/ClickHouse/
 ## Troubleshooting {#troubleshooting}
 ### Logging {#logging}
 The driver uses [slf4j](https://www.slf4j.org/) for logging, and will use the first available implementation on the `classpath`.
+The driver never writes HTTP wire logs. See [HTTP wire logs](/integrations/java#http-wire-logs).
 
 ### Resolving JDBC Timeout on Large Inserts {#resolving-jdbc-timeout-on-large-inserts}
 
