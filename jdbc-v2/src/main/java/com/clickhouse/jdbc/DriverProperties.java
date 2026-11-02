@@ -171,6 +171,12 @@ public enum DriverProperties {
      */
     METADATA_USE_SHOW_STATEMENTS("jdbc_metadata_use_show_statements", String.valueOf(Boolean.TRUE)),
 
+    /**
+     * Disables detection of application frameworks (for example Apache Spark) for the {@code User-Agent} header.
+     * Default: false
+     */
+    DISABLE_FRAMEWORKS_DETECTION("disable_frameworks_detection", String.valueOf(Boolean.FALSE)),
+
     ;
 
 
