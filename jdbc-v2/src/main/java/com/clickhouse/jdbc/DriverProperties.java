@@ -177,6 +177,17 @@ public enum DriverProperties {
      */
     DISABLE_FRAMEWORKS_DETECTION("disable_frameworks_detection", String.valueOf(Boolean.FALSE)),
 
+    /**
+     * Controls what {@link java.sql.Array#getBaseType()} and {@link java.sql.Array#getBaseTypeName()} return for a
+     * multi-dimensional array like {@code Array(Array(Int32))}. When enabled, they return the element type, which is
+     * the next array level ({@code ARRAY} and {@code Array(Int32)}). When disabled, they return the innermost
+     * non-array type ({@code INTEGER} and {@code Int32}), as in earlier versions. One-level arrays are not affected.
+     * The metadata of the {@code VALUE} column of {@link java.sql.Array#getResultSet()} always reports the next array
+     * level and is not affected.
+     * Default: true
+     */
+    MULTI_DIMENSIONAL_ARRAY_ELEMENT_TYPE("jdbc_multi_dimensional_array_element_type", String.valueOf(Boolean.TRUE)),
+
     ;
 
 
