@@ -209,7 +209,12 @@ public class JdbcUtils {
                         map.put(e.getKey(), UUID.class);
                         break;
                     case IPv4:
+                        map.put(e.getKey(), Inet4Address.class);
+                        break;
                     case IPv6:
+                        // IPv4-mapped values (::ffff:a.b.c.d) are read as Inet4Address.
+                        map.put(e.getKey(), InetAddress.class);
+                        break;
                     case Geometry:
                         // should be mapped to Object because require conversion.
                     default:
