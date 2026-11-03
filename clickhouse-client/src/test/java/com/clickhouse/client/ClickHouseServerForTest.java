@@ -4,19 +4,24 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
+import org.testng.Assert;
 import org.testng.annotations.AfterSuite;
 import org.testng.annotations.BeforeSuite;
 
 import com.clickhouse.client.ClickHouseTestEnvironment.ContainerMode;
+import com.clickhouse.data.ClickHouseRecord;
 
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.util.Locale;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -33,6 +38,8 @@ import java.util.Map;
 @SuppressWarnings("squid:S2187")
 public class ClickHouseServerForTest {
     private static final Logger LOGGER = LoggerFactory.getLogger(ClickHouseServerForTest.class);
+    private static final int REPLICA_CHECK_ATTEMPTS = 100;
+    private static final long REPLICA_CHECK_INTERVAL_MS = 100L;
 
     private static final Network network;
     private static final ClickHouseTestEnvironment environment;
@@ -277,6 +284,89 @@ public class ClickHouseServerForTest {
         }
 
         return false;
+    }
+
+    /**
+     * Waits until each replica of the test cluster returns {@code expectedRows} rows of
+     * {@code system.<table>} that match {@code condition}. Does nothing outside cluster mode.
+     * Uses {@link ClickHouseClient}, which resolves to the HTTP client when that module is on the classpath.
+     */
+    public static void waitForAllReplicas(String table, String condition, int expectedRows) {
+        if (!isCluster()) {
+            return;
+        }
+        ClickHouseNode server = getClickHouseNode(ClickHouseProtocol.HTTP, isCloud(), ClickHouseNode.builder().build());
+        try (ClickHouseClient client = ClickHouseClient.newInstance(ClickHouseProtocol.HTTP)) {
+            waitForAllReplicas(table, condition, expectedRows, sql -> matchingRowCounts(client, server, sql));
+        }
+    }
+
+    /**
+     * Same check as {@link #waitForAllReplicas(String, String, int)}. {@code query} runs the
+     * replica SQL and returns one matching-row count per replica host.
+     */
+    public static void waitForAllReplicas(String table, String condition, int expectedRows, ReplicaQuery query) {
+        if (!isCluster()) {
+            return;
+        }
+        String sql = "SELECT hostName() AS host, toInt64(countIf(" + condition + ")) AS matching_rows"
+                + " FROM clusterAllReplicas('" + ClusterClickHouseContainerStarter.CLUSTER_NAME + "', system." + table
+                + ") GROUP BY host";
+        String state = "";
+        for (int attempt = 1; attempt <= REPLICA_CHECK_ATTEMPTS; attempt++) {
+            try {
+                long[] counts = query.matchingRowCounts(sql);
+                state = Arrays.toString(counts);
+                if (hasRowsOnAllReplicas(counts, expectedRows)) {
+                    return;
+                }
+            } catch (Exception e) {
+                state = e.getMessage();
+            }
+            try {
+                Thread.sleep(REPLICA_CHECK_INTERVAL_MS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+        Assert.fail("Expected " + expectedRows + " rows matching [" + condition + "] in system." + table + " on all "
+                + ClusterClickHouseContainerStarter.NODE_COUNT + " replicas, but got " + state);
+    }
+
+    private static long[] matchingRowCounts(ClickHouseClient client, ClickHouseNode server, String sql)
+            throws ClickHouseException {
+        try (ClickHouseResponse response = client.read(server).query(sql).executeAndWait()) {
+            List<Long> counts = new ArrayList<>();
+            for (ClickHouseRecord record : response.records()) {
+                counts.add(record.getValue(1).asLong());
+            }
+            long[] result = new long[counts.size()];
+            for (int i = 0; i < result.length; i++) {
+                result[i] = counts.get(i);
+            }
+            return result;
+        }
+    }
+
+    private static boolean hasRowsOnAllReplicas(long[] counts, int expectedRows) {
+        if (counts.length != ClusterClickHouseContainerStarter.NODE_COUNT) {
+            return false;
+        }
+        for (long count : counts) {
+            if (count != expectedRows) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Runs the replica-check SQL from {@link #waitForAllReplicas(String, String, int, ReplicaQuery)}.
+     */
+    @FunctionalInterface
+    public interface ReplicaQuery {
+        long[] matchingRowCounts(String sql) throws Exception;
     }
 
     private static Endpoint resolve(ClickHouseProtocol protocol, int port, boolean applyOverride) {

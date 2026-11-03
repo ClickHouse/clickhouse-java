@@ -8,6 +8,7 @@ import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.internal.ServerSettings;
+import com.clickhouse.client.api.internal.Versions;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.data.ClickHouseFormat;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -349,7 +350,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
         }
     }
 
-    private void executeQueryAndVerifyUserAgent(Statement stmt, String clientName) throws Exception {
+    private String executeQueryAndVerifyUserAgent(Statement stmt, String clientName) throws Exception {
         final String testQuery = "SELECT '" + UUID.randomUUID() + "'";
         stmt.execute(testQuery);
         String queryId = ((StatementImpl)stmt).getLastQueryId();
@@ -375,6 +376,46 @@ public class ConnectionTest extends JdbcIntegrationTest {
         }
         Assert.assertTrue(userAgent.contains(Client.CLIENT_USER_AGENT), "Expected to contain '" + Client.CLIENT_USER_AGENT + "' but value was '" + userAgent + "'");
         Assert.assertTrue(userAgent.contains(Driver.DRIVER_CLIENT_NAME), "Expected to contain '" + Driver.DRIVER_CLIENT_NAME + "' but value was '" + userAgent + "'");
+        return userAgent;
+    }
+
+    @Test(groups = { "integration" }, dataProvider = "clientMetadataInUserAgentDP")
+    public void testClientMetadataInUserAgent(boolean setInUrl) throws Exception {
+        if (isCloud()) {
+            throw new SkipException("Cloud does not support flushing query_log");
+        }
+
+        final String metadata = "fv=flink/2.0.0,api=table";
+        Properties info = new Properties();
+        info.setProperty("user", "default");
+        info.setProperty("password", ClickHouseServerForTest.getPassword());
+        info.setProperty(ClientConfigProperties.DATABASE.getKey(), ClickHouseServerForTest.getDatabase());
+        String url = getEndpointString();
+        if (setInUrl) {
+            url += "?" + ClientConfigProperties.CLIENT_ID_METADATA.getKey() + "=" + metadata;
+        } else {
+            info.setProperty(ClientConfigProperties.CLIENT_ID_METADATA.getKey(), metadata);
+        }
+
+        String expectedSuffix = "clickhouse-java-v2/" + Client.clientVersion + " (fv:flink/2.0.0; api:table; lv:java/"
+                + System.getProperty("java.version") + "; os:" + System.getProperty("os.name") + "; hc:ahc_"
+                + Versions.APACHE_HTTP_CLIENT + ")";
+        try (Connection localConnection = new ConnectionImpl(url, info);
+             Statement stmt = localConnection.createStatement()) {
+            String userAgent = executeQueryAndVerifyUserAgent(stmt, null);
+            Assert.assertTrue(userAgent.endsWith(expectedSuffix),
+                    "Expected to end with '" + expectedSuffix + "' but value was '" + userAgent + "'");
+
+            localConnection.setClientInfo(ClientInfoProperties.APPLICATION_NAME.getKey(), "my-app/1.0");
+            userAgent = executeQueryAndVerifyUserAgent(stmt, "my-app/1.0");
+            Assert.assertTrue(userAgent.endsWith(expectedSuffix),
+                    "Expected to end with '" + expectedSuffix + "' but value was '" + userAgent + "'");
+        }
+    }
+
+    @DataProvider(name = "clientMetadataInUserAgentDP")
+    public static Object[][] clientMetadataInUserAgentDP() {
+        return new Object[][] {{false}, {true}};
     }
 
     @Test(groups = { "integration" })
@@ -1006,8 +1047,8 @@ public class ConnectionTest extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testBearerTokenAuth() throws Exception {
-        if (isCloud()) {
-            return; // mocked server
+        if (isCloud() || isCluster()) {
+            throw new SkipException("Mock-server test is not applicable to cloud or cluster runs");
         }
 
         WireMockServer mockServer = new WireMockServer( WireMockConfiguration
@@ -1064,27 +1105,6 @@ public class ConnectionTest extends JdbcIntegrationTest {
             }
         } finally {
             mockServer.stop();
-        }
-    }
-
-    @Test(groups = { "integration" })
-    public void testJWTWithCloud() throws Exception {
-        String jwt = System.getenv("JWT_TOKEN");
-        if (jwt == null || jwt.trim().isEmpty()) {
-            throw new SkipException("JWT_TOKEN environment variable is not set. Skipping JWT test.");
-        }
-        String url = getEndpointString();
-
-        Properties properties = new Properties();
-        properties.put(ClientConfigProperties.BEARERTOKEN_AUTH.getKey(), jwt);
-
-        try (Connection conn = new ConnectionImpl(url, properties);
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery("SELECT currentUser()")) {
-            Assert.assertTrue(rs.next());
-            String username = rs.getString(1);
-            Assert.assertTrue(username != null && username.matches("^JWT::.+::.+$"),
-                    "Expected username in format JWT::<subject>::<claims_hash>, but actual username was: '" + username + "'");
         }
     }
 

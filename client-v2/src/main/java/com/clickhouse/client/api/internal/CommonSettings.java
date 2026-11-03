@@ -178,6 +178,8 @@ public class CommonSettings {
     /**
      * Defines list of headers that should be sent with current request. The Client will use a header value
      * defined in {@code headers} instead of any other.
+     * The {@code User-Agent} header is different: the client adds its own part to the end of the value. To identify
+     * the application, use {@link Client.Builder#setClientName(String)} instead of the {@code User-Agent} header.
      *
      * @see Client.Builder#httpHeaders(Map)
      * @param key - header name.

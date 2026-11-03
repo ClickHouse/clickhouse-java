@@ -224,6 +224,39 @@ public class JdbcConfigurationTest {
                 () -> new JdbcConfiguration("jdbc:clickhouse://localhost:8123/?ssl_mode=insecure", new Properties()));
     }
 
+    @DataProvider(name = "disableFrameworksDetectionValues")
+    public Object[][] disableFrameworksDetectionValues() {
+        return new Object[][] {
+            {"", null, false},
+            {"", "true", true},
+            {"", "false", false},
+            {"?disable_frameworks_detection=true", null, true},
+            {"?disable_frameworks_detection=false", null, false},
+            {"?disable_frameworks_detection=true", "false", true},
+        };
+    }
+
+    @Test(dataProvider = "disableFrameworksDetectionValues")
+    public void testDisableFrameworksDetectionIsDriverProperty(String urlParams, String propertyValue,
+                                                               boolean expected) throws Exception {
+        Properties properties = new Properties();
+        if (propertyValue != null) {
+            properties.setProperty(DriverProperties.DISABLE_FRAMEWORKS_DETECTION.getKey(), propertyValue);
+        }
+        JdbcConfiguration configuration = new JdbcConfiguration("jdbc:clickhouse://localhost:8123/" + urlParams,
+                properties);
+        assertEquals(configuration.isDisableFrameworkDetection(), expected);
+        Assert.assertFalse(configuration.getClientProperties()
+                .containsKey(DriverProperties.DISABLE_FRAMEWORKS_DETECTION.getKey()));
+    }
+
+    @Test
+    public void testUnknownPropertyForwardedToClientProperties() throws Exception {
+        JdbcConfiguration configuration = new JdbcConfiguration(
+                "jdbc:clickhouse://localhost:8123/?unknown_test_property=1", new Properties());
+        assertEquals(configuration.getClientProperties().get("unknown_test_property"), "1");
+    }
+
     @Test
     public void testSSLCipherSuitesForwardedToClientProperties() throws Exception {
         String cipherSuites = "TLS_AES_256_GCM_SHA384,TLS_AES_128_GCM_SHA256";

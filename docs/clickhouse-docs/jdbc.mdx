@@ -76,7 +76,7 @@ as is to the driver. Driver has some own properties that aren't part of the clie
 **Driver properties**:
 | Property                         | Default | Description                                                    |
 |----------------------------------|---------|----------------------------------------------------------------|
-| `disable_frameworks_detection`   | `true`  | Disable frameworks detection for User-Agent                    |
+| `disable_frameworks_detection`   | `false` | Disable frameworks detection for User-Agent                    |
 | `jdbc_ignore_unsupported_values` | `false` | Suppresses `SQLFeatureNotSupportedException` where is doesn't affect the driver work |
 | `clickhouse.jdbc.v1`             | `false` | Use older JDBC implementation instead of new JDBC              |
 | `default_query_settings`         | `null`  | Allows passing of default query settings with query operations |
@@ -147,10 +147,14 @@ conn.setClientInfo(com.clickhouse.jdbc.ClientInfoProperties.APPLICATION_NAME.get
 
 Both ways will result in the following `http_user_agent` value in the query log:
 ```
-my-app-01/1.0 jdbc-v2/0.9.7 clickhouse-java-v2/0.9.6 (Linux; jvm:17.0.17) Apache-HttpClient/5.4.4
+my-app-01/1.0 jdbc-v2/0.12.0 clickhouse-java-v2/0.12.0 (lv:java/17.0.17; os:Linux; hc:ahc_5.6.4)
 ```
 
+To add key/value pairs to the comment group of the header, set the `client_id_metadata` property. For example,
+`client_id_metadata=fv=flink/2.0.0,api=table` gives `(fv:flink/2.0.0; api:table; lv:java/17.0.17; os:Linux; hc:ahc_5.6.4)`.
+
 **Note:** We recommend using `app_name/version` format for `client_name` property because it helps to identify the application in the query log.
+Use the client name to identify the application. Do not set a custom `User-Agent` HTTP header for this: it replaces the application part of the header, including `jdbc-v2/<version>`.
 
 ### Operation Identification {#operation-identification}
 
@@ -617,14 +621,14 @@ try (Connection conn = ...) {
 |-----------------------------|------------------------------|-----------------------------|
 | UUID                        | OTHER                        | java.util.UUID              |
 | IPv4                        | OTHER                        | java.net.Inet4Address       |
-| IPv6                        | OTHER                        | java.net.Inet6Address       |
+| IPv6                        | OTHER                        | java.net.InetAddress        |
 | JSON                        | OTHER                        | java.lang.String            |
 | AggregateFunction           | OTHER                        | (binary representation)     |
 | SimpleAggregateFunction     | (wrapped type)               | (wrapped class)             |
 
 - `UUID` isn't JDBC standard type. However it is part of JDK. By default `java.util.UUID` is returned on `getObject()` method.
 - `UUID` can be read/written as `String` by using `getObject(columnIndex, String.class)` method.
-- `IPv4` and `IPv6` aren't JDBC standard types. However they're part of JDK. By default `java.net.Inet4Address` and `java.net.Inet6Address` are returned on `getObject()` method.
+- `IPv4` and `IPv6` aren't JDBC standard types. However they're part of JDK. By default `java.net.Inet4Address` and `java.net.Inet6Address` are returned on `getObject()` method. An IPv4-mapped `IPv6` value (`::ffff:a.b.c.d`) is returned as a `java.net.Inet4Address`. For this reason `ResultSetMetaData#getColumnClassName` reports `java.net.InetAddress` for `IPv6`.
 - `IPv4` and `IPv6` can be read/written as `String` by using `getObject(columnIndex, String.class)` method.
 
 **JSON Type**
@@ -826,6 +830,7 @@ For more information, see our [GitHub repository](https://github.com/ClickHouse/
 ## Troubleshooting {#troubleshooting}
 ### Logging {#logging}
 The driver uses [slf4j](https://www.slf4j.org/) for logging, and will use the first available implementation on the `classpath`.
+The driver never writes HTTP wire logs. See [HTTP wire logs](/integrations/java#http-wire-logs).
 
 ### Resolving JDBC Timeout on Large Inserts {#resolving-jdbc-timeout-on-large-inserts}
 
@@ -1021,12 +1026,13 @@ try (Connection conn = DriverManager.getConnection(url, properties)) {
 | SimpleAggregateFunction     | ✅                 | (wrapped type)             | (wrapped class)            | (wrapped type)             | (wrapped class)                         |
 | UUID                        | ✅                 | OTHER                      | java.util.UUID             | VARCHAR                    | java.util.UUID                          |
 | IPv4                        | ✅                 | OTHER                      | java.net.Inet4Address      | VARCHAR                    | java.net.Inet4Address                   |
-| IPv6                        | ✅                 | OTHER                      | java.net.Inet6Address      | VARCHAR                    | java.net.Inet6Address                   |
+| IPv6                        | ❌                 | OTHER                      | java.net.InetAddress       | VARCHAR                    | java.net.Inet6Address                   |
 | Dynamic                     | ❌                 | OTHER                      | java.Object                | not supported              | not supported                           |
 | Variant                     | ❌                 | OTHER                      | java.Object                | not supported              | not supported                           |
 
 - V1 uses `VARCHAR` for `UUID` but returns `java.util.UUID` object always. V2 fixes this by mapping `UUID` to `OTHER` and returns `java.util.UUID` object.
 - V1 uses `VARCHAR` for `IPv4` and `IPv6` but returns `java.net.Inet4Address` and `java.net.Inet6Address` objects always. V2 fixes this by mapping `IPv4` and `IPv6` to `OTHER` and returns `java.net.Inet4Address` and `java.net.Inet6Address` objects.
+- V2 returns an IPv4-mapped `IPv6` value (`::ffff:a.b.c.d`) as a `java.net.Inet4Address`, V1 returns it as a `java.net.Inet6Address`. Use `getObject(columnIndex, Inet6Address.class)` to always get a `java.net.Inet6Address`.
 - `Dynamic` and `Variant` are new types in V2. Not supported in V1.
 - `JSON` is based on `Dynamic` type. Therefore it is supported only in V2.
 - IPv4 and IPv6 values can be read as `byte[]` by using `getBytes(columnIndex)` method. However it is recommended to use designated classes for these types.

@@ -18,6 +18,10 @@ import java.util.UUID;
 public class ReadonlyProfileTest extends JdbcIntegrationTest {
 
     private String password;
+    private String user1;
+    private String user2;
+    private String profile1;
+    private String profile2;
 
     @BeforeClass(groups = { "integration" })
     public void setup() throws SQLException {
@@ -27,18 +31,25 @@ public class ReadonlyProfileTest extends JdbcIntegrationTest {
         // Append fixed character classes so the random password satisfies server
         // password-complexity policies (uppercase, lowercase, digit, special).
         password = UUID.randomUUID().toString() + "Aa1!";
+        String suffix = "_" + UUID.randomUUID().toString().replace("-", "");
+        user1 = "jdbc_test_user_readonly_1" + suffix;
+        user2 = "jdbc_test_user_readonly_2" + suffix;
+        profile1 = "jdbc_test_profile_readonly_1" + suffix;
+        profile2 = "jdbc_test_profile_readonly_2" + suffix;
         com.clickhouse.client.ClickHouseServerForTest.beforeSuite();
         try (Connection conn = getJdbcConnection();
              Statement stmt = conn.createStatement()) {
-            stmt.execute("CREATE SETTINGS PROFILE IF NOT EXISTS jdbc_test_profile_readonly_1 SETTINGS readonly=1");
-            stmt.execute("CREATE SETTINGS PROFILE IF NOT EXISTS jdbc_test_profile_readonly_2 SETTINGS readonly=2");
-            stmt.execute("DROP USER IF EXISTS jdbc_test_user_readonly_1");
-            stmt.execute("DROP USER IF EXISTS jdbc_test_user_readonly_2");
-            stmt.execute("CREATE USER jdbc_test_user_readonly_1 IDENTIFIED WITH plaintext_password BY '" + password + "' SETTINGS PROFILE jdbc_test_profile_readonly_1");
-            stmt.execute("CREATE USER jdbc_test_user_readonly_2 IDENTIFIED WITH plaintext_password BY '" + password + "' SETTINGS PROFILE jdbc_test_profile_readonly_2");
+            stmt.execute("CREATE SETTINGS PROFILE " + profile1 + " SETTINGS readonly=1");
+            stmt.execute("CREATE SETTINGS PROFILE " + profile2 + " SETTINGS readonly=2");
+            waitForAllReplicas("settings_profiles", "name IN ('" + profile1 + "', '" + profile2 + "')", 2);
+            stmt.execute("CREATE USER " + user1 + " IDENTIFIED WITH plaintext_password BY '" + password + "' SETTINGS PROFILE " + profile1);
+            stmt.execute("CREATE USER " + user2 + " IDENTIFIED WITH plaintext_password BY '" + password + "' SETTINGS PROFILE " + profile2);
+            String users = "'" + user1 + "', '" + user2 + "'";
+            waitForAllReplicas("users", "name IN (" + users + ")", 2);
             String db = getDatabase();
-            stmt.execute("GRANT SELECT ON " + db + ".* TO jdbc_test_user_readonly_1");
-            stmt.execute("GRANT SELECT ON " + db + ".* TO jdbc_test_user_readonly_2");
+            stmt.execute("GRANT SELECT ON " + db + ".* TO " + user1);
+            stmt.execute("GRANT SELECT ON " + db + ".* TO " + user2);
+            waitForAllReplicas("grants", "user_name IN (" + users + ")", 2);
         }
     }
 
@@ -49,10 +60,10 @@ public class ReadonlyProfileTest extends JdbcIntegrationTest {
         }
         try (Connection conn = getJdbcConnection();
              Statement stmt = conn.createStatement()) {
-            stmt.execute("DROP USER IF EXISTS jdbc_test_user_readonly_1");
-            stmt.execute("DROP USER IF EXISTS jdbc_test_user_readonly_2");
-            stmt.execute("DROP SETTINGS PROFILE IF EXISTS jdbc_test_profile_readonly_1");
-            stmt.execute("DROP SETTINGS PROFILE IF EXISTS jdbc_test_profile_readonly_2");
+            stmt.execute("DROP USER IF EXISTS " + user1);
+            stmt.execute("DROP USER IF EXISTS " + user2);
+            stmt.execute("DROP SETTINGS PROFILE IF EXISTS " + profile1);
+            stmt.execute("DROP SETTINGS PROFILE IF EXISTS " + profile2);
         }
     }
 
@@ -62,7 +73,7 @@ public class ReadonlyProfileTest extends JdbcIntegrationTest {
             throw new SkipException("Should not be tested in cloud because creates users and profiles");
         }
         Properties properties = new Properties();
-        properties.setProperty("user", "jdbc_test_user_readonly_1");
+        properties.setProperty("user", user1);
         properties.setProperty("password", password);
         properties.put(ClientConfigProperties.serverSetting(ServerSettings.OUTPUT_FORMAT_BINARY_WRITE_JSON_AS_STRING), "1");
         
@@ -86,7 +97,7 @@ public class ReadonlyProfileTest extends JdbcIntegrationTest {
         }
 
         Properties properties = new Properties();
-        properties.setProperty("user", "jdbc_test_user_readonly_2");
+        properties.setProperty("user", user2);
         properties.setProperty("password", password);
         properties.put(ClientConfigProperties.serverSetting(ServerSettings.OUTPUT_FORMAT_BINARY_WRITE_JSON_AS_STRING), "1");
         properties.put(ClientConfigProperties.serverSetting("allow_experimental_json_type"), "1");

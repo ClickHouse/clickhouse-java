@@ -172,6 +172,12 @@ public enum DriverProperties {
     METADATA_USE_SHOW_STATEMENTS("jdbc_metadata_use_show_statements", String.valueOf(Boolean.TRUE)),
 
     /**
+     * Disables detection of application frameworks (for example Apache Spark) for the {@code User-Agent} header.
+     * Default: false
+     */
+    DISABLE_FRAMEWORKS_DETECTION("disable_frameworks_detection", String.valueOf(Boolean.FALSE)),
+
+    /**
      * Controls what {@link java.sql.Array#getBaseType()} and {@link java.sql.Array#getBaseTypeName()} return for a
      * multi-dimensional array like {@code Array(Array(Int32))}. When enabled, they return the element type, which is
      * the next array level ({@code ARRAY} and {@code Array(Int32)}). When disabled, they return the innermost
