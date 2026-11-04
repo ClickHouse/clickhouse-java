@@ -801,10 +801,20 @@ public class BinaryStreamReader {
         }
         ArrayValue array;
         if (itemTypeColumn.isNullable()) {
-            Class<?> itemClass = resolveArrayItemClass(itemTypeColumn);
-            array = new ArrayValue(itemClass, len);
+            // Type the array by the values actually read: the declared type does not always tell
+            // which class readValue returns (UInt64 -> BigInteger, DateTime64 -> ZonedDateTime).
+            Object[] values = new Object[len];
+            Class<?> itemClass = null;
             for (int i = 0; i < len; i++) {
-                array.set(i, readValue(itemTypeColumn));
+                Object value = readValue(itemTypeColumn);
+                values[i] = value;
+                if (value != null) {
+                    itemClass = itemClass == null ? value.getClass() : commonSuperclass(itemClass, value.getClass());
+                }
+            }
+            array = new ArrayValue(itemClass == null ? resolveArrayItemClass(itemTypeColumn) : itemClass, len);
+            for (int i = 0; i < len; i++) {
+                array.set(i, values[i]);
             }
         } else if (itemTypeColumn.getDataType() == ClickHouseDataType.Variant
                 || itemTypeColumn.getDataType() == ClickHouseDataType.Dynamic
@@ -868,8 +878,15 @@ public class BinaryStreamReader {
                 case UInt8:
                 case UInt16:
                 case UInt32:
-                case UInt64:
                     return dataType.getWiderObjectClass();
+                case UInt64:
+                    return BigInteger.class;
+                case DateTime:
+                case DateTime32:
+                case DateTime64:
+                    return ZonedDateTime.class;
+                case Tuple:
+                    return Object[].class;
                 case Enum8:
                 case Enum16:
                     return EnumValue.class;
@@ -903,6 +920,18 @@ public class BinaryStreamReader {
                     return cls == null ? Object.class : cls;
             }
         }
+    }
+
+    /**
+     * Returns the most specific class that both classes extend, so that an array of it can hold values
+     * of both. For example, IPv6 values can be read as {@link Inet4Address} or {@link Inet6Address}.
+     */
+    private static Class<?> commonSuperclass(Class<?> a, Class<?> b) {
+        Class<?> cls = a;
+        while (!cls.isAssignableFrom(b)) {
+            cls = cls.getSuperclass();
+        }
+        return cls;
     }
 
     /**
