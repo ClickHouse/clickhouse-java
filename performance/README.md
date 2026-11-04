@@ -180,8 +180,8 @@ Other options:
   - "ji" - JDBCInsert - insert operation using JDBC
   - "ws" - WriteStream - isolated V1/V2 HTTP request-body handoff
 
-`ws` uses throughput mode and must be selected by itself. It is excluded from
-`-b all`; run it explicitly with `-b ws`.
+`ws` uses throughput mode with a second time unit and must be selected by
+itself. It is excluded from `-b all`; run it explicitly with `-b ws`.
 
 Compression matrix filters (used with `-b comp` or `-b all`, each defaults to all values):
 - "-cc" - clients: `v1,v2`

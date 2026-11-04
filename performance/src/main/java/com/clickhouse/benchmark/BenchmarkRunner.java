@@ -88,7 +88,8 @@ public class BenchmarkRunner {
                 .shouldFailOnError(true);
 
         if (writeStreamOnly) {
-            optBuilder.mode(Mode.Throughput);
+            optBuilder.mode(Mode.Throughput)
+                    .timeUnit(TimeUnit.SECONDS);
         } else {
             optBuilder.mode(Mode.SampleTime)
                     .param("datasetSourceName", datasetName)
