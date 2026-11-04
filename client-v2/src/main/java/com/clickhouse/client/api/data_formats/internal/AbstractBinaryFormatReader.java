@@ -274,13 +274,16 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
                 Object[] tmp = currentRecord;
                 currentRecord = nextRecord;
                 nextRecord = tmp;
+                // The read-ahead may start a new block and re-publish the schema, so take the record first.
+                Object[] record = currentRecord;
                 readNextRecord();
-                return new RecordWrapper(currentRecord, schema);
+                return new RecordWrapper(record, schema);
             } else {
                 try {
                     if (readRecord(currentRecord)) {
+                        Object[] record = currentRecord;
                         readNextRecord();
-                        return new RecordWrapper(currentRecord, schema);
+                        return new RecordWrapper(record, schema);
                     } else {
                         currentRecord = null;
                         return null;
@@ -305,8 +308,14 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         this.columns = schema.getColumns().toArray(ClickHouseColumn.EMPTY_ARRAY);
         this.convertions = new Map[columns.length];
 
-        this.currentRecord = new Object[columns.length];
-        this.nextRecord = new Object[columns.length];
+        // Native re-publishes the schema for every block while a row may already be read into these
+        // buffers, so they are kept when the shape is unchanged.
+        if (currentRecord == null || currentRecord.length != columns.length) {
+            this.currentRecord = new Object[columns.length];
+        }
+        if (nextRecord == null || nextRecord.length != columns.length) {
+            this.nextRecord = new Object[columns.length];
+        }
 
         for (int i = 0; i < columns.length; i++) {
             ClickHouseColumn column = columns[i];
