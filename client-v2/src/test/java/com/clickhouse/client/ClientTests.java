@@ -9,6 +9,7 @@ import com.clickhouse.client.api.CompressionMethod;
 import com.clickhouse.client.api.ConnectionInitiationException;
 import com.clickhouse.client.api.ConnectionReuseStrategy;
 import com.clickhouse.client.api.ServerException;
+import com.clickhouse.client.api.command.CommandResponse;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertSettings;
@@ -24,6 +25,9 @@ import com.clickhouse.client.api.query.Records;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseVersion;
+import com.github.tomakehurst.wiremock.WireMockServer;
+import com.github.tomakehurst.wiremock.client.WireMock;
+import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,6 +39,7 @@ import org.testng.util.Strings;
 
 import java.io.ByteArrayInputStream;
 import java.net.ConnectException;
+import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -434,28 +439,46 @@ public class ClientTests extends BaseIntegrationTest {
     }
 
     @Test(groups = {"integration"}, dataProvider = "sessionRoles")
-    public void testOperationCustomRoles(String[] roles) throws Exception {
+    public void testOperationCustomRoles(String[] roleNames) throws Exception {
         if (isVersionMatch("(,24.3]", newClient().build())) {
             return;
         }
 
+        String suffix = "_" + RandomStringUtils.insecure().next(8, true, true);
+        String user = "some_user" + suffix;
+        String[] roles = Arrays.stream(roleNames).map(role -> role + suffix).toArray(String[]::new);
         String password = "^1A" + RandomStringUtils.random(12, true, true) + "3b$";
         final String rolesList = "\"" + Strings.join("\",\"", roles) + "\"";
-        try (Client client = newClient().build()) {
-            client.execute("DROP ROLE IF EXISTS " + rolesList).get().close();
-            client.execute("CREATE ROLE " + rolesList).get().close();
-            client.execute("DROP USER IF EXISTS some_user").get().close();
-            client.execute("CREATE USER some_user IDENTIFIED BY '" + password + "'").get().close();
-            client.execute("GRANT " + rolesList + " TO some_user").get().close();
+        try (Client client = newClient().build();
+             Client userClient = newClient().setUsername(user).setPassword(password).build()) {
+            try {
+                createUserWithRoles(client, user, "IDENTIFIED BY '" + password + "'", roles);
+                QuerySettings settings = new QuerySettings().setDBRoles(Arrays.asList(roles));
+                List<GenericRecord> resp = userClient.queryAll("SELECT currentRoles()", settings);
+                Set<String> roleSet = new HashSet<>(Arrays.asList(roles));
+                Set<String> currentRoles = new  HashSet<String> (resp.get(0).getList(1));
+                Assert.assertEquals(currentRoles, roleSet, "Roles " + roleSet + " not found in " + currentRoles);
+            } finally {
+                client.execute("DROP USER IF EXISTS " + user).get().close();
+                client.execute("DROP ROLE IF EXISTS " + rolesList).get().close();
+            }
         }
+    }
 
-        try (Client userClient = newClient().setUsername("some_user").setPassword(password).build()) {
-            QuerySettings settings = new QuerySettings().setDBRoles(Arrays.asList(roles));
-            List<GenericRecord> resp = userClient.queryAll("SELECT currentRoles()", settings);
-            Set<String> roleSet = new HashSet<>(Arrays.asList(roles));
-            Set<String> currentRoles = new  HashSet<String> (resp.get(0).getList(1));
-            Assert.assertEquals(currentRoles, roleSet, "Roles " + roleSet + " not found in " + currentRoles);
-        }
+    private static void createUserWithRoles(Client client, String user, String identification, String[] roles)
+            throws Exception {
+        final String rolesList = "\"" + Strings.join("\",\"", roles) + "\"";
+        final String roleNames = "'" + Strings.join("','", roles) + "'";
+        client.execute("CREATE ROLE " + rolesList).get().close();
+        client.execute("CREATE USER " + user + " " + identification).get().close();
+        waitForAllReplicas("roles", "name IN (" + roleNames + ")", roles.length,
+                sql -> client.queryAll(sql).stream().mapToLong(row -> row.getLong("matching_rows")).toArray());
+        waitForAllReplicas("users", "name = '" + user + "'", 1,
+                sql -> client.queryAll(sql).stream().mapToLong(row -> row.getLong("matching_rows")).toArray());
+        client.execute("GRANT " + rolesList + " TO " + user).get().close();
+        waitForAllReplicas("role_grants",
+                "user_name = '" + user + "' AND granted_role_name IN (" + roleNames + ")", roles.length,
+                sql -> client.queryAll(sql).stream().mapToLong(row -> row.getLong("matching_rows")).toArray());
     }
 
     @DataProvider(name = "clientSessionRoles")
@@ -466,27 +489,29 @@ public class ClientTests extends BaseIntegrationTest {
         };
     }
     @Test(groups = {"integration"}, dataProvider = "clientSessionRoles")
-    public void testClientCustomRoles(String[] roles) throws Exception {
+    public void testClientCustomRoles(String[] roleNames) throws Exception {
         if (isVersionMatch("(,24.3]", newClient().build())) {
             return;
         }
 
+        String suffix = "_" + RandomStringUtils.insecure().next(8, true, true);
+        String user = "some_user" + suffix;
+        String[] roles = Arrays.stream(roleNames).map(role -> role + suffix).toArray(String[]::new);
         String password = "^1A" + RandomStringUtils.insecure().next(12, true, true) + "3B$";
         final String rolesList = "\"" + Strings.join("\",\"", roles) + "\"";
-        try (Client client = newClient().build()) {
-            client.execute("DROP ROLE IF EXISTS " + rolesList).get().close();
-            client.execute("CREATE ROLE " + rolesList).get().close();
-            client.execute("DROP USER IF EXISTS some_user").get().close();
-            client.execute("CREATE USER some_user IDENTIFIED WITH sha256_password BY '" + password + "'").get().close();
-            client.execute("GRANT " + rolesList + " TO some_user").get().close();
-        }
-
-        try (Client userClient = newClient().setUsername("some_user").setPassword(password).build()) {
-            userClient.setDBRoles(Arrays.asList(roles));
-            List<GenericRecord> resp = userClient.queryAll("SELECT currentRoles()");
-            Set<String> roleSet = new HashSet<>(Arrays.asList(roles));
-            Set<String> currentRoles = new  HashSet<String> (resp.get(0).getList(1));
-            Assert.assertEquals(currentRoles, roleSet, "Roles " + roleSet + " not found in " + currentRoles);
+        try (Client client = newClient().build();
+             Client userClient = newClient().setUsername(user).setPassword(password).build()) {
+            try {
+                createUserWithRoles(client, user, "IDENTIFIED WITH sha256_password BY '" + password + "'", roles);
+                userClient.setDBRoles(Arrays.asList(roles));
+                List<GenericRecord> resp = userClient.queryAll("SELECT currentRoles()");
+                Set<String> roleSet = new HashSet<>(Arrays.asList(roles));
+                Set<String> currentRoles = new  HashSet<String> (resp.get(0).getList(1));
+                Assert.assertEquals(currentRoles, roleSet, "Roles " + roleSet + " not found in " + currentRoles);
+            } finally {
+                client.execute("DROP USER IF EXISTS " + user).get().close();
+                client.execute("DROP ROLE IF EXISTS " + rolesList).get().close();
+            }
         }
     }
 
@@ -507,36 +532,16 @@ public class ClientTests extends BaseIntegrationTest {
                 adminClient.execute("DROP USER IF EXISTS " + user2).get().close();
                 adminClient.execute("CREATE USER " + user1 + " IDENTIFIED BY '" + password1 + "'").get().close();
                 adminClient.execute("CREATE USER " + user2 + " IDENTIFIED BY '" + password2 + "'").get().close();
+                waitForAllReplicas("users", "name IN ('" + user1 + "', '" + user2 + "')", 2,
+                        sql -> adminClient.queryAll(sql).stream().mapToLong(row -> row.getLong("matching_rows")).toArray());
 
                 try (Client userClient = newClient().setUsername(user1).setPassword(password1).build()) {
-                    List<GenericRecord> firstResponse = null;
-                    for (int i = 0; i < 20; i++) {
-                        try {
-                            firstResponse = userClient.queryAll("SELECT currentUser() AS user");
-                            break;
-                        } catch (ClientException e) {
-                            if (i == 19) {
-                                throw e;
-                            }
-                            Thread.sleep(250);
-                        }
-                    }
+                    List<GenericRecord> firstResponse = userClient.queryAll("SELECT currentUser() AS user");
                     Assert.assertEquals(firstResponse.get(0).getString("user"), user1);
 
                     userClient.updateUserAndPassword(user2, password2);
 
-                    List<GenericRecord> secondResponse = null;
-                    for (int i = 0; i < 20; i++) {
-                        try {
-                            secondResponse = userClient.queryAll("SELECT currentUser() AS user");
-                            break;
-                        } catch (ClientException e) {
-                            if (i == 19) {
-                                throw e;
-                            }
-                            Thread.sleep(250);
-                        }
-                    }
+                    List<GenericRecord> secondResponse = userClient.queryAll("SELECT currentUser() AS user");
                     Assert.assertEquals(secondResponse.get(0).getString("user"), user2);
                 }
             } finally {
@@ -833,6 +838,71 @@ public class ClientTests extends BaseIntegrationTest {
         }
     }
 
+    @Test(timeOut = 15000)
+    public void testRuntimeNetworkTimeoutAppliesToSubsequentRequests() throws Exception {
+        WireMockServer server = new WireMockServer(WireMockConfiguration.options()
+                .bindAddress("127.0.0.1").dynamicPort());
+        server.start();
+        try {
+            server.stubFor(WireMock.post(WireMock.anyUrl())
+                    .willReturn(WireMock.aResponse().withFixedDelay(500)
+                            .withHeader("X-ClickHouse-Summary", "{\"read_rows\":\"0\",\"read_bytes\":\"0\"}")));
+
+            try (Client client = new Client.Builder()
+                    .addEndpoint("http://127.0.0.1:" + server.port())
+                    .setUsername("default")
+                    .setPassword("")
+                    .setDefaultDatabase("default")
+                    .setSocketTimeout(200)
+                    .setMaxRetries(0)
+                    .compressServerResponse(false)
+                    .build()) {
+                Assert.assertEquals(client.getNetworkTimeout(), 200);
+
+                client.setNetworkTimeout(50);
+                Assert.assertEquals(client.getNetworkTimeout(), 50);
+                Exception error = Assert.expectThrows(Exception.class,
+                        () -> client.execute("SELECT 1").get(5, TimeUnit.SECONDS));
+                Assert.assertTrue(hasCause(error, SocketTimeoutException.class),
+                        "Expected a socket timeout, got: " + error);
+
+                CommandSettings requestSettings = new CommandSettings();
+                requestSettings.setNetworkTimeout(0, MILLIS);
+                try (CommandResponse response = client.execute("SELECT 1", requestSettings)
+                        .get(5, TimeUnit.SECONDS)) {
+                    Assert.assertEquals(response.getReadRows(), 0);
+                }
+                Assert.assertEquals(client.getNetworkTimeout(), 50);
+
+                client.setNetworkTimeout(0, MILLIS);
+                Assert.assertEquals(client.getNetworkTimeout(), 0);
+                try (CommandResponse response = client.execute("SELECT 1").get(5, TimeUnit.SECONDS)) {
+                    Assert.assertEquals(response.getReadRows(), 0);
+                }
+            }
+        } finally {
+            server.stop();
+        }
+    }
+
+    @Test
+    public void testNetworkTimeoutUnitConversionAndValidation() {
+        try (Client client = new Client.Builder()
+                .addEndpoint("http://127.0.0.1:1")
+                .setUsername("default")
+                .setPassword("")
+                .build()) {
+            client.setNetworkTimeout(2, SECONDS);
+            Assert.assertEquals(client.getNetworkTimeout(), 2000);
+
+            Assert.assertThrows(IllegalArgumentException.class, () -> client.setNetworkTimeout(-1));
+            Assert.assertThrows(IllegalArgumentException.class, () -> client.setNetworkTimeout(-1, MILLIS));
+            Assert.assertThrows(IllegalArgumentException.class,
+                    () -> client.setNetworkTimeout((long) Integer.MAX_VALUE + 1, MILLIS));
+            Assert.assertThrows(IllegalArgumentException.class, () -> client.setNetworkTimeout(1, null));
+        }
+    }
+
     @Test(groups = {"integration"})
     public void testOverrideSettings() throws Exception {
         final String clientTimezone = "America/Los_Angeles";
@@ -864,6 +934,17 @@ public class ClientTests extends BaseIntegrationTest {
             Assert.assertTrue(e.getCause() instanceof ServerException, "Expected ServerException but got " + e.getCause());
             Assert.assertEquals(((ServerException) e.getCause()).getCode(), ServerException.TABLE_NOT_FOUND);
         }
+    }
+
+    private static boolean hasCause(Throwable error, Class<? extends Throwable> type) {
+        Throwable current = error;
+        while (current != null) {
+            if (type.isInstance(current)) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 
     protected Client.Builder newClient() {
