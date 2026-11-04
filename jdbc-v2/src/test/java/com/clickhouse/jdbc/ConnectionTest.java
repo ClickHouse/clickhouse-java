@@ -35,6 +35,7 @@ import java.sql.Date;
 import java.sql.JDBCType;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLClientInfoException;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.Statement;
@@ -181,6 +182,28 @@ public class ConnectionTest extends JdbcIntegrationTest {
         }
     }
 
+
+    @Test(groups = { "integration" })
+    public void testClosedConnectionThrows() throws SQLException {
+        for (boolean ignoreUnsupported : new boolean[] { false, true }) {
+            Properties prop = new Properties();
+            prop.setProperty(DriverProperties.IGNORE_UNSUPPORTED_VALUES.getKey(), String.valueOf(ignoreUnsupported));
+            Connection conn = this.getJdbcConnection(prop);
+            conn.close();
+
+            assertThrows(SQLException.class, conn::getNetworkTimeout);
+            assertThrows(SQLException.class, conn::getCatalog);
+            assertThrows(SQLException.class, conn::commit);
+            assertThrows(SQLException.class, conn::rollback);
+            assertThrows(SQLClientInfoException.class, () -> conn.setClientInfo("ApplicationName", "x"));
+            assertThrows(SQLClientInfoException.class, () -> conn.setClientInfo(new Properties()));
+
+            // these stay allowed on a closed connection
+            conn.close();
+            Assert.assertTrue(conn.isClosed());
+            Assert.assertFalse(conn.isValid(1));
+        }
+    }
 
     @Test(groups = { "integration" })
     public void closeTest() throws SQLException {
@@ -680,6 +703,29 @@ public class ConnectionTest extends JdbcIntegrationTest {
                 }
             }
         }
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "multiDimensionalArrayElementTypeFlags")
+    public void testCreateArrayOfMultiDimensionalElementType(String flag, String baseTypeName, JDBCType baseType)
+            throws Exception {
+        Properties props = new Properties();
+        if (flag != null) {
+            props.setProperty(DriverProperties.MULTI_DIMENSIONAL_ARRAY_ELEMENT_TYPE.getKey(), flag);
+        }
+        try (Connection conn = getJdbcConnection(props)) {
+            Array array = conn.createArrayOf("Array(Array(Int32))", new Object[][] {{1, 2, 3}, {10, 20}});
+            assertEquals(array.getBaseTypeName(), baseTypeName);
+            assertEquals(array.getBaseType(), baseType.getVendorTypeNumber());
+        }
+    }
+
+    @DataProvider
+    public static Object[][] multiDimensionalArrayElementTypeFlags() {
+        return new Object[][] {
+                {null, "Array(Int32)", JDBCType.ARRAY},
+                {"true", "Array(Int32)", JDBCType.ARRAY},
+                {"false", "Int32", JDBCType.INTEGER},
+        };
     }
 
     @Test(groups = { "integration" })

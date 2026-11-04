@@ -81,10 +81,10 @@
         <annotations-api.version>6.0.53</annotations-api.version>
         <apache.httpclient.version>5.6.4</apache.httpclient.version>
         <arrow.version>12.0.1</arrow.version>
-        <asm.version>9.7</asm.version>
+        <asm.version>9.11.1</asm.version>
         <avro.version>1.11.4</avro.version>
         <brotli.version>0.1.2</brotli.version>
-        <brotli4j.version>1.12.0</brotli4j.version>
+        <brotli4j.version>1.24.0</brotli4j.version>
         <caffeine.version>3.1.7</caffeine.version>
         <compress.version>1.28.0</compress.version>
         <commons-lang3.version>3.20.0</commons-lang3.version>
@@ -96,7 +96,7 @@
         <opencensus.version>0.31.1</opencensus.version>
         <opentelemetry.version>1.51.0</opentelemetry.version>
         <protobuf.version>3.23.4</protobuf.version>
-        <lz4.version>1.11.4</lz4.version>
+        <lz4.version>1.12.1</lz4.version>
         <msgpack.version>0.9.5</msgpack.version>
         <roaring-bitmap.version>1.0.6</roaring-bitmap.version>
         <slf4j.version>2.0.7</slf4j.version>
@@ -146,7 +146,7 @@
         <jmh.version>1.37</jmh.version>
         <guava.version>33.7.2-jre</guava.version>
         <sonar.publish-pluing.version>0.8.0</sonar.publish-pluing.version>
-        <jackson.version>2.22.0</jackson.version>
+        <jackson.version>2.22.4</jackson.version>
         <jackson.version.annotations>2.22</jackson.version.annotations>
 
         <minTargetJdk>1.8</minTargetJdk>
