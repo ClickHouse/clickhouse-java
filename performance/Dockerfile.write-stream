@@ -16,6 +16,13 @@ RUN mkdir -p /root/.m2 \
 WORKDIR /source
 COPY . .
 
+ARG GIT_COMMIT=unknown
+RUN GIT_COMMIT_ABBREV="$(printf '%.7s' "$GIT_COMMIT")" \
+    && mvn -B -DskipTests \
+        -Dmaven.gitcommitid.skip=true \
+        -Dgit.commit.id.full="$GIT_COMMIT" \
+        -Dgit.commit.id.abbrev="$GIT_COMMIT_ABBREV" \
+        -pl packages/clickhouse-jdbc-all -am install
 RUN mvn -B -DskipTests -pl packages/clickhouse-jdbc-all -am install
 RUN mvn -B -DskipTests -f performance/pom.xml package
 

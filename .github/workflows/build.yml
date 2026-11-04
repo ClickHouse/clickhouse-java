@@ -47,6 +47,10 @@ jobs:
           git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
             origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
         if: github.event.inputs.pr != ''
+      - name: Validate release version metadata
+        run: |
+          python3 -m unittest discover -s scripts/release -p 'test_*.py'
+          python3 scripts/release/validate_version.py
       - name: Install JDK 8 and Maven
         uses: actions/setup-java@v4
         with:

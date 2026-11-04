@@ -214,11 +214,10 @@ mvn -DskipTests -Pnative clean package
 Run benchmarks when the change may affect performance:
 
 ```bash
-cd clickhouse-benchmark
-mvn clean package
+mvn -DskipTests -pl packages/clickhouse-jdbc-all -am install
+mvn -f performance/pom.xml clean package
 
-# single thread mode
-java -DdbHost=localhost -jar target/benchmarks.jar -t 1 \
-    -p client=clickhouse-jdbc -p connection=reuse \
-    -p statement=prepared -p type=default Query.selectInt8
+# list available benchmarks
+java -cp performance/target/jmh-benchmark-0.1-SNAPSHOT-jar-with-dependencies.jar \
+    org.openjdk.jmh.Main -l
 ```

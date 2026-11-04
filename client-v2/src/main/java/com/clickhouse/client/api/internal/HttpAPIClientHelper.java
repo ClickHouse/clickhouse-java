@@ -32,6 +32,7 @@ import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.classic.RequestFailedException;
 import org.apache.hc.client5.http.impl.io.BasicHttpClientConnectionManager;
+import org.apache.hc.client5.http.impl.io.DefaultManagedHttpClientConnection;
 import org.apache.hc.client5.http.impl.io.ManagedHttpClientConnectionFactory;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
@@ -59,7 +60,11 @@ import org.apache.hc.core5.http.config.CharCodingConfig;
 import org.apache.hc.core5.http.config.Http1Config;
 import org.apache.hc.core5.http.config.Lookup;
 import org.apache.hc.core5.http.config.RegistryBuilder;
+import org.apache.hc.core5.http.impl.DefaultContentLengthStrategy;
+import org.apache.hc.core5.http.impl.io.DefaultHttpRequestWriterFactory;
 import org.apache.hc.core5.http.impl.io.DefaultHttpResponseParserFactory;
+import org.apache.hc.core5.http.impl.io.NoResponseOutOfOrderStrategy;
+import org.apache.hc.core5.http.impl.io.SocketHolder;
 import org.apache.hc.core5.http.io.SocketConfig;
 import org.apache.hc.core5.http.io.entity.ByteArrayEntity;
 import org.apache.hc.core5.http.io.entity.EntityTemplate;
@@ -96,6 +101,10 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLEncoder;
 import java.net.UnknownHostException;
+import java.nio.charset.Charset;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.CharsetEncoder;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
@@ -246,7 +255,12 @@ public class HttpAPIClientHelper {
                 .build();
 
         BasicHttpClientConnectionManager connManager = BasicHttpClientConnectionManager.create(
-                null, null, tlsSocketStrategyLookup, null);
+                null, null, tlsSocketStrategyLookup,
+                new MeteredManagedHttpClientConnectionFactory(
+                        Http1Config.DEFAULT,
+                        CharCodingConfig.DEFAULT,
+                        DefaultHttpResponseParserFactory.INSTANCE,
+                        false));
         connManager.setConnectionConfig(createConnectionConfig(configuration));
         connManager.setSocketConfig(socketConfig);
 
@@ -1291,8 +1305,25 @@ public class HttpAPIClientHelper {
     }
 
     public static class MeteredManagedHttpClientConnectionFactory extends ManagedHttpClientConnectionFactory {
+        private static final AtomicLong CONNECTION_COUNTER = new AtomicLong();
+
+        private final Http1Config http1Config;
+        private final CharCodingConfig charCodingConfig;
+        private final DefaultHttpResponseParserFactory responseParserFactory;
+        private final boolean collectMetrics;
+
         public MeteredManagedHttpClientConnectionFactory(Http1Config http1Config, CharCodingConfig charCodingConfig, DefaultHttpResponseParserFactory defaultHttpResponseParserFactory) {
+            this(http1Config, charCodingConfig, defaultHttpResponseParserFactory, true);
+        }
+
+        private MeteredManagedHttpClientConnectionFactory(Http1Config http1Config, CharCodingConfig charCodingConfig,
+                                                          DefaultHttpResponseParserFactory defaultHttpResponseParserFactory,
+                                                          boolean collectMetrics) {
             super(http1Config, charCodingConfig, defaultHttpResponseParserFactory);
+            this.http1Config = http1Config;
+            this.charCodingConfig = charCodingConfig;
+            this.responseParserFactory = defaultHttpResponseParserFactory;
+            this.collectMetrics = collectMetrics;
         }
 
         ConcurrentLinkedQueue<Long> times = new ConcurrentLinkedQueue<>();
@@ -1302,10 +1333,36 @@ public class HttpAPIClientHelper {
         public ManagedHttpClientConnection createConnection(Socket socket) throws IOException {
             long startT = System.currentTimeMillis();
             try {
-                return super.createConnection(socket);
+                CharsetDecoder charDecoder = null;
+                CharsetEncoder charEncoder = null;
+                Charset charset = charCodingConfig.getCharset();
+                if (charset != null) {
+                    CodingErrorAction malformedInputAction = charCodingConfig.getMalformedInputAction() != null
+                            ? charCodingConfig.getMalformedInputAction() : CodingErrorAction.REPORT;
+                    CodingErrorAction unmappableInputAction = charCodingConfig.getUnmappableInputAction() != null
+                            ? charCodingConfig.getUnmappableInputAction() : CodingErrorAction.REPORT;
+                    charDecoder = charset.newDecoder()
+                            .onMalformedInput(malformedInputAction)
+                            .onUnmappableCharacter(unmappableInputAction);
+                    charEncoder = charset.newEncoder()
+                            .onMalformedInput(malformedInputAction)
+                            .onUnmappableCharacter(unmappableInputAction);
+                }
+                ManagedHttpClientConnection connection = new WireLoggingDisabledManagedHttpClientConnection(
+                        "http-outgoing-" + CONNECTION_COUNTER.getAndIncrement(),
+                        charDecoder,
+                        charEncoder,
+                        http1Config,
+                        responseParserFactory);
+                if (socket != null) {
+                    connection.bind(socket);
+                }
+                return connection;
             } finally {
-                long endT = System.currentTimeMillis();
-                times.add(endT - startT);
+                if (collectMetrics) {
+                    long endT = System.currentTimeMillis();
+                    times.add(endT - startT);
+                }
             }
         }
 
@@ -1320,6 +1377,39 @@ public class HttpAPIClientHelper {
             }
 
             return count > 0 ? runningAverage / count : 0;
+        }
+    }
+
+    private static final class WireLoggingDisabledManagedHttpClientConnection
+            extends DefaultManagedHttpClientConnection {
+        private WireLoggingDisabledManagedHttpClientConnection(
+                String id,
+                CharsetDecoder charDecoder,
+                CharsetEncoder charEncoder,
+                Http1Config http1Config,
+                DefaultHttpResponseParserFactory responseParserFactory) {
+            super(
+                    id,
+                    charDecoder,
+                    charEncoder,
+                    http1Config,
+                    DefaultContentLengthStrategy.INSTANCE,
+                    DefaultContentLengthStrategy.INSTANCE,
+                    NoResponseOutOfOrderStrategy.INSTANCE,
+                    new DefaultHttpRequestWriterFactory(http1Config),
+                    responseParserFactory);
+        }
+
+        @Override
+        public void bind(Socket socket) throws IOException {
+            // Apache's implementation replaces SocketHolder with its raw-byte logging wrapper when the wire
+            // logger is DEBUG-enabled. Bind the plain holder directly so logger configuration cannot enable it.
+            super.bind(new SocketHolder(socket));
+        }
+
+        @Override
+        public void bind(SSLSocket sslSocket, Socket socket) throws IOException {
+            super.bind(new SocketHolder(sslSocket, socket));
         }
     }
 

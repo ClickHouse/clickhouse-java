@@ -23,19 +23,13 @@ integration:
 ```xml
 <dependency>
     <groupId>com.clickhouse</groupId>
-    <!-- change to clickhouse-r2dbc_0.9.1 for SPI 0.9.1.RELEASE -->
     <artifactId>clickhouse-r2dbc</artifactId>
-    <version>0.7.1</version>
-    <!-- use uber jar with all dependencies included, change classifier to http or grpc for smaller jar -->
-    <classifier>all</classifier>
-    <exclusions>
-        <exclusion>
-            <groupId>*</groupId>
-            <artifactId>*</artifactId>
-        </exclusion>
-    </exclusions>
+    <version>0.11.0</version>
 </dependency>
 ```
+
+The current artifact implements R2DBC SPI 1.0. Use the optional `all` classifier only when a self-contained shaded
+artifact is required; managed builds should use the standard artifact and its declared dependencies.
 
 ### Connect to ClickHouse {#connect-to-clickhouse}
 

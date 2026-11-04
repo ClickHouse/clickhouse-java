@@ -1,12 +1,18 @@
 
-## JMH Benchmarks
+# JMH benchmarks
 
+The `performance` module is a standalone Java 11 JMH project. Build the
+repository artifacts it benchmarks before packaging the module:
 
-### Dependencies 
+```shell
+mvn -DskipTests -pl packages/clickhouse-jdbc-all -am install
+mvn -f performance/pom.xml clean package
+```
 
+The shipping libraries remain Java 8 compatible; Java 11 is required only to
+compile and run this benchmark module.
 
-
-### How to Run
+## How to run
 
 
 #### Generating Dataset
@@ -149,18 +155,18 @@ With default settings :
 mvn compile exec:exec
 ```
 
-With custom measurement iterations: 
+With custom measurement iterations:
 ```shell
 mvn compile exec:exec -Dexec.executable=java -Dexec.args="-classpath %classpath com.clickhouse.benchmark.BenchmarkRunner -m 3"
 ```
 
 Other options:
 - "-d" - dataset name or file path (like `file://default.csv`)
-- "-l" - dataset limits to test coma separated (ex.: `-l 10000,10000`)
+- "-l" - comma-separated dataset limits to test (for example, `-l 10000,10000`)
 - "-m" - number of measurement iterations
 - "-t" - time in seconds per iteration
-- "-b" - benchmark mask coma separated. Ex.: `-b writer,reader,i`. Default : `-b i,q`
-  - "all" - Run alpl benchmarks
+- "-b" - comma-separated benchmark mask. Example: `-b writer,reader,i`. Default: `-b i,q`
+  - "all" - run all general benchmarks
   - "i" - InsertClient - insert operation benchmarks
   - "q" - QueryClient - query operation benchmarks
   - "ci" - ConcurrentInsertClient - concurrent version of insert benchmarks
@@ -168,9 +174,9 @@ Other options:
   - "lz" - Compression - LZ4 output stream benchmarks (no server involved)
   - "comp" - Compression - query/insert compression matrix of clients, methods, algorithms and formats (see below)
   - "writer" - Serializer - serialization only logic benchmarks
-  - "reader" - DeSerilalizer - deserialization only logic benchmarks
-  - "mixed" - MixedWorkload 
-  - "jq" - JDBCQuery - query operations using JDBC 
+  - "reader" - Deserializer - deserialization-only logic benchmarks
+  - "mixed" - MixedWorkload
+  - "jq" - JDBCQuery - query operations using JDBC
   - "ji" - JDBCInsert - insert operation using JDBC
   - "ws" - WriteStream - isolated V1/V2 HTTP request-body handoff
 

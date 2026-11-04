@@ -43,7 +43,7 @@ public class DataTypes extends BenchmarkBase {
             LOGGER.error("Failed to init data for components benchmark", e);
         }
 
-        if (dataState.syntheticDataSet != null) {
+        if (dataState.syntheticDataSet == null) {
             dataState.syntheticDataSet = new SyntheticDataSet(dataState.limit);
         }
     }

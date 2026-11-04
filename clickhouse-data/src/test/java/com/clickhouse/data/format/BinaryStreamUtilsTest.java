@@ -2,6 +2,7 @@ package com.clickhouse.data.format;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.EOFException;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -1962,5 +1963,20 @@ public class BinaryStreamUtilsTest {
         BinaryStreamUtils.writeVarInt(out, 128);
         Assert.assertEquals(out.toByteArray(), new byte[] { (byte) -128, (byte) 1 });
         Assert.assertEquals(BinaryStreamUtils.readVarInt(generateInput(-128, 1)), 128);
+    }
+
+    @DataProvider(name = "truncatedVarInts")
+    private Object[][] truncatedVarInts() {
+        return new Object[][] {
+                {new byte[0]},
+                {new byte[] {(byte) 0x80}},
+                {new byte[] {(byte) 0x80, (byte) 0x80, (byte) 0x80}},
+        };
+    }
+
+    @Test(dataProvider = "truncatedVarInts", groups = { "unit" })
+    public void testTruncatedVarIntIsRejected(byte[] bytes) {
+        Assert.expectThrows(EOFException.class,
+                () -> BinaryStreamUtils.readVarInt(new ByteArrayInputStream(bytes)));
     }
 }

@@ -693,7 +693,7 @@ public void streamEvents(Client client) throws Exception {
 
 The `QueryResponse` object also provides direct access to the underlying input stream via `response.getInputStream()`. This is incredibly useful when you want to read text formats using third-party libraries (like Jackson for JSON or OpenCSV for CSV). 
 
-Because of this direct stream access, it is also possible to stream columnar formats directly into memory structures like **Apache Arrow**. (See our [examples directory](../examples/src/main/java/com/clickhouse/examples) for reference implementations).
+Because of this direct stream access, it is also possible to stream columnar formats directly into memory structures like **Apache Arrow**. (See the [client examples](../examples/) for reference implementations).
 
 ### Parameterized queries
 

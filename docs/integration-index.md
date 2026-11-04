@@ -45,6 +45,9 @@ will cause problems. They are usually found only after something is broken.
 We highlight breaking and significant changes in release notes. See also release specific migration guides in `docs/releases/` in this repo.
 Migration guide for V1-to-V2 is in main documentation separetly for [Client](https://clickhouse.com/docs/integrations/language-clients/java/client#migration_guide) 
 and [JDBC](https://clickhouse.com/docs/integrations/language-clients/java/jdbc#migration-guide). 
+For automated configuration conversion, see the
+[`migration-helpers`](../migration-helpers/) module and its
+[`ConfigurationMigrationHelper`](../migration-helpers/src/main/java/com/clickhouse/migration/config/ConfigurationMigrationHelper.java).
 
 Minor versions may have many changes, and some of them need a preview from your side. In this case, we release an `-rc` version and let you know. This version is **only** for preview and not for production use. The preview lasts for a few weeks to let everyone send their feedback. If changes are needed, we will release a new `-rc` and repeat the cycle.
 

@@ -90,7 +90,7 @@ Nightly Builds: https://s01.oss.sonatype.org/content/repositories/snapshots/com/
 
 ### Examples
 
-[Begin-with Usage Examples](../../tree/main/examples/client-v2)
+[Begin-with Usage Examples](examples/client-v2)
 
 [Spring Demo Service](https://github.com/ClickHouse/clickhouse-java/tree/main/examples/demo-spring-service)
 
@@ -105,7 +105,7 @@ Nightly Builds: https://s01.oss.sonatype.org/content/repositories/snapshots/com/
 
 ### Examples
 
-See [JDBC examples](../../tree/main/examples/jdbc)
+See [JDBC examples](examples/jdbc)
 
 ## R2DBC Driver
 
