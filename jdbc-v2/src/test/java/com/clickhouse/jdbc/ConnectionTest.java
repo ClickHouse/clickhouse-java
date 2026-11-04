@@ -11,6 +11,7 @@ import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.internal.Versions;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.tomakehurst.wiremock.WireMockServer;
@@ -25,6 +26,7 @@ import org.testng.annotations.Test;
 import java.math.BigDecimal;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
+import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.sql.Array;
 import java.sql.Connection;
@@ -48,6 +50,7 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.Properties;
 import java.util.UUID;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -60,6 +63,7 @@ import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertThrows;
 import static org.testng.Assert.assertTrue;
+import static org.testng.Assert.expectThrows;
 import static org.testng.Assert.fail;
 
 public class ConnectionTest extends JdbcIntegrationTest {
@@ -833,6 +837,118 @@ public class ConnectionTest extends JdbcIntegrationTest {
                 stmtExecutor.awaitTermination(10, TimeUnit.SECONDS);
             }
         }
+    }
+
+    @Test(timeOut = 15000)
+    public void testRestoringNetworkTimeoutPreservesConfiguredSocketTimeout() throws Exception {
+        WireMockServer server = new WireMockServer(WireMockConfiguration.options()
+                .bindAddress("127.0.0.1").dynamicPort());
+        server.start();
+        try {
+            stubDelayedSelectOne(server, 800);
+
+            try (ConnectionImpl connection = new ConnectionImpl(
+                    "jdbc:clickhouse://127.0.0.1:" + server.port() + "/default",
+                    connectionProperties("200"));
+                 Statement statement = connection.createStatement()) {
+                Executor executor = Runnable::run;
+                int originalTimeout = connection.getNetworkTimeout();
+                assertEquals(originalTimeout, 200);
+                assertNull(connection.getDefaultQuerySettings()
+                        .getOption(ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey()));
+                assertSocketTimeout(statement);
+
+                connection.setNetworkTimeout(executor, 0);
+                assertEquals(connection.getNetworkTimeout(), 0);
+                assertSelectOne(statement);
+
+                connection.setNetworkTimeout(executor, 5000);
+                assertEquals(connection.getNetworkTimeout(), 5000);
+                connection.setNetworkTimeout(executor, originalTimeout);
+                assertEquals(connection.getNetworkTimeout(), originalTimeout);
+                assertNull(connection.getDefaultQuerySettings()
+                        .getOption(ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey()));
+                assertSocketTimeout(statement);
+            }
+        } finally {
+            server.stop();
+        }
+    }
+
+    @DataProvider
+    public static Object[][] configuredSocketTimeouts() {
+        return new Object[][] {
+                {"100", 100, true},
+                {"0", 0, false},
+                {null, 0, false},
+        };
+    }
+
+    @Test(dataProvider = "configuredSocketTimeouts", timeOut = 10000)
+    public void testGetNetworkTimeoutReportsEffectiveSocketTimeout(String socketTimeout, int expected,
+                                                                   boolean expectTimeout) throws Exception {
+        WireMockServer server = new WireMockServer(WireMockConfiguration.options()
+                .bindAddress("127.0.0.1").dynamicPort());
+        server.start();
+        try {
+            stubDelayedSelectOne(server, 500);
+            try (ConnectionImpl connection = new ConnectionImpl(
+                    "jdbc:clickhouse://127.0.0.1:" + server.port() + "/default",
+                    connectionProperties(socketTimeout));
+                 Statement statement = connection.createStatement()) {
+                assertEquals(connection.getNetworkTimeout(), expected);
+                assertNull(connection.getDefaultQuerySettings()
+                        .getOption(ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey()));
+
+                if (expectTimeout) {
+                    assertSocketTimeout(statement);
+                } else {
+                    assertSelectOne(statement);
+                }
+            }
+        } finally {
+            server.stop();
+        }
+    }
+
+    private static void stubDelayedSelectOne(WireMockServer server, int delayMillis) {
+        // RowBinaryWithNamesAndTypes: one UInt8 column named "1", containing one row with value 1.
+        server.stubFor(WireMock.post(WireMock.anyUrl())
+                .withRequestBody(WireMock.equalTo("SELECT 1"))
+                .willReturn(WireMock.aResponse().withFixedDelay(delayMillis)
+                        .withHeader("X-ClickHouse-Format", "RowBinaryWithNamesAndTypes")
+                        .withHeader("X-ClickHouse-Summary", "{\"read_rows\":\"1\",\"read_bytes\":\"1\"}")
+                        .withBody(new byte[] {1, 1, '1', 5, 'U', 'I', 'n', 't', '8', 1})));
+    }
+
+    private static void assertSocketTimeout(Statement statement) {
+        SQLException error = expectThrows(SQLException.class, () -> {
+            try (ResultSet result = statement.executeQuery("SELECT 1")) {
+                result.next();
+            }
+        });
+        assertTrue(ExceptionUtils.getRootCause(error) instanceof SocketTimeoutException,
+                "Expected a socket timeout, got: " + error);
+    }
+
+    private static void assertSelectOne(Statement statement) throws SQLException {
+        try (ResultSet result = statement.executeQuery("SELECT 1")) {
+            assertTrue(result.next());
+            assertEquals(result.getInt(1), 1);
+        }
+    }
+
+    private static Properties connectionProperties(String socketTimeout) {
+        Properties properties = new Properties();
+        if (socketTimeout != null) {
+            properties.setProperty("socket_timeout", socketTimeout);
+        }
+        properties.setProperty("server_time_zone", "UTC");
+        properties.setProperty("user", "default");
+        properties.setProperty("password", "local-test");
+        properties.setProperty("retry", "0");
+        properties.setProperty("compress", "false");
+        return properties;
     }
 
     @Test(groups = { "integration" })

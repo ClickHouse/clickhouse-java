@@ -2559,6 +2559,51 @@ public class Client implements AutoCloseable {
     }
 
     /**
+     * Sets the network timeout for subsequent requests.
+     * <p>
+     * The timeout is measured in milliseconds. A value of {@code 0} disables the timeout.
+     * Requests that have already been created, including their retries, keep the timeout they
+     * started with. An operation-level timeout in {@link QuerySettings} or {@link InsertSettings}
+     * overrides this client-level value.
+     *
+     * @param timeout network timeout in milliseconds
+     */
+    public void setNetworkTimeout(int timeout) {
+        ValidationUtils.checkRange(timeout, 0, Integer.MAX_VALUE,
+                ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey());
+        configuration.put(ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey(), timeout);
+    }
+
+    /**
+     * Sets the network timeout for subsequent requests.
+     *
+     * @param timeout network timeout value
+     * @param unit timeout unit
+     * @see #setNetworkTimeout(int)
+     */
+    public void setNetworkTimeout(long timeout, ChronoUnit unit) {
+        ValidationUtils.checkNotNull(unit, "unit");
+        long timeoutMillis;
+        try {
+            timeoutMillis = Duration.of(timeout, unit).toMillis();
+        } catch (ArithmeticException e) {
+            throw new IllegalArgumentException("Network timeout is outside the supported millisecond range", e);
+        }
+        ValidationUtils.checkRange(timeoutMillis, 0, Integer.MAX_VALUE,
+                ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey());
+        setNetworkTimeout((int) timeoutMillis);
+    }
+
+    /**
+     * Returns the current client-level network timeout in milliseconds.
+     *
+     * @return network timeout in milliseconds; {@code 0} means disabled
+     */
+    public int getNetworkTimeout() {
+        return ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.<Integer>getOrDefault(configuration);
+    }
+
+    /**
      * Returns operation ({@link ClientConfigProperties#MAX_EXECUTION_TIME}) timeout value in milliseconds.
      * @return timeout value in milliseconds.
      */
