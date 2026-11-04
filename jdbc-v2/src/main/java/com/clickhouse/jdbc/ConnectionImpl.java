@@ -39,7 +39,6 @@ import java.sql.Savepoint;
 import java.sql.Statement;
 import java.sql.Struct;
 import java.time.Duration;
-import java.time.temporal.ChronoUnit;
 import java.util.Calendar;
 import java.util.HashSet;
 import java.util.Map;
@@ -710,9 +709,9 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
         // if timeout is set with this method then any timeout exception should be reported to the connection
         // when connection get signal about timeout it uses executor to abort itself
         // Some connection pools set timeout before calling Connection#close() to ensure that this operation will not hang
-        // Socket timeout is propagated with QuerySettings this connection has.
+        // The client keeps this as live connection-level state, so existing statements use the new value too.
         networkTimeoutExecutor = executor;
-        defaultQuerySettings.setNetworkTimeout(milliseconds, ChronoUnit.MILLIS);
+        client.setNetworkTimeout(milliseconds);
     }
 
 
@@ -735,13 +734,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
 
     @Override
     public int getNetworkTimeout() throws SQLException {
-        if (defaultQuerySettings.getOption(ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey()) != null) {
-            return defaultQuerySettings.getNetworkTimeout().intValue();
-        }
-        // Without a connection override, requests use the socket timeout from the client configuration.
-        return Integer.parseInt(client.getConfiguration().getOrDefault(
-                ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey(),
-                ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getDefaultValue()));
+        return client.getNetworkTimeout();
     }
 
     /**
