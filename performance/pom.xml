@@ -167,7 +167,7 @@
                     </descriptorRefs>
                     <archive>
                         <manifest>
-                            <mainClass>com.clickhouse.com.clickhouse.benchmark.BenchmarkRunner</mainClass>
+                            <mainClass>com.clickhouse.benchmark.BenchmarkRunner</mainClass>
                         </manifest>
                     </archive>
                 </configuration>
