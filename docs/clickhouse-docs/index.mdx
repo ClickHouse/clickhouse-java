@@ -197,6 +197,87 @@ This is going to depend on the logging framework you're using. For example, if y
 
 The client (`client-v2`) and the JDBC driver (`jdbc-v2`) never write HTTP wire logs, which are the bytes of requests and responses, to the Apache HttpClient logger `org.apache.hc.client5.http.wire`. This is also true when that logger or the root logger is set to `DEBUG`. Wire logs contain credentials, SQL, and data. To examine HTTP traffic, use a packet capture in a test environment with test credentials.
 
-The Apache HttpClient logger `org.apache.hc.client5.http.headers` writes the request headers, including `Authorization`, at `DEBUG`. Keep it at `INFO` or higher in production. In a shaded artifact (for example `client-v2` with the `all` classifier, or `clickhouse-jdbc-all`), the Apache HttpClient logger names start with the relocation prefix of that artifact, for example `com.clickhouse.shaded.org.apache.hc.client5.http.headers`.
+The Apache HttpClient logger `org.apache.hc.client5.http.headers` writes the request headers, including `Authorization`, at `DEBUG`. Keep it at `INFO` or higher in production. In a shaded artifact, the Apache HttpClient logger names start with the relocation prefix of that artifact: `com.clickhouse.shaded.` for `client-v2` with the `all` classifier (for example `com.clickhouse.shaded.org.apache.hc.client5.http.headers`), and `com.clickhouse.client.internal.` for `clickhouse-jdbc-all`, which also contains the unshaded names. The configurations below set all of these names.
+
+#### What the client and the driver log {#what-the-client-logs}
+
+The client (`client-v2`) and the JDBC driver (`jdbc-v2`) keep their logs free of application data at every level, `TRACE` included. They never log:
+
+- SQL statements, bound parameter values, rows, or request and response bodies
+- credentials, tokens, or header values
+- full URLs or URL query strings, and configuration values
+- the client name and client metadata, and query IDs
+- the message of an exception: a message can quote SQL, a value, an endpoint, or a server response
+
+An exception that is thrown to the application is not logged as well; it carries the details. The levels are used as follows:
+
+- `ERROR`: a failure that cannot be reported to the application, for example a failed driver registration.
+- `WARN`: a state that degrades the client, reported once: an operation that succeeded after retries (with the retry count and the type of the last failure, once per operation), an endpoint that is quarantined (with its host name only, once per quarantine), all endpoints unavailable (once until an endpoint is available again), ignored or conflicting configuration (with the names of the options only), and a server error message that cannot be read.
+- `DEBUG`: bounded diagnostics, such as the settings a client was created with and cleanup failures (with the type of the failure). `DEBUG` messages are not written per row, per value, per retry, or per metadata object.
+
+For deeper diagnosis use the client metrics and spans (see [Observability & Monitoring](/integrations/language-clients/java/client#v2-o11y)), or a packet capture in a test environment with test credentials.
+
+#### Safe logging configuration {#safe-logging-configuration}
+
+The configuration below keeps the client, the driver, and the Apache HttpClient header and wire loggers at `INFO`. The explicit levels of the Apache HttpClient loggers also apply when the root logger is set to `DEBUG`. Use `OFF` instead of `INFO` to silence these loggers completely.
+
+```xml title="logback.xml"
+<configuration>
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>[%d{yyyy-MM-dd HH:mm:ss}] [%level] [%thread] %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- ClickHouse client-v2 and jdbc-v2 -->
+    <logger name="com.clickhouse" level="INFO" />
+    <!-- To diagnose an issue, set these two to DEBUG for a short time, then set them back -->
+    <logger name="com.clickhouse.client.api" level="INFO" />
+    <logger name="com.clickhouse.jdbc" level="INFO" />
+
+    <!-- Apache HttpClient header and wire loggers: never DEBUG in production -->
+    <logger name="org.apache.hc.client5.http.headers" level="INFO" />
+    <logger name="org.apache.hc.client5.http.wire" level="INFO" />
+    <logger name="com.clickhouse.shaded.org.apache.hc.client5.http.headers" level="INFO" />
+    <logger name="com.clickhouse.shaded.org.apache.hc.client5.http.wire" level="INFO" />
+    <logger name="com.clickhouse.client.internal.org.apache.hc.client5.http.headers" level="INFO" />
+    <logger name="com.clickhouse.client.internal.org.apache.hc.client5.http.wire" level="INFO" />
+
+    <root level="INFO">
+        <appender-ref ref="STDOUT" />
+    </root>
+</configuration>
+```
+
+With Log4j 2, add the `org.apache.logging.log4j:log4j-slf4j2-impl` binding and use:
+
+```xml title="log4j2.xml"
+<Configuration status="WARN">
+    <Appenders>
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout pattern="[%d{yyyy-MM-dd HH:mm:ss}] [%level] [%thread] %logger{36} - %msg%n" />
+        </Console>
+    </Appenders>
+    <Loggers>
+        <!-- ClickHouse client-v2 and jdbc-v2 -->
+        <Logger name="com.clickhouse" level="info" />
+        <!-- To diagnose an issue, set these two to debug for a short time, then set them back -->
+        <Logger name="com.clickhouse.client.api" level="info" />
+        <Logger name="com.clickhouse.jdbc" level="info" />
+
+        <!-- Apache HttpClient header and wire loggers: never debug in production -->
+        <Logger name="org.apache.hc.client5.http.headers" level="info" />
+        <Logger name="org.apache.hc.client5.http.wire" level="info" />
+        <Logger name="com.clickhouse.shaded.org.apache.hc.client5.http.headers" level="info" />
+        <Logger name="com.clickhouse.shaded.org.apache.hc.client5.http.wire" level="info" />
+        <Logger name="com.clickhouse.client.internal.org.apache.hc.client5.http.headers" level="info" />
+        <Logger name="com.clickhouse.client.internal.org.apache.hc.client5.http.wire" level="info" />
+
+        <Root level="info">
+            <AppenderRef ref="Console" />
+        </Root>
+    </Loggers>
+</Configuration>
+```
 
 [Changelog](https://github.com/ClickHouse/clickhouse-java/blob/main/CHANGELOG.md)
