@@ -4,6 +4,8 @@ import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.data_formats.JacksonJsonParserFactory;
 import com.clickhouse.data.ClickHouseVersion;
 import org.testng.Assert;
+import org.testng.SkipException;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.io.InputStream;
@@ -28,6 +30,7 @@ import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
@@ -316,6 +319,47 @@ public class ResultSetImplTest extends JdbcIntegrationTest {
     }
 
 
+    @Test(groups = {"integration"}, dataProvider = "testCloseNotFullyReadResultSetDataProvider")
+    public void testCloseNotFullyReadResultSet(String format) throws SQLException {
+        if (isCloud()) {
+            throw new SkipException("Test depends on how the server ends a failed response, a proxy can change it");
+        }
+        Properties properties = new Properties();
+        properties.setProperty(DriverProperties.JSON_PARSER_FACTORY.getKey(), JacksonJsonParserFactory.class.getName());
+        properties.setProperty(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), format);
+        properties.setProperty(ClientConfigProperties.HTTP_MAX_OPEN_CONNECTIONS.getKey(), "1");
+        // The query fails after the first rows are sent, so the server ends the response body early.
+        // Without http_write_exception_in_output_format = 0, older servers send the error as the last JSONEachRow row.
+        final String query = "SELECT number, randomPrintableASCII(100), throwIf(number = 100000)"
+                + " FROM numbers(200000) SETTINGS max_block_size = 1000, http_write_exception_in_output_format = 0";
+        try (Connection conn = getJdbcConnection(properties); Statement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery(query);
+            assertTrue(rs.next());
+            rs.close();
+
+            try (ResultSet readRs = stmt.executeQuery(query)) {
+                Assert.expectThrows(SQLException.class, () -> {
+                    while (readRs.next()) {
+                        // read to the end
+                    }
+                });
+            }
+
+            // An update does not read the response body, so closing it still reports the failure.
+            Assert.expectThrows(SQLException.class, () -> stmt.executeUpdate(query));
+
+            try (ResultSet next = stmt.executeQuery("SELECT 1")) {
+                assertTrue(next.next());
+                assertEquals(next.getInt(1), 1);
+            }
+        }
+    }
+
+    @DataProvider(name = "testCloseNotFullyReadResultSetDataProvider")
+    public static Object[][] testCloseNotFullyReadResultSetDataProvider() {
+        return new Object[][] {{"RowBinaryWithNamesAndTypes"}, {"JSONEachRow"}};
+    }
+
     @Test(groups = {"integration"})
     public void testFetchDirectionsAndSize() throws SQLException {
         try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
@@ -444,6 +488,63 @@ public class ResultSetImplTest extends JdbcIntegrationTest {
                 }
             }
         }
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "multiDimensionalArrays")
+    public void testMultiDimensionalArrayElementType(String elementTypeFlag, String sql, String[] elementTypeNames,
+                                                     int leafType, String leafValue) throws Exception {
+        Properties props = new Properties();
+        if (elementTypeFlag != null) {
+            props.setProperty(DriverProperties.MULTI_DIMENSIONAL_ARRAY_ELEMENT_TYPE.getKey(), elementTypeFlag);
+        }
+        boolean elementType = !"false".equals(elementTypeFlag);
+        String leafTypeName = elementTypeNames[elementTypeNames.length - 1];
+        try (Connection conn = getJdbcConnection(props); Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            assertTrue(rs.next());
+            Array array = rs.getArray(1);
+            for (int level = 0; level < elementTypeNames.length; level++) {
+                boolean leaf = level == elementTypeNames.length - 1;
+                assertEquals(array.getBaseTypeName(), elementType ? elementTypeNames[level] : leafTypeName);
+                assertEquals(array.getBaseType(), elementType && !leaf ? Types.ARRAY : leafType);
+
+                ResultSet elements = array.getResultSet();
+                assertTrue(elements.next());
+                assertEquals(elements.getMetaData().getColumnTypeName(2), elementTypeNames[level]);
+                assertEquals(elements.getMetaData().getColumnType(2), leaf ? leafType : Types.ARRAY);
+                if (leaf) {
+                    assertEquals(elements.getString(2), leafValue);
+                } else {
+                    Array next = elements.getArray(2);
+                    ResultSet slice = array.getResultSet(0, 1);
+                    assertTrue(slice.next());
+                    assertEquals(slice.getArray(2).getBaseTypeName(), next.getBaseTypeName());
+                    array = next;
+                }
+            }
+        }
+    }
+
+    @DataProvider
+    public static Object[][] multiDimensionalArrays() {
+        Object[][] arrays = new Object[][] {
+                {"SELECT [1, 2, 3]", new String[] {"UInt8"}, Types.SMALLINT, "1"},
+                {"SELECT [[1, 2, 3]]", new String[] {"Array(UInt8)", "UInt8"}, Types.SMALLINT, "1"},
+                {"SELECT [[[7]]]::Array(Array(Array(Int32)))",
+                        new String[] {"Array(Array(Int32))", "Array(Int32)", "Int32"}, Types.INTEGER, "7"},
+                {"SELECT [['a', NULL]]::Array(Array(Nullable(String)))",
+                        new String[] {"Array(Nullable(String))", "Nullable(String)"}, Types.VARCHAR, "a"},
+        };
+        List<Object[]> rows = new ArrayList<>();
+        for (String elementTypeFlag : new String[] {null, "false"}) {
+            for (Object[] array : arrays) {
+                Object[] row = new Object[array.length + 1];
+                row[0] = elementTypeFlag;
+                System.arraycopy(array, 0, row, 1, array.length);
+                rows.add(row);
+            }
+        }
+        return rows.toArray(new Object[0][]);
     }
 
     @Test(groups = {"integration"})

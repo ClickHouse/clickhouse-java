@@ -18,9 +18,9 @@
         <ch.jdbc.revision>0.12.0-rc1-SNAPSHOT</ch.jdbc.revision>
         <jmh.version>1.37</jmh.version>
         <testcontainers.version>2.0.2</testcontainers.version>
-        <zstd-jni.version>1.5.7-6</zstd-jni.version>
+        <zstd-jni.version>1.5.7-23</zstd-jni.version>
         <brotli.version>0.1.2</brotli.version>
-        <brotli4j.version>1.12.0</brotli4j.version>
+        <brotli4j.version>1.24.0</brotli4j.version>
 
         <antrun-plugin.version>3.1.0</antrun-plugin.version>
         <assembly-plugin.version>3.6.0</assembly-plugin.version>
@@ -167,7 +167,7 @@
                     </descriptorRefs>
                     <archive>
                         <manifest>
-                            <mainClass>com.clickhouse.com.clickhouse.benchmark.BenchmarkRunner</mainClass>
+                            <mainClass>com.clickhouse.benchmark.BenchmarkRunner</mainClass>
                         </manifest>
                     </archive>
                 </configuration>

@@ -21,6 +21,11 @@ final class ClusterClickHouseContainerStarter extends ClickHouseContainerStarter
     private static final String NGINX_CONFIG = "containers/nginx/nginx.conf";
     private static final String KEEPER_CONFIG = "containers/clickhouse-keeper/keeper_config.xml";
     private static final int KEEPER_PORT = 9181;
+    /**
+     * Memory limit of each replica container. A server sizes its memory limit and caches from the
+     * container limit, instead of sizing them for the whole runner.
+     */
+    private static final long NODE_MEMORY_BYTES = 2L * 1024 * 1024 * 1024;
 
     private final GenericContainer<?> keeper;
     private final List<GenericContainer<?>> nodes;
@@ -50,7 +55,8 @@ final class ClusterClickHouseContainerStarter extends ClickHouseContainerStarter
         List<GenericContainer<?>> created = new ArrayList<GenericContainer<?>>(NODE_COUNT);
         for (int index = 1; index <= NODE_COUNT; index++) {
             String name = baseName == null ? null : baseName + "-" + index;
-            created.add(newClickHouseServer("clickhouse-" + index, name, "r" + index));
+            created.add(newClickHouseServer("clickhouse-" + index, name, "r" + index)
+                    .withCreateContainerCmdModifier(command -> command.getHostConfig().withMemory(NODE_MEMORY_BYTES)));
         }
         this.nodes = created;
 

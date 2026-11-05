@@ -286,6 +286,65 @@ public class HttpTransportTests extends BaseIntegrationTest {
         }
     }
 
+    @Test(groups = {"integration"}, dataProvider = "testClosingNotFullyReadResponseDataProvider")
+    public void testClosingNotFullyReadResponse(boolean serverCompression, boolean useHttpCompression) throws Exception {
+        if (isCloud()) {
+            throw new SkipException("Test depends on how the server ends a failed response, a proxy can change it");
+        }
+        ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
+        // The query fails after the first rows are sent, so the server ends the response body early.
+        final String query = "SELECT number, randomPrintableASCII(100), throwIf(number = 100000)"
+                + " FROM numbers(200000) SETTINGS max_block_size = 1000";
+
+        try (Client client = new Client.Builder()
+                .addEndpoint(Protocol.HTTP, server.getHost(), server.getPort(), false)
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
+                .compressServerResponse(serverCompression)
+                .useHttpCompression(useHttpCompression)
+                .setMaxConnections(1)
+                .setConnectionRequestTimeout(1, ChronoUnit.SECONDS)
+                .build()) {
+            QueryResponse response = client.query(query).get(10, TimeUnit.SECONDS);
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+            Assert.assertNotNull(reader.next());
+            reader.close();
+            response.close();
+
+            response = client.query(query).get(10, TimeUnit.SECONDS);
+            Assert.assertNotNull(client.newBinaryFormatReader(response).next());
+            response.close();
+
+            try (QueryResponse readResponse = client.query(query).get(10, TimeUnit.SECONDS);
+                 ClickHouseBinaryFormatReader readReader = client.newBinaryFormatReader(readResponse)) {
+                Assert.expectThrows(ClientException.class, () -> {
+                    while (readReader.next() != null) {
+                        // read to the end
+                    }
+                });
+            }
+
+            // A command does not read the response body, so closing it still reports the failure.
+            Throwable thrown = Assert.expectThrows(Exception.class, () -> client.execute(query).get(10, TimeUnit.SECONDS));
+            Assert.assertNotNull(findCause(thrown, ConnectionClosedException.class), "Unexpected command failure: " + thrown);
+
+            try (QueryResponse nextResponse = client.query("SELECT 1").get(10, TimeUnit.SECONDS)) {
+                Assert.assertNotEquals(nextResponse.getInputStream().read(), -1);
+            }
+        }
+    }
+
+    @DataProvider(name = "testClosingNotFullyReadResponseDataProvider")
+    public static Object[][] testClosingNotFullyReadResponseDataProvider() {
+        return new Object[][] {
+                // serverCompression, useHttpCompression
+                {false, false},
+                {true, false},
+                {true, true},
+        };
+    }
+
     @Test(groups = {"integration"})
     public void testConnectionReuseStrategy() {
         if (isCloud()) {
@@ -985,29 +1044,32 @@ public class HttpTransportTests extends BaseIntegrationTest {
             return; // Current test is working only with local server because of self-signed certificates.
         }
         ClickHouseNode server = getSecureServer(ClickHouseProtocol.HTTP);
-        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), true)
+        String user = "some_user_" + UUID.randomUUID().toString().replace("-", "");
+        try (Client adminClient = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), true)
                 .setUsername("dba")
                 .setPassword("dba")
                 .setRootCertificate("containers/clickhouse-server/certs/localhost.crt")
                 .build()) {
 
-            try (CommandResponse resp = client.execute("DROP USER IF EXISTS some_user").get()) {
-            }
-            try (CommandResponse resp = client.execute("CREATE USER some_user IDENTIFIED WITH ssl_certificate CN 'some_user'").get()) {
-            }
-        }
+            try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), true)
+                    .useSSLAuthentication(true)
+                    .setUsername(user)
+                    .setRootCertificate("containers/clickhouse-server/certs/localhost.crt")
+                    .setClientCertificate("some_user.crt")
+                    .setClientKey("some_user.key")
+                    .compressServerResponse(false)
+                    .build()) {
 
-        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), true)
-                .useSSLAuthentication(true)
-                .setUsername("some_user")
-                .setRootCertificate("containers/clickhouse-server/certs/localhost.crt")
-                .setClientCertificate("some_user.crt")
-                .setClientKey("some_user.key")
-                .compressServerResponse(false)
-                .build()) {
+                try (CommandResponse resp = adminClient.execute("CREATE USER " + user + " IDENTIFIED WITH ssl_certificate CN 'some_user'").get()) {
+                }
+                waitForAllReplicas("users", "name = '" + user + "'", 1,
+                        sql -> adminClient.queryAll(sql).stream().mapToLong(row -> row.getLong("matching_rows")).toArray());
 
-            try (QueryResponse resp = client.query("SELECT 1").get()) {
-                Assert.assertEquals(resp.getReadRows(), 1);
+                try (QueryResponse resp = client.query("SELECT 1").get()) {
+                    Assert.assertEquals(resp.getReadRows(), 1);
+                }
+            } finally {
+                adminClient.execute("DROP USER IF EXISTS " + user).get().close();
             }
         }
     }
@@ -1018,43 +1080,47 @@ public class HttpTransportTests extends BaseIntegrationTest {
             return; // Current test is working only with local server because of self-signed certificates.
         }
         ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
+        String user = "some_user_" + UUID.randomUUID().toString().replace("-", "");
 
-        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
+        try (Client adminClient = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
                 .setUsername("dba")
                 .setPassword("dba")
                 .build()) {
 
-            try (CommandResponse resp = client.execute("DROP USER IF EXISTS some_user").get()) {
-            }
-            try (CommandResponse resp = client.execute("CREATE USER some_user IDENTIFIED WITH " + identifyWith + " BY '" + identifyBy + "'").get()) {
-            }
-        } catch (Exception e) {
-            Assert.fail("Failed on setup", e);
-        }
+            try {
+                try (CommandResponse resp = adminClient.execute("CREATE USER " + user + " IDENTIFIED WITH " + identifyWith + " BY '" + identifyBy + "'").get()) {
+                } catch (Exception e) {
+                    Assert.fail("Failed on setup", e);
+                }
+                waitForAllReplicas("users", "name = '" + user + "'", 1,
+                        sql -> adminClient.queryAll(sql).stream().mapToLong(row -> row.getLong("matching_rows")).toArray());
 
+                try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
+                        .setUsername(user)
+                        .setPassword(identifyBy)
+                        .build()) {
 
-        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
-                .setUsername("some_user")
-                .setPassword(identifyBy)
-                .build()) {
+                    Assert.assertEquals(client.queryAll("SELECT user()").get(0).getString(1), user);
+                } catch (Exception e) {
+                    Assert.fail("Failed to authenticate", e);
+                }
 
-            Assert.assertEquals(client.queryAll("SELECT user()").get(0).getString(1), "some_user");
-        } catch (Exception e) {
-            Assert.fail("Failed to authenticate", e);
-        }
+                if (failsWithHeaders) {
+                    try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
+                            .setUsername(user)
+                            .setPassword(identifyBy)
+                            .useHTTPBasicAuth(false)
+                            .build()) {
 
-        if (failsWithHeaders) {
-            try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
-                    .setUsername("some_user")
-                    .setPassword(identifyBy)
-                    .useHTTPBasicAuth(false)
-                    .build()) {
+                        Assert.expectThrows(ClientException.class, () ->
+                                client.queryAll("SELECT user()").get(0).getString(1));
 
-                Assert.expectThrows(ClientException.class, () ->
-                        client.queryAll("SELECT user()").get(0).getString(1));
-
-            } catch (Exception e) {
-                Assert.fail("Unexpected exception", e);
+                    } catch (Exception e) {
+                        Assert.fail("Unexpected exception", e);
+                    }
+                }
+            } finally {
+                adminClient.execute("DROP USER IF EXISTS " + user).get().close();
             }
         }
     }
@@ -1082,30 +1148,34 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
         String identifyWith = "sha256_password";
         String identifyBy = "123§";
-        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
+        String user = "some_user_" + UUID.randomUUID().toString().replace("-", "");
+        try (Client adminClient = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
                 .setUsername("dba")
                 .setPassword("dba")
                 .build()) {
 
-            try (CommandResponse resp = client.execute("DROP USER IF EXISTS some_user").get()) {
+            try {
+                try (CommandResponse resp = adminClient.execute("CREATE USER " + user + " IDENTIFIED WITH " + identifyWith + " BY '" + identifyBy + "'").get()) {
+                } catch (Exception e) {
+                    Assert.fail("Failed on setup", e);
+                }
+                waitForAllReplicas("users", "name = '" + user + "'", 1,
+                        sql -> adminClient.queryAll(sql).stream().mapToLong(row -> row.getLong("matching_rows")).toArray());
+
+                try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
+                        .setUsername(user)
+                        .setPassword(identifyBy)
+                        .useHTTPBasicAuth(false) // disable basic auth to produce CH headers
+                        .httpHeader(HttpHeaders.AUTHORIZATION, "Basic " + Base64.getEncoder().encodeToString((user + ":" +identifyBy).getBytes()))
+                        .build()) {
+
+                    Assert.assertEquals(client.queryAll("SELECT user()").get(0).getString(1), user);
+                } catch (Exception e) {
+                    Assert.fail("Failed to authenticate", e);
+                }
+            } finally {
+                adminClient.execute("DROP USER IF EXISTS " + user).get().close();
             }
-            try (CommandResponse resp = client.execute("CREATE USER some_user IDENTIFIED WITH " + identifyWith + " BY '" + identifyBy + "'").get()) {
-            }
-        } catch (Exception e) {
-            Assert.fail("Failed on setup", e);
-        }
-
-
-        try (Client client = new Client.Builder().addEndpoint(Protocol.HTTP, "localhost",server.getPort(), false)
-                .setUsername("some_user")
-                .setPassword(identifyBy)
-                .useHTTPBasicAuth(false) // disable basic auth to produce CH headers
-                .httpHeader(HttpHeaders.AUTHORIZATION, "Basic " + Base64.getEncoder().encodeToString(("some_user:" +identifyBy).getBytes()))
-                .build()) {
-
-            Assert.assertEquals(client.queryAll("SELECT user()").get(0).getString(1), "some_user");
-        } catch (Exception e) {
-            Assert.fail("Failed to authenticate", e);
         }
     }
 
@@ -1201,9 +1271,9 @@ public class HttpTransportTests extends BaseIntegrationTest {
     @DataProvider(name = "testUserAgentHasCompleteProductName_dataProvider")
     public static Object[][] testUserAgentHasCompleteProductName_dataProvider() {
         return new Object[][] {
-                { "", Pattern.compile("clickhouse-java-v2\\/.+ \\(.+\\) Apache-HttpClient\\/[\\d\\.]+$") },
-                { "test-client/1.0", Pattern.compile("test-client/1.0 clickhouse-java-v2\\/.+ \\(.+\\) Apache-HttpClient\\/[\\d\\.]+$")},
-                { "test-client/", Pattern.compile("test-client/ clickhouse-java-v2\\/.+ \\(.+\\) Apache-HttpClient\\/[\\d\\.]+$")}};
+                { "", Pattern.compile("clickhouse-java-v2/[^ ]+ \\(lv:java/[^;]+; os:[^;()]+; hc:ahc_[\\d.]+\\)") },
+                { "test-client/1.0", Pattern.compile("test-client/1.0 clickhouse-java-v2/[^ ]+ \\(lv:java/[^;]+; os:[^;()]+; hc:ahc_[\\d.]+\\)")},
+                { "test-client/", Pattern.compile("test-client/ clickhouse-java-v2/[^ ]+ \\(lv:java/[^;]+; os:[^;()]+; hc:ahc_[\\d.]+\\)")}};
     }
 
     @Test(dataProvider = "testClientNameDataProvider")
@@ -1326,8 +1396,8 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testBearerTokenAuth() throws Exception {
-        if (isCloud()) {
-            return; // mocked server
+        if (isCloud() || isCluster()) {
+            throw new SkipException("Mock-server test is not applicable to cloud or cluster runs");
         }
 
         WireMockServer mockServer = new WireMockServer( WireMockConfiguration

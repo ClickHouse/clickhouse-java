@@ -1,7 +1,6 @@
 package com.clickhouse.client.api.internal;
 
 import com.clickhouse.client.api.ClickHouseException;
-import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.ClientFaultCause;
@@ -33,7 +32,7 @@ import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.classic.RequestFailedException;
 import org.apache.hc.client5.http.impl.io.BasicHttpClientConnectionManager;
-import org.apache.hc.client5.http.impl.io.ManagedHttpClientConnectionFactory;
+import org.apache.hc.client5.http.impl.io.DefaultManagedHttpClientConnection;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
 import org.apache.hc.client5.http.io.HttpClientConnectionManager;
@@ -42,7 +41,9 @@ import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.client5.http.socket.LayeredConnectionSocketFactory;
 import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
 import org.apache.hc.client5.http.ssl.TlsSocketStrategy;
+import org.apache.hc.core5.http.ClassicHttpRequest;
 import org.apache.hc.core5.http.ClassicHttpResponse;
+import org.apache.hc.core5.http.ConnectionClosedException;
 import org.apache.hc.core5.http.ConnectionRequestTimeoutException;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.Header;
@@ -59,7 +60,15 @@ import org.apache.hc.core5.http.config.CharCodingConfig;
 import org.apache.hc.core5.http.config.Http1Config;
 import org.apache.hc.core5.http.config.Lookup;
 import org.apache.hc.core5.http.config.RegistryBuilder;
+import org.apache.hc.core5.http.impl.CharCodingSupport;
+import org.apache.hc.core5.http.impl.DefaultContentLengthStrategy;
+import org.apache.hc.core5.http.impl.io.DefaultHttpRequestWriterFactory;
 import org.apache.hc.core5.http.impl.io.DefaultHttpResponseParserFactory;
+import org.apache.hc.core5.http.impl.io.NoResponseOutOfOrderStrategy;
+import org.apache.hc.core5.http.impl.io.SocketHolder;
+import org.apache.hc.core5.http.io.HttpConnectionFactory;
+import org.apache.hc.core5.http.io.HttpMessageParserFactory;
+import org.apache.hc.core5.http.io.HttpMessageWriterFactory;
 import org.apache.hc.core5.http.io.SocketConfig;
 import org.apache.hc.core5.http.io.entity.ByteArrayEntity;
 import org.apache.hc.core5.http.io.entity.EntityTemplate;
@@ -81,6 +90,7 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLSocket;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -105,7 +115,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
@@ -135,7 +144,11 @@ public class HttpAPIClientHelper {
 
     private final Set<ClientFaultCause> defaultRetryCauses;
 
-    private final String defaultUserAgent;
+    /**
+     * Identification of the client, which gives the value of the {@code User-Agent} header. {@code Client} creates
+     * and updates it. Never {@code null}.
+     */
+    private final WorkloadIdentitySupport workloadIdentitySupport;
     private final Object metricsRegistry;
 
     ConnPoolControl<?> poolControl;
@@ -152,9 +165,12 @@ public class HttpAPIClientHelper {
     private final SpanRecorder spanRecorder;
 
     public HttpAPIClientHelper(Map<String, Object> configuration, Object metricsRegistry, boolean initSslContext,
-                               LZ4Factory lz4Factory, SpanRecorder spanRecorder) {
+                               LZ4Factory lz4Factory, SpanRecorder spanRecorder,
+                               WorkloadIdentitySupport workloadIdentitySupport) {
         this.spanRecorder = Objects.requireNonNull(spanRecorder,
                 "spanRecorder is required; use DefaultSpanRecorder.NOOP to record nothing");
+        this.workloadIdentitySupport = Objects.requireNonNull(workloadIdentitySupport,
+                "workloadIdentitySupport is required");
         this.metricsRegistry = metricsRegistry;
         this.httpClient = createHttpClient(initSslContext, configuration);
         this.lz4Factory = lz4Factory;
@@ -170,8 +186,6 @@ public class HttpAPIClientHelper {
         if (defaultRetryCauses.contains(ClientFaultCause.None)) {
             defaultRetryCauses.removeIf(c -> c != ClientFaultCause.None);
         }
-
-        this.defaultUserAgent = buildDefaultUserAgent();
     }
 
     /**
@@ -241,7 +255,7 @@ public class HttpAPIClientHelper {
                 .build();
 
         BasicHttpClientConnectionManager connManager = BasicHttpClientConnectionManager.create(
-                null, null, tlsSocketStrategyLookup, null);
+                null, null, tlsSocketStrategyLookup, new NoWireLoggingConnectionFactory(null, null, null));
         connManager.setConnectionConfig(createConnectionConfig(configuration));
         connManager.setSocketConfig(socketConfig);
 
@@ -658,6 +672,8 @@ public class HttpAPIClientHelper {
 
         private final ClassicHttpResponse delegate;
 
+        private boolean dataStreamCreated;
+
         TransportResponseImpl(ClassicHttpResponse delegate) {
             this.delegate = delegate;
         }
@@ -693,17 +709,55 @@ public class HttpAPIClientHelper {
 
         @Override
         public void close() throws IOException {
-            delegate.close();
+            try {
+                delegate.close();
+            } catch (ConnectionClosedException e) {
+                // Without a data stream nobody reads the body, and this is the only report of a failed query.
+                if (!dataStreamCreated) {
+                    throw e;
+                }
+                logIncompleteBodyOnClose(getQueryId(), e);
+            }
         }
 
         @Override
         public InputStream createDataInputStream() {
             try {
-                return delegate.getEntity().getContent();
+                InputStream stream = new ResponseBodyInputStream(delegate.getEntity().getContent(), getQueryId());
+                dataStreamCreated = true;
+                return stream;
             } catch (Exception e) {
                 throw new ClientException("Failed to construct input stream", e);
             }
         }
+    }
+
+    /**
+     * Closing a response body that is not read to the end makes the HTTP client read and discard the rest of it.
+     * When the server ends the body early (it does so when a query fails after the response started), that read
+     * fails with {@link ConnectionClosedException}. The caller stopped reading, so it is logged only; reads still throw.
+     */
+    private static final class ResponseBodyInputStream extends FilterInputStream {
+
+        private final String queryId;
+
+        ResponseBodyInputStream(InputStream in, String queryId) {
+            super(in);
+            this.queryId = queryId;
+        }
+
+        @Override
+        public void close() throws IOException {
+            try {
+                super.close();
+            } catch (ConnectionClosedException e) {
+                logIncompleteBodyOnClose(queryId, e);
+            }
+        }
+    }
+
+    private static void logIncompleteBodyOnClose(String queryId, ConnectionClosedException e) {
+        LOG.debug("Ignoring incomplete response body on close (queryId = {})", queryId, e);
     }
 
     /**
@@ -1190,62 +1244,11 @@ public class HttpAPIClientHelper {
     }
 
     private void correctUserAgentHeader(HttpRequest request, Map<String, Object> requestConfig) {
-        //TODO: implement cache for user-agent
         Header userAgentHeader = request.getLastHeader(HttpHeaders.USER_AGENT);
         request.removeHeaders(HttpHeaders.USER_AGENT);
 
-        String clientName = ClientConfigProperties.CLIENT_NAME.getOrDefault(requestConfig);
-        String userAgentValue = defaultUserAgent;
-        if (userAgentHeader == null && clientName != null && !clientName.isEmpty()) {
-            userAgentValue = clientName + " " + defaultUserAgent;
-        } else if (userAgentHeader != null) {
-            userAgentValue = userAgentHeader.getValue() + " " + defaultUserAgent;
-        }
-        request.setHeader(HttpHeaders.USER_AGENT, userAgentValue);
-    }
-
-    private String buildDefaultUserAgent() {
-        StringBuilder userAgent = new StringBuilder();
-        userAgent.append(Client.CLIENT_USER_AGENT);
-
-        String clientVersion = Client.clientVersion;
-
-        userAgent.append(clientVersion);
-
-        userAgent.append(" (");
-        userAgent.append(System.getProperty("os.name"));
-        userAgent.append("; ");
-        userAgent.append("jvm:").append(System.getProperty("java.version"));
-        userAgent.append("; ");
-
-        userAgent.setLength(userAgent.length() - 2);
-        userAgent.append(')');
-
-        try {
-            String httpClientVersion = this.httpClient.getClass().getPackage().getImplementationVersion();
-            if (Objects.equals(this.httpClient.getClass().getPackage().getImplementationTitle(), this.getClass().getPackage().getImplementationTitle())) {
-                // shaded jar - all packages have same implementation title
-                httpClientVersion = "unknown";
-                try (InputStream in = Thread.currentThread().getContextClassLoader().getResourceAsStream("client-v2-version.properties")) {
-                    Properties p = new Properties();
-                    p.load(in);
-
-                    String tmp = p.getProperty("apache.http.client.version");
-                    if (tmp != null && !tmp.isEmpty() && !tmp.equals("${apache.httpclient.version}")) {
-                        httpClientVersion = tmp;
-                    }
-                } catch (Exception e) {
-                    LOG.debug("Failed to read HTTP client version from client-v2-version.properties", e);
-                }
-            }
-            userAgent.append(" ")
-                    .append("Apache-HttpClient")
-                    .append('/')
-                    .append(httpClientVersion);
-        } catch (Exception e) {
-            LOG.warn("failed to construct http client version string", e);
-        }
-        return userAgent.toString();
+        request.setHeader(HttpHeaders.USER_AGENT, workloadIdentitySupport.getUserAgent(
+                userAgentHeader == null ? null : userAgentHeader.getValue(), requestConfig));
     }
 
     public void close() {
@@ -1296,7 +1299,81 @@ public class HttpAPIClientHelper {
         }
     }
 
-    public static class MeteredManagedHttpClientConnectionFactory extends ManagedHttpClientConnectionFactory {
+    /**
+     * Creates connections that never write request and response bytes to the Apache HttpClient wire logger,
+     * whatever the logging configuration is. Other settings are the defaults of
+     * {@code ManagedHttpClientConnectionFactory}.
+     */
+    static class NoWireLoggingConnectionFactory implements HttpConnectionFactory<ManagedHttpClientConnection> {
+
+        private static final AtomicLong COUNTER = new AtomicLong();
+
+        private final Http1Config http1Config;
+        private final CharCodingConfig charCodingConfig;
+        private final HttpMessageWriterFactory<ClassicHttpRequest> requestWriterFactory;
+        private final HttpMessageParserFactory<ClassicHttpResponse> responseParserFactory;
+
+        NoWireLoggingConnectionFactory(Http1Config http1Config, CharCodingConfig charCodingConfig,
+                                       HttpMessageParserFactory<ClassicHttpResponse> responseParserFactory) {
+            this.http1Config = http1Config != null ? http1Config : Http1Config.DEFAULT;
+            this.charCodingConfig = charCodingConfig != null ? charCodingConfig : CharCodingConfig.DEFAULT;
+            this.requestWriterFactory = new DefaultHttpRequestWriterFactory(this.http1Config);
+            this.responseParserFactory = responseParserFactory != null ? responseParserFactory
+                    : new DefaultHttpResponseParserFactory(this.http1Config);
+        }
+
+        @Override
+        public ManagedHttpClientConnection createConnection(Socket socket) throws IOException {
+            NoWireLoggingConnection conn = new NoWireLoggingConnection("http-outgoing-" + COUNTER.getAndIncrement(),
+                    charCodingConfig, http1Config, requestWriterFactory, responseParserFactory);
+            if (socket != null) {
+                try {
+                    conn.bind(socket);
+                } catch (IOException | RuntimeException e) {
+                    try {
+                        conn.close();
+                    } catch (IOException closeException) {
+                        e.addSuppressed(closeException);
+                    }
+                    throw e;
+                }
+            }
+            return conn;
+        }
+    }
+
+    /**
+     * Binds sockets without the wire-logging wrapper ({@code LoggingSocketHolder}) that the parent class
+     * installs when the wire logger is enabled for DEBUG.
+     */
+    private static final class NoWireLoggingConnection extends DefaultManagedHttpClientConnection {
+
+        NoWireLoggingConnection(String id, CharCodingConfig charCodingConfig, Http1Config http1Config,
+                                HttpMessageWriterFactory<ClassicHttpRequest> requestWriterFactory,
+                                HttpMessageParserFactory<ClassicHttpResponse> responseParserFactory) {
+            super(id, CharCodingSupport.createDecoder(charCodingConfig), CharCodingSupport.createEncoder(charCodingConfig),
+                    http1Config, DefaultContentLengthStrategy.INSTANCE, DefaultContentLengthStrategy.INSTANCE,
+                    NoResponseOutOfOrderStrategy.INSTANCE, requestWriterFactory, responseParserFactory);
+        }
+
+        @Override
+        public void bind(Socket socket) throws IOException {
+            // This is not a call back into DefaultManagedHttpClientConnection#bind(Socket), which selects the
+            // wire-logging LoggingSocketHolder. It calls the other overload, bind(SocketHolder), which this class
+            // inherits from DefaultManagedHttpClientConnection without an override. That overload binds the given
+            // plain holder through the httpcore5 BHttpConnectionBase#bind(SocketHolder) and then sets the socket
+            // timeout, the same steps as the parent's bind(Socket) without the logging wrapper.
+            bind(new SocketHolder(socket));
+        }
+
+        @Override
+        public void bind(SSLSocket sslSocket, Socket socket) throws IOException {
+            // Calls the inherited DefaultManagedHttpClientConnection#bind(SocketHolder), as bind(Socket) above does.
+            bind(new SocketHolder(sslSocket, socket));
+        }
+    }
+
+    public static class MeteredManagedHttpClientConnectionFactory extends NoWireLoggingConnectionFactory {
         public MeteredManagedHttpClientConnectionFactory(Http1Config http1Config, CharCodingConfig charCodingConfig, DefaultHttpResponseParserFactory defaultHttpResponseParserFactory) {
             super(http1Config, charCodingConfig, defaultHttpResponseParserFactory);
         }
