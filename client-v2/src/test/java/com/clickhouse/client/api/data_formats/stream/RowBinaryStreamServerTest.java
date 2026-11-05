@@ -246,7 +246,7 @@ public class RowBinaryStreamServerTest extends BaseIntegrationTest {
         command.serverSetting("allow_experimental_json_type", "1");
         client.execute("DROP TABLE IF EXISTS " + table, command).get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
         String nested = columns.contains("Nested(") ? " SETTINGS flatten_nested = 0" : "";
-        client.execute("CREATE TABLE " + table + " (" + columns + ") ENGINE = MergeTree ORDER BY tuple()" + nested,
+        client.execute("CREATE TABLE " + table + " (" + columns + ") ORDER BY tuple()" + nested,
                 command).get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
         TableSchema schema = client.getTableSchema(table);
         client.insert(table, out -> {
