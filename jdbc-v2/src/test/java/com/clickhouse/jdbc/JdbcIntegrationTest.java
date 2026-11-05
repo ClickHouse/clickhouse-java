@@ -1,9 +1,12 @@
 package com.clickhouse.jdbc;
 
 import com.clickhouse.client.BaseIntegrationTest;
+import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseServerForTest;
+import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.data.ClickHouseVersion;
 import com.clickhouse.logging.Logger;
@@ -108,5 +111,26 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
 
     protected boolean isVersionMatch(String versionExpression) {
         return ClickHouseVersion.of(getServerVersion()).check(versionExpression);
+    }
+
+    /**
+     * Uses a client-v2 {@link Client} for the replica check. The v1 {@link com.clickhouse.client.ClickHouseClient}
+     * implementation is not on this module's classpath.
+     */
+    protected static void waitForAllReplicas(String table, String condition, int expectedRows) {
+        if (!isCluster()) {
+            return;
+        }
+        ClickHouseNode node = ClickHouseServerForTest.getClickHouseNode(ClickHouseProtocol.HTTP,
+                ClickHouseServerForTest.isCloud(), ClickHouseNode.builder().build());
+        try (Client client = new Client.Builder()
+                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), ClickHouseServerForTest.isCloud())
+                .setUsername(ClickHouseServerForTest.getUsername())
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
+                .build()) {
+            BaseIntegrationTest.waitForAllReplicas(table, condition, expectedRows,
+                    sql -> client.queryAll(sql).stream().mapToLong(row -> row.getLong("matching_rows")).toArray());
+        }
     }
 }

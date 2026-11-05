@@ -181,12 +181,3 @@ jobs:
           printf '%s\n' "$OUTPUT"
           [[ "$OUTPUT" == *"Inserted 10 records"* ]]
           [[ "$OUTPUT" == *"Query returned 10 records"* ]]
-      - name: Upload test results
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: failure()
-        with:
-          name: test-results-${{ matrix.vendor }}-jdk-${{ matrix.java }}
-          path: |
-            **/target/failsafe-reports
-            **/target/surefire-reports
-          retention-days: 5

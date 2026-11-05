@@ -39,8 +39,8 @@ import java.sql.Savepoint;
 import java.sql.Statement;
 import java.sql.Struct;
 import java.time.Duration;
-import java.time.temporal.ChronoUnit;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Properties;
@@ -284,11 +284,13 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
 
     @Override
     public void commit() throws SQLException {
+        ensureOpen();
         featureManager.unsupportedFeatureThrow("commit()");
     }
 
     @Override
     public void rollback() throws SQLException {
+        ensureOpen();
         featureManager.unsupportedFeatureThrow("rollback()");
     }
 
@@ -302,7 +304,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     }
 
     @Override
-    public boolean isClosed() throws SQLException {
+    public boolean isClosed() {
         return closed;
     }
 
@@ -335,6 +337,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
 
     @Override
     public String getCatalog() throws SQLException {
+        ensureOpen();
         return catalog;
     }
 
@@ -574,6 +577,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
 
     @Override
     public void setClientInfo(String name, String value) throws SQLClientInfoException {
+        ensureOpenForClientInfo();
         if (ClientInfoProperties.APPLICATION_NAME.getKey().equals(name)) {
             config.updateUserClient(value, client);
             appName = value;
@@ -583,6 +587,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
 
     @Override
     public void setClientInfo(Properties properties) throws SQLClientInfoException {
+        ensureOpenForClientInfo();
         Set<String> toSet = new HashSet<>();
         Set<String> toReset = new HashSet<>();
         for (ClientInfoProperties p : ClientInfoProperties .values()) {
@@ -646,7 +651,8 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
 
         ClickHouseColumn column = ClickHouseColumn.of("array", typeName);
         try {
-            return new com.clickhouse.jdbc.types.Array(column, elements);
+            return new com.clickhouse.jdbc.types.Array(column, elements,
+                    config.isFlagSet(DriverProperties.MULTI_DIMENSIONAL_ARRAY_ELEMENT_TYPE));
         } catch (Exception e) {
             throw new SQLException("Failed to create array", ExceptionUtils.SQL_STATE_CLIENT_ERROR, e);
         }
@@ -710,9 +716,9 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
         // if timeout is set with this method then any timeout exception should be reported to the connection
         // when connection get signal about timeout it uses executor to abort itself
         // Some connection pools set timeout before calling Connection#close() to ensure that this operation will not hang
-        // Socket timeout is propagated with QuerySettings this connection has.
+        // The client keeps this as live connection-level state, so existing statements use the new value too.
         networkTimeoutExecutor = executor;
-        defaultQuerySettings.setNetworkTimeout(milliseconds, ChronoUnit.MILLIS);
+        client.setNetworkTimeout(milliseconds);
     }
 
 
@@ -735,7 +741,8 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
 
     @Override
     public int getNetworkTimeout() throws SQLException {
-        return defaultQuerySettings.getNetworkTimeout().intValue();
+        ensureOpen();
+        return client.getNetworkTimeout();
     }
 
     /**
@@ -752,6 +759,13 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     public Client getClient() throws SQLException {
         ensureOpen();
         return client;
+    }
+
+    private void ensureOpenForClientInfo() throws SQLClientInfoException {
+        if (isClosed()) {
+            throw new SQLClientInfoException("Connection is closed",
+                    ExceptionUtils.SQL_STATE_CONNECTION_EXCEPTION, Collections.emptyMap());
+        }
     }
 
     private void ensureOpen() throws SQLException {

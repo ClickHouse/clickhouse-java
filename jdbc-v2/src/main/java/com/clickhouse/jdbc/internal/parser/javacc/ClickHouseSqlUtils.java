@@ -79,7 +79,11 @@ public final class ClickHouseSqlUtils {
                 // Appended 09/29/2026
                 "FAMILIES", "INCREMENTAL", "METRIC", "PROJECTIONS", "TOKEN",
                 // Appended 10/05/2026
-                "LATERAL", "SIMILAR"
+                "LATERAL", "SIMILAR",
+                // Appended 10/17/2026
+                "RANGES",
+                // Appended 10/29/2026
+                "RETURNING", "SHARED"
             );
     }
 

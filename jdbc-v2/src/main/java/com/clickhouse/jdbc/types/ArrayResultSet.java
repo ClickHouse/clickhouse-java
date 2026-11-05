@@ -56,9 +56,20 @@ public class ArrayResultSet implements ResultSet {
     private final Class<?> defaultClass;
     private final ClickHouseColumn column;
     private final int columnCount;
+    private final boolean multiDimensionalElementType;
 
     public ArrayResultSet(Object array, ClickHouseColumn column) {
+        this(array, column, true);
+    }
+
+    /**
+     * @param multiDimensionalElementType passed to the {@link com.clickhouse.jdbc.types.Array} values of the
+     *                                    {@code VALUE} column, see
+     *                                    {@link com.clickhouse.jdbc.types.Array#Array(ClickHouseColumn, Object[], boolean)}
+     */
+    public ArrayResultSet(Object array, ClickHouseColumn column, boolean multiDimensionalElementType) {
         this.array = array;
+        this.multiDimensionalElementType = multiDimensionalElementType;
         this.length = java.lang.reflect.Array.getLength(array);
         this.pos = -1;
         this.column = column;
@@ -130,7 +141,7 @@ public class ArrayResultSet implements ResultSet {
     }
 
     private Object convertValue(Object value, Class<?> targetType, Map<Class<?>, Function<Object, Object>> valueConverterMap) throws SQLException {
-        if (value == null || targetType == value.getClass() || targetType == Object.class) {
+        if (value == null || (targetType != null && targetType.isInstance(value))) {
             return value;
         }
 
@@ -162,7 +173,8 @@ public class ArrayResultSet implements ResultSet {
             }
 
             if (type == Array.class) {
-                return new com.clickhouse.jdbc.types.Array(elementColumn(column), JdbcUtils.arrayToObjectArray(value));
+                return new com.clickhouse.jdbc.types.Array(elementColumn(column), JdbcUtils.arrayToObjectArray(value),
+                        multiDimensionalElementType);
             } else {
                 Map<Class<?>, Function<Object, Object>> valueConverterMap = initValueConverterMapIfNeeded(value);
                 return convertValue(value, type, valueConverterMap);

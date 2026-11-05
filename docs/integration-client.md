@@ -92,6 +92,8 @@ In production environments, a single ClickHouse cluster often handles diverse wo
 
 Use a structured format such as `<application-name>/<version>` or `<application-name>:<workload-type>/<version>` (for example, `order-service/1.2.0` or `etl-worker:cdc/2.0.1`).
 
+Always identify the application with the client name. Do not set the `User-Agent` header (for example, with `httpHeader("User-Agent", ...)`): a custom `User-Agent` header replaces the client name in the header.
+
 **1. Client Builder** (static setup at client creation):
 
 ```java
@@ -119,11 +121,39 @@ public void updateClientWorkload(Client client, String workloadOrTenant) {
 
 #### How it is observed on the server (`User-Agent` header)
 
-The Java Client communicates over HTTP and passes the client name as the leading segment of the HTTP `User-Agent` header. The client automatically appends the client library version, operating system, JVM version, and underlying HTTP client details:
+The Java Client communicates over HTTP and passes the client name as the leading segment of the HTTP `User-Agent` header. The client automatically appends the client library version and a comment group with the Java version (`lv`), the operating system (`os`), and the HTTP client (`hc`: `ahc_` and the Apache HttpClient version), in the standard ClickHouse client format:
 
 ```text
-order-service/1.2.0 clickhouse-java-v2/0.9.6 (Linux; jvm:17.0.2) Apache-HttpClient/5.4.4
+order-service/1.2.0 clickhouse-java-v2/0.12.0 (lv:java/17.0.2; os:Linux; hc:ahc_5.6.4)
 ```
+
+To add key/value pairs to the comment group (for example, the version of a framework that the application runs in), use `setClientName(String, Map)`. The pairs are added in the iteration order of the map, then `lv`, `os` and `hc` if the map does not set these keys (set them to replace the values of the client):
+
+```java
+import com.clickhouse.client.api.Client;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+public Client createClientWithMetadata() {
+    Map<String, String> metadata = new LinkedHashMap<>();
+    metadata.put("fv", "flink/2.0.0");
+    metadata.put("api", "table");
+
+    return new Client.Builder()
+            .addEndpoint("http://localhost:8123")
+            .setUsername("default")
+            .setPassword("secret")
+            .setClientName("Flink-ClickHouse-Sink/0.2.0", metadata)
+            .build();
+}
+```
+
+```text
+Flink-ClickHouse-Sink/0.2.0 clickhouse-java-v2/0.12.0 (fv:flink/2.0.0; api:table; lv:java/17.0.2; os:Linux; hc:ahc_5.6.4)
+```
+
+The same pairs can be set with the `client_id_metadata` property, written as `fv=flink/2.0.0,api=table` (escape a `,` or `\` in a value with `\`). Keys and values must be printable ASCII, a key must not contain spaces or any of `:;(),=`, and a value must not contain any of `;()`. `setClientName(String)` and `client.updateClientName(...)` do not change the metadata.
 
 > **CRITICAL SERVER OBSERVATION NOTE:**
 > In ClickHouse's `system.query_log` and `system.processes`, HTTP requests record this information in the **`http_user_agent`** column. The `client_name` column in `system.query_log` is populated **only** for native TCP protocol connections. Always query `http_user_agent` when troubleshooting Java Client applications.
@@ -392,11 +422,11 @@ See [SSLExamples](../examples/client-v2/src/main/java/com/clickhouse/examples/cl
 Timeouts are critical parameters that directly impact application stability under load and over long distances:
 
 - **Connection timeout** (`.setConnectTimeout()`): The TCP connect timeout. Setting this value too low can cause failures when the application and server are in different geographical regions. Additionally, connection timeouts are closely tied to the connection pool: if the application issues concurrent requests that exceed the available pool size, it may manifest as a connection timeout because no free connections are present.
-- **Socket timeout** (`.setSocketTimeout()`): The timeout for underlying socket read/write operations. While it applies strictly to socket activity, it is vital because it dictates how long the client will wait for long-running queries to return data. If your workload involves heavy analytical queries, you may need a very long socket timeout. However, the trade-off of a long socket timeout is the increased risk of encountering stale or silently dropped connections.
+- **Socket timeout** (`Client.Builder.setSocketTimeout()`): The initial timeout for underlying socket read/write operations. While it applies strictly to socket activity, it is vital because it dictates how long the client will wait for long-running queries to return data. If your workload involves heavy analytical queries, you may need a very long socket timeout. However, the trade-off of a long socket timeout is the increased risk of encountering stale or silently dropped connections.
 - **TCP keepalive**: Can be enabled to mitigate stale connections, though the host operating system's settings may ultimately override it. System-level TCP keepalive defaults are often several hours; configuring a shorter keepalive period makes sense for long-running operations. Keep in mind that executing extremely long operations over the public internet remains inherently risky.
 - **Socket buffers** (`.setSocketRcvbuf()`, `.setSocketSndbuf()`): Not set by default, so the operating system sizes the socket buffers and auto-tunes them for the connection. Setting a fixed size turns that auto-tuning off and is additionally capped by the operating system limits, so a large value may have no effect. Configure these options only when a measurement shows a benefit for your workload.
 
-> **Note on runtime configuration:** You can optionally override the default network timeout on a per-operation basis using `QuerySettings.setNetworkTimeout(long timeout, ChronoUnit unit)`. This allows you to set stricter boundaries on specific queries without altering the client-wide defaults.
+> **Note on runtime configuration:** `Client.setNetworkTimeout(int milliseconds)` and `Client.setNetworkTimeout(long timeout, ChronoUnit unit)` change the client-wide timeout for subsequent requests; `0` disables it. Requests already created, including their retries, retain the timeout they started with. You can override the client value for one operation with `QuerySettings.setNetworkTimeout(long timeout, ChronoUnit unit)`.
 
 ### Ping - check connectivity
 

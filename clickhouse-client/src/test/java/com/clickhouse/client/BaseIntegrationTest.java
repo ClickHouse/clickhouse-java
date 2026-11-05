@@ -86,6 +86,25 @@ public abstract class BaseIntegrationTest {
         return ClickHouseServerForTest.isCluster() ? " ON CLUSTER 'test_cluster'" : "";
     }
 
+    /**
+     * Waits until each replica of the test cluster returns {@code expectedRows} rows of
+     * {@code system.<table>} that match {@code condition}, so that the next request sees a
+     * created or changed user, role, settings profile or grant on any replica.
+     * Does nothing when the tests do not run on a cluster.
+     */
+    protected static void waitForAllReplicas(String table, String condition, int expectedRows) {
+        ClickHouseServerForTest.waitForAllReplicas(table, condition, expectedRows);
+    }
+
+    /**
+     * Same check as {@link #waitForAllReplicas(String, String, int)}. {@code query} runs the
+     * replica SQL with the caller's client and returns one matching-row count per replica host.
+     */
+    protected static void waitForAllReplicas(String table, String condition, int expectedRows,
+            ClickHouseServerForTest.ReplicaQuery query) {
+        ClickHouseServerForTest.waitForAllReplicas(table, condition, expectedRows, query);
+    }
+
     protected boolean createDatabase(String dbName) {
         return ClickHouseServerForTest.runQuery("CREATE DATABASE IF NOT EXISTS `" + dbName + "`" + onCluster());
     }

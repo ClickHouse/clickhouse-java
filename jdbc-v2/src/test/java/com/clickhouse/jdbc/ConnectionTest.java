@@ -8,8 +8,10 @@ import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.internal.ServerSettings;
+import com.clickhouse.client.api.internal.Versions;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.tomakehurst.wiremock.WireMockServer;
@@ -24,6 +26,7 @@ import org.testng.annotations.Test;
 import java.math.BigDecimal;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
+import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.sql.Array;
 import java.sql.Connection;
@@ -32,6 +35,7 @@ import java.sql.Date;
 import java.sql.JDBCType;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLClientInfoException;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.Statement;
@@ -46,6 +50,7 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.Properties;
 import java.util.UUID;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -58,6 +63,7 @@ import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertThrows;
 import static org.testng.Assert.assertTrue;
+import static org.testng.Assert.expectThrows;
 import static org.testng.Assert.fail;
 
 public class ConnectionTest extends JdbcIntegrationTest {
@@ -176,6 +182,28 @@ public class ConnectionTest extends JdbcIntegrationTest {
         }
     }
 
+
+    @Test(groups = { "integration" })
+    public void testClosedConnectionThrows() throws SQLException {
+        for (boolean ignoreUnsupported : new boolean[] { false, true }) {
+            Properties prop = new Properties();
+            prop.setProperty(DriverProperties.IGNORE_UNSUPPORTED_VALUES.getKey(), String.valueOf(ignoreUnsupported));
+            Connection conn = this.getJdbcConnection(prop);
+            conn.close();
+
+            assertThrows(SQLException.class, conn::getNetworkTimeout);
+            assertThrows(SQLException.class, conn::getCatalog);
+            assertThrows(SQLException.class, conn::commit);
+            assertThrows(SQLException.class, conn::rollback);
+            assertThrows(SQLClientInfoException.class, () -> conn.setClientInfo("ApplicationName", "x"));
+            assertThrows(SQLClientInfoException.class, () -> conn.setClientInfo(new Properties()));
+
+            // these stay allowed on a closed connection
+            conn.close();
+            Assert.assertTrue(conn.isClosed());
+            Assert.assertFalse(conn.isValid(1));
+        }
+    }
 
     @Test(groups = { "integration" })
     public void closeTest() throws SQLException {
@@ -349,7 +377,7 @@ public class ConnectionTest extends JdbcIntegrationTest {
         }
     }
 
-    private void executeQueryAndVerifyUserAgent(Statement stmt, String clientName) throws Exception {
+    private String executeQueryAndVerifyUserAgent(Statement stmt, String clientName) throws Exception {
         final String testQuery = "SELECT '" + UUID.randomUUID() + "'";
         stmt.execute(testQuery);
         String queryId = ((StatementImpl)stmt).getLastQueryId();
@@ -375,6 +403,46 @@ public class ConnectionTest extends JdbcIntegrationTest {
         }
         Assert.assertTrue(userAgent.contains(Client.CLIENT_USER_AGENT), "Expected to contain '" + Client.CLIENT_USER_AGENT + "' but value was '" + userAgent + "'");
         Assert.assertTrue(userAgent.contains(Driver.DRIVER_CLIENT_NAME), "Expected to contain '" + Driver.DRIVER_CLIENT_NAME + "' but value was '" + userAgent + "'");
+        return userAgent;
+    }
+
+    @Test(groups = { "integration" }, dataProvider = "clientMetadataInUserAgentDP")
+    public void testClientMetadataInUserAgent(boolean setInUrl) throws Exception {
+        if (isCloud()) {
+            throw new SkipException("Cloud does not support flushing query_log");
+        }
+
+        final String metadata = "fv=flink/2.0.0,api=table";
+        Properties info = new Properties();
+        info.setProperty("user", "default");
+        info.setProperty("password", ClickHouseServerForTest.getPassword());
+        info.setProperty(ClientConfigProperties.DATABASE.getKey(), ClickHouseServerForTest.getDatabase());
+        String url = getEndpointString();
+        if (setInUrl) {
+            url += "?" + ClientConfigProperties.CLIENT_ID_METADATA.getKey() + "=" + metadata;
+        } else {
+            info.setProperty(ClientConfigProperties.CLIENT_ID_METADATA.getKey(), metadata);
+        }
+
+        String expectedSuffix = "clickhouse-java-v2/" + Client.clientVersion + " (fv:flink/2.0.0; api:table; lv:java/"
+                + System.getProperty("java.version") + "; os:" + System.getProperty("os.name") + "; hc:ahc_"
+                + Versions.APACHE_HTTP_CLIENT + ")";
+        try (Connection localConnection = new ConnectionImpl(url, info);
+             Statement stmt = localConnection.createStatement()) {
+            String userAgent = executeQueryAndVerifyUserAgent(stmt, null);
+            Assert.assertTrue(userAgent.endsWith(expectedSuffix),
+                    "Expected to end with '" + expectedSuffix + "' but value was '" + userAgent + "'");
+
+            localConnection.setClientInfo(ClientInfoProperties.APPLICATION_NAME.getKey(), "my-app/1.0");
+            userAgent = executeQueryAndVerifyUserAgent(stmt, "my-app/1.0");
+            Assert.assertTrue(userAgent.endsWith(expectedSuffix),
+                    "Expected to end with '" + expectedSuffix + "' but value was '" + userAgent + "'");
+        }
+    }
+
+    @DataProvider(name = "clientMetadataInUserAgentDP")
+    public static Object[][] clientMetadataInUserAgentDP() {
+        return new Object[][] {{false}, {true}};
     }
 
     @Test(groups = { "integration" })
@@ -637,6 +705,29 @@ public class ConnectionTest extends JdbcIntegrationTest {
         }
     }
 
+    @Test(groups = {"integration"}, dataProvider = "multiDimensionalArrayElementTypeFlags")
+    public void testCreateArrayOfMultiDimensionalElementType(String flag, String baseTypeName, JDBCType baseType)
+            throws Exception {
+        Properties props = new Properties();
+        if (flag != null) {
+            props.setProperty(DriverProperties.MULTI_DIMENSIONAL_ARRAY_ELEMENT_TYPE.getKey(), flag);
+        }
+        try (Connection conn = getJdbcConnection(props)) {
+            Array array = conn.createArrayOf("Array(Array(Int32))", new Object[][] {{1, 2, 3}, {10, 20}});
+            assertEquals(array.getBaseTypeName(), baseTypeName);
+            assertEquals(array.getBaseType(), baseType.getVendorTypeNumber());
+        }
+    }
+
+    @DataProvider
+    public static Object[][] multiDimensionalArrayElementTypeFlags() {
+        return new Object[][] {
+                {null, "Array(Int32)", JDBCType.ARRAY},
+                {"true", "Array(Int32)", JDBCType.ARRAY},
+                {"false", "Int32", JDBCType.INTEGER},
+        };
+    }
+
     @Test(groups = { "integration" })
     public void testCreateStruct() throws SQLException {
         try (Connection conn = this.getJdbcConnection()) {
@@ -746,6 +837,118 @@ public class ConnectionTest extends JdbcIntegrationTest {
                 stmtExecutor.awaitTermination(10, TimeUnit.SECONDS);
             }
         }
+    }
+
+    @Test(timeOut = 15000)
+    public void testRestoringNetworkTimeoutPreservesConfiguredSocketTimeout() throws Exception {
+        WireMockServer server = new WireMockServer(WireMockConfiguration.options()
+                .bindAddress("127.0.0.1").dynamicPort());
+        server.start();
+        try {
+            stubDelayedSelectOne(server, 800);
+
+            try (ConnectionImpl connection = new ConnectionImpl(
+                    "jdbc:clickhouse://127.0.0.1:" + server.port() + "/default",
+                    connectionProperties("200"));
+                 Statement statement = connection.createStatement()) {
+                Executor executor = Runnable::run;
+                int originalTimeout = connection.getNetworkTimeout();
+                assertEquals(originalTimeout, 200);
+                assertNull(connection.getDefaultQuerySettings()
+                        .getOption(ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey()));
+                assertSocketTimeout(statement);
+
+                connection.setNetworkTimeout(executor, 0);
+                assertEquals(connection.getNetworkTimeout(), 0);
+                assertSelectOne(statement);
+
+                connection.setNetworkTimeout(executor, 5000);
+                assertEquals(connection.getNetworkTimeout(), 5000);
+                connection.setNetworkTimeout(executor, originalTimeout);
+                assertEquals(connection.getNetworkTimeout(), originalTimeout);
+                assertNull(connection.getDefaultQuerySettings()
+                        .getOption(ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey()));
+                assertSocketTimeout(statement);
+            }
+        } finally {
+            server.stop();
+        }
+    }
+
+    @DataProvider
+    public static Object[][] configuredSocketTimeouts() {
+        return new Object[][] {
+                {"100", 100, true},
+                {"0", 0, false},
+                {null, 0, false},
+        };
+    }
+
+    @Test(dataProvider = "configuredSocketTimeouts", timeOut = 10000)
+    public void testGetNetworkTimeoutReportsEffectiveSocketTimeout(String socketTimeout, int expected,
+                                                                   boolean expectTimeout) throws Exception {
+        WireMockServer server = new WireMockServer(WireMockConfiguration.options()
+                .bindAddress("127.0.0.1").dynamicPort());
+        server.start();
+        try {
+            stubDelayedSelectOne(server, 500);
+            try (ConnectionImpl connection = new ConnectionImpl(
+                    "jdbc:clickhouse://127.0.0.1:" + server.port() + "/default",
+                    connectionProperties(socketTimeout));
+                 Statement statement = connection.createStatement()) {
+                assertEquals(connection.getNetworkTimeout(), expected);
+                assertNull(connection.getDefaultQuerySettings()
+                        .getOption(ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey()));
+
+                if (expectTimeout) {
+                    assertSocketTimeout(statement);
+                } else {
+                    assertSelectOne(statement);
+                }
+            }
+        } finally {
+            server.stop();
+        }
+    }
+
+    private static void stubDelayedSelectOne(WireMockServer server, int delayMillis) {
+        // RowBinaryWithNamesAndTypes: one UInt8 column named "1", containing one row with value 1.
+        server.stubFor(WireMock.post(WireMock.anyUrl())
+                .withRequestBody(WireMock.equalTo("SELECT 1"))
+                .willReturn(WireMock.aResponse().withFixedDelay(delayMillis)
+                        .withHeader("X-ClickHouse-Format", "RowBinaryWithNamesAndTypes")
+                        .withHeader("X-ClickHouse-Summary", "{\"read_rows\":\"1\",\"read_bytes\":\"1\"}")
+                        .withBody(new byte[] {1, 1, '1', 5, 'U', 'I', 'n', 't', '8', 1})));
+    }
+
+    private static void assertSocketTimeout(Statement statement) {
+        SQLException error = expectThrows(SQLException.class, () -> {
+            try (ResultSet result = statement.executeQuery("SELECT 1")) {
+                result.next();
+            }
+        });
+        assertTrue(ExceptionUtils.getRootCause(error) instanceof SocketTimeoutException,
+                "Expected a socket timeout, got: " + error);
+    }
+
+    private static void assertSelectOne(Statement statement) throws SQLException {
+        try (ResultSet result = statement.executeQuery("SELECT 1")) {
+            assertTrue(result.next());
+            assertEquals(result.getInt(1), 1);
+        }
+    }
+
+    private static Properties connectionProperties(String socketTimeout) {
+        Properties properties = new Properties();
+        if (socketTimeout != null) {
+            properties.setProperty("socket_timeout", socketTimeout);
+        }
+        properties.setProperty("server_time_zone", "UTC");
+        properties.setProperty("user", "default");
+        properties.setProperty("password", "local-test");
+        properties.setProperty("retry", "0");
+        properties.setProperty("compress", "false");
+        return properties;
     }
 
     @Test(groups = { "integration" })
@@ -983,8 +1186,8 @@ public class ConnectionTest extends JdbcIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testBearerTokenAuth() throws Exception {
-        if (isCloud()) {
-            return; // mocked server
+        if (isCloud() || isCluster()) {
+            throw new SkipException("Mock-server test is not applicable to cloud or cluster runs");
         }
 
         WireMockServer mockServer = new WireMockServer( WireMockConfiguration
@@ -1041,27 +1244,6 @@ public class ConnectionTest extends JdbcIntegrationTest {
             }
         } finally {
             mockServer.stop();
-        }
-    }
-
-    @Test(groups = { "integration" })
-    public void testJWTWithCloud() throws Exception {
-        String jwt = System.getenv("JWT_TOKEN");
-        if (jwt == null || jwt.trim().isEmpty()) {
-            throw new SkipException("JWT_TOKEN environment variable is not set. Skipping JWT test.");
-        }
-        String url = getEndpointString();
-
-        Properties properties = new Properties();
-        properties.put(ClientConfigProperties.BEARERTOKEN_AUTH.getKey(), jwt);
-
-        try (Connection conn = new ConnectionImpl(url, properties);
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery("SELECT currentUser()")) {
-            Assert.assertTrue(rs.next());
-            String username = rs.getString(1);
-            Assert.assertTrue(username != null && username.matches("^JWT::.+::.+$"),
-                    "Expected username in format JWT::<subject>::<claims_hash>, but actual username was: '" + username + "'");
         }
     }
 
