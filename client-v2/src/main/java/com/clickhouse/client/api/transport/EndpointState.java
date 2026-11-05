@@ -20,11 +20,19 @@ class EndpointState {
         return endpoint;
     }
 
-    void markFailed(long quarantineMs) {
+    /**
+     * Quarantines the endpoint, or extends its quarantine.
+     *
+     * @return {@code true} if the endpoint was alive before this call
+     */
+    boolean markFailed(long quarantineMs) {
         if (quarantineMs <= 0) {
             throw new IllegalArgumentException("Quarantine duration must be positive: " + quarantineMs);
         }
-        this.failedUntil = System.currentTimeMillis() + quarantineMs;
+        long now = System.currentTimeMillis();
+        boolean wasAlive = now >= failedUntil;
+        this.failedUntil = now + quarantineMs;
+        return wasAlive;
     }
 
     boolean isAlive() {

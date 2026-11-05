@@ -98,8 +98,9 @@ public class ClickHouseSqlParser {
             if (DEBUG) {
                 throw new IllegalArgumentException(e);
             } else {
-                log.warn("Failed to parse SQL. If you believe the SQL is valid, please feel free to open an issue on GitHub with this warning. Enable DEBUG logging for details.");
-                log.debug("Failed to parse SQL: '" + sql + "'", e);
+                // Neither the SQL nor the parser error is logged at any level: the error quotes the statement,
+                // which can carry credentials or other sensitive literals.
+                log.warn("Failed to parse SQL. If you believe the SQL is valid, please feel free to open an issue on GitHub with this warning and the statement, with any sensitive values removed.");
             }
         }
 

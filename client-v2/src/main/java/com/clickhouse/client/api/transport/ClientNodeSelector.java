@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * So we will look up for the first-alive node and then assign that node to 
@@ -33,6 +34,9 @@ public class ClientNodeSelector {
 
     private final List<EndpointState> endpointStates;
 
+    /** Set while all endpoints are quarantined, so that the fallback is logged once per outage, not per request. */
+    private final AtomicBoolean allEndpointsDownLogged = new AtomicBoolean();
+
     public ClientNodeSelector(List<Endpoint> endpoints) {
         List<EndpointState> states = new ArrayList<>(endpoints.size());
         for (Endpoint ep : endpoints) {
@@ -44,18 +48,25 @@ public class ClientNodeSelector {
     public Endpoint getEndpoint() {
         for (EndpointState state : endpointStates) {
             if (state.isAlive()) {
+                if (allEndpointsDownLogged.get()) {
+                    allEndpointsDownLogged.set(false);
+                }
                 return state.getEndpoint();
             }
         }
-        LOG.warn("All endpoints are non-responsive, falling back to primary endpoint");
+        if (allEndpointsDownLogged.compareAndSet(false, true)) {
+            LOG.warn("All endpoints are non-responsive, falling back to primary endpoint");
+        }
         return endpointStates.get(0).getEndpoint();
     }
 
     public Endpoint getNextAliveNode(Endpoint failedEndpoint) {
         for (EndpointState state : endpointStates) {
             if (state.getEndpoint().equals(failedEndpoint)) {
-                state.markFailed(DEFAULT_QUARANTINE_MS);
-                LOG.warn("Endpoint {} quarantined for {} ms", failedEndpoint.getHost(), DEFAULT_QUARANTINE_MS);
+                // A failure of an endpoint that is quarantined already only extends the quarantine.
+                if (state.markFailed(DEFAULT_QUARANTINE_MS)) {
+                    LOG.warn("Endpoint {} quarantined for {} ms", failedEndpoint.getHost(), DEFAULT_QUARANTINE_MS);
+                }
                 break;
             }
         }

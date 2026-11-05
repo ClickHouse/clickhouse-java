@@ -80,8 +80,9 @@ public final class WorkloadIdentitySupport {
                 (String) configuration.get(ClientConfigProperties.httpHeader(HttpHeaders.USER_AGENT)), configuration);
         String userAgent = composeUserAgent(application);
         if (userAgent.length() > USER_AGENT_WARNING_LENGTH) {
-            LOG.warn("The User-Agent value is {} characters long, more than {}: '{}'. Use a shorter client name or"
-                    + " less client metadata.", userAgent.length(), USER_AGENT_WARNING_LENGTH, userAgent);
+            // The value itself is not logged: it holds the client name and metadata the application supplied.
+            LOG.warn("The User-Agent value is {} characters long, more than {}. Use a shorter client name or"
+                    + " less client metadata.", userAgent.length(), USER_AGENT_WARNING_LENGTH);
         }
         // the value is written first, so a request that reads the new application part also reads the new value
         this.clientUserAgent = userAgent;
