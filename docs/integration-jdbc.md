@@ -2,7 +2,7 @@
 
 ## Preface 
 
-This document describes usage of  **JDBC Driver V2** (`jdbc-v2`, published as `com.clickhouse:clickhouse-jdbc`). Here you will find information about different aspects of ClickHouse JDBC Driver integration (authentication, configuration, operations, etc) and about internal logic and mechanics of the driver. Treat this document as a guide of how to use driver for different use cases. Library documentation, however, stays single source of truth.
+This document describes usage of  **JDBC Driver V2** (`jdbc-v2`, published as `com.clickhouse:clickhouse-jdbc`). Here you will find information about different aspects of ClickHouse JDBC Driver integration (authentication, configuration, operations, etc) and about internal logic and mechanics of the driver. Treat this document as a guide of how to use driver for different use cases. [Library documentation](https://clickhouse.com/docs/integrations/language-clients/java/jdbc), however, stays single source of truth.
 
 
 **Important:** Please read [integration-index.md](integration-index.md) to get over overview of `clickhouse-java` project as library and its components.
@@ -17,7 +17,7 @@ Every JDBC `Connection` wraps a `client-v2` [`Client`](../client-v2/src/main/jav
 
 ### Configuration References 
 
-This guide names only the properties relevant to each step. The exhaustive lists live in [`DriverProperties`](../jdbc-v2/src/main/java/com/clickhouse/jdbc/DriverProperties.java), [`ClientConfigProperties`](../client-v2/src/main/java/com/clickhouse/client/api/ClientConfigProperties.java), and the official docs. Configuration splits into two groups:
+This guide names only the properties relevant to each step. The exhaustive lists live in [`DriverProperties`](../jdbc-v2/src/main/java/com/clickhouse/jdbc/DriverProperties.java), [`ClientConfigProperties`](../client-v2/src/main/java/com/clickhouse/client/api/ClientConfigProperties.java), and [the official docs](https://clickhouse.com/docs/integrations/language-clients/java/jdbc#configuration). Configuration splits into two groups:
 - **Init configuration** — set once via the JDBC URL or `Properties`: endpoint, connection pool size, authentication, TLS. Covered in Steps 1–3.
 - **Operation configuration** — set per statement or as connection defaults: fetch size, timeouts, batch behavior, dedup tokens. Covered in Steps 4–6. 
 
@@ -90,7 +90,7 @@ Prefer `Properties` over embedding credentials in the URL. URL/Properties parsin
 
 #### User configuration
 
-When application expects external user to provide connection configuration then building an adoption layer between application and JDBC driver properties is needed to  decouple your system from changes in JDBC driver. Having such layer helps also with migration to new version and resolving compatibility issues. Always separate your application or connector configuration from JDBC driver. It may be very problematic in future to resolve name collisions and handle upgrades. It is very important to document how JDBC driver can be configured by user and where to find driver configuration references.
+When application expects external user to provide connection configuration then building an adoption layer between application and JDBC driver properties is needed to  decouple your system from changes in JDBC driver. Having such layer helps also with migration to new version and resolving compatibility issues. Always separate your application or connector configuration from JDBC driver. It may be very problematic in future to resolve name collisions and handle upgrades. It is very important to document how JDBC driver can be configured by user and where to find [driver configuration references](https://clickhouse.com/docs/integrations/language-clients/java/jdbc#configuration).
 
 **Security Note** Always validate input for configuration. JDBC verifies it own configuration but some values can be semantically invalid. For example, do not let to reconfigure client name.
 
@@ -341,12 +341,12 @@ public Connection createTokenAuthConnection() throws SQLException {
 
 #### JWT Authentication (ClickHouse Cloud)
 
-> **Main Documentation:** See [JWT Authentication in ClickHouse Cloud](https://clickhouse.com/docs/concepts/features/security/external-authenticators/jwt) and the local reference in [clickhouse-docs/jdbc.mdx#jwt-authentication](clickhouse-docs/jdbc.mdx#jwt-authentication).
+> **Main Documentation:** See [JWT Authentication in ClickHouse Cloud](https://clickhouse.com/docs/concepts/features/security/external-authenticators/jwt) and [JDBC JWT Authentication](https://clickhouse.com/docs/integrations/language-clients/java/jdbc#jwt-authentication).
 
 - **Cloud-Only Feature:** JWT authentication is a **ClickHouse Cloud-only** feature. ClickHouse Cloud dynamically creates **ephemeral users** derived from token claims.
 - **User-to-Service Authentication:** JWT authentication is designed for **user-to-service** authentication patterns.
 - **Service-to-Service Recommendation:** Using JWT for **service-to-service** communication is **not recommended** because JWT tokens have a short lifespan and require frequent refreshing.
-- **No Standard JDBC Token Update:** In standard JDBC, there is **no standard API or mechanism to update authentication tokens on active `Connection` instances**. Pooled JDBC connections are long-lived and initialized with static connection properties. While you can unwrap the underlying Java Client via `connection.unwrap(ConnectionImpl.class).getClient().updateBearerToken(...)` (see [clickhouse-docs/jdbc.mdx#jwt-authentication](clickhouse-docs/jdbc.mdx#jwt-authentication)), this is non-standard for JDBC applications. For JDBC service applications, standard username/password authentication is recommended.
+- **No Standard JDBC Token Update:** In standard JDBC, there is **no standard API or mechanism to update authentication tokens on active `Connection` instances**. Pooled JDBC connections are long-lived and initialized with static connection properties. While you can unwrap the underlying Java Client via `connection.unwrap(ConnectionImpl.class).getClient().updateBearerToken(...)` (see [JDBC JWT Authentication](https://clickhouse.com/docs/integrations/language-clients/java/jdbc#jwt-authentication)), this is non-standard for JDBC applications. For JDBC service applications, standard username/password authentication is recommended.
 
 ### Option C — Mutual TLS (client certificate)
 
@@ -950,7 +950,7 @@ public int getParameterCount(PreparedStatement ps) throws SQLException {
 
 ### Type mapping
 
-The driver maps ClickHouse types to JDBC types (e.g. `UInt64` → `NUMERIC`, `Tuple` → `STRUCT`); see [type_mapping.md](../type_mapping.md). Override defaults:
+The driver maps ClickHouse types to JDBC types (e.g. `UInt64` → `NUMERIC`, `Tuple` → `STRUCT`); see [JDBC Type Mapping](https://clickhouse.com/docs/integrations/language-clients/java/jdbc#jdbc-type-mapping) and the [Date/Time values guide](https://clickhouse.com/docs/integrations/language-clients/java/jdbc_date_time_guide). Override defaults:
 
 
 ```java
@@ -1018,7 +1018,7 @@ Key JDBC-specific properties (see [`DriverProperties`](../jdbc-v2/src/main/java/
 
 ## Observability & Monitoring
 
-The ClickHouse JDBC driver (V2) supports metrics and distributed tracing by leveraging the underlying Client V2 engine and standard JDBC application instrumentation. For detailed metric definitions, span attributes, and OpenTelemetry semantic conventions, see the [Client V2 Observability Documentation](https://clickhouse.com/docs/integrations/language-clients/java/client#v2-o11y).
+The ClickHouse JDBC driver (V2) supports metrics and distributed tracing by leveraging the underlying Client V2 engine and standard JDBC application instrumentation. For detailed metric definitions, span attributes, and OpenTelemetry semantic conventions, see the [JDBC Observability Documentation](https://clickhouse.com/docs/integrations/language-clients/java/jdbc#jdbc-v2-o11y) and [Client V2 Observability Documentation](https://clickhouse.com/docs/integrations/language-clients/java/client#v2-o11y).
 
 ### Distributed Tracing & Spans
 
@@ -1089,10 +1089,10 @@ For a complete sample demonstrating JDBC driver setup and telemetry in a Spring 
 
 **Related documents in this repository:**
 
-- [integration-common.md](integration-common.md) — choosing JDBC vs Client
+- [integration-index.md](integration-index.md) — choosing JDBC vs Client
 - [integration-client.md](integration-client.md) — Java Client integration path
 - [integration-ops.md](integration-ops.md) — operations and observability guide
 - [authentication.md](authentication.md) — full authentication and TLS reference
 - [features.md](features.md) — compatibility contract
-- [type_mapping.md](../type_mapping.md) — JDBC type mapping recommendations
+- [JDBC Type Mapping](https://clickhouse.com/docs/integrations/language-clients/java/jdbc#jdbc-type-mapping) — JDBC type mapping reference
 - [integration-testing.md](integration-testing.md) — integration testing recommendations and practices

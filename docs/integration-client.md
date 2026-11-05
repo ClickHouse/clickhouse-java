@@ -4,7 +4,7 @@ This guide is a **end-to-end integration path** for the **Java Client V2** (`cli
 
 ### Configuration References
 
-This guide names only the properties relevant to each step. The exhaustive lists live in [`ClientConfigProperties`](../client-v2/src/main/java/com/clickhouse/client/api/ClientConfigProperties.java), and the official docs. Configuration splits into two groups:
+This guide names only the properties relevant to each step. The exhaustive lists live in [`ClientConfigProperties`](../client-v2/src/main/java/com/clickhouse/client/api/ClientConfigProperties.java), and [the official docs](https://clickhouse.com/docs/integrations/language-clients/java/client#configuration). Configuration splits into two groups:
 - **Client configuration** — set once while creating client instance [Client.Builder](/client-v2/src/main/java/com/clickhouse/client/api/Client.java) This is base configuration used further in each operation by default. Covered in Steps 1–4.
 - **Operation configuration** — set using operation settings class or using `com.clickhouse.client.api.Client` special method. Covered in Step 6 and 7. 
 
@@ -82,7 +82,7 @@ public void insertWithCustomSettings(Client client, List<Event> events, String d
 
 ### Maven Artifacts
 
-The client is published to Maven Central as `com.clickhouse:client-v2`:  https://central.sonatype.com/artifact/com.clickhouse/client-v2.
+The client is published to Maven Central as [`com.clickhouse:client-v2`](https://central.sonatype.com/artifact/com.clickhouse/client-v2).
 
 Two distributions are published under the same artifact:
 
@@ -411,7 +411,7 @@ For a non-`Bearer` scheme, use `setAccessToken(...)` — the value is sent verba
 
 #### JWT Authentication (ClickHouse Cloud)
 
-> **Main Documentation:** See [JWT Authentication in ClickHouse Cloud](https://clickhouse.com/docs/concepts/features/security/external-authenticators/jwt).
+> **Main Documentation:** See [JWT Authentication in ClickHouse Cloud](https://clickhouse.com/docs/concepts/features/security/external-authenticators/jwt) and [Java Client JWT Authentication](https://clickhouse.com/docs/integrations/language-clients/java/client#jwt-authentication).
 
 - **Cloud-Only Feature:** JWT authentication is a **ClickHouse Cloud-only** feature. ClickHouse Cloud dynamically creates **ephemeral users** derived from claims embedded in each token.
 - **User-to-Service Authentication:** JWT authentication is intended for **user-to-service** authentication (e.g., authenticating end users or application sessions).
@@ -588,9 +588,74 @@ The `Client` uses an internal Apache HttpClient 5 pool. Key pool settings expose
 
 - **`http_keep_alive_timeout` and stale connections.** If your application encounters `NoHttpResponseException`, it usually indicates stale pooled connections that were closed by the server or an intermediate proxy/load balancer due to idle timeouts. Setting `setKeepAliveTimeout` to a duration shorter than the server's Keep-Alive timeout ensures idle connections are refreshed before sending a request.
 
-- **`connection_ttl` against ClickHouse Cloud.** Keep it **relatively small** when the endpoint is a Cloud (or otherwise load-balanced) deployment. A short TTL forces connections to be retired and re-established frequently, so new connections keep going through the load balancer, which lets it **redistribute traffic across nodes** instead of pinning long-lived connections to whichever node they first landed on.
+- **`connection_ttl` against ClickHouse Cloud.** Keep it **relatively small** (e.g., **20s**) when the endpoint is a Cloud (or otherwise load-balanced) deployment. A short TTL forces connections to be retired and re-established frequently, so new connections keep going through the load balancer, which lets it **redistribute traffic across nodes** instead of pinning long-lived connections to whichever node they first landed on.
 
 - **`connection_pool_enabled` is not recommended to change.** Leave pooling **enabled** (the default). The only reason to disable it is a workload with extreme concurrency where the internal Apache HttpClient connection pool itself becomes a contention point — under very high parallel request rates the pool's own bookkeeping can serialize threads. Disabling pooling avoids that bottleneck at the cost of a fresh connection per operation (higher latency, more sockets), so treat it as a last resort after measuring, not a default.
+
+**Balancing connection reuse and pod utilization:**
+Configuring the pool requires balancing two competing goals: **maximizing connection reuse** (to avoid TCP/TLS handshake latency on every request) and **distributing load across backend pods/nodes** (so a single replica is not overwhelmed while newly scaled or idle pods sit unused). Keeping connections alive too long pins traffic to the specific pods they first connected to, whereas expiring them too aggressively wastes time re-establishing connections. Tuning `connection_ttl` (around 20s for load-balanced endpoints), `http_keep_alive_timeout`, and `connection_reuse_strategy` (`FIFO` vs `LIFO`) lets you control this trade-off for your deployment topology.
+
+Here are a few common configuration examples:
+
+#### 1. High-Concurrency API on ClickHouse Cloud / Load-Balanced Cluster
+
+**Use case:** A user-facing service executing many short-lived queries concurrently through a load balancer or against ClickHouse Cloud.
+- **Higher `max_open_connections` (50):** Supports high parallel request volume without starving threads.
+- **Short `connection_ttl` (20s):** Forces active connections to rotate periodically so the load balancer redistributes traffic evenly across cluster pods/nodes (especially after scaling events) rather than pinning connections to the initial nodes.
+- **`FIFO` reuse strategy:** Cycles through all pooled connections evenly to balance load across backend nodes.
+- **Short `http_keep_alive_timeout` (10s):** Prevents `NoHttpResponseException` by closing idle connections before the cloud load balancer or server drops them.
+- **Fail-fast `connection_request_timeout` (5s):** Prevents request threads from piling up indefinitely when the pool is saturated.
+
+```java
+import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.ConnectionReuseStrategy;
+
+public Client.Builder configureCloudApiPool(Client.Builder baseClient) {
+    return baseClient
+        .setMaxConnections(50)
+        .setConnectionTTL(20, ChronoUnit.SECONDS)
+        .setKeepAliveTimeout(10, ChronoUnit.SECONDS)
+        .setConnectionReuseStrategy(ConnectionReuseStrategy.FIFO)
+        .setConnectionRequestTimeout(5, ChronoUnit.SECONDS);
+}
+```
+
+#### 2. Spiky / Variable-Traffic Service on a Direct Endpoint
+
+**Use case:** An application with bursty or intermittent traffic connecting directly to a single ClickHouse node (or where minimizing open idle sockets during quiet periods is preferred).
+- **`LIFO` reuse strategy:** Reuses the most recently returned connection first. During low-traffic periods, only a small core of connections stays active while the rest sit idle and expire.
+- **Moderate `http_keep_alive_timeout` (15s):** Quickly reclaims excess connections opened during traffic bursts once load subsides, while avoiding stale-connection errors.
+
+```java
+import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.ConnectionReuseStrategy;
+
+public Client.Builder configureBurstyTrafficPool(Client.Builder baseClient) {
+    return baseClient
+        .setMaxConnections(30)
+        .setConnectionReuseStrategy(ConnectionReuseStrategy.LIFO)
+        .setKeepAliveTimeout(15, ChronoUnit.SECONDS)
+        .setConnectionRequestTimeout(10, ChronoUnit.SECONDS);
+}
+```
+
+#### 3. Background Batch / Streaming Ingestion Worker
+
+**Use case:** An ETL job, scheduled worker, or streaming ingestion pipeline running a small, bounded number of heavy inserts or long-running analytical queries in parallel.
+- **Small `max_open_connections` (5):** Sized strictly to match worker thread parallelism, acting as natural backpressure if additional tasks are queued.
+- **Longer `connection_request_timeout` (30s):** Allows worker threads to wait for an in-flight batch to finish rather than failing immediately.
+- **Short `http_keep_alive_timeout` (10s):** Ensures connections sitting idle between scheduled batch runs are refreshed rather than reused in a stale state.
+
+```java
+import com.clickhouse.client.api.Client;
+
+public Client.Builder configureBatchWorkerPool(Client.Builder baseClient) {
+    return baseClient
+        .setMaxConnections(5)
+        .setKeepAliveTimeout(10, ChronoUnit.SECONDS)
+        .setConnectionRequestTimeout(30, ChronoUnit.SECONDS);
+}
+```
 
 ### Common Pitfalls
 
@@ -688,7 +753,7 @@ For further details and advanced configuration, see [ClientConfigProperties.java
 
 ## Step 5 — Data formats, readers & writers
 
-All formats are defined in [`ClickHouseFormat`](../clickhouse-data/src/main/java/com/clickhouse/data/ClickHouseFormat.java); each declares whether it supports input, output, binary encoding, headers, and row layout.
+All formats are defined in [`ClickHouseFormat`](../clickhouse-data/src/main/java/com/clickhouse/data/ClickHouseFormat.java); each declares whether it supports input, output, binary encoding, headers, and row layout (see [supported formats](https://clickhouse.com/docs/integrations/language-clients/java/client#clickhouseformat)).
 
 The client provides support for the `RowBinary` and `Native` format families through built-in readers and writers (see the list below). Users can also implement their own readers and writers, as the client provides direct access to the underlying `InputStream` and `OutputStream`.
 
@@ -766,7 +831,7 @@ Start by reviewing the [ClickHouse data types](https://clickhouse.com/docs/refer
 
 Database data types are mapped to Java types by the reader or writer and generally follow similar rules across formats (though custom or format-specific readers and writers may use different mappings). 
 
-Next read the official client documentation regarding [data types mapping](/docs/clickhouse-docs/client.mdx#data-types). Client API is built around JDK native data types to make 
+Next read the official client documentation regarding [ClickHouse to Java data type mapping](https://clickhouse.com/docs/integrations/language-clients/java/client#data-types). Client API is built around JDK native data types to make 
 application code more portable. Any additional traits can be implemented with different adaptors. 
 
 ## Step 6 — Read operations
@@ -1324,7 +1389,7 @@ Field-to-column matching is controlled by [`ColumnToMethodMatchingStrategy`](../
 
 ClickHouse supports authentication via access tokens (e.g., JWTs) instead of traditional username/password credentials. This is common in cloud deployments or when using an authentication proxy.
 
-> **JWT Authentication Note:** JWT authentication is a **ClickHouse Cloud-only feature** intended for **user-to-service authentication**. Using JWT for **service-to-service** communication is **not recommended** due to short token lifespans and the requirement to refresh tokens. If token refreshing is necessary, use `client.updateBearerToken(...)`. For complete details, see [JWT Authentication in ClickHouse Cloud](https://clickhouse.com/docs/concepts/features/security/external-authenticators/jwt) and [clickhouse-docs/client.mdx#jwt-authentication](clickhouse-docs/client.mdx#jwt-authentication).
+> **JWT Authentication Note:** JWT authentication is a **ClickHouse Cloud-only feature** intended for **user-to-service authentication**. Using JWT for **service-to-service** communication is **not recommended** due to short token lifespans and the requirement to refresh tokens. If token refreshing is necessary, use `client.updateBearerToken(...)`. For complete details, see [JWT Authentication in ClickHouse Cloud](https://clickhouse.com/docs/concepts/features/security/external-authenticators/jwt) and [Java Client JWT Authentication](https://clickhouse.com/docs/integrations/language-clients/java/client#jwt-authentication).
 
 You can configure token authentication when building the client:
 
@@ -1406,7 +1471,7 @@ A [`Session`](../client-v2/src/main/java/com/clickhouse/client/api/Session.java)
 
 The ClickHouse Java Client (V2) provides built-in observability features designed around OpenTelemetry semantic conventions and Micrometer metrics. The client enables monitoring operational durations, throughput, retries, server execution statistics, connection pool status, and distributed tracing spans.
 
-For complete metric definitions, span hierarchies, attributes, dependency specifications, and custom recorder implementation details, see the [Client V2 Observability Documentation](https://clickhouse.com/docs/integrations/language-clients/java/client#v2-o11y) (or local [clickhouse-docs/client.mdx](clickhouse-docs/client.mdx#v2-o11y)).
+For complete metric definitions, span hierarchies, attributes, dependency specifications, and custom recorder implementation details, see the [Client V2 Observability Documentation](https://clickhouse.com/docs/integrations/language-clients/java/client#v2-o11y).
 
 ### Client Builder Observability API
 
@@ -1471,7 +1536,7 @@ public void executeQueryWithErrorHandling(Client client, String sql) throws Exce
 
 | Resource | Link |
 |----------|------|
-| Official docs | [clickhouse.com/docs/integrations/java](https://clickhouse.com/docs/integrations/java) |
+| Official docs | [clickhouse.com/docs/integrations/language-clients/java/client](https://clickhouse.com/docs/integrations/language-clients/java/client) |
 | Javadoc | [javadoc.io/doc/com.clickhouse/client-v2](https://javadoc.io/doc/com.clickhouse/client-v2) |
 | Artifact (versions + build snippets) | [central.sonatype.com/artifact/com.clickhouse/client-v2](https://central.sonatype.com/artifact/com.clickhouse/client-v2) |
 | Runnable examples | [examples/client-v2](../examples/client-v2) |
