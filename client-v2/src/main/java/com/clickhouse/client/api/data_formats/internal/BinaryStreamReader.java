@@ -303,7 +303,6 @@ public class BinaryStreamReader {
         } catch (EOFException e) {
             throw e;
         } catch (Exception e) {
-            log.debug("Failed to read value for column {}, {}", column.getColumnName(), e.getLocalizedMessage());
             throw new ClientException("Failed to read value for column " + column.getColumnName(), e);
         }
     }

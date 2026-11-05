@@ -306,7 +306,7 @@ public class HttpAPIClientHelper {
                 applyMethod = micrometerLoader.getDeclaredMethod("applyConnectionMetricsBinder", Object.class, String.class, MeteredManagedHttpClientConnectionFactory.class);
                 applyMethod.invoke(micrometerLoader, metricsRegistry, mGroupName, connectionFactory);
             } catch (Exception e) {
-                LOG.error("Failed to register metrics", e);
+                LOG.warn("Failed to register connection pool metrics", e);
             }
         }
         return phccm;
@@ -435,7 +435,9 @@ public class HttpAPIClientHelper {
             return serverCode > 0 ? readClickHouseError(httpResponse.getEntity(), serverCode, queryId, httpResponse.getCode()) :
                     readNotClickHouseError(httpResponse.getEntity(), queryId, httpResponse.getCode());
         } catch (Exception e) {
-            LOG.error("Failed to read error message", e);
+            // Only the type: the message of a failure to read the body can echo the body.
+            LOG.warn("Failed to read the server error message (HTTP status {}, server error code {}): {}",
+                    httpResponse.getCode(), serverCode, ClientUtils.rootCauseClassName(e));
             String msg = String.format(ERROR_CODE_PREFIX_PATTERN, serverCode) + " <Unreadable error message> (transport error: " + httpResponse.getCode() + ")";
             return new ServerException(serverCode, msg + " (queryId= " + queryId + ")", httpResponse.getCode(), queryId);
         }
@@ -473,7 +475,8 @@ public class HttpAPIClientHelper {
                 }
                 throw e;
             } catch (Exception e) {
-                LOG.warn("Failed to read error message (queryId = " + queryId + ")", e);
+                LOG.warn("Failed to read the server error message (HTTP status {}): {}", httpCode,
+                        ClientUtils.rootCauseClassName(e));
                 break;
             }
         }
@@ -716,14 +719,14 @@ public class HttpAPIClientHelper {
                 if (!dataStreamCreated) {
                     throw e;
                 }
-                logIncompleteBodyOnClose(getQueryId(), e);
+                logIncompleteBodyOnClose(e);
             }
         }
 
         @Override
         public InputStream createDataInputStream() {
             try {
-                InputStream stream = new ResponseBodyInputStream(delegate.getEntity().getContent(), getQueryId());
+                InputStream stream = new ResponseBodyInputStream(delegate.getEntity().getContent());
                 dataStreamCreated = true;
                 return stream;
             } catch (Exception e) {
@@ -739,11 +742,8 @@ public class HttpAPIClientHelper {
      */
     private static final class ResponseBodyInputStream extends FilterInputStream {
 
-        private final String queryId;
-
-        ResponseBodyInputStream(InputStream in, String queryId) {
+        ResponseBodyInputStream(InputStream in) {
             super(in);
-            this.queryId = queryId;
         }
 
         @Override
@@ -751,13 +751,13 @@ public class HttpAPIClientHelper {
             try {
                 super.close();
             } catch (ConnectionClosedException e) {
-                logIncompleteBodyOnClose(queryId, e);
+                logIncompleteBodyOnClose(e);
             }
         }
     }
 
-    private static void logIncompleteBodyOnClose(String queryId, ConnectionClosedException e) {
-        LOG.debug("Ignoring incomplete response body on close (queryId = {})", queryId, e);
+    private static void logIncompleteBodyOnClose(ConnectionClosedException e) {
+        LOG.debug("Ignoring incomplete response body on close", e);
     }
 
     /**
@@ -868,14 +868,8 @@ public class HttpAPIClientHelper {
                     logServerErrorResponse(req, httpResponse);
                     throw new ClientException("Unexpected result status " + statusCode);
             }
-        } catch (UnknownHostException e) {
-            LOG.debug("Host '{}' unknown", req.getAuthority());
-            throw e;
-        } catch (ConnectException | NoRouteToHostException e) {
-            LOG.debug("Failed to connect to '{}': {}", req.getAuthority(), e.getMessage());
-            throw e;
         } catch (Exception e) {
-            LOG.debug("Failed to execute request to '{}': {}", req.getAuthority(), e.getMessage(), e);
+            // Not logged: the exception is propagated to the caller.
             if (e instanceof RequestFailedException && req.isCancelled()) {
                 throw new TransportException("Request was cancelled on client side", e, getQueryId(httpResponse, req));
             }
@@ -910,8 +904,9 @@ public class HttpAPIClientHelper {
     }
 
     /**
-     * Logs a server error response at WARN (status, query id, authority, exception-code header). The body is
-     * not logged: {@link #readError} consumes it and it may contain SQL/data.
+     * Logs a server error response at WARN (status, exception-code header). The body is not logged:
+     * {@link #readError} consumes it and it may contain SQL/data. The query ID and the authority are not logged
+     * either: the query ID can be supplied by the application and the authority names the server.
      */
     private void logServerErrorResponse(HttpPost req, ClassicHttpResponse httpResponse) {
         // Null-safe: the error path must never let its own logger throw and mask the real failure.
@@ -919,10 +914,8 @@ public class HttpAPIClientHelper {
             return;
         }
         final Header exceptionCodeHeader = httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE);
-        LOG.warn("Server returned error response: status={}, queryId='{}', authority='{}', {}={}",
+        LOG.warn("Server returned error response: status={}, {}={}",
                 httpResponse.getCode(),
-                getQueryId(httpResponse, req),
-                req.getAuthority(),
                 ClickHouseHttpProto.HEADER_EXCEPTION_CODE,
                 exceptionCodeHeader == null ? "<none>" : exceptionCodeHeader.getValue());
     }

@@ -221,7 +221,6 @@ public class Client implements AutoCloseable {
                 if (httpEndpoint.isSecure()) {
                     initSslContext = true;
                 }
-                LOG.debug("Adding endpoint: {}", httpEndpoint);
                 tmpEndpoints.add(httpEndpoint);
             } else {
                 throw new ClientException("Unsupported endpoint type: " + ep.getClass().getName());
@@ -290,7 +289,7 @@ public class Client implements AutoCloseable {
                     this.sharedOperationExecutor.shutdownNow();
                 }
             } catch (Exception e) {
-                LOG.error("Failed to close shared operation executor", e);
+                LOG.warn("Failed to close shared operation executor", e);
             }
         } else {
             LOG.debug("Skip closing operation executor because not owned by client");
@@ -1498,7 +1497,9 @@ public class Client implements AutoCloseable {
                 return true;
             }
         } catch (Exception e) {
-            LOG.debug("Failed to connect to the server (Duration: {})", durationSince(startTime), e);
+            // The exception message can carry the endpoint or a server message: log only its type.
+            LOG.debug("Ping failed after {} ms: {}", durationSince(startTime).toMillis(),
+                    ClientUtils.rootCauseClassName(e));
             return false;
         }
     }
@@ -1658,6 +1659,7 @@ public class Client implements AutoCloseable {
 
                         spanRecorder.recordInsertSuccess(operationSpan, metrics);
                         metricsRecorder.recordInsertSuccess(requestSettings, tableName, metrics);
+                        logRecoveredRetries("Insert", i, lastException);
                         return new InsertResponse(transportResponse, metrics);
                     } catch (Exception e) {
                         String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
@@ -1665,7 +1667,7 @@ public class Client implements AutoCloseable {
                         if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings()) && requestIsNotCancelled(queryId)) {
                             if (i < maxAttempts) {
                                 metricsRecorder.recordInsertRetry(requestSettings, tableName, lastException);
-                                selectedEndpoint = logRetryAndSelectNextNode("Insert", i, maxAttempts, requestSettings.getQueryId(), selectedEndpoint, e);
+                                selectedEndpoint = nodeSelector.getNextAliveNode(selectedEndpoint);
                             } else {
                                 nodeSelector.getNextAliveNode(selectedEndpoint);
                             }
@@ -1676,7 +1678,6 @@ public class Client implements AutoCloseable {
                 }
 
                 String errMsg = requestExMsg("Insert", maxAttempts + 1, durationSince(startTime).toMillis(), requestSettings.getQueryId());
-                LOG.warn(errMsg);
                 throw (lastException == null ? new ClientException(errMsg) : lastException);
             } catch (RuntimeException | Error e) {
                 // Taken before any recorder runs, like the duration of a successful operation, which the
@@ -1884,6 +1885,7 @@ public class Client implements AutoCloseable {
                                 requestSettings.getQueryId(), OperationType.INSERT);
                         spanRecorder.recordInsertSuccess(operationSpan, metrics);
                         metricsRecorder.recordInsertSuccess(requestSettings, tableName, metrics);
+                        logRecoveredRetries("Insert", i, lastException);
                         return new InsertResponse(transportResponse, metrics);
                     } catch (Exception e) {
                         String msg = requestExMsg("Insert", (i + 1), durationSince(startTime).toMillis(), requestSettings.getQueryId());
@@ -1891,7 +1893,7 @@ public class Client implements AutoCloseable {
                         if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings()) && requestIsNotCancelled(requestSettings.getQueryId())) {
                             if (i < maxAttempts) {
                                 metricsRecorder.recordInsertRetry(requestSettings, tableName, lastException);
-                                selectedEndpoint = logRetryAndSelectNextNode("Insert (stream)", i, maxAttempts, requestSettings.getQueryId(), selectedEndpoint, e);
+                                selectedEndpoint = nodeSelector.getNextAliveNode(selectedEndpoint);
                             } else {
                                 nodeSelector.getNextAliveNode(selectedEndpoint);
                             }
@@ -1910,7 +1912,6 @@ public class Client implements AutoCloseable {
                 }
 
                 String errMsg = requestExMsg("Insert", maxAttempts + 1, durationSince(startTime).toMillis(), requestSettings.getQueryId());
-                LOG.warn(errMsg);
                 throw (lastException == null ? new ClientException(errMsg) : lastException);
             } catch (RuntimeException | Error e) {
                 // Taken before any recorder runs, like the duration of a successful operation, which the
@@ -2042,6 +2043,7 @@ public class Client implements AutoCloseable {
 
                             spanRecorder.recordQuerySuccess(operationSpan, metrics);
                             metricsRecorder.recordQuerySuccess(requestSettings, metrics);
+                            logRecoveredRetries("Query", i, lastException);
                             return new QueryResponse(transportResp, responseFormat, requestSettings, metrics);
 
                         } catch (Exception e) {
@@ -2051,7 +2053,7 @@ public class Client implements AutoCloseable {
                             if (httpClientHelper.shouldRetry(e, requestSettings.getAllSettings()) && requestIsNotCancelled(requestSettings.getQueryId())) {
                                 if (i < maxAttempts) {
                                     metricsRecorder.recordQueryRetry(requestSettings, lastException);
-                                    selectedEndpoint = logRetryAndSelectNextNode("Query", i, maxAttempts, requestSettings.getQueryId(), selectedEndpoint, e);
+                                    selectedEndpoint = nodeSelector.getNextAliveNode(selectedEndpoint);
                                 } else {
                                     nodeSelector.getNextAliveNode(selectedEndpoint);
                                 }
@@ -2062,7 +2064,6 @@ public class Client implements AutoCloseable {
                     }
 
                     String errMsg = requestExMsg("Query", maxAttempts + 1, durationSince(startTime).toMillis(), requestSettings.getQueryId());
-                    LOG.warn(errMsg);
                     throw (lastException == null ? new ClientException(errMsg) : lastException);
                 } catch (RuntimeException | Error e) {
                     // Taken before any recorder runs, like the duration of a successful operation, which the
@@ -2082,16 +2083,16 @@ public class Client implements AutoCloseable {
     }
 
     /**
-     * Logs a single consolidated warning for a failed but retryable request attempt and returns
-     * the next endpoint to try. Keeping this in one place ensures a retry is logged exactly once
-     * with a consistent shape across the insert and query paths.
+     * Logs one warning for an operation that succeeded after retries. Individual attempts are not logged, so that
+     * a retried operation produces at most one message. The message names only the operation, the retry count and
+     * the type of the last retried failure: endpoints, query IDs and exception messages can carry topology or
+     * application data, and the metrics and spans already record each attempt.
      */
-    private Endpoint logRetryAndSelectNextNode(String operation, int attemptIndex, int maxAttempts,
-                                               String queryId, Endpoint endpoint, Exception cause) {
-        LOG.warn("{} failed (attempt {} of {}, queryId: {}), endpoint: {}, cause: {}: {}. Retrying.",
-                operation, attemptIndex + 1, maxAttempts + 1, queryId, endpoint,
-                cause.getClass().getName(), cause.getMessage());
-        return nodeSelector.getNextAliveNode(endpoint);
+    private static void logRecoveredRetries(String operation, int retries, Throwable lastFailure) {
+        if (retries > 0 && LOG.isWarnEnabled()) {
+            LOG.warn("{} succeeded after {} {}; last retried failure: {}", operation, retries,
+                    retries == 1 ? "retry" : "retries", ClientUtils.rootCauseClassName(lastFailure));
+        }
     }
 
     /**

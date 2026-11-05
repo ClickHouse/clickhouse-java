@@ -1,6 +1,7 @@
 package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.DataTypeUtils;
+import com.clickhouse.client.api.internal.ClientUtils;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.sql.SQLUtils;
 import com.clickhouse.data.ClickHouseColumn;
@@ -429,9 +430,10 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                             connection.getSchema(), connection.getCatalog(),
                             tSchema.getTableName(), JdbcUtils.DATA_TYPE_CLASS_MAP, connection.getTypeMap());
                 } catch (Exception e) {
-                    // Don't log the raw SQL (may carry sensitive literals); the cause is enough to diagnose.
+                    // Only the type of the failure: the SQL and the server message (which can echo it) may carry
+                    // sensitive literals.
                     LOG.warn("Failed to resolve result-set metadata for prepared statement; "
-                            + "falling back to untyped metadata", e);
+                            + "falling back to untyped metadata: {}", ClientUtils.rootCauseClassName(e));
                 }
             }
 
@@ -861,7 +863,6 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
             return SQLUtils.escapeSingleQuotes(x.toString()); //Escape single quotes
         } catch (Exception e) {
-            LOG.error("Error encoding object", e);
             throw new SQLException("Error encoding object", ExceptionUtils.SQL_STATE_SQL_ERROR, e);
         }
     }
@@ -988,7 +989,6 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
 
             reader.close();
         } catch (IOException e) {
-            LOG.error("Error reading string from input stream", e);
             throw new SQLException("Error reading string from input stream", ExceptionUtils.SQL_STATE_SQL_ERROR, e);
         }
 
