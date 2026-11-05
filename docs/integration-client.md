@@ -5,8 +5,80 @@ This guide is a **end-to-end integration path** for the **Java Client V2** (`cli
 ### Configuration References
 
 This guide names only the properties relevant to each step. The exhaustive lists live in [`ClientConfigProperties`](../client-v2/src/main/java/com/clickhouse/client/api/ClientConfigProperties.java), and the official docs. Configuration splits into two groups:
-- **Init configuration** — set once using [Client.Builder](/client-v2/src/main/java/com/clickhouse/client/api/Client.java) methods: endpoint, connection pool size, authentication, TLS. Covered in Steps 1–4.
-- **Operation configuration** — set via `com.clickhouse.client.api.Client` method like `com.clickhouse.client.api.Client.Builder.setAccessToken`.
+- **Client configuration** — set once while creating client instance [Client.Builder](/client-v2/src/main/java/com/clickhouse/client/api/Client.java) This is base configuration used further in each operation by default. Covered in Steps 1–4.
+- **Operation configuration** — set using operation settings class or using `com.clickhouse.client.api.Client` special method. Covered in Step 6 and 7. 
+
+
+Here are examples of how each configuration approach looks in practice:
+
+**1. Initial client configuration (`Client.Builder`):**
+
+```java
+import com.clickhouse.client.api.Client;
+
+public Client.Builder createBaseClient() {
+    return new Client.Builder()
+        .addEndpoint("http://localhost:8123")
+        .setUsername("default")
+        .setPassword("secret")
+        .setClientName("order-service/1.2.0")
+        .setConnectTimeout(10, ChronoUnit.SECONDS)
+        .serverSetting("max_threads", "4");
+}
+
+public Client createAnalyticsDBClient(Client.Builder baseClient) {
+    return baseClient
+        .setDefaultDatabase("analytics")
+        .build();
+}
+```
+
+**2. Runtime configuration (`Client` instance methods):**
+
+```java
+import com.clickhouse.client.api.Client;
+
+public void applyRuntimeConfig(Client client, AppConfiguration appConf) {
+    client.setDBRoles(appConf.activeRoles);
+}
+```
+
+**3. Operation-level settings (`QuerySettings` and `InsertSettings`):**
+
+```java
+import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.insert.InsertResponse;
+import com.clickhouse.client.api.insert.InsertSettings;
+import com.clickhouse.client.api.query.GenericRecord;
+import com.clickhouse.client.api.query.QuerySettings;
+
+public List<GenericRecord> queryWithCustomSettings(Client client, String queryId) {
+    QuerySettings settings = new QuerySettings()
+        .setQueryId(queryId)
+        .setDatabase("analytics")
+        .setMaxExecutionTime(60)
+        .serverSetting("max_threads", "8")
+        .logComment("adhoc_report");
+
+    return client.queryAll("SELECT id, name FROM events LIMIT 100", settings);
+}
+
+public void insertWithCustomSettings(Client client, List<Event> events, String deduplicationToken) throws Exception {
+    if (events.isEmpty()) {
+        return;
+    }
+
+    InsertSettings settings = new InsertSettings()
+        .setDatabase("analytics")
+        .setDeduplicationToken(deduplicationToken)
+        .serverSetting("async_insert", "1");
+
+    try (InsertResponse response = client.insert("events", events, settings).get()) {
+        // handle response metrics or confirmation
+    }
+}
+```
+
 
 ### Maven Artifacts
 
@@ -45,15 +117,33 @@ Work through these steps in order. Each one is a decision point; the "Common Pit
 
 ## Step 1 — Instantiation
 
-**Goal:** decide how many `Client` instances exist, how long they live, and how the internal connection pool is sized.
+**Goal:** decide how many `Client` instances exist, how long they live, and how the internal connection pool is sized, etc.
 
+The **ClickHouse Java Client (`client-v2`)** provides an optimized set of tools with its own API to operate with ClickHouse:
+- **Transport (HTTP for now)** — manages communication with ClickHouse and exposes direct `InputStream` / `OutputStream` access on operations, so any ClickHouse format can be read or written. Even columnar frameworks like **Apache Arrow** can use the client as a transport provider.
+- **Operations** — `SELECT` queries (`query`, `queryRecords`, `queryAll`), `INSERT` operations (`insert` via POJO collections, `InputStream`, or `RowBinaryFormatWriter` callbacks), DDL/commands (`execute`), and connectivity checks (`ping`).
+- **Format readers and writers** — built-in parsers and serializers for binary formats (`RowBinaryWithNamesAndTypes`, `RowBinaryWithNames`, `RowBinary`, `Native`), plus `JSONEachRowFormatReader` with `JacksonJsonParserFactory` / `GsonJsonParserFactory` adapters for reading `JSONEachRow`.
+- **POJO serialization and deserialization** — `TableSchema` lookup and bytecode-compiled POJO mapping (`register`) for reading and writing Java objects without reflection.
+- **Runtime reconfiguration** — updating credentials (`updateUserAndPassword`, `updateBearerToken`, `updateAccessToken`), DB roles (`setDBRoles`), client name (`updateClientName`), session ID (`updateSessionId`), and network timeout (`setNetworkTimeout`) on a live instance.
 
-The [com.clickhouse.client.api.Client](/client-v2/src/main/java/com/clickhouse/client/api/Client.java) is library interface object for most interactions with it:
-- Read and Write operations
-- Getting a table schema 
-- Registering POJO for use in insert operations
-- Manipulating active session 
-- Updating user credentials 
+What the library **does not** handle:
+- **Parsing or serializing non-ClickHouse-binary formats** — aside from `JSONEachRow` reader support (with Jackson/Gson adapters), formats such as `CSV`, `TabSeparated`, `Parquet`, or `Arrow` are exposed as raw streams (`InputStream` / `OutputStream`) to be parsed or produced by the developer's preferred library.
+- **Load balancing and failover** — load balancing is the job of a dedicated load balancer because a single client instance cannot observe cluster-wide state (node health, replication lag, query load across all clients) and routing logic is often deployment-specific and non-standard.
+
+The [com.clickhouse.client.api.Client](/client-v2/src/main/java/com/clickhouse/client/api/Client.java) is the library interface for these interactions:
+- Read, write, and command operations
+- Getting a table schema (`getTableSchema`) and creating binary format readers (`newBinaryFormatReader`)
+- Registering POJOs (`register`) for read and insert operations
+- Manipulating active sessions and cancelling in-flight requests (`cancelTransportRequest`)
+- Updating user credentials, roles, client name, and timeouts at runtime
+
+Each `Client` instance is thread-safe and manages the state required to execute requests:
+- **Connection pool and communication facility** (connection pooling, TLS context, LZ4 compression, retry policy) — each operation borrows a connection from the pool and returns it when the response closes
+- **POJO SerDe registry and schema cache** (`POJOSerDe` compiled accessors and cached `TableSchema` definitions)
+- **Credentials and session state** (`CredentialsManager` and client-wide `Session`)
+- **Optional shared executor** for asynchronous operations and observability recorders (`SpanRecorder`, `MetricsRecorder`)
+
+Understanding what a `Client` instance owns determines whether to share it or create separate instances: sharing a single instance reuses the connection pool and compiled POJO mappings across threads, whereas creating a new instance isolates connection pools, credentials, and session state.
 
 This object is constructed using a `Client.Builder`:
 ```java
