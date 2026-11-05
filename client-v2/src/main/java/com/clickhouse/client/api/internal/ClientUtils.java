@@ -11,6 +11,8 @@ import java.util.Objects;
  */
 public final class ClientUtils {
 
+    private static final int DEFAULT_CAUSE_SEARCH_DEPTH = 3;
+
     private ClientUtils() {}
 
     public static boolean isNotBlank(String str) {
@@ -49,5 +51,47 @@ public final class ClientUtils {
             }
         }
         map.put(key, value);
+    }
+
+    /**
+     * Finds the nearest exception of the given type in the cause chain. Checks {@code throwable} first and then
+     * follows up to 3 causes.
+     *
+     * @param throwable - exception to start from, can be {@code null}
+     * @param type - type of the exception to find, not {@code null}
+     * @param <T> - type of the exception to find
+     * @return {@code throwable} or its cause that is an instance of {@code type}, or {@code null} if not found
+     */
+    public static <T extends Throwable> T findCause(Throwable throwable, Class<T> type) {
+        return findCause(throwable, type, DEFAULT_CAUSE_SEARCH_DEPTH);
+    }
+
+    /**
+     * Finds the nearest exception of the given type in the cause chain. Checks {@code throwable} first and then
+     * follows up to {@code maxDepth} causes.
+     *
+     * @param throwable - exception to start from, can be {@code null}
+     * @param type - type of the exception to find, not {@code null}
+     * @param maxDepth - maximum number of causes to follow; {@code 0} checks only {@code throwable}
+     * @param <T> - type of the exception to find
+     * @return {@code throwable} or its cause that is an instance of {@code type}, or {@code null} if not found
+     * @throws IllegalArgumentException if {@code maxDepth} is negative
+     */
+    public static <T extends Throwable> T findCause(Throwable throwable, Class<T> type, int maxDepth) {
+        Objects.requireNonNull(type, "type");
+        if (maxDepth < 0) {
+            throw new IllegalArgumentException("maxDepth must not be negative: " + maxDepth);
+        }
+        Throwable current = throwable;
+        for (int depth = 0; current != null; depth++) {
+            if (type.isInstance(current)) {
+                return type.cast(current);
+            }
+            if (depth == maxDepth) {
+                break;
+            }
+            current = current.getCause();
+        }
+        return null;
     }
 }

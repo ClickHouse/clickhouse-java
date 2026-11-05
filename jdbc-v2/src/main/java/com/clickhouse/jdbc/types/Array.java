@@ -22,17 +22,32 @@ public class Array implements java.sql.Array {
     private final String elementTypeName;
     private boolean valid;
     private final ClickHouseDataType baseDataType;
+    private final boolean multiDimensionalElementType;
     private ArrayResultSet arrayResultSet;
 
     public Array(ClickHouseColumn column, Object[] elements) throws SQLException {
+        this(column, elements, true);
+    }
+
+    /**
+     * @param multiDimensionalElementType if {@code true}, {@link #getBaseType()} and {@link #getBaseTypeName()} of a
+     *                                    multi-dimensional array return the element type (the next array level);
+     *                                    if {@code false}, they return the innermost non-array type. See
+     *                                    {@link com.clickhouse.jdbc.DriverProperties#MULTI_DIMENSIONAL_ARRAY_ELEMENT_TYPE}.
+     */
+    public Array(ClickHouseColumn column, Object[] elements, boolean multiDimensionalElementType) throws SQLException {
         this.column = column;
         this.array = elements;
+        this.multiDimensionalElementType = multiDimensionalElementType;
         // QBit is not an Array (isArray() == false) but is still a one-level array of its element
         // type, so use the array nesting level (set for both Array and QBit) to find the element column.
         ClickHouseColumn baseColumn = (this.column.getArrayNestedLevel() > 0 ? this.column.getArrayBaseColumn() : this.column);
         this.baseDataType = baseColumn.getDataType();
-        this.elementTypeName = baseColumn.getOriginalTypeName();
-        this.type = JdbcUtils.CLICKHOUSE_TO_SQL_TYPE_MAP.getOrDefault(baseDataType, JDBCType.OTHER).getVendorTypeNumber();
+        // Elements of a multi-dimensional array are arrays of the next level, not values of the base column.
+        ClickHouseColumn elementColumn = multiDimensionalElementType && this.column.getArrayNestedLevel() > 1
+                ? this.column.getNestedColumns().get(0) : baseColumn;
+        this.elementTypeName = elementColumn.getOriginalTypeName();
+        this.type = JdbcUtils.CLICKHOUSE_TO_SQL_TYPE_MAP.getOrDefault(elementColumn.getDataType(), JDBCType.OTHER).getVendorTypeNumber();
         this.valid = true;
     }
 
@@ -94,7 +109,7 @@ public class Array implements java.sql.Array {
     public synchronized ResultSet getResultSet() throws SQLException {
         ensureValid();
         if (arrayResultSet == null) {
-            arrayResultSet = new ArrayResultSet(array, column);
+            arrayResultSet = new ArrayResultSet(array, column, multiDimensionalElementType);
         }
         return arrayResultSet;
     }
@@ -107,7 +122,7 @@ public class Array implements java.sql.Array {
     @Override
     public ResultSet getResultSet(long index, int count) throws SQLException {
         ensureValid();
-        return new ArrayResultSet(getArray(index, count), column);
+        return new ArrayResultSet(getArray(index, count), column, multiDimensionalElementType);
     }
 
     @Override

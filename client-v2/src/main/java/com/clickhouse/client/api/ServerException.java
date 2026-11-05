@@ -10,6 +10,8 @@ public class ServerException extends ClickHouseException {
 
     public static final int EXECUTION_TIMEOUT = 159;
 
+    public static final int NOTHING_TO_KILL = 785;
+
     private final int code;
 
     private final int transportProtocolCode;

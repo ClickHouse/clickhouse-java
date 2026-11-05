@@ -121,7 +121,6 @@ public class JdbcConfiguration {
      */
     public JdbcConfiguration(String url, Properties info) throws SQLException {
         final Properties props = info == null ? new Properties() : info;
-        this.disableFrameworkDetection = Boolean.parseBoolean(props.getProperty("disable_frameworks_detection", "false"));
         this.clientProperties = new HashMap<>();
         this.driverProperties = new HashMap<>();
 
@@ -131,6 +130,7 @@ public class JdbcConfiguration {
         Map<String, String> urlProperties = parseUrl(url);
         String tmpConnectionUrl = urlProperties.remove(PARSE_URL_CONN_URL_PROP);
         buildFinalProperties(urlProperties, props);
+        this.disableFrameworkDetection = isSet(DriverProperties.DISABLE_FRAMEWORKS_DETECTION);
 
         // after initializing all properties - set final connection URL
         boolean useSSLInfo = Boolean.parseBoolean(props.getProperty(DriverProperties.SECURE_CONNECTION.getKey(), "false"));
