@@ -25,7 +25,7 @@ public final class ClientUtils {
         return str == null || str.trim().isEmpty();
     }
 
-    public static void quietClose(Closeable closeable, Logger log) {
+    public static void quietClose(final Closeable closeable, Logger log) {
         if (closeable != null) {
             try {
                 closeable.close();

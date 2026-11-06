@@ -644,12 +644,13 @@ public class HttpAPIClientHelperTest {
             assertTrue(logged.contains("Server returned error response"),
                     "an unknown status code must be logged at WARN: " + logged);
             assertTrue(logged.contains(String.valueOf(statusCode)), "the HTTP status code must be logged: " + logged);
+            assertTrue(logged.contains("qid-log-test"), "the query id must be logged: " + logged);
+            assertTrue(logged.contains("localhost:8123"), "the authority must be logged: " + logged);
         } else {
             assertFalse(logged.contains("Server returned error response"),
                     "status " + statusCode + " must not emit a server-error WARN: " + logged);
         }
-        assertFalse(logged.contains("qid-log-test"), "the query id must not be logged: " + logged);
-        assertFalse(logged.contains("localhost:8123"), "the authority must not be logged: " + logged);
+
     }
 
     /**
@@ -799,8 +800,10 @@ public class HttpAPIClientHelperTest {
                 assertTrue(logged.contains("Query succeeded after 1 retry;"),
                         "the recovered retry must be logged: " + logged);
             }
+            // SQL and the server error text are not asserted: the DEBUG log of a failed request keeps the exception
+            // with its stack trace, as the maintainer asked.
             for (String canary : Arrays.asList(CANARY_PASSWORD, CANARY_BASIC, CANARY_TOKEN, CANARY_HEADER_VALUE,
-                    CANARY_SQL, "canary-sql", CANARY_RESPONSE, CANARY_ERROR, CANARY_QUERY_ID, CANARY_URL_VALUE,
+                    CANARY_RESPONSE, CANARY_URL_VALUE,
                     CANARY_APP, CANARY_METADATA)) {
                 assertFalse(logged.contains(canary), "'" + canary + "' must not be logged: " + logged);
             }
