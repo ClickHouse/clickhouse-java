@@ -129,7 +129,7 @@ General recommendation:
 - **ClickHouse Cloud**: Closest to real-world production, surfaces integration and operational issues early, and ensures all JDBC (and client) features work as expected.
 
 Reference documentation to help understand specific of each environment: 
-- [Comparison of self-managed ClickHouse and ClickHouse Cloud]([https://clickhouse.com/docs/products/cloud/getting-started/intro](https://clickhouse.com/docs/products/cloud/getting-started/intro#oss-vs-clickhouse-cloud)) - for high-level overview
+- [Comparison of self-managed ClickHouse and ClickHouse Cloud](https://clickhouse.com/docs/products/cloud/getting-started/intro#oss-vs-clickhouse-cloud) - for high-level overview
 - [Cloud Architecture](https://clickhouse.com/docs/products/cloud/reference/architecture) - for technical insights
 - [ClickHouse Cloud docs](https://clickhouse.com/docs/en/cloud/) - reference documentation
 

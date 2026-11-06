@@ -36,7 +36,7 @@ Two distributions are published under the same artifact:
 
 ## Integration path at a glance
 
-Integration can be done in several step. Please read through all of them to get full information about library capabilities and specific behavior.
+Work through these steps in order. Each one covers a different aspect of the integration. "Common Pitfalls" highlights key considerations and potential dangers.
 
 | # | Step                                                                             | Core decision |
 |---|----------------------------------------------------------------------------------|---------------|
@@ -90,9 +90,36 @@ Prefer `Properties` over embedding credentials in the URL. URL/Properties parsin
 
 #### User configuration
 
-When application expects external user to provide connection configuration then building an adoption layer between application and JDBC driver properties is needed to  decouple your system from changes in JDBC driver. Having such layer helps also with migration to new version and resolving compatibility issues. Always separate your application or connector configuration from JDBC driver. It may be very problematic in future to resolve name collisions and handle upgrades. It is very important to document how JDBC driver can be configured by user and where to find driver configuration references.
+When an application expects external users to provide connection configuration, build an adaptation layer between the application and the JDBC driver properties to decouple your system from changes in the JDBC driver. Having this layer also helps with migrating to new versions and resolving compatibility issues. Always separate your application or connector configuration (such as common properties across connectors like `host`, `username`, and credentials) from the JDBC driver properties; otherwise, resolving name collisions and handling upgrades can become very problematic in the future. It is also important to document how the JDBC driver can be configured by users and where to find driver configuration references ([`DriverProperties`](../jdbc-v2/src/main/java/com/clickhouse/jdbc/DriverProperties.java) and [`ClientConfigProperties`](../client-v2/src/main/java/com/clickhouse/client/api/ClientConfigProperties.java)).
 
-**Security Note** Always validate input for configuration. JDBC verifies it own configuration but some values can be semantically invalid. For example, do not let to reconfigure client name.
+```java
+import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.jdbc.DriverProperties;
+
+public Properties toDriverProperties(UserConnectorConfig userConfig) {
+    Properties props = new Properties();
+
+    // 1. Copy user-supplied driver properties (if allowed by the service)
+    if (userConfig.getDriverProps() != null) {
+        props.putAll(userConfig.getDriverProps());
+    }
+
+    // 2. Map common service-level properties to driver properties
+    //    (can be adjusted on driver upgrades without changing UserConnectorConfig)
+    props.setProperty(ClientConfigProperties.USER.getKey(), userConfig.getUsername());
+    props.setProperty(ClientConfigProperties.PASSWORD.getKey(), userConfig.getPassword());
+    props.setProperty(DriverProperties.SECURE_CONNECTION.getKey(), String.valueOf(userConfig.isSsl()));
+
+    // 3. Enforce guardrails and pin internal properties to prevent system overload
+    props.setProperty(ClientConfigProperties.CLIENT_NAME.getKey(), "my-service/1.0");
+    props.setProperty(ClientConfigProperties.HTTP_MAX_OPEN_CONNECTIONS.getKey(), "10");
+    props.setProperty(ClientConfigProperties.CONNECTION_REQUEST_TIMEOUT.getKey(), "10000");
+
+    return props;
+}
+```
+
+**Security Note:** Always validate input for configuration. The JDBC driver verifies its own configuration, but some user-provided values can still be semantically invalid or unsafe for your environment (for example, do not let users reconfigure `client_name` or set unbounded connection/buffer limits).
 
 ### Server and Client Settings
 
@@ -827,46 +854,53 @@ A schema change — such as adding, removing, or altering a column — can resul
 - **ClickHouse Error Code 33 — "UNABLE TO READ ALL DATA"**:  
   This error appears when the data sent from the client does not match the expected table schema on the server (column count, order, or types are incompatible).  
   - For example, if you use a RowBinary writer and the schema is out of sync, ClickHouse cannot parse the incoming data block, resulting in this error.
-  - Code 33 may also be reported as a generic SQL exception by the JDBC layer, and the actual error code is only accessible if the exception's cause is a `ServerException` from the ClickHouse client.
+  - Code 33 may be reported as a generic SQL or framework exception, and the actual ClickHouse error details are accessible when a `com.clickhouse.client.api.ServerException` is present in the exception's cause chain.
 
 **Detection & Handling:**
 - **Detection:**  
   Error Code 33 signals that ClickHouse could not read all required data — most often due to a schema drift or column mismatch between the client and ClickHouse table.  
-  However, in the JDBC pathway, the underlying ClickHouse error code is accessible *only if* the root cause of the `SQLException` is a `com.clickhouse.client.ServerException`. You should check if `SQLException.getCause()` is a `ServerException` and inspect the code/message.
+  While the JDBC driver preserves `com.clickhouse.client.api.ServerException` in the cause chain of `SQLException` (and copies its code to `SQLException.getErrorCode()` on direct wraps), higher-level frameworks (such as Spring `DataAccessException` or Hibernate `JDBCException`), connection pools, or async execution (`ExecutionException`) often wrap exceptions in multiple layers. Walk the full `getCause()` chain to locate `ServerException` and inspect its error code and message.
 - **Best practices for handling:**  
-  1. **Catch and examine SQL exceptions.**  
-     - If `ex.getCause()` is a `ServerException` with code 33 (or message indicating unable to read all data), assume a schema mismatch.
+  1. **Catch and walk the full exception cause chain.**  
+     - Traverse `getCause()` until you find a `ServerException` with `getCode() == 33` (or a message indicating unable to read all data), and treat it as a schema mismatch.
   2. **Proactively refresh schema.**  
      - Fetch the latest table schema using JDBC's `DatabaseMetaData` or a `DESCRIBE TABLE` query.
   3. **Regenerate SQL or update your ingestion/mapping logic.**  
      - Make sure your SQL, `PreparedStatement`, or RowBinary column mapping exactly matches the current table schema.
   4. **Retry the operation.**
 
-**Example: Handling Error Code 33 (ServerException only)**
+**Example: Handling Error Code 33 (walking the exception cause chain)**
 
 ```java
-import com.clickhouse.client.ServerException;
+import com.clickhouse.client.api.ServerException;
+import com.clickhouse.client.api.metadata.TableSchema;
 
-void writeData(List<Data> data, TableSchema schema) {
+public void writeData(Connection conn, List<Data> data, TableSchema schema) throws Exception {
     try {
-        // ... ingestion code ... using schema
-    } catch (SQLException ex) {
-        Throwable cause = ex.getCause();
-        if (cause instanceof ServerException) {
-            ServerException serverEx = (ServerException) cause;
-            // ClickHouse code 33: UNABLE TO READ ALL DATA (schema mismatch)
-            if (serverEx.getErrorCode() == 33) {
-                // Possible table schema mismatch
-                // 1. Reload schema via DatabaseMetaData or DESCRIBE TABLE
-                // 2. Update SQL or RowBinary mapping as needed
-                // 3. Retry with updated logic
-            } else {
-                throw ex; // not a schema mismatch
-            }
+        // ... ingestion code using schema ...
+    } catch (Exception ex) {
+        ServerException serverEx = findServerException(ex);
+        // ClickHouse code 33: CANNOT_READ_ALL_DATA (schema mismatch)
+        if (serverEx != null && serverEx.getCode() == 33) {
+            // Possible table schema mismatch:
+            // 1. Reload schema via DatabaseMetaData or DESCRIBE TABLE
+            // 2. Update SQL or RowBinary mapping as needed
+            // 3. Retry with updated logic
         } else {
-            throw ex; // Cannot determine server error code
+            throw ex; // Not a schema mismatch or ServerException was not in the cause chain
         }
     }
+}
+
+private static ServerException findServerException(Throwable t) {
+    Throwable curr = t;
+    for (int depth = 0; curr != null && depth < 20; depth++) {
+        if (curr instanceof ServerException) {
+            return (ServerException) curr;
+        }
+        curr = curr.getCause() == curr ? null : curr.getCause();
+    }
+    return null;
 }
 ```
 
