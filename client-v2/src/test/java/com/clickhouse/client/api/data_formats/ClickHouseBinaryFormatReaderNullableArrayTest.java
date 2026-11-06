@@ -443,4 +443,64 @@ public class ClickHouseBinaryFormatReaderNullableArrayTest {
         List<Object> allNullList = reader.getList("all_null_uint64_arr");
         Assert.assertEquals(allNullList, Arrays.asList(null, null));
     }
+
+    @Test
+    public void testNullableArraysOfArrayBackedTypes() throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        String[] names = new String[]{"point_arr", "ring_arr", "tuple_arr"};
+        String[] types = new String[]{"Array(Nullable(Point))", "Array(Nullable(Ring))",
+                                   "Array(Nullable(Tuple(Int32, Int32)))"};
+
+        BinaryStreamUtils.writeVarInt(out, names.length);
+        for (String name : names) {
+            BinaryStreamUtils.writeString(out, name);
+        }
+        for (String type : types) {
+            BinaryStreamUtils.writeString(out, type);
+        }
+
+        // Array(Nullable(Point)): [(1.5, 2.5), NULL]
+        BinaryStreamUtils.writeVarInt(out, 2);
+        BinaryStreamUtils.writeNonNull(out);
+        BinaryStreamUtils.writeFloat64(out, 1.5);
+        BinaryStreamUtils.writeFloat64(out, 2.5);
+        BinaryStreamUtils.writeNull(out);
+
+        // Array(Nullable(Ring)): [[(1.5, 2.5)], NULL]
+        BinaryStreamUtils.writeVarInt(out, 2);
+        BinaryStreamUtils.writeNonNull(out);
+        BinaryStreamUtils.writeVarInt(out, 1);
+        BinaryStreamUtils.writeFloat64(out, 1.5);
+        BinaryStreamUtils.writeFloat64(out, 2.5);
+        BinaryStreamUtils.writeNull(out);
+
+        // Array(Nullable(Tuple(Int32, Int32))): [(1, 2), NULL]
+        BinaryStreamUtils.writeVarInt(out, 2);
+        BinaryStreamUtils.writeNonNull(out);
+        BinaryStreamUtils.writeInt32(out, 1);
+        BinaryStreamUtils.writeInt32(out, 2);
+        BinaryStreamUtils.writeNull(out);
+
+        InputStream in = new ByteArrayInputStream(out.toByteArray());
+        QuerySettings querySettings = new QuerySettings().setUseTimeZone(TimeZone.getTimeZone("UTC").toZoneId().getId());
+        RowBinaryWithNamesAndTypesFormatReader reader =
+                new RowBinaryWithNamesAndTypesFormatReader(in, querySettings, new BinaryStreamReader.CachingByteBufferAllocator());
+
+        reader.next();
+
+        List<Object> points = reader.getList("point_arr");
+        Assert.assertEquals(points.size(), 2);
+        Assert.assertEquals((double[]) points.get(0), new double[]{1.5, 2.5});
+        Assert.assertNull(points.get(1));
+
+        List<Object> rings = reader.getList("ring_arr");
+        Assert.assertEquals(rings.size(), 2);
+        Assert.assertEquals(((double[][]) rings.get(0))[0], new double[]{1.5, 2.5});
+        Assert.assertNull(rings.get(1));
+
+        List<Object> tuples = reader.getList("tuple_arr");
+        Assert.assertEquals(tuples.size(), 2);
+        Assert.assertEquals((Object[]) tuples.get(0), new Object[]{1, 2});
+        Assert.assertNull(tuples.get(1));
+    }
 }

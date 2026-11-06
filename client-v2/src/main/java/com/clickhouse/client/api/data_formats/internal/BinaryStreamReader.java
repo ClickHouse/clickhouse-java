@@ -812,7 +812,13 @@ public class BinaryStreamReader {
                     itemClass = itemClass == null ? value.getClass() : commonSuperclass(itemClass, value.getClass());
                 }
             }
-            array = new ArrayValue(itemClass == null ? resolveArrayItemClass(itemTypeColumn) : itemClass, len);
+            if (itemClass == null) {
+                itemClass = resolveArrayItemClass(itemTypeColumn);
+            } else if (itemClass.isArray() && itemClass.getComponentType().isPrimitive()) {
+                // ArrayValue allocates Object[][] for an array class, which cannot hold Point's double[]
+                itemClass = Object.class;
+            }
+            array = new ArrayValue(itemClass, len);
             for (int i = 0; i < len; i++) {
                 array.set(i, values[i]);
             }
