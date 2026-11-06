@@ -14,8 +14,6 @@ import com.clickhouse.jdbc.internal.DetachedResultSet;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.JdbcUtils;
 import com.google.common.collect.ImmutableMap;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
 import java.sql.JDBCType;
@@ -38,7 +36,6 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wrapper {
-    private static final Logger log = LoggerFactory.getLogger(DatabaseMetaDataImpl.class);
 
     private static final int JDBC_SPEC_MAJOR_VERSION = 4;
     private static final int JDBC_SPEC_MINOR_VERSION = 2;
@@ -999,7 +996,6 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
      */
     @Override
     public ResultSet getTables(String catalog, String schemaPattern, String tableNamePattern, String[] types) throws SQLException {
-        log.debug("getTables: catalog={}, schemaPattern={}, tableNamePattern={}, types={}", catalog, schemaPattern, tableNamePattern, types);
         // TODO: when switch between catalog and schema is implemented, then TABLE_SCHEMA and TABLE_CAT should be populated accordingly
         // TODO: handle useCatalogs == true and return schema catalog name
 
@@ -1208,7 +1204,6 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
                 ClickHouseDataType dt = c.getDataType();
                 type = JdbcUtils.convertToSqlType(dt);
             } catch (Exception e) {
-                log.debug("Failed to convert column data type to SQL type: " + typeName, e);
                 type = JDBCType.OTHER; // In case of error, return SQL type 0
             }
         }
@@ -1421,10 +1416,8 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
             try {
                 type = JdbcUtils.convertToSqlType(ClickHouseDataType.valueOf(typeName));
             } catch (IllegalArgumentException e) {
-                log.debug("Unknown type: {}. Please check for a new version of the client.", typeName);
                 type = JDBCType.OTHER;
             } catch (Exception e) {
-                log.debug("Failed to get SQL type for type: " + typeName, e);
                 type = JDBCType.OTHER;
             }
         }
@@ -1819,7 +1812,6 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
         try {
             return Integer.parseInt(version.split("\\.")[1]);
         } catch (NumberFormatException e) {
-            log.error("Failed to parse minor version from server version: " + version, e);
             throw new SQLException("Failed to parse minor version from server version: " + version, ExceptionUtils.SQL_STATE_CLIENT_ERROR, e);
         }
     }

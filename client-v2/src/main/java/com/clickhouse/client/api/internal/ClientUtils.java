@@ -13,6 +13,8 @@ public final class ClientUtils {
 
     private static final int DEFAULT_CAUSE_SEARCH_DEPTH = 3;
 
+    private static final int ROOT_CAUSE_SEARCH_DEPTH = 16;
+
     private ClientUtils() {}
 
     public static boolean isNotBlank(String str) {
@@ -28,7 +30,8 @@ public final class ClientUtils {
             try {
                 closeable.close();
             } catch (Exception e) {
-                log.warn("Failed to close object " + closeable, e);
+                // The type, not toString(): a closeable can describe a request or a response.
+                log.debug("Failed to close object of type {}", closeable.getClass().getName(), e);
             }
         }
     }
@@ -93,5 +96,24 @@ public final class ClientUtils {
             current = current.getCause();
         }
         return null;
+    }
+
+    /**
+     * Returns the class name of the deepest cause of {@code throwable}, following up to 16 causes. Use it to log a
+     * failure without its message: a message can carry SQL, values, endpoints or a server response.
+     *
+     * @param throwable - exception to start from, can be {@code null}
+     * @return class name of the deepest cause, or {@code "none"} if {@code throwable} is {@code null}
+     */
+    public static String rootCauseClassName(Throwable throwable) {
+        if (throwable == null) {
+            return "none";
+        }
+        Throwable current = throwable;
+        for (int depth = 0; depth < ROOT_CAUSE_SEARCH_DEPTH && current.getCause() != null
+                && current.getCause() != current; depth++) {
+            current = current.getCause();
+        }
+        return current.getClass().getName();
     }
 }

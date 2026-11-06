@@ -301,8 +301,7 @@ public abstract class SqlParserFacade {
          */
         static void assumeFunctionInValuesListOfRecoveredParseTree(ParsedPreparedStatement stmt) {
             if (stmt.isInsert()) {
-                LOG.debug("Assuming a function in the values list of an insert into {} that could not be parsed without errors",
-                        stmt.getTable());
+                LOG.debug("Assuming a function in the values list of an insert that could not be parsed without errors");
                 stmt.setUseFunction(true);
             }
         }
@@ -323,7 +322,8 @@ public abstract class SqlParserFacade {
         private static class ParserErrorListener extends BaseErrorListener {
             @Override
             public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol, int line, int charPositionInLine, String msg, RecognitionException e) {
-                LOG.debug("SQL syntax error at line: " + line + ", pos: " + charPositionInLine + ", " + msg);
+                // The message is not logged: it quotes the tokens of the statement.
+                LOG.debug("SQL syntax error at line: {}, pos: {}", line, charPositionInLine);
             }
         }
 

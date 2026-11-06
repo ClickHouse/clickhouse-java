@@ -56,10 +56,10 @@ public class JDBCErrorHandlingTests extends JdbcIntegrationTest {
     /**
      * When result-set metadata cannot be resolved because the DESCRIBE fails (here: an unknown table),
      * {@code getMetaData()} must fall back to untyped metadata instead of throwing, and the failure must
-     * be logged at WARN with the exception cause attached (the previous log dropped the cause).
+     * be logged at WARN naming the type of the failure, without the SQL or the server message that echoes it.
      */
     @Test(groups = {"integration"})
-    public void testPreparedStatementMetadataFallbackLogsCause() throws Exception {
+    public void testPreparedStatementMetadataFallbackLogsNoSql() throws Exception {
         String sql = "SELECT c FROM nonexistent_table_for_metadata_logging WHERE id = ?";
 
         PrintStream original = System.err;
@@ -77,10 +77,10 @@ public class JDBCErrorHandlingTests extends JdbcIntegrationTest {
         // The fallback returns metadata rather than throwing or returning null.
         Assert.assertNotNull(md, "metadata must fall back to untyped columns, not be null");
 
-        // The fallback is logged at WARN and now carries the exception cause (the old log omitted it).
         Assert.assertTrue(logged.contains("Failed to resolve result-set metadata"),
                 "the metadata fallback must be logged at WARN: " + logged);
-        Assert.assertTrue(logged.contains("Exception"),
-                "the exception cause must be attached to the log: " + logged);
+        Assert.assertTrue(logged.contains("Exception"), "the type of the failure must be logged: " + logged);
+        Assert.assertFalse(logged.contains("nonexistent_table_for_metadata_logging"),
+                "neither the SQL nor the server message may be logged: " + logged);
     }
 }

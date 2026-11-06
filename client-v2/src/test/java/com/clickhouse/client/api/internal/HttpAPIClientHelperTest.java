@@ -4,6 +4,7 @@ import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientFaultCause;
 import com.clickhouse.client.api.ServerException;
+import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.enums.SSLMode;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.client.api.internal.HttpAPIClientHelper.CustomSSLConnectionFactory;
@@ -57,6 +58,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -545,8 +547,8 @@ public class HttpAPIClientHelperTest {
     }
 
     /**
-     * A {@code User-Agent} value of the client configuration that is longer than 200 characters is logged as a
-     * warning, when the client is created and when the client name changes. A value composed for one request is not
+     * A {@code User-Agent} value of the client configuration that is longer than 200 characters is reported by its
+     * length, without the value, as a warning when the client is created and when the client name changes. A value composed for one request is not
      * logged, so that the log does not repeat for every request.
      */
     @Test
@@ -556,8 +558,9 @@ public class HttpAPIClientHelperTest {
         String warning = "The User-Agent value is ";
 
         assertFalse(captureStdErr(() -> newClient(atLimit).close()).contains(warning));
-        assertTrue(captureStdErr(() -> newClient(overLimit).close())
-                .contains(warning + "201 characters long, more than 200"));
+        String logged = captureStdErr(() -> newClient(overLimit).close());
+        assertTrue(logged.contains(warning + "201 characters long, more than 200."), logged);
+        assertFalse(logged.contains(overLimit), "the User-Agent value must not be logged: " + logged);
 
         try (Client client = newClient("my-app/1.0")) {
             HttpAPIClientHelper helper = helperOf(client);
@@ -641,11 +644,12 @@ public class HttpAPIClientHelperTest {
             assertTrue(logged.contains("Server returned error response"),
                     "an unknown status code must be logged at WARN: " + logged);
             assertTrue(logged.contains(String.valueOf(statusCode)), "the HTTP status code must be logged: " + logged);
-            assertTrue(logged.contains("qid-log-test"), "the query id must be logged: " + logged);
         } else {
             assertFalse(logged.contains("Server returned error response"),
                     "status " + statusCode + " must not emit a server-error WARN: " + logged);
         }
+        assertFalse(logged.contains("qid-log-test"), "the query id must not be logged: " + logged);
+        assertFalse(logged.contains("localhost:8123"), "the authority must not be logged: " + logged);
     }
 
     /**
@@ -686,32 +690,68 @@ public class HttpAPIClientHelperTest {
     private static final String CANARY_HEADER_VALUE = "canary-header-5b1d";
     private static final String CANARY_SQL = "SELECT 'canary-sql-8d4f'";
     private static final String CANARY_RESPONSE = "canary-response-1e6c";
+    private static final String CANARY_ERROR = "canary-error-6f0a";
+    private static final String CANARY_QUERY_ID = "canary-query-id-3a7e";
+    private static final String CANARY_URL_VALUE = "canary-url-value-4d8f";
+    private static final String CANARY_APP = "canary-app-9c2b";
+    private static final String CANARY_METADATA = "canary-metadata-0b5e";
+    private static final String DEAD_ENDPOINT = "http://127.0.0.1:1";
+    /** Every logger of client-v2. slf4j-simple caches loggers by name, so a level set here is the level they use. */
+    private static final List<String> CLIENT_LOGGERS = Arrays.asList(
+            "com.clickhouse.client.api.Client",
+            "com.clickhouse.client.api.ClientConfigProperties",
+            "com.clickhouse.client.api.data_formats.internal.AbstractBinaryFormatReader",
+            "com.clickhouse.client.api.data_formats.internal.ProcessParser",
+            "com.clickhouse.client.api.internal.EnvUtils",
+            "com.clickhouse.client.api.internal.HttpAPIClientHelper",
+            "com.clickhouse.client.api.internal.WorkloadIdentitySupport",
+            "com.clickhouse.client.api.serde.POJOSerDe",
+            "com.clickhouse.client.api.transport.ClientNodeSelector");
 
     @DataProvider(name = "wireLoggingCases")
     public static Object[][] wireLoggingCases() {
         return new Object[][] {
-                // connection pool, HTTPS, authentication
-                {true, false, "basic"},
-                {false, false, "password_header"},
-                {true, true, "bearer"},
-                {false, true, "basic"},
+                // connection pool, HTTPS, authentication, server error response
+                {true, false, "basic", false},
+                {false, false, "password_header", false},
+                {true, true, "bearer", false},
+                {false, true, "basic", false},
+                {true, false, "password_header", true},
+                {false, true, "bearer", true},
         };
     }
 
+    /**
+     * With the Apache HttpClient wire logger at DEBUG and every client logger at TRACE, a request that fails over
+     * from a dead endpoint and then succeeds or gets a server error logs none of the credentials, headers, SQL,
+     * bodies, URL values, application metadata or the query ID. (The endpoint address appears in the DEBUG log of
+     * the Apache HttpClient connection operator, which this test enables, so it is checked by the failover test.)
+     */
     @Test(dataProvider = "wireLoggingCases")
-    public void testNoWireLoggingWhenWireLoggerIsDebug(boolean connectionPool, boolean secure, String auth)
-            throws Exception {
+    public void testNoWireOrSensitiveLoggingAtTrace(boolean connectionPool, boolean secure, String auth,
+                                                    boolean serverError) throws Exception {
         WireMockServer server = new WireMockServer(WireMockConfiguration.options().dynamicPort().dynamicHttpsPort()
                 .notifier(new ConsoleNotifier(false)));
         int wireLevel = setLogLevel(WIRE_LOGGER, LocationAwareLogger.DEBUG_INT);
         int operatorLevel = setLogLevel(CONNECTION_OPERATOR_LOGGER, LocationAwareLogger.DEBUG_INT);
+        Map<String, Integer> clientLevels = new HashMap<>();
+        for (String logger : CLIENT_LOGGERS) {
+            clientLevels.put(logger, setLogLevel(logger, LocationAwareLogger.TRACE_INT));
+        }
         try {
             server.start();
-            server.stubFor(WireMock.post(WireMock.anyUrl()).willReturn(WireMock.ok(CANARY_RESPONSE)));
+            server.stubFor(WireMock.post(WireMock.anyUrl()).willReturn(serverError
+                    ? WireMock.aResponse().withStatus(500)
+                            .withHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE, "62")
+                            .withBody("Code: 62. DB::Exception: " + CANARY_ERROR + " " + CANARY_SQL)
+                    : WireMock.ok(CANARY_RESPONSE)));
             Client.Builder builder = new Client.Builder()
+                    .addEndpoint(DEAD_ENDPOINT)
                     .addEndpoint(secure ? "https://localhost:" + server.httpsPort() : "http://localhost:" + server.port())
                     .enableConnectionPool(connectionPool)
                     .compressServerResponse(false)
+                    .serverSetting("log_comment", CANARY_URL_VALUE)
+                    .setClientName(CANARY_APP, Collections.singletonMap("canary", CANARY_METADATA))
                     .httpHeader(CANARY_HEADER_NAME, CANARY_HEADER_VALUE);
             if (secure) {
                 builder.setSSLMode(SSLMode.TRUST);
@@ -724,11 +764,18 @@ public class HttpAPIClientHelperTest {
             }
 
             assertTrue(LoggerFactory.getLogger(WIRE_LOGGER).isDebugEnabled());
+            assertTrue(LoggerFactory.getLogger(Client.class).isTraceEnabled());
+            CommandSettings settings = new CommandSettings();
+            settings.setQueryId(CANARY_QUERY_ID);
             String logged = captureStdErr(() -> {
                 try (Client client = builder.build()) {
-                    client.execute(CANARY_SQL).get(10, TimeUnit.SECONDS).close();
+                    client.execute(CANARY_SQL, settings).get(10, TimeUnit.SECONDS).close();
+                    assertFalse(serverError, "a server error must fail the request");
                 } catch (Exception e) {
-                    throw new RuntimeException(e);
+                    Throwable failure = e instanceof ExecutionException ? e.getCause() : e;
+                    assertTrue(serverError, "the request must succeed: " + failure);
+                    assertTrue(failure.getMessage().contains(CANARY_ERROR),
+                            "the server error must still reach the caller: " + failure);
                 }
             });
             assertTrue(LoggerFactory.getLogger(WIRE_LOGGER).isDebugEnabled(), "the client must not change logger levels");
@@ -747,13 +794,22 @@ public class HttpAPIClientHelperTest {
 
             assertTrue(logged.contains(" connected "), "DEBUG logs of other Apache HttpClient loggers must stay: "
                     + logged);
+            assertTrue(logged.contains("quarantined"), "the client logs must be captured: " + logged);
+            if (!serverError) {
+                assertTrue(logged.contains("Query succeeded after 1 retry;"),
+                        "the recovered retry must be logged: " + logged);
+            }
             for (String canary : Arrays.asList(CANARY_PASSWORD, CANARY_BASIC, CANARY_TOKEN, CANARY_HEADER_VALUE,
-                    CANARY_SQL, CANARY_RESPONSE)) {
+                    CANARY_SQL, "canary-sql", CANARY_RESPONSE, CANARY_ERROR, CANARY_QUERY_ID, CANARY_URL_VALUE,
+                    CANARY_APP, CANARY_METADATA)) {
                 assertFalse(logged.contains(canary), "'" + canary + "' must not be logged: " + logged);
             }
         } finally {
             setLogLevel(WIRE_LOGGER, wireLevel);
             setLogLevel(CONNECTION_OPERATOR_LOGGER, operatorLevel);
+            for (Map.Entry<String, Integer> level : clientLevels.entrySet()) {
+                setLogLevel(level.getKey(), level.getValue());
+            }
             server.stop();
         }
     }
