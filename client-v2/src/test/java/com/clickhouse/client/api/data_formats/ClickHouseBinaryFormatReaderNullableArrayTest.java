@@ -9,6 +9,11 @@ import org.testng.annotations.Test;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.math.BigInteger;
+import java.net.InetAddress;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.Arrays;
 import java.util.List;
 import java.util.TimeZone;
 
@@ -371,5 +376,131 @@ public class ClickHouseBinaryFormatReaderNullableArrayTest {
         Assert.assertEquals(mixedList.get(2), 3L);
         Assert.assertNull(mixedList.get(3));
         Assert.assertEquals(mixedList.get(4), 5L);
+    }
+
+    @Test
+    public void testNullableArraysOfTypesReadAsOtherClasses() throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        String[] names = new String[]{"uint64_arr", "datetime64_arr", "ipv6_arr", "all_null_uint64_arr"};
+        String[] types = new String[]{"Array(Nullable(UInt64))", "Array(Nullable(DateTime64(3, 'UTC')))",
+                                   "Array(Nullable(IPv6))", "Array(Nullable(UInt64))"};
+
+        BinaryStreamUtils.writeVarInt(out, names.length);
+        for (String name : names) {
+            BinaryStreamUtils.writeString(out, name);
+        }
+        for (String type : types) {
+            BinaryStreamUtils.writeString(out, type);
+        }
+
+        // Array(Nullable(UInt64)): [0, NULL, 18446744073709551615]
+        BigInteger maxUInt64 = new BigInteger("18446744073709551615");
+        BinaryStreamUtils.writeVarInt(out, 3);
+        BinaryStreamUtils.writeNonNull(out);
+        BinaryStreamUtils.writeUnsignedInt64(out, BigInteger.ZERO);
+        BinaryStreamUtils.writeNull(out);
+        BinaryStreamUtils.writeNonNull(out);
+        BinaryStreamUtils.writeUnsignedInt64(out, maxUInt64);
+
+        // Array(Nullable(DateTime64(3, 'UTC'))): ['2026-01-01 13:34:56.780', NULL]
+        LocalDateTime dateTime = LocalDateTime.of(2026, 1, 1, 13, 34, 56, 780_000_000);
+        BinaryStreamUtils.writeVarInt(out, 2);
+        BinaryStreamUtils.writeNonNull(out);
+        BinaryStreamUtils.writeDateTime64(out, dateTime, 3, TimeZone.getTimeZone("UTC"));
+        BinaryStreamUtils.writeNull(out);
+
+        // Array(Nullable(IPv6)): ['::ffff:1.2.3.4', NULL, '2001:db8::1']
+        // An IPv4-mapped address is read as Inet4Address, the other one as Inet6Address.
+        BinaryStreamUtils.writeVarInt(out, 3);
+        BinaryStreamUtils.writeNonNull(out);
+        out.write(new byte[]{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, (byte) 0xff, (byte) 0xff, 1, 2, 3, 4});
+        BinaryStreamUtils.writeNull(out);
+        BinaryStreamUtils.writeNonNull(out);
+        out.write(InetAddress.getByName("2001:db8::1").getAddress());
+
+        // Array(Nullable(UInt64)): [NULL, NULL]
+        BinaryStreamUtils.writeVarInt(out, 2);
+        BinaryStreamUtils.writeNull(out);
+        BinaryStreamUtils.writeNull(out);
+
+        InputStream in = new ByteArrayInputStream(out.toByteArray());
+        QuerySettings querySettings = new QuerySettings().setUseTimeZone(TimeZone.getTimeZone("UTC").toZoneId().getId());
+        RowBinaryWithNamesAndTypesFormatReader reader =
+                new RowBinaryWithNamesAndTypesFormatReader(in, querySettings, new BinaryStreamReader.CachingByteBufferAllocator());
+
+        reader.next();
+
+        List<Object> uint64List = reader.getList("uint64_arr");
+        Assert.assertEquals(uint64List, Arrays.asList(BigInteger.ZERO, null, maxUInt64));
+
+        List<Object> dateTimeList = reader.getList("datetime64_arr");
+        Assert.assertEquals(dateTimeList, Arrays.asList(dateTime.atZone(ZoneId.of("UTC")), null));
+
+        List<Object> ipv6List = reader.getList("ipv6_arr");
+        Assert.assertEquals(ipv6List, Arrays.asList(InetAddress.getByName("1.2.3.4"), null,
+                InetAddress.getByName("2001:db8::1")));
+
+        List<Object> allNullList = reader.getList("all_null_uint64_arr");
+        Assert.assertEquals(allNullList, Arrays.asList(null, null));
+    }
+
+    @Test
+    public void testNullableArraysOfArrayBackedTypes() throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        String[] names = new String[]{"point_arr", "ring_arr", "tuple_arr"};
+        String[] types = new String[]{"Array(Nullable(Point))", "Array(Nullable(Ring))",
+                                   "Array(Nullable(Tuple(Int32, Int32)))"};
+
+        BinaryStreamUtils.writeVarInt(out, names.length);
+        for (String name : names) {
+            BinaryStreamUtils.writeString(out, name);
+        }
+        for (String type : types) {
+            BinaryStreamUtils.writeString(out, type);
+        }
+
+        // Array(Nullable(Point)): [(1.5, 2.5), NULL]
+        BinaryStreamUtils.writeVarInt(out, 2);
+        BinaryStreamUtils.writeNonNull(out);
+        BinaryStreamUtils.writeFloat64(out, 1.5);
+        BinaryStreamUtils.writeFloat64(out, 2.5);
+        BinaryStreamUtils.writeNull(out);
+
+        // Array(Nullable(Ring)): [[(1.5, 2.5)], NULL]
+        BinaryStreamUtils.writeVarInt(out, 2);
+        BinaryStreamUtils.writeNonNull(out);
+        BinaryStreamUtils.writeVarInt(out, 1);
+        BinaryStreamUtils.writeFloat64(out, 1.5);
+        BinaryStreamUtils.writeFloat64(out, 2.5);
+        BinaryStreamUtils.writeNull(out);
+
+        // Array(Nullable(Tuple(Int32, Int32))): [(1, 2), NULL]
+        BinaryStreamUtils.writeVarInt(out, 2);
+        BinaryStreamUtils.writeNonNull(out);
+        BinaryStreamUtils.writeInt32(out, 1);
+        BinaryStreamUtils.writeInt32(out, 2);
+        BinaryStreamUtils.writeNull(out);
+
+        InputStream in = new ByteArrayInputStream(out.toByteArray());
+        QuerySettings querySettings = new QuerySettings().setUseTimeZone(TimeZone.getTimeZone("UTC").toZoneId().getId());
+        RowBinaryWithNamesAndTypesFormatReader reader =
+                new RowBinaryWithNamesAndTypesFormatReader(in, querySettings, new BinaryStreamReader.CachingByteBufferAllocator());
+
+        reader.next();
+
+        List<Object> points = reader.getList("point_arr");
+        Assert.assertEquals(points.size(), 2);
+        Assert.assertEquals((double[]) points.get(0), new double[]{1.5, 2.5});
+        Assert.assertNull(points.get(1));
+
+        List<Object> rings = reader.getList("ring_arr");
+        Assert.assertEquals(rings.size(), 2);
+        Assert.assertEquals(((double[][]) rings.get(0))[0], new double[]{1.5, 2.5});
+        Assert.assertNull(rings.get(1));
+
+        List<Object> tuples = reader.getList("tuple_arr");
+        Assert.assertEquals(tuples.size(), 2);
+        Assert.assertEquals((Object[]) tuples.get(0), new Object[]{1, 2});
+        Assert.assertNull(tuples.get(1));
     }
 }
