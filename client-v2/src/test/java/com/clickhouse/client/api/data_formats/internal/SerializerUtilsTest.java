@@ -481,6 +481,40 @@ public class SerializerUtilsTest {
         Assert.assertEquals(valueOut.toByteArray(), new byte[] {2});
     }
 
+
+    private enum Status { active, inactive }
+
+    @Test(dataProvider = "nonNullableEnumTypes")
+    public void testNonMemberNumberIntoEnumThrows(String typeName) {
+        ClickHouseColumn column = ClickHouseColumn.of("v", typeName);
+        IllegalArgumentException ex = Assert.expectThrows(IllegalArgumentException.class,
+                () -> SerializerUtils.serializeData(new ByteArrayOutputStream(), 7, column));
+        Assert.assertTrue(ex.getMessage().contains("Unknown enum value: 7"),
+                "Unexpected message: " + ex.getMessage());
+    }
+
+    @Test
+    public void testMemberNumberIntoEnumIsWritten() throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        SerializerUtils.serializeData(out, 2, ClickHouseColumn.of("v", "Enum8('B' = 1, 'S' = 2)"));
+        Assert.assertEquals(out.toByteArray(), new byte[] {2});
+    }
+
+    @Test
+    public void testJavaEnumIsWrittenAsDeclaredValueNotOrdinal() throws Exception {
+        ClickHouseColumn column = ClickHouseColumn.of("v", "Enum8('active' = 1, 'inactive' = 2)");
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        SerializerUtils.serializeData(out, Status.active, column);
+        Assert.assertEquals(out.toByteArray(), new byte[] {1}); // ordinal() would have written 0
+    }
+
+    @Test
+    public void testJavaEnumNotDeclaredInColumnThrows() {
+        ClickHouseColumn column = ClickHouseColumn.of("v", "Enum8('B' = 1, 'S' = 2)");
+        Assert.assertThrows(IllegalArgumentException.class,
+                () -> SerializerUtils.serializeData(new ByteArrayOutputStream(), Status.active, column));
+    }
+
     @Test(dataProvider = "nestedNullableData")
     public void testNestedNullableRoundTrip(String typeName, Object value) throws Exception {
         ClickHouseColumn column = ClickHouseColumn.of("v", typeName);
