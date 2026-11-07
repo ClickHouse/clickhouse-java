@@ -23,7 +23,7 @@ The `Client` uses Apache HttpClient `5.x`, which manages its own internal HTTP c
 
 For parameter specifications and pool configuration guidance, see:
 - [Java Client Integration Guide: Connections Configuration](integration-client.md#step-4--connections-configuration)
-- [Java Client Documentation: Connection Pooling](clickhouse-docs/client.mdx#connection-pooling)
+- [Java Client Documentation: Connection Pooling](https://clickhouse.com/docs/integrations/language-clients/java/client#connection-pooling)
 
 #### Operational Considerations
 
@@ -38,7 +38,7 @@ When operating `client-v2` in production environments, keep the following operat
 
 Observability in `clickhouse-java` is split into operational metrics (reported via `MetricsRecorder`), HTTP connection pool metrics (bound to Micrometer), and in-band response statistics (`OperationMetrics`).
 
-For detailed metric definitions, tag specifications, and connection pool gauge details, see the [Client V2 Metrics Documentation](https://clickhouse.com/docs/integrations/language-clients/java/client#v2-o11y-metrics) (or local [clickhouse-docs/client.mdx](clickhouse-docs/client.mdx#v2-o11y-metrics)).
+For detailed metric definitions, tag specifications, and connection pool gauge details, see the [Client V2 Metrics Documentation](https://clickhouse.com/docs/integrations/language-clients/java/client#v2-o11y-metrics).
 
 - **Operational Metrics (`MetricsRecorder`):** Tracks operation durations (`db.client.operation.duration`), serialization overhead, operation counts, and retry attempt counters with low-cardinality tags (`db.system.name`, `db.namespace`, `db.operation.name`, `db.collection.name`, `error.type`).
 - **Connection Pool Gauges:** Binds Apache HttpClient 5 pool statistics (`pool.total.max`, `pool.total.connections`, `pool.total.pending`, `connect.time`) to Micrometer via `.registerClientMetrics(meterRegistry, groupName)`.
@@ -54,7 +54,7 @@ Client V2 supports OpenTelemetry distributed tracing across a structured 3-tier 
 2. **Client V2 Operation Span:** High-level client operation span (`QUERY <database>` or `INSERT <database>.<table_name>`).
 3. **Transport Request Span:** Individual HTTP POST attempt span (including retries).
 
-For complete span hierarchy specifications and span attributes, see the [Client V2 Spans Documentation](https://clickhouse.com/docs/integrations/language-clients/java/client#v2-o11y-spans) (or local [clickhouse-docs/client.mdx](clickhouse-docs/client.mdx#v2-o11y-spans)).
+For complete span hierarchy specifications and span attributes, see the [Client V2 Spans Documentation](https://clickhouse.com/docs/integrations/language-clients/java/client#v2-o11y-spans).
 
 ### Context Propagation across Asynchronous Boundaries
 
