@@ -219,7 +219,7 @@ public class DataTypeUtils {
         if (precision > 0 && precision <= 9) {
             sb.append('.');
             // Format nanos with leading zeros, then truncate to precision
-            String nanosStr = String.format("%09d", nanos);
+            String nanosStr = String.format(java.util.Locale.ROOT, "%09d", nanos);
             sb.append(nanosStr, 0, precision);
         }
 
