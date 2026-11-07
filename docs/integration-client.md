@@ -859,6 +859,92 @@ public void writeEventsStream(Client client, TableSchema schema, List<Event> eve
 
 Populate each row with `setValue(column, value)` (by name or 1-based index) and finish it with `commitRow()`. Do not close the stream yourself — the client manages the lifecycle.
 
+When a column is itself a container and you do not already hold the whole value, use the experimental streaming writer inside the same callback. `RowBinaryStreamWriter` writes each row and each nested value as a scope. Pass the element count to `beginArray` when you know it: the length goes out immediately and the elements follow with no extra copy. Close every scope, including the row. A column you do not write is an error. `RowBinaryFormatWriter` stays the API for named cells and for values you already have in memory. The matching reader is `RowBinaryStreamReader`. The full contract is in [reader_writer_api.md](reader_writer_api.md).
+
+The example below expects columns `id Int64`, `name String`, and `tags Array(String)`, in that order.
+
+```java
+import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.data_formats.stream.RowBinaryStreamWriter;
+import com.clickhouse.client.api.data_formats.stream.ValueWriter;
+import com.clickhouse.client.api.insert.InsertResponse;
+import com.clickhouse.client.api.insert.InsertSettings;
+import com.clickhouse.client.api.metadata.TableSchema;
+import com.clickhouse.data.ClickHouseFormat;
+
+public static class TaggedEvent {
+    public long id;
+    public String name;
+    public List<String> tags;
+}
+
+public void writeTaggedEvents(Client client, TableSchema schema, List<TaggedEvent> events) throws Exception {
+    ClickHouseFormat format = ClickHouseFormat.RowBinary;
+
+    try (InsertResponse response = client.insert("events", out -> {
+        RowBinaryStreamWriter writer = new RowBinaryStreamWriter(out, schema, format);
+        for (TaggedEvent event : events) {
+            try (ValueWriter row = writer.beginRow()) {
+                row.writeInt64(event.id);
+                row.writeString(event.name);
+                List<String> tags = event.tags == null ? Collections.emptyList() : event.tags;
+                try (ValueWriter tagValues = row.beginArray(tags.size())) {
+                    for (String tag : tags) {
+                        tagValues.writeString(tag);
+                    }
+                }
+            }
+        }
+    }, format, new InsertSettings()).get()) {
+        // handle response metrics
+    }
+}
+```
+
+A `JSON` column is written the same way. `beginJson` opens the document. A nested object becomes dotted paths, `writeNull` writes a JSON null, and an array of objects is an `Array(JSON)` whose elements are documents. The column in this example is `doc JSON`.
+
+```java
+import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.data_formats.stream.RowBinaryStreamWriter;
+import com.clickhouse.client.api.data_formats.stream.ValueWriter;
+import com.clickhouse.client.api.insert.InsertResponse;
+import com.clickhouse.client.api.insert.InsertSettings;
+import com.clickhouse.client.api.metadata.TableSchema;
+import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseFormat;
+
+public void writeProfile(Client client, TableSchema schema) throws Exception {
+    ClickHouseFormat format = ClickHouseFormat.RowBinary;
+    ClickHouseColumn nullableString = ClickHouseColumn.of("e", "Nullable(String)");
+    ClickHouseColumn json = ClickHouseColumn.of("e", "JSON");
+
+    try (InsertResponse response = client.insert("profiles", out -> {
+        RowBinaryStreamWriter writer = new RowBinaryStreamWriter(out, schema, format);
+        try (ValueWriter row = writer.beginRow()) {
+            try (ValueWriter doc = row.beginJson()) {
+                doc.writeString("name", "ada");
+                try (ValueWriter address = doc.beginObject("address", 2)) {
+                    address.writeString("city", "Berlin");
+                    address.writeNull("zip");
+                }
+                try (ValueWriter tags = doc.beginArray("tags", nullableString, 3)) {
+                    tags.writeString("a");
+                    tags.writeNull();
+                    tags.writeString("b");
+                }
+                try (ValueWriter items = doc.beginArray("items", json, 1)) {
+                    try (ValueWriter item = items.beginJson(1)) {
+                        item.writeInt64("a", 100L);
+                    }
+                }
+            }
+        }
+    }, format, new InsertSettings()).get()) {
+        // handle response metrics
+    }
+}
+```
+
 **Key classes:**
 
 | Class | Role |
