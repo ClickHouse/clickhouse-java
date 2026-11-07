@@ -629,4 +629,25 @@ public class ArrayResultSetTest {
         assertEquals(rs.getObject(valueColumn, String.class), "2");
         assertEquals(rs.getString(valueColumn), rs.getObject(valueColumn, String.class));
     }
+
+    @Test
+    void testJavaTimeConversions() throws Exception {
+        Date[] dates = {Date.valueOf("2020-01-01"), null};
+        ArrayResultSet rs = new ArrayResultSet(dates, ClickHouseColumn.parse("v Array(Date32)").get(0));
+        rs.next();
+        assertEquals(rs.getObject(2, java.time.LocalDate.class), java.time.LocalDate.of(2020, 1, 1));
+        rs.next();
+        assertEquals(rs.getObject(2, java.time.LocalDate.class), null);
+
+        Timestamp[] timestamps = {Timestamp.valueOf("2020-01-01 12:34:56.789123"), null};
+        rs = new ArrayResultSet(timestamps, ClickHouseColumn.parse("v Array(DateTime64(6))").get(0));
+        rs.next();
+        assertEquals(rs.getObject(2, java.time.LocalDateTime.class),
+                java.time.LocalDateTime.of(2020, 1, 1, 12, 34, 56, 789123000));
+
+        Time[] times = {Time.valueOf("12:34:56"), null};
+        rs = new ArrayResultSet(times, ClickHouseColumn.parse("v Array(Time)").get(0));
+        rs.next();
+        assertEquals(rs.getObject(2, java.time.LocalTime.class), java.time.LocalTime.of(12, 34, 56));
+    }
 }
