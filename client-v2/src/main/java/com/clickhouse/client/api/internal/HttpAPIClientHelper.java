@@ -297,6 +297,7 @@ public class HttpAPIClientHelper {
         PoolingHttpClientConnectionManager phccm = connMgrBuilder.build();
         poolControl = phccm;
         if (metricsRegistry != null) {
+            connectionFactory.enableMetrics();
             try {
                 String mGroupName = ClientConfigProperties.METRICS_GROUP_NAME.getOrDefault(configuration);
                 Class<?> micrometerLoader = getClass().getClassLoader().loadClass("com.clickhouse.client.api.metrics.MicrometerLoader");
@@ -1380,9 +1381,19 @@ public class HttpAPIClientHelper {
 
         ConcurrentLinkedQueue<Long> times = new ConcurrentLinkedQueue<>();
 
+        // Connection times are drained only by the metrics gauge (see getTime()), so they are recorded
+        // only when a metrics registry is attached. Otherwise the queue would grow with every new connection.
+        private volatile boolean metricsEnabled = false;
+
+        public void enableMetrics() {
+            this.metricsEnabled = true;
+        }
 
         @Override
         public ManagedHttpClientConnection createConnection(Socket socket) throws IOException {
+            if (!metricsEnabled) {
+                return super.createConnection(socket);
+            }
             long startT = System.currentTimeMillis();
             try {
                 return super.createConnection(socket);
