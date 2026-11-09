@@ -301,7 +301,8 @@ public abstract class SqlParserFacade {
          */
         static void assumeFunctionInValuesListOfRecoveredParseTree(ParsedPreparedStatement stmt) {
             if (stmt.isInsert()) {
-                LOG.debug("Assuming a function in the values list of an insert that could not be parsed without errors");
+                LOG.trace("Assuming a function in the values list of an insert into {} that could not be parsed without errors",
+                        stmt.getTable());
                 stmt.setUseFunction(true);
             }
         }

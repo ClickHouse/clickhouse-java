@@ -263,7 +263,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             try {
                 currentResultSet.close();
             } catch (Exception e) {
-                LOG.debug("Failed to close previous result set: {}", ClientUtils.rootCauseClassName(e));
+                LOG.debug("Failed to close previous result set", e);
             } finally {
                 currentResultSet = null; // no need to remember we have closed it already
             }
@@ -333,21 +333,18 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
                 try {
                     writtenRows = response.getWrittenRows();
                 } catch (Exception e) {
-                    LOG.debug("Failed to read written-rows count from response; defaulting to 0: {}",
-                            ClientUtils.rootCauseClassName(e));
+                    // ignore: the written-rows count stays 0
                 }
                 this.currentUpdateCount = (int) Math.min(writtenRows, Integer.MAX_VALUE);
                 try {
                     reader.close();
                 } catch (Exception closeEx) {
-                    LOG.debug("Failed to close reader when schema is null: {}",
-                            ClientUtils.rootCauseClassName(closeEx));
+                    LOG.debug("Failed to close reader when schema is null", closeEx);
                 } finally {
                     try {
                         response.close();
                     } catch (Exception closeRespEx) {
-                        LOG.debug("Failed to close response when schema is null: {}",
-                                ClientUtils.rootCauseClassName(closeRespEx));
+                        LOG.debug("Failed to close response when schema is null", closeRespEx);
                     }
                 }
                 onResultSetClosed(null);
@@ -359,7 +356,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
                 try {
                     response.close();
                 } catch (Exception ex) {
-                    LOG.debug("Failed to close response after exception: {}", ClientUtils.rootCauseClassName(ex));
+                    LOG.debug("Failed to close response after exception", ex);
                 }
             }
             handleSocketTimeoutException(e);
@@ -439,7 +436,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
                 try {
                     resultSet.close();
                 } catch (Exception e) {
-                    LOG.debug("Failed to close result set: {}", ClientUtils.rootCauseClassName(e));
+                    LOG.debug("Failed to close result set", e);
                 }
             }
         }

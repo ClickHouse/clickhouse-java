@@ -1,7 +1,6 @@
 package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.DataTypeUtils;
-import com.clickhouse.client.api.internal.ClientUtils;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.sql.SQLUtils;
 import com.clickhouse.data.ClickHouseColumn;
@@ -430,10 +429,9 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
                             connection.getSchema(), connection.getCatalog(),
                             tSchema.getTableName(), JdbcUtils.DATA_TYPE_CLASS_MAP, connection.getTypeMap());
                 } catch (Exception e) {
-                    // Only the type of the failure: the SQL and the server message (which can echo it) may carry
-                    // sensitive literals.
-                    LOG.warn("Failed to resolve result-set metadata for prepared statement; "
-                            + "falling back to untyped metadata: {}", ClientUtils.rootCauseClassName(e));
+                    // The SQL is not logged: it may carry sensitive literals.
+                    LOG.debug("Failed to resolve result-set metadata for prepared statement; "
+                            + "falling back to untyped metadata", e);
                 }
             }
 

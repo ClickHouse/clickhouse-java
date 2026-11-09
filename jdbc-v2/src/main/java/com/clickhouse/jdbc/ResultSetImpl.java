@@ -10,6 +10,8 @@ import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.FeatureManager;
 import com.clickhouse.jdbc.internal.JdbcUtils;
 import com.clickhouse.jdbc.metadata.ResultSetMetaDataImpl;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -44,6 +46,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
+    private static final Logger log = LoggerFactory.getLogger(ResultSetImpl.class);
     private ResultSetMetaDataImpl metaData;
     protected ClickHouseFormatReader reader;
     private QueryResponse response;
@@ -168,6 +171,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 try {
                     reader.close();
                 } catch (Exception re) {
+                    log.debug("Error closing reader", re);
                     e = re;
                 } finally {
                     reader = null;
@@ -178,6 +182,7 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                 try {
                     response.close();
                 } catch (Exception re) {
+                    log.debug("Error closing response", re);
                     e = re;
                 } finally {
                     response = null;

@@ -5,8 +5,6 @@ import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.ConnectionImpl;
 import com.clickhouse.jdbc.internal.DetachedResultSet;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -39,7 +37,6 @@ import static java.sql.DatabaseMetaData.typeNullable;
  * table comment and no database engine.
  */
 final class ShowStatementsMetaData {
-    private static final Logger log = LoggerFactory.getLogger(ShowStatementsMetaData.class);
 
     private static final List<ClickHouseColumn> GET_SCHEMAS_COLUMNS = ClickHouseColumn.parse(
             "TABLE_SCHEM String, TABLE_CATALOG String");
@@ -143,7 +140,6 @@ final class ShowStatementsMetaData {
         Predicate<String> columnNameMatcher = likeMatcher(columnNamePattern);
         List<Map<String, Object>> records = new ArrayList<>();
         try {
-            int skipped = 0;
             for (String[] table : showTables(schemaPattern, tableNamePattern, true)) {
                 try {
                     records.addAll(describeTable(table[0], table[1], columnNameMatcher));
@@ -151,10 +147,9 @@ final class ShowStatementsMetaData {
                     if (!isSkippedObjectError(e)) {
                         throw e;
                     }
-                    skipped++;
+                    // skipped: not logged
                 }
             }
-            logSkipped(skipped, "tables");
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(e);
         }
@@ -194,7 +189,6 @@ final class ShowStatementsMetaData {
         if (includeTemporary && likeMatcher(schemaPattern).test("")) {
             tables.addAll(showTablesOfDatabase("", tableNamePattern));
         }
-        int skipped = 0;
         for (String database : showDatabases(schemaPattern)) {
             try {
                 tables.addAll(showTablesOfDatabase(database, tableNamePattern));
@@ -202,10 +196,9 @@ final class ShowStatementsMetaData {
                 if (!isSkippedObjectError(e)) {
                     throw e;
                 }
-                skipped++;
+                // skipped: not logged
             }
         }
-        logSkipped(skipped, "databases");
         return tables;
     }
 
@@ -351,17 +344,6 @@ final class ShowStatementsMetaData {
      */
     private static boolean isSkippedObjectError(SQLException e) {
         return SKIPPED_OBJECT_ERROR_CODES.contains(e.getErrorCode());
-    }
-
-    /**
-     * Logs one message per metadata call, with the count only: the names of the objects are not logged, and a call
-     * over many objects does not log one message per object.
-     */
-    private static void logSkipped(int skipped, String objects) {
-        if (skipped > 0) {
-            log.debug("Skipped metadata of {} {} that were dropped, cannot be described, or cannot be read",
-                    skipped, objects);
-        }
     }
 
     /**

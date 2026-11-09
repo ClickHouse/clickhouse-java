@@ -8,14 +8,13 @@ import org.testng.annotations.Test;
 
 import java.util.Collections;
 
-import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.fail;
 
 /**
- * Verifies that a parse failure exposes neither the SQL statement nor the parser error detail at any level. The
- * statement that failed to parse can carry credentials or PII, so only a generic {@code WARN} is logged.
+ * Verifies that a parse failure logs nothing at any level: the statement that failed to parse can carry credentials
+ * or PII, and the parser error quotes it.
  */
 public class ClickHouseSqlParserLoggingTest {
 
@@ -47,9 +46,6 @@ public class ClickHouseSqlParserLoggingTest {
         assertNotNull(stmts[0]);
         assertTrue(stmts[0].length >= 1);
 
-        assertTrue(logged.contains(" WARN ") && logged.contains("Failed to parse SQL"),
-                "expected a parse-failure WARN to be emitted:\n" + logged);
-        assertFalse(logged.contains(secret), "the parse failure exposed the SQL token:\n" + logged);
-        assertFalse(logged.contains("Encountered"), "the parse failure echoed the parser error detail:\n" + logged);
+        assertTrue(logged.isEmpty(), "a parse failure must not be logged:\n" + logged);
     }
 }

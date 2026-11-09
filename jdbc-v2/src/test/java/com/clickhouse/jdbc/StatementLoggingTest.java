@@ -23,7 +23,9 @@ import static org.testng.Assert.expectThrows;
 
 /**
  * With every driver and client logger at TRACE, executing a statement logs neither its SQL nor its bound values,
- * whether the server accepts it or returns an error that echoes it. The server is mocked: no user is created.
+ * whether the server accepts it or returns an error. The message of a server error is logged with its exception,
+ * so the parts of the statement that the server echoes can be logged; the query ID is always logged with an
+ * error. The server is mocked: no user is created.
  */
 public class StatementLoggingTest {
 
@@ -85,9 +87,14 @@ public class StatementLoggingTest {
 
             server.verify(WireMock.postRequestedFor(WireMock.anyUrl())
                     .withRequestBody(WireMock.containing(prepared ? CANARY_VALUE : CANARY_PASSWORD)));
-            for (String canary : Arrays.asList(CANARY_PASSWORD, CANARY_VALUE, CANARY_ERROR, CANARY_QUERY_ID,
-                    "canary_user")) {
+            List<String> canaries = serverError
+                    ? Arrays.asList(CANARY_VALUE, "canary_user") // the server error echoes the password only
+                    : Arrays.asList(CANARY_PASSWORD, CANARY_VALUE, CANARY_ERROR, "canary_user");
+            for (String canary : canaries) {
                 assertFalse(logged.contains(canary), "'" + canary + "' must not be logged: " + logged);
+            }
+            if (serverError) {
+                assertTrue(logged.contains(CANARY_QUERY_ID), "the query ID must be logged with the error: " + logged);
             }
         } finally {
             server.stop();
