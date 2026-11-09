@@ -163,10 +163,10 @@ public class CompressedBlockInputStreamTest {
         Assert.assertTrue(ex.getMessage().contains("Invalid LZ4 magic byte"));
     }
 
-    @Test
-    public void testChecksumMismatch() {
+    @Test(dataProvider = "compressionAlgorithms")
+    public void testChecksumMismatch(byte magic) {
         byte[] payload = generateData(64);
-        byte[] block = createBlock(CompressedBlockInputStream.MAGIC_LZ4, payload);
+        byte[] block = createBlock(magic, payload);
         block[block.length - 1] ^= 0xFF;
 
         CompressedBlockInputStream input = new CompressedBlockInputStream(
@@ -179,10 +179,10 @@ public class CompressedBlockInputStreamTest {
         Assert.assertTrue(ex.getMessage().contains("checksum mismatch"));
     }
 
-    @Test
-    public void testUnexpectedEndOfStreamInBlock() {
+    @Test(dataProvider = "compressionAlgorithms")
+    public void testUnexpectedEndOfStreamInBlock(byte magic) {
         byte[] payload = generateData(64);
-        byte[] block = createBlock(CompressedBlockInputStream.MAGIC_LZ4, payload);
+        byte[] block = createBlock(magic, payload);
         byte[] truncated = Arrays.copyOf(block, 25); // header only, 0 bytes of payload
 
         CompressedBlockInputStream input = new CompressedBlockInputStream(
@@ -194,10 +194,10 @@ public class CompressedBlockInputStreamTest {
         Assert.assertEquals(ex.getMessage(), "Unexpected end of stream");
     }
 
-    @Test
-    public void testIncompleteReadInBlockPayload() {
+    @Test(dataProvider = "compressionAlgorithms")
+    public void testIncompleteReadInBlockPayload(byte magic) {
         byte[] payload = generateData(64);
-        byte[] block = createBlock(CompressedBlockInputStream.MAGIC_LZ4, payload);
+        byte[] block = createBlock(magic, payload);
         byte[] truncated = Arrays.copyOf(block, block.length - 5);
 
         CompressedBlockInputStream input = new CompressedBlockInputStream(
@@ -207,6 +207,116 @@ public class CompressedBlockInputStreamTest {
 
         IOException ex = Assert.expectThrows(IOException.class, () -> input.read(new byte[1], 0, 1));
         Assert.assertTrue(ex.getMessage().startsWith("Incomplete read:"));
+    }
+
+    @Test
+    public void testConstructorAndReadBoundsValidation() throws IOException {
+        ByteArrayInputStream bais = new ByteArrayInputStream(new byte[0]);
+        Assert.expectThrows(NullPointerException.class,
+                () -> new CompressedBlockInputStream(null, LZ4_FACTORY.fastDecompressor(), 1024));
+        Assert.expectThrows(NullPointerException.class,
+                () -> new CompressedBlockInputStream(bais, null, 1024));
+        Assert.expectThrows(IllegalArgumentException.class,
+                () -> new CompressedBlockInputStream(bais, LZ4_FACTORY.fastDecompressor(), 0));
+        Assert.expectThrows(IllegalArgumentException.class,
+                () -> new CompressedBlockInputStream(bais, LZ4_FACTORY.fastDecompressor(), -1));
+
+        try (CompressedBlockInputStream in = new CompressedBlockInputStream(bais, LZ4_FACTORY.fastDecompressor(), 64)) {
+            byte[] buf = new byte[10];
+            Assert.expectThrows(NullPointerException.class, () -> in.read(null, 0, 1));
+            Assert.expectThrows(IndexOutOfBoundsException.class, () -> in.read(buf, -1, 1));
+            Assert.expectThrows(IndexOutOfBoundsException.class, () -> in.read(buf, 0, -1));
+            Assert.expectThrows(IndexOutOfBoundsException.class, () -> in.read(buf, 5, 6));
+            Assert.assertEquals(in.read(buf, 0, 0), 0);
+        }
+    }
+
+    @DataProvider(name = "invalidBlockHeaders")
+    public static Object[][] invalidBlockHeaders() {
+        return new Object[][] {
+                { CompressedBlockInputStream.MAGIC_LZ4, 0, 64, "invalid compressed block size" },
+                { CompressedBlockInputStream.MAGIC_LZ4, 8, 64, "invalid compressed block size" },
+                { CompressedBlockInputStream.MAGIC_ZSTD_3, -10, 64, "invalid compressed block size" },
+                { CompressedBlockInputStream.MAGIC_LZ4, 25, -1, "invalid uncompressed block size" },
+                { CompressedBlockInputStream.MAGIC_LZ4,
+                        CompressedBlockInputStream.MAX_COMPRESSED_BLOCK_SIZE + 1, 64,
+                        "invalid compressed block size" },
+                { CompressedBlockInputStream.MAGIC_LZ4, 25,
+                        CompressedBlockInputStream.MAX_UNCOMPRESSED_BLOCK_SIZE + 1,
+                        "invalid uncompressed block size" },
+        };
+    }
+
+    @Test(dataProvider = "invalidBlockHeaders")
+    public void testCorruptedHeaderSizes(byte magic, int compressedSizeWithHeader, int uncompressedSize,
+                                         String expectedMessagePart) {
+        byte[] header = new byte[CompressedBlockInputStream.HEADER_LENGTH];
+        header[CompressedBlockInputStream.MAGIC_NUM_POS] = magic;
+        CompressedBlockInputStream.setInt32(header, 17, compressedSizeWithHeader);
+        CompressedBlockInputStream.setInt32(header, 21, uncompressedSize);
+
+        CompressedBlockInputStream input = new CompressedBlockInputStream(
+                new ByteArrayInputStream(header),
+                LZ4_FACTORY.fastDecompressor(),
+                1024);
+
+        ClientException ex = Assert.expectThrows(ClientException.class,
+                () -> input.read(new byte[1], 0, 1));
+        Assert.assertTrue(ex.getMessage().contains(expectedMessagePart), "Unexpected message: " + ex.getMessage());
+    }
+
+    @Test
+    public void testUncompressedBlockSizeMismatch() {
+        byte[] payload = generateData(32);
+        // Header claims uncompressedSize is 64, while payload (and remaining) is 32
+        byte[] block = createBlockWithCustomUncompressedSize(CompressedBlockInputStream.MAGIC_NONE, payload, 64);
+
+        CompressedBlockInputStream input = new CompressedBlockInputStream(
+                new ByteArrayInputStream(block),
+                LZ4_FACTORY.fastDecompressor(),
+                1024);
+
+        ClientException ex = Assert.expectThrows(ClientException.class,
+                () -> input.read(new byte[1], 0, 1));
+        Assert.assertTrue(ex.getMessage().contains("uncompressed block size mismatch"),
+                "Unexpected message: " + ex.getMessage());
+    }
+
+    @Test
+    public void testZstdDecompressedSizeMismatch() {
+        byte[] payload = generateData(32);
+        byte[] compressedPayload = Zstd.compress(payload, 3);
+        // Header claims uncompressedSize is 64, while ZSTD frame decompresses to 32 bytes
+        byte[] block = createBlockWithCustomUncompressedSize(CompressedBlockInputStream.MAGIC_ZSTD_3, compressedPayload, 64);
+
+        CompressedBlockInputStream input = new CompressedBlockInputStream(
+                new ByteArrayInputStream(block),
+                LZ4_FACTORY.fastDecompressor(),
+                1024);
+
+        ClientException ex = Assert.expectThrows(ClientException.class,
+                () -> input.read(new byte[1], 0, 1));
+        Assert.assertTrue(ex.getMessage().contains("ZSTD decompressed size mismatch"),
+                "Unexpected message: " + ex.getMessage());
+    }
+
+    @Test
+    public void testLz4CompressedSizeMismatch() {
+        byte[] payload = generateData(32);
+        byte[] compressedPayload = LZ4_FACTORY.fastCompressor().compress(payload);
+        compressedPayload = Arrays.copyOf(compressedPayload, compressedPayload.length + 1);
+        byte[] block = createBlockWithCustomUncompressedSize(
+                CompressedBlockInputStream.MAGIC_LZ4, compressedPayload, payload.length);
+
+        CompressedBlockInputStream input = new CompressedBlockInputStream(
+                new ByteArrayInputStream(block),
+                LZ4_FACTORY.fastDecompressor(),
+                1024);
+
+        ClientException ex = Assert.expectThrows(ClientException.class,
+                () -> input.read(new byte[1], 0, 1));
+        Assert.assertTrue(ex.getMessage().contains("LZ4 compressed size mismatch"),
+                "Unexpected message: " + ex.getMessage());
     }
 
     private static byte[] generateData(int length) {
@@ -230,6 +340,10 @@ public class CompressedBlockInputStreamTest {
             compressedPayload = payload;
         }
 
+        return createBlockWithCustomUncompressedSize(magic, compressedPayload, uncompressedSize);
+    }
+
+    private static byte[] createBlockWithCustomUncompressedSize(byte magic, byte[] compressedPayload, int uncompressedSize) {
         int compressedSizeWithHeader = compressedPayload.length + 9;
         byte[] block = new byte[compressedSizeWithHeader];
         block[0] = magic;
