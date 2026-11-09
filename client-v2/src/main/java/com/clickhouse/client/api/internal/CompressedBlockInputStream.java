@@ -13,6 +13,7 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.util.Objects;
 
 public class CompressedBlockInputStream extends InputStream {
 
@@ -28,6 +29,11 @@ public class CompressedBlockInputStream extends InputStream {
 
     public CompressedBlockInputStream(InputStream in, LZ4FastDecompressor decompressor, int bufferSize) {
         super();
+        Objects.requireNonNull(in, "in is null");
+        Objects.requireNonNull(decompressor, "decompressor is null");
+        if (bufferSize <= 0) {
+            throw new IllegalArgumentException("bufferSize must be greater than 0");
+        }
         LOG.debug("Using decompressor with buffer size {}", bufferSize);
         this.decompressor = decompressor;
         this.in = in;
@@ -70,6 +76,8 @@ public class CompressedBlockInputStream extends InputStream {
     static final byte MAGIC_NONE = (byte) 0x02;
     static final int HEADER_LENGTH = 25;
     static final int MAGIC_NUM_POS = 16;
+    static final int MAX_COMPRESSED_BLOCK_SIZE = 0x40000000;
+    static final int MAX_UNCOMPRESSED_BLOCK_SIZE = 0x40000000;
 
     final byte[] headerBuff = new byte[HEADER_LENGTH];
 
@@ -126,6 +134,13 @@ public class CompressedBlockInputStream extends InputStream {
         int uncompressedSize = getInt32(headerBuff, 21);
 
         int offset = 9;
+        if (compressedSizeWithHeader < offset || compressedSizeWithHeader > MAX_COMPRESSED_BLOCK_SIZE) {
+            throw new ClientException("Corrupted stream: invalid compressed block size " + compressedSizeWithHeader);
+        }
+        if (uncompressedSize < 0 || uncompressedSize > MAX_UNCOMPRESSED_BLOCK_SIZE) {
+            throw new ClientException("Corrupted stream: invalid uncompressed block size " + uncompressedSize);
+        }
+
         final byte[] block =  new byte[compressedSizeWithHeader];
         block[0] = magicNumber;
         setInt32(block, 1, compressedSizeWithHeader);
@@ -149,14 +164,26 @@ public class CompressedBlockInputStream extends InputStream {
 
         switch (magicNumber) {
             case MAGIC_LZ4: {
-                decompressor.decompress(block, offset, buffer.array(), 0, uncompressedSize);
+                int consumed = decompressor.decompress(block, offset, buffer.array(), 0, uncompressedSize);
+                if (consumed != remaining) {
+                    throw new ClientException("Corrupted stream: LZ4 compressed size mismatch (expected "
+                            + remaining + ", consumed " + consumed + ")");
+                }
                 break;
             }
             case MAGIC_ZSTD_3: {
-                Zstd.decompressByteArray(buffer.array(), 0, uncompressedSize, block, offset, remaining);
+                long decompressed = Zstd.decompressByteArray(buffer.array(), 0, uncompressedSize, block, offset, remaining);
+                if (decompressed != uncompressedSize) {
+                    throw new ClientException("Corrupted stream: ZSTD decompressed size mismatch (expected "
+                            + uncompressedSize + ", got " + decompressed + ")");
+                }
                 break;
             }
             case MAGIC_NONE:
+                if (remaining != uncompressedSize) {
+                    throw new ClientException("Corrupted stream: uncompressed block size mismatch (expected "
+                            + uncompressedSize + ", got " + remaining + ")");
+                }
                 // block is not compressed - just put it.
                 System.arraycopy(block, offset, buffer.array(), 0, uncompressedSize);
                 break;
