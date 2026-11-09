@@ -19,7 +19,7 @@ permissions:
   contents: read
 
 env:
-  PREFERRED_LTS_VERSION: "25.8"
+  PREFERRED_LTS_VERSION: "26.8"
 
 jobs:
   build:
