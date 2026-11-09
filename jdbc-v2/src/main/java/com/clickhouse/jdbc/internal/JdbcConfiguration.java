@@ -476,7 +476,14 @@ public class JdbcConfiguration {
     }
 
     public void updateUserClient(String clientName, Client client) {
-        client.updateClientName((clientName == null || clientName.isEmpty() ? "" : clientName) + ' ' + getDefaultClientName());
+        String name = (clientName == null || clientName.isEmpty() ? "" : clientName + ' ') + getDefaultClientName();
+        if (!isDisableFrameworkDetection()) {
+            String detectedFrameworks = Driver.FrameworksDetection.getFrameworksDetected();
+            if (!detectedFrameworks.trim().isEmpty()) {
+                name += " (" + detectedFrameworks + ")";
+            }
+        }
+        client.updateClientName(name);
     }
 
     public static String getDefaultClientName() {
