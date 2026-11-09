@@ -476,14 +476,19 @@ public class JdbcConfiguration {
     }
 
     public void updateUserClient(String clientName, Client client) {
+        client.updateClientName(buildClientName(clientName));
+    }
+
+    public String buildClientName(String clientName) {
         String name = (clientName == null || clientName.isEmpty() ? "" : clientName + ' ') + getDefaultClientName();
         if (!isDisableFrameworkDetection()) {
             String detectedFrameworks = Driver.FrameworksDetection.getFrameworksDetected();
+            LOG.debug("Detected frameworks: {}", detectedFrameworks);
             if (!detectedFrameworks.trim().isEmpty()) {
                 name += " (" + detectedFrameworks + ")";
             }
         }
-        client.updateClientName(name);
+        return name;
     }
 
     public static String getDefaultClientName() {
