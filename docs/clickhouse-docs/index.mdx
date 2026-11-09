@@ -201,19 +201,19 @@ The Apache HttpClient logger `org.apache.hc.client5.http.headers` writes the req
 
 #### What the client and the driver log {#what-the-client-logs}
 
-The client (`client-v2`) and the JDBC driver (`jdbc-v2`) keep their logs free of application data at every level, `TRACE` included. They never log:
+The client (`client-v2`) and the JDBC driver (`jdbc-v2`) do not log the data of the application at any level, `TRACE` included. They never log:
 
 - SQL statements, bound parameter values, rows, or request and response bodies
 - credentials, tokens, or header values
 - full URLs or URL query strings, and configuration values
-- the client name and client metadata, and query IDs
-- the message of an exception: a message can quote SQL, a value, an endpoint, or a server response
+- the client name and client metadata
 
-An exception that is thrown to the application is not logged as well; it carries the details. The levels are used as follows:
+Query IDs are not sensitive. The client logs the query ID and the server address (host and port) with request failures and server errors, so that you can find the query in `system.query_log`. A request without a query ID is logged as `unknown`. A logged failure carries its exception with the stack trace. The message of a server error can quote parts of the SQL, so the `DEBUG` log of a failed request can contain these parts. The levels are used as follows:
 
 - `ERROR`: a failure that cannot be reported to the application, for example a failed driver registration.
-- `WARN`: a state that degrades the client, reported once: an operation that succeeded after retries (with the retry count and the type of the last failure, once per operation), an endpoint that is quarantined (with its host name only, once per quarantine), all endpoints unavailable (once until an endpoint is available again), ignored or conflicting configuration (with the names of the options only), and a server error message that cannot be read.
-- `DEBUG`: bounded diagnostics, such as the settings a client was created with and cleanup failures (with the type of the failure). `DEBUG` messages are not written per row, per value, per retry, or per metadata object.
+- `WARN`: a state that degrades the client, reported once: a server error response (with the query ID and the server address), an operation that succeeded after retries (with the retry count and the type of the last failure, once per operation), an endpoint that is quarantined (with its host name only, once per quarantine), all endpoints unavailable (once until an endpoint is available again), ignored or conflicting configuration (with the names of the options only), and a server error message that cannot be read.
+- `DEBUG`: bounded diagnostics, such as the settings a client was created with, failed requests (with the server address and the exception), and cleanup failures (with the exception). `DEBUG` messages are not written per row, per value, per retry, or per metadata object.
+- `TRACE`: detailed diagnostics, for example an insert that the SQL parser handles as a function call, or a column type that cannot be mapped to a JDBC type.
 
 For deeper diagnosis use the client metrics and spans (see [Observability & Monitoring](/integrations/language-clients/java/client#v2-o11y)), or a packet capture in a test environment with test credentials.
 
