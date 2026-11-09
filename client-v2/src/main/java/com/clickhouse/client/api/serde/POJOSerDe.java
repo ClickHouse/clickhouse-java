@@ -67,7 +67,7 @@ public class POJOSerDe {
                     }
                 });
             } else {
-                LOG.warn("No getter method found for column: {}", propertyName);
+                LOG.debug("No getter method found for column: {}", propertyName);
             }
 
             // Deserialization stuff
@@ -75,7 +75,7 @@ public class POJOSerDe {
             if (setterMethod != null) {
                 schemaDeserializers.put(column.getColumnName(), SerializerUtils.compilePOJOSetter(setterMethod, column));
             } else {
-                LOG.warn("No setter method found for column: {}", propertyName);
+                LOG.debug("No setter method found for column: {}", propertyName);
             }
         }
 

@@ -5,8 +5,6 @@ import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.ConnectionImpl;
 import com.clickhouse.jdbc.internal.DetachedResultSet;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -39,7 +37,6 @@ import static java.sql.DatabaseMetaData.typeNullable;
  * table comment and no database engine.
  */
 final class ShowStatementsMetaData {
-    private static final Logger log = LoggerFactory.getLogger(ShowStatementsMetaData.class);
 
     private static final List<ClickHouseColumn> GET_SCHEMAS_COLUMNS = ClickHouseColumn.parse(
             "TABLE_SCHEM String, TABLE_CATALOG String");
@@ -150,7 +147,7 @@ final class ShowStatementsMetaData {
                     if (!isSkippedObjectError(e)) {
                         throw e;
                     }
-                    log.debug("Skipped metadata of table {}", table[0].isEmpty() ? table[1] : table[0] + "." + table[1], e);
+                    // skipped: not logged
                 }
             }
         } catch (Exception e) {
@@ -199,7 +196,7 @@ final class ShowStatementsMetaData {
                 if (!isSkippedObjectError(e)) {
                     throw e;
                 }
-                log.debug("Skipped metadata of database {}", database, e);
+                // skipped: not logged
             }
         }
         return tables;
@@ -322,7 +319,7 @@ final class ShowStatementsMetaData {
                 }
             }
         } catch (Exception e) {
-            log.debug("Failed to parse column type: {}", type, e);
+            // An unknown type has no sizes. Not logged: this runs for every column.
         }
         Integer byteLength = TYPE_NAME_TO_BYTE_LENGTH.get(type);
         record.put("COLUMN_SIZE", octetLength != null ? octetLength

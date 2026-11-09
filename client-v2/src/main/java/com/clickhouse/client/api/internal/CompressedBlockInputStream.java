@@ -6,8 +6,6 @@ import com.clickhouse.data.ClickHouseCityHash;
 import com.clickhouse.data.ClickHouseUtils;
 import com.github.luben.zstd.Zstd;
 import net.jpountz.lz4.LZ4FastDecompressor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -16,7 +14,6 @@ import java.nio.ByteBuffer;
 
 public class CompressedBlockInputStream extends InputStream {
 
-    private static final Logger LOG = LoggerFactory.getLogger(CompressedBlockInputStream.class);
     private final LZ4FastDecompressor decompressor;
 
     private final InputStream in;
@@ -25,10 +22,8 @@ public class CompressedBlockInputStream extends InputStream {
 
     private final byte[] tmpBuffer = new byte[1];
 
-
     public CompressedBlockInputStream(InputStream in, LZ4FastDecompressor decompressor, int bufferSize) {
         super();
-        LOG.debug("Using decompressor with buffer size {}", bufferSize);
         this.decompressor = decompressor;
         this.in = in;
         this.buffer = ByteBuffer.allocate(bufferSize);

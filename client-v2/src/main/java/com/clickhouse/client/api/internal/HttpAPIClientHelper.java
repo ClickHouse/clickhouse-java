@@ -306,7 +306,7 @@ public class HttpAPIClientHelper {
                 applyMethod = micrometerLoader.getDeclaredMethod("applyConnectionMetricsBinder", Object.class, String.class, MeteredManagedHttpClientConnectionFactory.class);
                 applyMethod.invoke(micrometerLoader, metricsRegistry, mGroupName, connectionFactory);
             } catch (Exception e) {
-                LOG.error("Failed to register metrics", e);
+                LOG.warn("Failed to register connection pool metrics", e);
             }
         }
         return phccm;
@@ -435,7 +435,8 @@ public class HttpAPIClientHelper {
             return serverCode > 0 ? readClickHouseError(httpResponse.getEntity(), serverCode, queryId, httpResponse.getCode()) :
                     readNotClickHouseError(httpResponse.getEntity(), queryId, httpResponse.getCode());
         } catch (Exception e) {
-            LOG.error("Failed to read error message", e);
+            LOG.warn("Failed to read error message (queryId = {}, HTTP status {}, server error code {})",
+                    queryIdForLog(queryId), httpResponse.getCode(), serverCode, e);
             String msg = String.format(ERROR_CODE_PREFIX_PATTERN, serverCode) + " <Unreadable error message> (transport error: " + httpResponse.getCode() + ")";
             return new ServerException(serverCode, msg + " (queryId= " + queryId + ")", httpResponse.getCode(), queryId);
         }
@@ -473,7 +474,7 @@ public class HttpAPIClientHelper {
                 }
                 throw e;
             } catch (Exception e) {
-                LOG.warn("Failed to read error message (queryId = " + queryId + ")", e);
+                LOG.warn("Failed to read error message (queryId = {})", queryIdForLog(queryId), e);
                 break;
             }
         }
@@ -757,7 +758,7 @@ public class HttpAPIClientHelper {
     }
 
     private static void logIncompleteBodyOnClose(String queryId, ConnectionClosedException e) {
-        LOG.debug("Ignoring incomplete response body on close (queryId = {})", queryId, e);
+        LOG.debug("Ignoring incomplete response body on close (queryId = {})", queryIdForLog(queryId), e);
     }
 
     /**
@@ -902,6 +903,10 @@ public class HttpAPIClientHelper {
         return new TransportRequestImpl(req, requestConfig);
     }
 
+    private static String queryIdForLog(String queryId) {
+        return ClientUtils.isBlank(queryId) ? "unknown" : queryId;
+    }
+
     private String getQueryId(HttpResponse httpResponse, HttpPost httpRequest) {
         final Header serverQueryIdHeader = httpResponse == null ? null : httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID);
         final Header clientQueryIdHeader = httpRequest == null ? null : httpRequest.getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID);
@@ -921,7 +926,7 @@ public class HttpAPIClientHelper {
         final Header exceptionCodeHeader = httpResponse.getFirstHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE);
         LOG.warn("Server returned error response: status={}, queryId='{}', authority='{}', {}={}",
                 httpResponse.getCode(),
-                getQueryId(httpResponse, req),
+                queryIdForLog(getQueryId(httpResponse, req)),
                 req.getAuthority(),
                 ClickHouseHttpProto.HEADER_EXCEPTION_CODE,
                 exceptionCodeHeader == null ? "<none>" : exceptionCodeHeader.getValue());

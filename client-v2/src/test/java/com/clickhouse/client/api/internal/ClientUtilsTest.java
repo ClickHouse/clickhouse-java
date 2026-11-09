@@ -25,7 +25,9 @@ public class ClientUtilsTest {
         ClientUtils.quietClose(closeable, log);
 
         Mockito.verify(closeable).close();
-        Mockito.verify(log).warn(Mockito.contains("Failed to close object"), Mockito.eq(failure));
+        Mockito.verify(log).debug(Mockito.contains("Failed to close object"), Mockito.eq(closeable.getClass().getName()),
+                Mockito.eq(failure));
+        Mockito.verifyNoMoreInteractions(log);
     }
 
     @Test(groups = {"unit"})
@@ -48,6 +50,21 @@ public class ClientUtilsTest {
 
         Mockito.verifyNoInteractions(log);
         Assert.assertTrue(true);
+    }
+
+    @DataProvider(name = "rootCauseClassName")
+    public static Object[][] rootCauseClassName() {
+        IOException root = new IOException("secret");
+        return new Object[][] {
+                {null, "none"},
+                {root, IOException.class.getName()},
+                {new RuntimeException("outer", new IllegalStateException("middle", root)), IOException.class.getName()},
+        };
+    }
+
+    @Test(groups = {"unit"}, dataProvider = "rootCauseClassName")
+    public void testRootCauseClassName(Throwable throwable, String expected) {
+        Assert.assertEquals(ClientUtils.rootCauseClassName(throwable), expected);
     }
 
     @Test(groups = {"unit"}, dataProvider = "putIfAbsentIgnoreCase")

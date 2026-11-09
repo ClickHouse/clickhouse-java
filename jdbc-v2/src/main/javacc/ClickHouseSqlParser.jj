@@ -41,13 +41,9 @@ import java.util.HashSet;
 import java.util.Collection;
 
 import com.clickhouse.client.ClickHouseConfig;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class ClickHouseSqlParser {
     private static final boolean DEBUG = false;
-
-    private static final Logger log = LoggerFactory.getLogger(ClickHouseSqlParser.class);
 
     private static final Set<String> ALLOWED_ALIAS_KEYWORDS =
             ClickHouseSqlUtils.getKeywordGroup(ClickHouseSqlUtils.KEYWORD_GROUP_ALLOWED_ALIASES);
@@ -97,10 +93,8 @@ public class ClickHouseSqlParser {
         } catch (Exception e) {
             if (DEBUG) {
                 throw new IllegalArgumentException(e);
-            } else {
-                log.warn("Failed to parse SQL. If you believe the SQL is valid, please feel free to open an issue on GitHub with this warning. Enable DEBUG logging for details.");
-                log.debug("Failed to parse SQL: '" + sql + "'", e);
             }
+            // Not logged: the statement stays of the UNKNOWN type.
         }
 
         return stmts;

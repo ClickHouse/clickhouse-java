@@ -36,7 +36,7 @@ public class EnvUtils {
                 }
             }
         } catch (Exception e) {
-            LOG.error("Failed to get local host name or address", e);
+            LOG.warn("Failed to get local host name or address", e);
         }
         return "";
     }

@@ -259,12 +259,11 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
 
     private void closeCurrentResultSet() {
         if (currentResultSet != null) {
-            LOG.debug("Previous result set is open [resultSet = " + currentResultSet + "]");
             // Closing request blindly assuming that user do not care about it anymore (DDL request for example)
             try {
                 currentResultSet.close();
             } catch (Exception e) {
-                LOG.error("Failed to close previous result set", e);
+                LOG.debug("Failed to close previous result set", e);
             } finally {
                 currentResultSet = null; // no need to remember we have closed it already
             }
@@ -282,7 +281,6 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
             queryId = queryIdGenerator == null ? UUID.randomUUID().toString() : queryIdGenerator.get();
         }
         lastQueryId = queryId;
-        LOG.debug("Query ID: {}", lastQueryId);
         return queryId;
     }
 
@@ -305,7 +303,6 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         QueryResponse response = null;
         try {
             lastStatementSql = parseJdbcEscapeSyntax(sql);
-            LOG.trace("SQL Query: {}", lastStatementSql); // this is not secure for create statements because of passwords
             if (queryTimeout == 0) {
                 response = connection.getClient().query(lastStatementSql, mergedSettings).get();
             } else {
@@ -336,18 +333,18 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
                 try {
                     writtenRows = response.getWrittenRows();
                 } catch (Exception e) {
-                    LOG.debug("Failed to read written-rows count from response; defaulting to 0", e);
+                    // ignore: the written-rows count stays 0
                 }
                 this.currentUpdateCount = (int) Math.min(writtenRows, Integer.MAX_VALUE);
                 try {
                     reader.close();
                 } catch (Exception closeEx) {
-                    LOG.warn("Failed to close reader when schema is null", closeEx);
+                    LOG.debug("Failed to close reader when schema is null", closeEx);
                 } finally {
                     try {
                         response.close();
                     } catch (Exception closeRespEx) {
-                        LOG.warn("Failed to close response when schema is null", closeRespEx);
+                        LOG.debug("Failed to close response when schema is null", closeRespEx);
                     }
                 }
                 onResultSetClosed(null);
@@ -359,7 +356,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
                 try {
                     response.close();
                 } catch (Exception ex) {
-                    LOG.warn("Failed to close response after exception", ex);
+                    LOG.debug("Failed to close response after exception", ex);
                 }
             }
             handleSocketTimeoutException(e);
@@ -405,7 +402,6 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         QuerySettings mergedSettings = QuerySettings.merge(connection.getDefaultQuerySettings(), settings);
         mergedSettings.setQueryId(setLastQueryID(mergedSettings.getQueryId()));
         lastStatementSql = parseJdbcEscapeSyntax(sql);
-        LOG.trace("SQL Query: {}", lastStatementSql);
         int updateCount = 0;
         try (QueryResponse response = queryTimeout == 0 ? connection.getClient().query(lastStatementSql, mergedSettings).get()
                 : connection.getClient().query(lastStatementSql, mergedSettings).get(queryTimeout, TimeUnit.SECONDS)) {
@@ -440,7 +436,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
                 try {
                     resultSet.close();
                 } catch (Exception e) {
-                    LOG.error("Failed to close result set", e);
+                    LOG.debug("Failed to close result set", e);
                 }
             }
         }
@@ -498,7 +494,7 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
                         getConnection().getClient().getConfiguration().getOrDefault(ClientConfigProperties.ASYNC_OPERATIONS.getKey(),
                         ClientConfigProperties.ASYNC_OPERATIONS.getDefaultValue()));
             } catch (Exception e) {
-                LOG.error("Failed to read client configuration " + ClientConfigProperties.ASYNC_OPERATIONS.getKey(), e);
+                LOG.warn("Failed to read client configuration {}", ClientConfigProperties.ASYNC_OPERATIONS.getKey(), e);
                 isAsyncEnabled = false;
             }
 
@@ -527,13 +523,13 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
         try (QueryResponse response = connection.getClient().query(String.format("KILL QUERY%sWHERE query_id = '%s'",
                 connection.onCluster ? " ON CLUSTER " + SQLUtils.enquoteIdentifier(connection.cluster, true) + ' ' : ' ',
                 queryId), cancelSettings).get()){
-            LOG.debug("Query {} was killed by {}", queryId, response.getQueryId());
+            // nothing to read: the query is cancelled
         } catch (Exception e) {
             ServerException se = ClientUtils.findCause(e, ServerException.class);
             if (se != null && se.getCode() == ServerException.NOTHING_TO_KILL) {
                 // The query is not running (it is finished or not started yet). A server with `kill_throw_if_noop`
                 // enabled (the default since 26.11) reports this as an error, but there is nothing to cancel.
-                LOG.debug("Query {} was not killed because it is not running: {}", queryId, se.getMessage());
+                LOG.debug("Query was not killed because it is not running");
                 return;
             }
             throw new SQLException(e);
