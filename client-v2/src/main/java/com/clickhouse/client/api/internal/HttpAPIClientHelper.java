@@ -308,6 +308,8 @@ public class HttpAPIClientHelper {
                 applyMethod.invoke(micrometerLoader, metricsRegistry, mGroupName, connectionFactory);
             } catch (Exception e) {
                 LOG.error("Failed to register metrics", e);
+                // No gauge will drain the recorded times, so stop recording them.
+                connectionFactory.disableMetrics();
             }
         }
         return phccm;
@@ -1387,6 +1389,11 @@ public class HttpAPIClientHelper {
 
         public void enableMetrics() {
             this.metricsEnabled = true;
+        }
+
+        public void disableMetrics() {
+            this.metricsEnabled = false;
+            this.times.clear();
         }
 
         @Override

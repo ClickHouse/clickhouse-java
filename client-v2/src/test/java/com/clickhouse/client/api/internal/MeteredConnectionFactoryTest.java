@@ -35,4 +35,15 @@ public class MeteredConnectionFactoryTest {
         factory.getTime();
         Assert.assertEquals(factory.times.size(), 0);
     }
+
+    @Test(groups = {"unit"})
+    public void testConnectionTimesNotRecordedAfterMetricsDisabled() throws Exception {
+        HttpAPIClientHelper.MeteredManagedHttpClientConnectionFactory factory = newFactory();
+        factory.enableMetrics();
+        factory.createConnection(new Socket());
+        factory.disableMetrics();
+        Assert.assertEquals(factory.times.size(), 0);
+        factory.createConnection(new Socket());
+        Assert.assertEquals(factory.times.size(), 0, "Connection times must not accumulate once metrics are disabled");
+    }
 }
