@@ -404,7 +404,7 @@ explainStmt
 // INSERT statement
 
 insertStmt
-    : INSERT INTO TABLE? (tableIdentifier | FUNCTION tableFunctionExpr) columnsClause? dataClause
+    : cteClause? INSERT INTO TABLE? (tableIdentifier | FUNCTION tableFunctionExpr) columnsClause? dataClause
     ;
 
 columnsClause
