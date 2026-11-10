@@ -456,12 +456,21 @@ public class HttpAPIClientHelper {
                 if (body == null) {
                     body = httpEntity.getContent();
                 }
+                // Header bytes already fill the buffer. A further read would request a negative or zero length.
+                if (offset >= buffer.length) {
+                    msg = errorBodyText(buffer, buffer.length);
+                    break;
+                }
                 int msgLen = body.read(buffer, offset, buffer.length - offset);
                 if (msgLen > 0) {
-                    msg = new String(buffer, 0, msgLen, StandardCharsets.UTF_8).trim();
+                    // read() must not be trusted past the length we asked for.
+                    int length = Math.min(msgLen, buffer.length - offset);
+                    msg = errorBodyText(buffer, offset + length);
                     if (msg.isEmpty()) {
                         msg = "<empty body response>";
                     }
+                } else if (offset > 0) {
+                    msg = errorBodyText(buffer, offset);
                 }
                 break;
             } catch (ClientException e) {
@@ -470,19 +479,34 @@ public class HttpAPIClientHelper {
                     CompressedBlockInputStream stream = (CompressedBlockInputStream) body;
                     body = stream.getInputStream();
                     byte[] lzHeader = stream.getHeaderBuffer(); // Here is read part of original body
-                    offset = Math.min(lzHeader.length, buffer.length);
-                    System.arraycopy(lzHeader, 0, buffer, 0, offset);
+                    int headerLength = lzHeader == null ? 0 : Math.min(lzHeader.length, buffer.length);
+                    if (headerLength > 0) {
+                        System.arraycopy(lzHeader, 0, buffer, 0, headerLength);
+                    }
+                    offset = headerLength;
                     continue;
                 }
                 throw e;
             } catch (Exception e) {
                 LOG.warn("Failed to read error message (queryId = " + queryId + ")", e);
+                if (msg == null && offset > 0) {
+                    msg = errorBodyText(buffer, offset);
+                }
                 break;
             }
         }
 
         String errormsg = msg == null ? "unknown server error" : msg;
         return new ServerException(ServerException.CODE_UNKNOWN, errormsg + " (transport error: " + httpCode +")", httpCode, queryId);
+    }
+
+    /**
+     * Decodes {@code buffer[0, length)} and clamps {@code length} to the array.
+     * A zero or negative length decodes as an empty string.
+     */
+    private static String errorBodyText(byte[] buffer, int length) {
+        int boundedLength = length <= 0 ? 0 : Math.min(length, buffer.length);
+        return new String(buffer, 0, boundedLength, StandardCharsets.UTF_8).trim();
     }
 
     private static ServerException readClickHouseError(HttpEntity httpEntity, int serverCode, String queryId, int httpCode) throws Exception {

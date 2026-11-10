@@ -1,6 +1,7 @@
 package com.clickhouse.client.api.internal;
 
 import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.DataTransferException;
 import com.clickhouse.data.ClickHouseByteUtils;
 import com.clickhouse.data.ClickHouseCityHash;
 import com.clickhouse.data.ClickHouseUtils;
@@ -13,6 +14,7 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.util.Objects;
 
 public class CompressedBlockInputStream extends InputStream {
 
@@ -28,6 +30,11 @@ public class CompressedBlockInputStream extends InputStream {
 
     public CompressedBlockInputStream(InputStream in, LZ4FastDecompressor decompressor, int bufferSize) {
         super();
+        Objects.requireNonNull(in, "in is null");
+        Objects.requireNonNull(decompressor, "decompressor is null");
+        if (bufferSize <= 0) {
+            throw new IllegalArgumentException("bufferSize must be greater than 0");
+        }
         LOG.debug("Using decompressor with buffer size {}", bufferSize);
         this.decompressor = decompressor;
         this.in = in;
@@ -70,6 +77,16 @@ public class CompressedBlockInputStream extends InputStream {
     static final byte MAGIC_NONE = (byte) 0x02;
     static final int HEADER_LENGTH = 25;
     static final int MAGIC_NUM_POS = 16;
+    // ClickHouse DBMS_MAX_COMPRESSED_SIZE (CompressionInfo.h): exactly 1 GiB (2^30).
+    // The server accepts this value and rejects one byte more, for both the compressed-size
+    // and the decompressed-size fields. This is the protocol ceiling, not a normal block
+    // (the server writes at most max_compress_block_size, 1 MiB by default).
+    // Both fields are UInt32 and are read here as a signed int, so a value >= 2 GiB arrives
+    // negative and fails the < 0 check. If the server raises DBMS_MAX_COMPRESSED_SIZE, raise
+    // these caps as well; a valid larger block would otherwise be rejected as corrupted.
+    // A limit >= 2 GiB also requires reading the fields as unsigned.
+    static final int MAX_COMPRESSED_BLOCK_SIZE = 0x40000000;
+    static final int MAX_UNCOMPRESSED_BLOCK_SIZE = 0x40000000;
 
     final byte[] headerBuff = new byte[HEADER_LENGTH];
 
@@ -81,12 +98,25 @@ public class CompressedBlockInputStream extends InputStream {
     private boolean readFully(byte[] b, int off, int len) throws IOException {
         int n = 0;
         while (n < len) {
-            int count = in.read(b, off + n, len - n);
+            int count;
+            try {
+                count = in.read(b, off + n, len - n);
+            } catch (EOFException ex) {
+                // Same signal as read() == -1. A clean end (nothing read yet) must stay a
+                // false return so refill can end the stream or report a truncated block.
+                // Wrapping it here would hide that from the callers that branch on it.
+                if (n == 0) {
+                    return false;
+                }
+                throw new DataTransferException(ClickHouseUtils.format("Incomplete read: %s of %s", n, len), ex);
+            } catch (IOException ex) {
+                throw new DataTransferException(ClickHouseUtils.format("Incomplete read: %s of %s", n, len), ex);
+            }
             if (count < 0) {
                 if (n == 0) {
                     return false;
                 }
-                throw new IOException(ClickHouseUtils.format("Incomplete read: %s of %s", n, len));
+                throw new DataTransferException(ClickHouseUtils.format("Incomplete read: %s of %s", n, len));
             }
             n += count;
         }
@@ -126,6 +156,13 @@ public class CompressedBlockInputStream extends InputStream {
         int uncompressedSize = getInt32(headerBuff, 21);
 
         int offset = 9;
+        if (compressedSizeWithHeader < offset || compressedSizeWithHeader > MAX_COMPRESSED_BLOCK_SIZE) {
+            throw new DataTransferException("Corrupted stream: invalid compressed block size " + compressedSizeWithHeader);
+        }
+        if (uncompressedSize < 0 || uncompressedSize > MAX_UNCOMPRESSED_BLOCK_SIZE) {
+            throw new DataTransferException("Corrupted stream: invalid uncompressed block size " + uncompressedSize);
+        }
+
         final byte[] block =  new byte[compressedSizeWithHeader];
         block[0] = magicNumber;
         setInt32(block, 1, compressedSizeWithHeader);
@@ -135,7 +172,7 @@ public class CompressedBlockInputStream extends InputStream {
 
         readFully = readFully(block, offset, remaining);
         if (!readFully) {
-            throw new EOFException("Unexpected end of stream");
+            throw new DataTransferException("Unexpected end of stream");
         }
 
         long[] real = ClickHouseCityHash.cityHash128(block, 0, compressedSizeWithHeader);
@@ -149,14 +186,26 @@ public class CompressedBlockInputStream extends InputStream {
 
         switch (magicNumber) {
             case MAGIC_LZ4: {
-                decompressor.decompress(block, offset, buffer.array(), 0, uncompressedSize);
+                int consumed = decompressor.decompress(block, offset, buffer.array(), 0, uncompressedSize);
+                if (consumed != remaining) {
+                    throw new DataTransferException("Corrupted stream: LZ4 compressed size mismatch (expected "
+                            + remaining + ", consumed " + consumed + ")");
+                }
                 break;
             }
             case MAGIC_ZSTD_3: {
-                Zstd.decompressByteArray(buffer.array(), 0, uncompressedSize, block, offset, remaining);
+                long decompressed = Zstd.decompressByteArray(buffer.array(), 0, uncompressedSize, block, offset, remaining);
+                if (decompressed != uncompressedSize) {
+                    throw new DataTransferException("Corrupted stream: ZSTD decompressed size mismatch (expected "
+                            + uncompressedSize + ", got " + decompressed + ")");
+                }
                 break;
             }
             case MAGIC_NONE:
+                if (remaining != uncompressedSize) {
+                    throw new DataTransferException("Corrupted stream: uncompressed block size mismatch (expected "
+                            + uncompressedSize + ", got " + remaining + ")");
+                }
                 // block is not compressed - just put it.
                 System.arraycopy(block, offset, buffer.array(), 0, uncompressedSize);
                 break;

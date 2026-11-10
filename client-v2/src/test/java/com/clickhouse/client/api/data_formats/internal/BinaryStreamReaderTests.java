@@ -1,6 +1,7 @@
 package com.clickhouse.client.api.data_formats.internal;
 
 import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.DataTransferException;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.format.BinaryStreamUtils;
@@ -8,6 +9,7 @@ import com.clickhouse.data.format.BinaryStreamUtils;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.time.ZoneId;
@@ -558,6 +560,23 @@ public class BinaryStreamReaderTests {
         Object[] values = ((BinaryStreamReader.ArrayValue) reader.readValue(ClickHouseColumn.of("v", "Dynamic"))).getArrayOfObjects();
         Assert.assertEquals(values, new Object[]{"a", 1});
         Assert.assertEquals(reader.readValue(ClickHouseColumn.of("guard", "Int32")), Integer.valueOf(4242));
+    }
+
+    @Test
+    public void testDataTransferExceptionIsWrappedAsClientException() {
+        DataTransferException failure = new DataTransferException("corrupted block");
+        InputStream failing = new InputStream() {
+            @Override
+            public int read() {
+                throw failure;
+            }
+        };
+        BinaryStreamReader reader = new BinaryStreamReader(failing, TimeZone.getTimeZone("UTC"), null,
+                new BinaryStreamReader.CachingByteBufferAllocator(), false, null, false);
+
+        ClientException thrown = Assert.expectThrows(ClientException.class,
+                () -> reader.readValue(ClickHouseColumn.of("id", "Int32")));
+        Assert.assertSame(thrown.getCause(), failure);
     }
 
     private static void assertEnumValue(Object actual, String expectedName, int expectedValue) {

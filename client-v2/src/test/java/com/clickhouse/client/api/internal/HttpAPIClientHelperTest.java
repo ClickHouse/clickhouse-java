@@ -2,7 +2,9 @@ package com.clickhouse.client.api.internal;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.ClientFaultCause;
+import com.clickhouse.client.api.CompressionMethod;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.enums.SSLMode;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
@@ -21,9 +23,12 @@ import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.io.BasicHttpClientConnectionManager;
 import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
 import org.apache.hc.core5.http.ClassicHttpResponse;
+import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpEntity;
 import org.apache.hc.core5.http.HttpHeaders;
+import org.apache.hc.core5.http.io.entity.ByteArrayEntity;
+import org.apache.hc.core5.http.io.entity.InputStreamEntity;
 import org.apache.hc.core5.http.io.SocketConfig;
 import org.apache.hc.core5.http.message.BasicHeader;
 import org.mockito.ArgumentCaptor;
@@ -41,7 +46,10 @@ import javax.net.ssl.SNIServerName;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLSocket;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.PrintStream;
 import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Field;
@@ -649,6 +657,213 @@ public class HttpAPIClientHelperTest {
     }
 
     /**
+     * Response compression wraps the error body, but ClickHouse still sends that body as plain text.
+     * The first compressed-block header byte then falls on the text ('x' or 'c' in "Exception").
+     * The reader must keep that text, including the part past the 25-byte header.
+     */
+    @DataProvider(name = "plainTextErrorsMisreadAsLz4")
+    public static Object[][] plainTextErrorsMisreadAsLz4() {
+        return new Object[][] {
+                // 3-digit code: header byte 16 is 'x' (120)
+                {372, "Code: 372. DB::Exception: Session doesn't exist (SESSION_NOT_FOUND) marker-372"},
+                // 2-digit code: header byte 16 is 'c' (99)
+                {60, "Code: 60. DB::Exception: Table default.t does not exist (UNKNOWN_TABLE) marker-60"},
+                // 4-digit code: the exception prefix runs past the compressed-block header
+                {1002, "Code: 1002. DB::Exception: Unknown table function (UNKNOWN_FUNCTION) marker-1002"},
+        };
+    }
+
+    @Test(dataProvider = "plainTextErrorsMisreadAsLz4")
+    public void testPlainTextClickHouseErrorIsReadWhenResponseCompressionIsEnabled(int serverCode, String body) {
+        HttpAPIClientHelper helper = newHelper();
+        ClassicHttpResponse response = compressedPlainTextResponse(serverCode, body);
+
+        String logged = captureStdErr(() -> {
+            Exception error = helper.readError(new HttpPost("http://localhost:8123/"), response);
+            ServerException serverError = (ServerException) error;
+            assertEquals(serverError.getCode(), serverCode);
+            assertTrue(serverError.getMessage().contains("marker-" + serverCode), serverError.getMessage());
+            assertFalse(serverError.getMessage().contains("Unreadable error message"), serverError.getMessage());
+        });
+        assertFalse(logged.contains("Failed to read error message"), logged);
+    }
+
+    @Test
+    public void testPlainTextNonClickHouseErrorIsReadWhenResponseCompressionIsEnabled() {
+        String body = "upstream rejected the request before ClickHouse parsed it marker-proxy";
+        HttpAPIClientHelper helper = newHelper();
+        ClassicHttpResponse response = compressedPlainTextResponse(0, body);
+
+        Exception error = helper.readError(new HttpPost("http://localhost:8123/"), response);
+        ServerException serverError = (ServerException) error;
+        assertEquals(serverError.getCode(), ServerException.CODE_UNKNOWN);
+        assertTrue(serverError.getMessage().contains("marker-proxy"), serverError.getMessage());
+    }
+
+    /**
+     * The compressed reader consumes the 25-byte header, then the body ends.
+     * The message is that header, not "unknown server error".
+     */
+    @Test
+    public void testNonClickHouseErrorKeepsHeaderWhenBodyEndsThere() {
+        String headerText = "abcdefghijabcdefghijabcde"; // exactly one compressed-block header
+        assertEquals(headerText.length(), CompressedBlockInputStream.HEADER_LENGTH);
+        HttpAPIClientHelper helper = newHelper();
+
+        ServerException serverError = readNonClickHouseError(helper, compressedPlainTextResponse(0, headerText));
+
+        assertEquals(serverError.getMessage(), headerText + " (transport error: 502)");
+    }
+
+    /**
+     * The reader keeps at most {@code ERROR_BODY_BUFFER_SIZE} bytes. Bytes past that cap are dropped.
+     */
+    @Test
+    public void testNonClickHouseErrorMessageIsCappedAtBuffer() {
+        final int cap = 1024;
+        byte[] body = new byte[cap + 4];
+        Arrays.fill(body, (byte) 'a');
+        byte[] head = "HEAD".getBytes(StandardCharsets.UTF_8);
+        byte[] tail = "TAIL".getBytes(StandardCharsets.UTF_8);
+        System.arraycopy(head, 0, body, 0, head.length);
+        body[cap - 1] = 'Z';
+        System.arraycopy(tail, 0, body, cap, tail.length);
+        HttpAPIClientHelper helper = newHelper();
+
+        ServerException serverError = readNonClickHouseError(helper,
+                compressedPlainTextResponse(0, new String(body, StandardCharsets.UTF_8)));
+
+        assertEquals(serverError.getMessage(),
+                new String(body, 0, cap, StandardCharsets.UTF_8) + " (transport error: 502)");
+    }
+
+    /**
+     * A stream that reports more bytes than the destination array must not extend the message past the buffer.
+     */
+    @Test
+    public void testNonClickHouseErrorIgnoresReadCountPastBuffer() {
+        final int cap = 1024; // ERROR_BODY_BUFFER_SIZE
+        byte[] payload = "proxy-marker".getBytes(StandardCharsets.UTF_8);
+        InputStream lying = new InputStream() {
+            private boolean readOnce;
+
+            @Override
+            public int read() {
+                return -1;
+            }
+
+            @Override
+            public int read(byte[] b, int off, int len) {
+                if (readOnce || len <= 0) {
+                    return -1;
+                }
+                readOnce = true;
+                Arrays.fill(b, off, off + len, (byte) 'x');
+                System.arraycopy(payload, 0, b, off, Math.min(payload.length, len));
+                return Integer.MAX_VALUE;
+            }
+        };
+        HttpAPIClientHelper helper = newHelper();
+
+        ServerException serverError = readNonClickHouseError(helper,
+                responseWithEntity(new InputStreamEntity(lying, ContentType.TEXT_PLAIN)));
+
+        String body = serverError.getMessage().substring(0, serverError.getMessage().indexOf(" (transport error:"));
+        assertEquals(body.length(), cap);
+        assertTrue(body.startsWith("proxy-marker"), body);
+    }
+
+    /**
+     * A compressed-block header larger than the error buffer is copied only up to the buffer.
+     */
+    @Test
+    public void testNonClickHouseErrorCapsCopiedHeaderAtBuffer() {
+        final int cap = 1024;
+        byte[] header = new byte[cap * 2];
+        Arrays.fill(header, (byte) 'b');
+        System.arraycopy("HEAD".getBytes(StandardCharsets.UTF_8), 0, header, 0, 4);
+        System.arraycopy("TAIL".getBytes(StandardCharsets.UTF_8), 0, header, cap, 4);
+        HttpAPIClientHelper helper = newHelper();
+        InputStream body = new HeaderOverrideStream(header, new ByteArrayInputStream(new byte[0]));
+
+        ServerException serverError = readNonClickHouseError(helper,
+                responseWithEntity(new InputStreamEntity(body, ContentType.TEXT_PLAIN)));
+
+        assertEquals(serverError.getMessage(),
+                new String(header, 0, cap, StandardCharsets.UTF_8) + " (transport error: 502)");
+    }
+
+    /**
+     * Bytes already taken from a false compressed header stay in the message when the remainder read fails.
+     */
+    @Test
+    public void testNonClickHouseErrorKeepsHeaderWhenRemainderReadFails() {
+        String headerText = "abcdefghijabcdefghijabcde";
+        assertEquals(headerText.length(), CompressedBlockInputStream.HEADER_LENGTH);
+        InputStream failingRemainder = new InputStream() {
+            @Override
+            public int read() throws IOException {
+                throw new IOException("remainder failed");
+            }
+
+            @Override
+            public int read(byte[] b, int off, int len) throws IOException {
+                throw new IOException("remainder failed");
+            }
+        };
+        HttpAPIClientHelper helper = newHelper();
+        InputStream body = new HeaderOverrideStream(headerText.getBytes(StandardCharsets.UTF_8), failingRemainder);
+
+        String logged = captureStdErr(() -> {
+            ServerException serverError = readNonClickHouseError(helper,
+                    responseWithEntity(new InputStreamEntity(body, ContentType.TEXT_PLAIN)));
+            assertEquals(serverError.getMessage(), headerText + " (transport error: 502)");
+        });
+        assertTrue(logged.contains("Failed to read error message"), logged);
+        assertTrue(logged.contains("remainder failed"), logged);
+    }
+
+    /**
+     * A body shorter than a compressed block is a truncated read, not a plain-text error page.
+     * It must stay an unreadable server error instead of being decoded from a partial header.
+     */
+    @Test
+    public void testTruncatedCompressedErrorBodyStaysUnreadable() {
+        HttpAPIClientHelper helper = newHelper();
+        ClassicHttpResponse response = compressedPlainTextResponse(60, "Code: 60");
+
+        String logged = captureStdErr(() -> {
+            Exception error = helper.readError(new HttpPost("http://localhost:8123/"), response);
+            ServerException serverError = (ServerException) error;
+            assertEquals(serverError.getCode(), 60);
+            assertTrue(serverError.getMessage().contains("Unreadable error message"), serverError.getMessage());
+        });
+        assertTrue(logged.contains("Failed to read error message"), logged);
+    }
+
+    private static ClassicHttpResponse compressedPlainTextResponse(int serverCode, String body) {
+        byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+        if (bytes.length > CompressedBlockInputStream.MAGIC_NUM_POS) {
+            int magic = bytes[CompressedBlockInputStream.MAGIC_NUM_POS] & 0xFF;
+            assertFalse(magic == (CompressedBlockInputStream.MAGIC_LZ4 & 0xFF)
+                            || magic == (CompressedBlockInputStream.MAGIC_ZSTD_3 & 0xFF)
+                            || magic == (CompressedBlockInputStream.MAGIC_NONE & 0xFF),
+                    "the body must be plain text, not a compressed block (magic " + magic + ")");
+        }
+        HttpEntity raw = new ByteArrayEntity(bytes, ContentType.TEXT_PLAIN);
+        HttpEntity compressed = new CompressedBlockEntity(raw, false, true, false,
+                1024, true, LZ4Factory.fastestInstance(), CompressionMethod.LZ4);
+
+        ClassicHttpResponse response = mock(ClassicHttpResponse.class);
+        when(response.getCode()).thenReturn(serverCode == 0 ? 502 : 500);
+        when(response.getFirstHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE))
+                .thenReturn(serverCode == 0 ? null
+                        : new BasicHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE, Integer.toString(serverCode)));
+        when(response.getEntity()).thenReturn(compressed);
+        return response;
+    }
+
+    /**
      * The server-error logger runs on the failure path, so it must be null-safe - never throw and mask the
      * real error - and it must surface the ClickHouse exception-code header value when the response carries one.
      */
@@ -874,5 +1089,55 @@ public class HttpAPIClientHelperTest {
         Field field = SSLConnectionSocketFactory.class.getDeclaredField("supportedCipherSuites");
         field.setAccessible(true);
         return (String[]) field.get(factory);
+    }
+
+    private static ServerException readNonClickHouseError(HttpAPIClientHelper helper, ClassicHttpResponse response) {
+        Exception error = helper.readError(new HttpPost("http://localhost:8123/"), response);
+        ServerException serverError = (ServerException) error;
+        assertEquals(serverError.getCode(), ServerException.CODE_UNKNOWN);
+        return serverError;
+    }
+
+    private static ClassicHttpResponse responseWithEntity(HttpEntity entity) {
+        ClassicHttpResponse response = mock(ClassicHttpResponse.class);
+        when(response.getCode()).thenReturn(502);
+        when(response.getFirstHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE)).thenReturn(null);
+        when(response.getEntity()).thenReturn(entity);
+        return response;
+    }
+
+    /**
+     * Presents a caller-supplied header buffer, as {@link CompressedBlockInputStream#getHeaderBuffer()} does
+     * after an invalid compressed-block magic byte.
+     */
+    private static final class HeaderOverrideStream extends CompressedBlockInputStream {
+        private final byte[] header;
+        private final InputStream rest;
+
+        HeaderOverrideStream(byte[] header, InputStream rest) {
+            super(new ByteArrayInputStream(new byte[0]), LZ4Factory.fastestInstance().fastDecompressor(), 64);
+            this.header = header;
+            this.rest = rest;
+        }
+
+        @Override
+        public int read() {
+            throw new ClientException("Invalid LZ4 magic byte");
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) {
+            throw new ClientException("Invalid LZ4 magic byte");
+        }
+
+        @Override
+        public byte[] getHeaderBuffer() {
+            return header;
+        }
+
+        @Override
+        public InputStream getInputStream() {
+            return rest;
+        }
     }
 }
