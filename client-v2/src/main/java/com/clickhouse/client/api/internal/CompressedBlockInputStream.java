@@ -4,7 +4,6 @@ import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.DataTransferException;
 import com.clickhouse.data.ClickHouseByteUtils;
 import com.clickhouse.data.ClickHouseCityHash;
-import com.clickhouse.data.ClickHouseUtils;
 import com.github.luben.zstd.Zstd;
 import net.jpountz.lz4.LZ4FastDecompressor;
 import org.slf4j.Logger;
@@ -108,15 +107,15 @@ public class CompressedBlockInputStream extends InputStream {
                 if (n == 0) {
                     return false;
                 }
-                throw new DataTransferException(ClickHouseUtils.format("Incomplete read: %s of %s", n, len), ex);
+                throw new DataTransferException("Incomplete read: " + n + " of " + len, ex);
             } catch (IOException ex) {
-                throw new DataTransferException(ClickHouseUtils.format("Incomplete read: %s of %s", n, len), ex);
+                throw new DataTransferException("Incomplete read: " + n + " of " + len, ex);
             }
             if (count < 0) {
                 if (n == 0) {
                     return false;
                 }
-                throw new DataTransferException(ClickHouseUtils.format("Incomplete read: %s of %s", n, len));
+                throw new DataTransferException("Incomplete read: " + n + " of " + len);
             }
             n += count;
         }
