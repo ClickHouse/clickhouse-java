@@ -6,6 +6,8 @@ import com.clickhouse.client.api.ClientMisconfigurationException;
 import com.clickhouse.client.api.enums.SSLMode;
 
 import com.clickhouse.data.ClickHouseDataType;
+import com.clickhouse.client.api.internal.WorkloadIdentitySupport;
+import com.clickhouse.jdbc.Driver;
 import com.clickhouse.jdbc.DriverProperties;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
@@ -22,6 +24,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.testng.Assert.assertEquals;
@@ -248,6 +251,64 @@ public class JdbcConfigurationTest {
         assertEquals(configuration.isDisableFrameworkDetection(), expected);
         Assert.assertFalse(configuration.getClientProperties()
                 .containsKey(DriverProperties.DISABLE_FRAMEWORKS_DETECTION.getKey()));
+    }
+
+    @DataProvider(name = "frameworksInUserAgentValues")
+    public Object[][] frameworksInUserAgentValues() {
+        return new Object[][] {
+            {"apache.spark", "", false, null},
+            {"apache.spark+apache.flink", "my-app/1.0", false, null},
+            {"apache.spark", "my-app/1.0", false, "fv=flink/2.0.0,api=table"},
+            {"apache.spark", "my-app/1.0", false, "fw=custom"},
+            {"apache.spark", "my-app/1.0", true, null},
+            {"", "my-app/1.0", false, null},
+        };
+    }
+
+    @Test(dataProvider = "frameworksInUserAgentValues")
+    public void testDetectedFrameworksGoToUserAgentComment(String frameworks, String appName, boolean disabled,
+                                                          String metadata) throws Exception {
+        Field detected = null;
+        for (Class<?> c : Driver.class.getDeclaredClasses()) {
+            if (c.getSimpleName().equals("FrameworksDetection")) {
+                detected = c.getDeclaredField("frameworksDetected");
+            }
+        }
+        detected.setAccessible(true);
+        Object previous = detected.get(null);
+        try {
+            detected.set(null, frameworks);
+            Properties properties = new Properties();
+            properties.setProperty(DriverProperties.DISABLE_FRAMEWORKS_DETECTION.getKey(), Boolean.toString(disabled));
+            if (metadata != null) {
+                properties.setProperty(ClientConfigProperties.CLIENT_ID_METADATA.getKey(), metadata);
+            }
+            JdbcConfiguration configuration = new JdbcConfiguration("jdbc:clickhouse://localhost:8123", properties);
+            try (Client client = configuration.applyClientProperties(new Client.Builder()).build()) {
+                // the same calls as Connection#setClientInfo("ApplicationName", ...)
+                configuration.updateUserClient(appName, client);
+                Field configurationField = Client.class.getDeclaredField("configuration");
+                configurationField.setAccessible(true);
+                @SuppressWarnings("unchecked")
+                Map<String, Object> clientConfiguration = (Map<String, Object>) configurationField.get(client);
+                Field supportField = Client.class.getDeclaredField("workloadIdentitySupport");
+                supportField.setAccessible(true);
+                String userAgent = ((WorkloadIdentitySupport) supportField.get(client)).getUserAgent(null, clientConfiguration);
+
+                String expectedFw = disabled || frameworks.isEmpty() || (metadata != null && metadata.startsWith("fw="))
+                        ? null : frameworks;
+                // <app_name>/<app_version> <client_name>/<client_version> (<key1>:<value1>; <key2>:<value2>)
+                String app = appName.isEmpty() ? "" : Pattern.quote(appName) + " ";
+                assertTrue(userAgent.matches(app + "jdbc-v2/\\S+ clickhouse-java-v2/\\S+ \\([^()]*\\)"),
+                        "Unexpected User-Agent format: " + userAgent);
+                assertEquals(userAgent.contains("fw:" + expectedFw), expectedFw != null, userAgent);
+                if (metadata != null && metadata.startsWith("fw=")) {
+                    assertTrue(userAgent.contains("fw:custom") && !userAgent.contains("apache"), userAgent);
+                }
+            }
+        } finally {
+            detected.set(null, previous);
+        }
     }
 
     @Test

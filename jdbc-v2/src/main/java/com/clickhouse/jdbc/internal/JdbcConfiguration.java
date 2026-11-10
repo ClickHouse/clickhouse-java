@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -36,6 +37,7 @@ import javax.net.ssl.SSLContext;
 public class JdbcConfiguration {
     public static final Logger LOG = LoggerFactory.getLogger(JdbcConfiguration.class);
 
+    private static final String FRAMEWORKS_METADATA_KEY = "fw";
     private static final String PREFIX_CLICKHOUSE = "jdbc:clickhouse:";
     private static final String PREFIX_CLICKHOUSE_SHORT = "jdbc:ch:";
     static final String USE_SSL_PROP = "ssl";
@@ -469,10 +471,54 @@ public class JdbcConfiguration {
         builder.addEndpoint(connectionUrl)
                 .setOptions(clientProperties)
                 .typeHintMapping(defaultTypeHintMapping());
+        addDetectedFrameworks(builder);
         if (sslContext != null) {
             builder.setSSLContext(sslContext);
         }
         return builder;
+    }
+
+    /**
+     * Adds the detected frameworks to the client metadata, so they go to the comment group of the
+     * {@code User-Agent} header: {@code (fw:apache.spark; lv:java/17; ...)}. A {@code fw} entry that the user set
+     * with {@code client_id_metadata} is kept.
+     */
+    private void addDetectedFrameworks(Client.Builder builder) {
+        if (isDisableFrameworkDetection()) {
+            return;
+        }
+        String detectedFrameworks = Driver.FrameworksDetection.getFrameworksDetected();
+        LOG.debug("Detected frameworks: {}", detectedFrameworks);
+        if (detectedFrameworks.trim().isEmpty()) {
+            return;
+        }
+        Map<String, String> metadata = new LinkedHashMap<>();
+        String configured = clientProperties.get(ClientConfigProperties.CLIENT_ID_METADATA.getKey());
+        if (configured != null) {
+            @SuppressWarnings("unchecked")
+            Map<String, String> parsed = (Map<String, String>) ClientConfigProperties.CLIENT_ID_METADATA.parseValue(configured);
+            if (parsed != null) {
+                metadata.putAll(parsed);
+            }
+        }
+        for (String key : metadata.keySet()) {
+            if (key.equalsIgnoreCase(FRAMEWORKS_METADATA_KEY)) {
+                return;
+            }
+        }
+        metadata.put(FRAMEWORKS_METADATA_KEY, detectedFrameworks);
+        StringBuilder value = new StringBuilder();
+        for (Map.Entry<String, String> entry : metadata.entrySet()) {
+            if (value.length() > 0) {
+                value.append(',');
+            }
+            value.append(escapeMetadata(entry.getKey())).append('=').append(escapeMetadata(entry.getValue()));
+        }
+        builder.setOption(ClientConfigProperties.CLIENT_ID_METADATA.getKey(), value.toString());
+    }
+
+    private static String escapeMetadata(String str) {
+        return str.replace("\\", "\\\\").replace(",", "\\,").replace("=", "\\=");
     }
 
     public void updateUserClient(String clientName, Client client) {
@@ -480,15 +526,7 @@ public class JdbcConfiguration {
     }
 
     public String buildClientName(String clientName) {
-        String name = (clientName == null || clientName.isEmpty() ? "" : clientName + ' ') + getDefaultClientName();
-        if (!isDisableFrameworkDetection()) {
-            String detectedFrameworks = Driver.FrameworksDetection.getFrameworksDetected();
-            LOG.debug("Detected frameworks: {}", detectedFrameworks);
-            if (!detectedFrameworks.trim().isEmpty()) {
-                name += " (" + detectedFrameworks + ")";
-            }
-        }
-        return name;
+        return (clientName == null || clientName.isEmpty() ? "" : clientName + ' ') + getDefaultClientName();
     }
 
     public static String getDefaultClientName() {
