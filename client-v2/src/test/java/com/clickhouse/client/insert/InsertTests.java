@@ -909,14 +909,9 @@ public class InsertTests extends BaseIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testInsertIncompressibleMultiBlockData() throws Exception {
-        // Each compression subclass runs this test. A shared name lets a parallel run drop
-        // the table after this insert has reported its rows and before the select.
-        String tableName = "incompressible_multi_block_" + compressionMethod.name().toLowerCase(java.util.Locale.ROOT);
-        if (useClientCompression) {
-            tableName += useHttpCompression ? "_http" : "_block";
-        }
+        String tableName = "incompressible_multi_block_table";
         String createSQL = "CREATE TABLE " + tableName
-                + " (id Int32, payload String, marker Float64) ENGINE = MergeTree ORDER BY id";
+                + " (id Int32, payload String, marker Float64) ORDER BY id";
 
         initTable(tableName, createSQL);
 

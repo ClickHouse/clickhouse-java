@@ -74,7 +74,7 @@ public class CompressionStreamRoundTripTests extends BaseIntegrationTest {
                 execute(client, "DROP TABLE IF EXISTS " + table);
                 execute(client, "CREATE TABLE " + table + " ("
                         + "id UInt64, qty Int32, label String, event_date Date, score Float64"
-                        + ") ENGINE = MergeTree ORDER BY id");
+                        + ") ORDER BY id");
 
                 String insertQueryId = UUID.randomUUID().toString();
                 TableSchema schema = client.getTableSchema(table);
