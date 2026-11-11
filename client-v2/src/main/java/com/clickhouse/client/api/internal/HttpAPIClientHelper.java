@@ -90,6 +90,7 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLSocket;
+import java.io.ByteArrayOutputStream;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -122,6 +123,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
@@ -488,11 +490,7 @@ public class HttpAPIClientHelper {
     private static ServerException readClickHouseError(HttpEntity httpEntity, int serverCode, String queryId, int httpCode) throws Exception {
         InputStream body = httpEntity.getContent();
         byte[] buffer = new byte[ERROR_BODY_BUFFER_SIZE];
-        // Every server error message contains "Code: <code>" followed by '.' or ',', whatever the exception type:
-        // "Code: 279. DB::NetException: ...", "Code: 999. Coordination::Exception: ...", "Poco::Exception. Code: 1000, ..."
-        byte[] lookUpStr = ("Code: " + serverCode).getBytes(StandardCharsets.UTF_8);
-        StringBuilder msgBuilder = new StringBuilder();
-        boolean found = false;
+        ByteArrayOutputStream bodyBytes = new ByteArrayOutputStream(ERROR_BODY_BUFFER_SIZE);
         while (true) {
             int rBytes = -1;
             try {
@@ -510,42 +508,16 @@ public class HttpAPIClientHelper {
             if (rBytes == -1) {
                 break;
             }
-
-            for (int i = 0; i < rBytes; i++) {
-                if (buffer[i] == lookUpStr[0]) {
-                    found = true;
-                    for (int j = 1; j < Math.min(rBytes - i, lookUpStr.length); j++) {
-                        if (buffer[i + j] != lookUpStr[j]) {
-                            found = false;
-                            break;
-                        }
-                    }
-                    int codeEnd = i + lookUpStr.length;
-                    if (found && codeEnd < rBytes && buffer[codeEnd] != '.' && buffer[codeEnd] != ',') {
-                        found = false; // for example "Code: 600" when looking for code 60
-                    }
-                    if (found) {
-                        msgBuilder.append(new String(buffer, i, rBytes - i, StandardCharsets.UTF_8));
-                        break;
-                    }
-                }
-            }
-
-            if (found) {
-                break;
-            }
+            bodyBytes.write(buffer, 0, rBytes);
         }
 
-        while (true) {
-            int rBytes = body.read(buffer);
-            if (rBytes == -1) {
-                break;
-            }
-            msgBuilder.append(new String(buffer, 0, rBytes, StandardCharsets.UTF_8));
-        }
-
-        String msg = msgBuilder.toString().replaceAll("\\s+", " ").replaceAll("\\\\n", " ")
-                .replaceAll("\\\\/", "/");
+        // Every server error message contains "Code: <code>" followed by '.' or ',', whatever the exception type:
+        // "Code: 279. DB::NetException: ...", "Code: 999. Coordination::Exception: ...", "Poco::Exception. Code: 1000, ..."
+        // The search is done on the whole body because a read can end in the middle of this text.
+        String bodyText = new String(bodyBytes.toByteArray(), StandardCharsets.UTF_8);
+        Matcher codeMatcher = Pattern.compile("Code: " + serverCode + "[.,]").matcher(bodyText);
+        String msg = codeMatcher.find() ? bodyText.substring(codeMatcher.start()) : "";
+        msg = msg.replaceAll("\\s+", " ").replaceAll("\\\\n", " ").replaceAll("\\\\/", "/");
         if (msg.trim().isEmpty()) {
             msg = "Code: " + String.format(ERROR_CODE_PREFIX_PATTERN, serverCode) + " <Unreadable error message> (transport error: " + httpCode + ")";
         }
