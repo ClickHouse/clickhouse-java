@@ -488,7 +488,9 @@ public class HttpAPIClientHelper {
     private static ServerException readClickHouseError(HttpEntity httpEntity, int serverCode, String queryId, int httpCode) throws Exception {
         InputStream body = httpEntity.getContent();
         byte[] buffer = new byte[ERROR_BODY_BUFFER_SIZE];
-        byte[] lookUpStr = String.format(ERROR_CODE_PREFIX_PATTERN, serverCode).getBytes(StandardCharsets.UTF_8);
+        // Every server error message contains "Code: <code>" followed by '.' or ',', whatever the exception type:
+        // "Code: 279. DB::NetException: ...", "Code: 999. Coordination::Exception: ...", "Poco::Exception. Code: 1000, ..."
+        byte[] lookUpStr = ("Code: " + serverCode).getBytes(StandardCharsets.UTF_8);
         StringBuilder msgBuilder = new StringBuilder();
         boolean found = false;
         while (true) {
@@ -518,6 +520,10 @@ public class HttpAPIClientHelper {
                             break;
                         }
                     }
+                    int codeEnd = i + lookUpStr.length;
+                    if (found && codeEnd < rBytes && buffer[codeEnd] != '.' && buffer[codeEnd] != ',') {
+                        found = false; // for example "Code: 600" when looking for code 60
+                    }
                     if (found) {
                         msgBuilder.append(new String(buffer, i, rBytes - i, StandardCharsets.UTF_8));
                         break;
@@ -541,9 +547,9 @@ public class HttpAPIClientHelper {
         String msg = msgBuilder.toString().replaceAll("\\s+", " ").replaceAll("\\\\n", " ")
                 .replaceAll("\\\\/", "/");
         if (msg.trim().isEmpty()) {
-            msg = String.format(ERROR_CODE_PREFIX_PATTERN, serverCode) + " <Unreadable error message> (transport error: " + httpCode + ")";
+            msg = "Code: " + String.format(ERROR_CODE_PREFIX_PATTERN, serverCode) + " <Unreadable error message> (transport error: " + httpCode + ")";
         }
-        return new ServerException(serverCode, "Code: " + msg + " (queryId= " + queryId + ")", httpCode, queryId);
+        return new ServerException(serverCode, msg + " (queryId= " + queryId + ")", httpCode, queryId);
     }
 
     private static final long POOL_VENT_TIMEOUT = 10000L;

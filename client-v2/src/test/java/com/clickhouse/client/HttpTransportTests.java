@@ -676,6 +676,16 @@ public class HttpTransportTests extends BaseIntegrationTest {
                         "Unexpected error message: " + e.getMessage());
             }
 
+            try (QueryResponse response = client.query("SELECT * FROM remote('127.0.0.2:1', system.one)", querySettings)
+                    .get(10, TimeUnit.SECONDS)) {
+                Assert.fail("Expected exception");
+            } catch (ServerException e) {
+                e.printStackTrace();
+                Assert.assertEquals(e.getCode(), 519);
+                Assert.assertTrue(e.getMessage().startsWith("Code: 519. DB::NetException: All attempts to get table structure failed."),
+                        "Unexpected error message: " + e.getMessage());
+            }
+
 
             try (QueryResponse response = client.query("CREATE TABLE table_from_csv ORDER BY () AS SELECT * FROM file('empty.csv') ", querySettings)
                     .get(1, TimeUnit.SECONDS)) {
@@ -853,7 +863,17 @@ public class HttpTransportTests extends BaseIntegrationTest {
                         "Code: 901. DB::Exception: I write, erase, rewrite " +
                                 "Erase again, and then " +
                                 "A poppy blooms" +
-                                " (by Katsushika Hokusai)"}
+                                " (by Katsushika Hokusai)"},
+                {279, "Code: 279. DB::NetException: All connection tries failed. Log: \n\n" +
+                        "Code: 210. DB::NetException: Connection refused (127.0.0.2:1). (NETWORK_ERROR)\n",
+                        "Code: 279. DB::NetException: All connection tries failed. Log: " +
+                                "Code: 210. DB::NetException: Connection refused (127.0.0.2:1). (NETWORK_ERROR)"},
+                {999, "Code: 999. Coordination::Exception: Connection loss. (KEEPER_EXCEPTION)",
+                        "Code: 999. Coordination::Exception: Connection loss. (KEEPER_EXCEPTION)"},
+                {1000, "Poco::Exception. Code: 1000, e.code() = 0, Timeout: connect timed out: 10.0.0.1:443",
+                        "Code: 1000, e.code() = 0, Timeout: connect timed out: 10.0.0.1:443"},
+                {60, "Code: 600. DB::Exception: message in the data\nCode: 60. DB::Exception: Unknown table",
+                        "Code: 60. DB::Exception: Unknown table"}
         };
     }
 
