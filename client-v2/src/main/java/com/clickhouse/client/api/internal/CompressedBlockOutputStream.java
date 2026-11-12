@@ -148,7 +148,9 @@ public abstract class CompressedBlockOutputStream extends OutputStream {
                     try {
                         out.close();
                     } catch (IOException | RuntimeException | Error closeException) {
-                        failure.addSuppressed(closeException);
+                        if (closeException != failure) {
+                            failure.addSuppressed(closeException);
+                        }
                     }
                 }
             }

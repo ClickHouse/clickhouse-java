@@ -16,6 +16,69 @@ import java.util.Map;
 public class ClientBuilderTest {
 
     @Test
+    public void testMaxCompressionBlockSize() {
+        int configuredSize = 8 * 1024 * 1024;
+        try (Client client = new Client.Builder()
+                .addEndpoint("http://localhost:8123")
+                .setUsername("default")
+                .setPassword("")
+                .setMaxCompressionBlockSize(configuredSize)
+                .build()) {
+            Assert.assertEquals(
+                    client.getConfiguration().get(ClientConfigProperties.COMPRESSION_MAX_BLOCK_SIZE.getKey()),
+                    String.valueOf(configuredSize));
+        }
+
+        int minimumSize = 1024 * 1024;
+        try (Client client = new Client.Builder()
+                .addEndpoint("http://localhost:8123")
+                .setUsername("default")
+                .setPassword("")
+                .setMaxCompressionBlockSize(minimumSize)
+                .build()) {
+            Assert.assertEquals(
+                    client.getConfiguration().get(ClientConfigProperties.COMPRESSION_MAX_BLOCK_SIZE.getKey()),
+                    String.valueOf(minimumSize));
+        }
+
+        Assert.expectThrows(IllegalArgumentException.class,
+                () -> new Client.Builder().setMaxCompressionBlockSize(minimumSize - 1));
+        Assert.expectThrows(IllegalArgumentException.class,
+                () -> new Client.Builder().setMaxCompressionBlockSize(
+                        0x40000000 + 1));
+    }
+
+    @Test
+    public void testMaxCompressionBlockSizeViaSetOption() {
+        String configuredSize = "67108864";
+        try (Client client = new Client.Builder()
+                .addEndpoint("http://localhost:8123")
+                .setOption(ClientConfigProperties.COMPRESSION_MAX_BLOCK_SIZE.getKey(), configuredSize)
+                .build()) {
+            Assert.assertEquals(
+                    client.getConfiguration().get(ClientConfigProperties.COMPRESSION_MAX_BLOCK_SIZE.getKey()),
+                    configuredSize);
+        }
+    }
+
+    @DataProvider
+    public static Object[][] invalidMaxCompressionBlockSizes() {
+        return new Object[][] {
+                {"1048575"},
+                {"1073741825"},
+                {"invalid"},
+        };
+    }
+
+    @Test(dataProvider = "invalidMaxCompressionBlockSizes")
+    public void testInvalidMaxCompressionBlockSizeViaSetOption(String value) {
+        Assert.expectThrows(IllegalArgumentException.class, () -> new Client.Builder()
+                .addEndpoint("http://localhost:8123")
+                .setOption(ClientConfigProperties.COMPRESSION_MAX_BLOCK_SIZE.getKey(), value)
+                .build());
+    }
+
+    @Test
     public void testAddEndpointToleratesUnderscoreHostname() throws Exception {
         try (Client client = new Client.Builder()
                 .addEndpoint("http://host_with_underscore:8123")

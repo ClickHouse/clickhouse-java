@@ -37,28 +37,36 @@ public class CompressedBlockInputStreamTest {
     }
 
     @Test
-    public void eofExceptionBeforeAnyByteEndsTheStream() throws IOException {
+    public void eofExceptionBeforeAnyByteIsATransferFailure() {
+        EOFException eof = new EOFException("end");
         CompressedBlockInputStream input = new CompressedBlockInputStream(
-                streamThatThrows(new EOFException("end"), new byte[0]),
+                streamThatThrows(eof, new byte[0]),
                 LZ4_FACTORY.fastDecompressor(),
                 64);
 
-        Assert.assertEquals(input.read(new byte[1], 0, 1), -1);
+        DataTransferException ex = Assert.expectThrows(DataTransferException.class,
+                () -> input.read(new byte[1], 0, 1));
+        Assert.assertEquals(ex.getMessage(), "Incomplete read: 0 of 25");
+        Assert.assertSame(ex.getCause(), eof);
     }
 
     @Test
-    public void eofExceptionAfterABlockEndsTheStream() throws IOException {
+    public void eofExceptionAfterABlockIsATransferFailure() throws IOException {
         byte[] payload = "abc".getBytes(StandardCharsets.UTF_8);
         byte[] block = createBlock(CompressedBlockInputStream.MAGIC_NONE, payload);
+        EOFException eof = new EOFException("end");
         CompressedBlockInputStream input = new CompressedBlockInputStream(
-                streamThatThrows(new EOFException("end"), block),
+                streamThatThrows(eof, block),
                 LZ4_FACTORY.fastDecompressor(),
                 64);
 
         byte[] read = new byte[payload.length];
         Assert.assertEquals(input.read(read), payload.length);
         Assert.assertEquals(read, payload);
-        Assert.assertEquals(input.read(new byte[1], 0, 1), -1);
+        DataTransferException ex = Assert.expectThrows(DataTransferException.class,
+                () -> input.read(new byte[1], 0, 1));
+        Assert.assertEquals(ex.getMessage(), "Incomplete read: 0 of 25");
+        Assert.assertSame(ex.getCause(), eof);
     }
 
     @Test
@@ -77,7 +85,7 @@ public class CompressedBlockInputStreamTest {
     }
 
     @Test
-    public void eofExceptionAtBlockPayloadIsUnexpectedEnd() {
+    public void eofExceptionAtBlockPayloadIsATransferFailure() {
         byte[] block = createBlock(CompressedBlockInputStream.MAGIC_NONE, generateData(32));
         byte[] header = Arrays.copyOf(block, CompressedBlockInputStream.HEADER_LENGTH);
         CompressedBlockInputStream input = new CompressedBlockInputStream(
@@ -87,7 +95,8 @@ public class CompressedBlockInputStreamTest {
 
         DataTransferException ex = Assert.expectThrows(DataTransferException.class,
                 () -> input.read(new byte[1], 0, 1));
-        Assert.assertEquals(ex.getMessage(), "Unexpected end of stream");
+        Assert.assertEquals(ex.getMessage(), "Incomplete read: 0 of 32");
+        Assert.assertTrue(ex.getCause() instanceof EOFException);
     }
 
     @Test
@@ -298,6 +307,13 @@ public class CompressedBlockInputStreamTest {
                 () -> new CompressedBlockInputStream(bais, LZ4_FACTORY.fastDecompressor(), 0));
         Assert.expectThrows(IllegalArgumentException.class,
                 () -> new CompressedBlockInputStream(bais, LZ4_FACTORY.fastDecompressor(), -1));
+        Assert.expectThrows(IllegalArgumentException.class,
+                () -> new CompressedBlockInputStream(
+                        bais, LZ4_FACTORY.fastDecompressor(), 64, 8));
+        Assert.expectThrows(IllegalArgumentException.class,
+                () -> new CompressedBlockInputStream(
+                        bais, LZ4_FACTORY.fastDecompressor(), 64,
+                        CompressedBlockInputStream.MAX_COMPRESSED_BLOCK_SIZE + 1));
 
         try (CompressedBlockInputStream in = new CompressedBlockInputStream(bais, LZ4_FACTORY.fastDecompressor(), 64)) {
             byte[] buf = new byte[10];
@@ -341,6 +357,22 @@ public class CompressedBlockInputStreamTest {
         DataTransferException ex = Assert.expectThrows(DataTransferException.class,
                 () -> input.read(new byte[1], 0, 1));
         Assert.assertTrue(ex.getMessage().contains(expectedMessagePart), "Unexpected message: " + ex.getMessage());
+    }
+
+    @Test
+    public void testConfiguredBlockSizeLimit() {
+        int maxBlockSize = 1024;
+        byte[] header = new byte[CompressedBlockInputStream.HEADER_LENGTH];
+        header[CompressedBlockInputStream.MAGIC_NUM_POS] = CompressedBlockInputStream.MAGIC_LZ4;
+        CompressedBlockInputStream.setInt32(header, 17, maxBlockSize + 1);
+        CompressedBlockInputStream.setInt32(header, 21, 64);
+        CompressedBlockInputStream input = new CompressedBlockInputStream(
+                new ByteArrayInputStream(header), LZ4_FACTORY.fastDecompressor(), 64, maxBlockSize);
+
+        DataTransferException ex = Assert.expectThrows(DataTransferException.class,
+                () -> input.read(new byte[1], 0, 1));
+
+        Assert.assertTrue(ex.getMessage().contains("exceeds configured limit"), ex.getMessage());
     }
 
     @Test

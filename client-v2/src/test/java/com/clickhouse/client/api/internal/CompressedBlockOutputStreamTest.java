@@ -240,6 +240,36 @@ public class CompressedBlockOutputStreamTest {
         Assert.assertTrue(innerClosed.get(), "Underlying stream should be closed even if flush fails");
     }
 
+    @Test(dataProvider = "codecFactories")
+    public void testCloseDoesNotSuppressFailureOnItself(
+            String method,
+            BiFunction<OutputStream, Integer, CompressedBlockOutputStream> streamFactory) throws IOException {
+        IOException sharedFailure = new IOException("shared failure");
+        OutputStream failingOut = new OutputStream() {
+            @Override
+            public void write(int b) throws IOException {
+                throw sharedFailure;
+            }
+
+            @Override
+            public void write(byte[] b, int off, int len) throws IOException {
+                throw sharedFailure;
+            }
+
+            @Override
+            public void close() throws IOException {
+                throw sharedFailure;
+            }
+        };
+        CompressedBlockOutputStream stream = streamFactory.apply(failingOut, 64);
+        stream.write(1);
+
+        IOException thrown = Assert.expectThrows(IOException.class, stream::close);
+
+        Assert.assertSame(thrown, sharedFailure, method);
+        Assert.assertEquals(thrown.getSuppressed().length, 0, method);
+    }
+
     @Test
     public void testInvalidCompressedSizeFromCompressorThrowsDataTransferException() throws IOException {
         CompressedBlockOutputStream bogusStream = new CompressedBlockOutputStream(new ByteArrayOutputStream(), 64, 64) {

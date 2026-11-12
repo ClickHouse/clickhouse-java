@@ -5,6 +5,7 @@ import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.ClientFaultCause;
 import com.clickhouse.client.api.CompressionMethod;
+import com.clickhouse.client.api.DataTransferException;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.enums.SSLMode;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
@@ -12,6 +13,7 @@ import com.clickhouse.client.api.internal.HttpAPIClientHelper.CustomSSLConnectio
 import com.clickhouse.client.api.transport.Endpoint;
 import com.clickhouse.client.api.transport.HttpEndpoint;
 import com.clickhouse.client.api.transport.internal.TransportRequest;
+import com.clickhouse.client.api.transport.internal.TransportResponse;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.client.WireMock;
 import com.github.tomakehurst.wiremock.common.ConsoleNotifier;
@@ -81,6 +83,71 @@ import static org.testng.Assert.assertSame;
 import static org.testng.Assert.assertTrue;
 
 public class HttpAPIClientHelperTest {
+
+    @Test
+    public void testWrapExceptionAddsQueryIdToTransferFailure() {
+        HttpAPIClientHelper helper = newHelper();
+        DataTransferException failure = new DataTransferException("read failed");
+
+        RuntimeException wrapped = helper.wrapException("request failed", failure, "query-123");
+
+        assertSame(wrapped, failure);
+        assertEquals(failure.getQueryId(), "query-123");
+    }
+
+    @Test
+    public void testResponseReadFailureIsDataTransferExceptionWithQueryId() throws Exception {
+        InputStream failing = new InputStream() {
+            @Override
+            public int read() throws IOException {
+                throw new IOException("socket closed");
+            }
+        };
+        ClassicHttpResponse response = mock(ClassicHttpResponse.class);
+        when(response.getCode()).thenReturn(200);
+        when(response.getEntity()).thenReturn(new InputStreamEntity(failing, ContentType.APPLICATION_OCTET_STREAM));
+        HttpAPIClientHelper helper = newHelper();
+        injectMockHttpClient(helper, response);
+        Map<String, Object> requestConfig = new HashMap<>();
+        requestConfig.put(ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getKey(), false);
+        requestConfig.put(ClientConfigProperties.QUERY_ID.getKey(), "query-123");
+        TransportRequest request = helper.createRequest(
+                new HttpEndpoint("localhost", 8123, false, "/"), requestConfig, "SELECT 1");
+
+        try (TransportResponse transportResponse = helper.executeRequest(request);
+             InputStream input = transportResponse.createDataInputStream()) {
+            DataTransferException failure = Assert.expectThrows(DataTransferException.class, input::read);
+            assertEquals(failure.getQueryId(), "query-123");
+            assertTrue(failure.getCause() instanceof IOException);
+        }
+    }
+
+    @Test
+    public void testResponseSkipFailureIsNormalized() throws Exception {
+        InputStream failing = new InputStream() {
+            @Override
+            public int read() throws IOException {
+                throw new IOException("socket closed");
+            }
+        };
+        ClassicHttpResponse response = mock(ClassicHttpResponse.class);
+        when(response.getCode()).thenReturn(200);
+        when(response.getEntity()).thenReturn(new InputStreamEntity(failing, ContentType.APPLICATION_OCTET_STREAM));
+        HttpAPIClientHelper helper = newHelper();
+        injectMockHttpClient(helper, response);
+        Map<String, Object> requestConfig = new HashMap<>();
+        requestConfig.put(ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getKey(), false);
+        requestConfig.put(ClientConfigProperties.QUERY_ID.getKey(), "query-skip");
+        TransportRequest request = helper.createRequest(
+                new HttpEndpoint("localhost", 8123, false, "/"), requestConfig, "SELECT 1");
+
+        try (TransportResponse transportResponse = helper.executeRequest(request);
+             InputStream input = transportResponse.createDataInputStream()) {
+            DataTransferException failure = Assert.expectThrows(DataTransferException.class, () -> input.skip(1));
+            assertEquals(failure.getQueryId(), "query-skip");
+            assertTrue(failure.getCause() instanceof IOException);
+        }
+    }
 
     /**
      * The configured cipher suites must be forwarded to the base {@link SSLConnectionSocketFactory}, which is
@@ -700,6 +767,24 @@ public class HttpAPIClientHelperTest {
         assertTrue(serverError.getMessage().contains("marker-proxy"), serverError.getMessage());
     }
 
+    @Test
+    public void testPlainTextErrorIsRecoveredWhenMagicByteCollides() {
+        byte[] body = new byte[48];
+        Arrays.fill(body, (byte) 'a');
+        body[CompressedBlockInputStream.MAGIC_NUM_POS] = CompressedBlockInputStream.MAGIC_LZ4;
+        CompressedBlockInputStream.setInt32(body, 17, CompressedBlockInputStream.DEFAULT_MAX_BLOCK_SIZE + 1);
+        HttpEntity raw = new ByteArrayEntity(body, ContentType.TEXT_PLAIN);
+        HttpEntity compressed = new CompressedBlockEntity(raw, false, true, false, 1024,
+                CompressedBlockInputStream.DEFAULT_MAX_BLOCK_SIZE, true,
+                LZ4Factory.fastestInstance(), CompressionMethod.LZ4);
+        HttpAPIClientHelper helper = newHelper();
+
+        ServerException serverError = readNonClickHouseError(helper, responseWithEntity(compressed));
+
+        assertFalse(serverError.getMessage().startsWith("unknown server error"), serverError.getMessage());
+        assertTrue(serverError.getMessage().contains("transport error: 502"), serverError.getMessage());
+    }
+
     /**
      * The compressed reader consumes the 25-byte header, then the body ends.
      * The message is that header, not "unknown server error".
@@ -852,7 +937,8 @@ public class HttpAPIClientHelperTest {
         }
         HttpEntity raw = new ByteArrayEntity(bytes, ContentType.TEXT_PLAIN);
         HttpEntity compressed = new CompressedBlockEntity(raw, false, true, false,
-                1024, true, LZ4Factory.fastestInstance(), CompressionMethod.LZ4);
+                1024, CompressedBlockInputStream.DEFAULT_MAX_BLOCK_SIZE, true,
+                LZ4Factory.fastestInstance(), CompressionMethod.LZ4);
 
         ClassicHttpResponse response = mock(ClassicHttpResponse.class);
         when(response.getCode()).thenReturn(serverCode == 0 ? 502 : 500);
@@ -1133,6 +1219,11 @@ public class HttpAPIClientHelperTest {
         @Override
         public byte[] getHeaderBuffer() {
             return header;
+        }
+
+        @Override
+        public int getHeaderBytesRead() {
+            return header.length;
         }
 
         @Override

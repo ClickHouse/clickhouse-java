@@ -4,6 +4,7 @@ import com.clickhouse.client.api.ClickHouseException;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.DataTransferException;
 import com.clickhouse.client.api.ClientFaultCause;
 import com.clickhouse.client.api.ClientMisconfigurationException;
 import com.clickhouse.client.api.ConnectionInitiationException;
@@ -318,11 +319,13 @@ public class HttpTransportTests extends BaseIntegrationTest {
 
             try (QueryResponse readResponse = client.query(query).get(10, TimeUnit.SECONDS);
                  ClickHouseBinaryFormatReader readReader = client.newBinaryFormatReader(readResponse)) {
-                Assert.expectThrows(ClientException.class, () -> {
+                Throwable readFailure = Assert.expectThrows(ClickHouseException.class, () -> {
                     while (readReader.next() != null) {
                         // read to the end
                     }
                 });
+                Assert.assertTrue(readFailure instanceof DataTransferException || readFailure instanceof ClientException,
+                        "Expected the failed query to be reported while reading, but was: " + describeCauseChain(readFailure));
             }
 
             // A command does not read the response body, so closing it still reports the failure.
@@ -1959,9 +1962,11 @@ public class HttpTransportTests extends BaseIntegrationTest {
             boolean hasChunkedPrematureCloseSignature = containsMessageInCauseChain(thrown,
                     "closing chunk expected",
                     "premature end of chunk coded message body",
-                    "failed to read header");
+                    "failed to read header",
+                    "bad chunk header",
+                    "truncated chunk");
             Assert.assertTrue(connectionClosedException != null || hasChunkedPrematureCloseSignature,
-                    "Expected chunked/premature-close failure signature, but was: " + thrown);
+                    "Expected chunked/premature-close failure signature, but was: " + describeCauseChain(thrown));
         } finally {
             mockServer.stop();
         }
@@ -2391,6 +2396,22 @@ public class HttpTransportTests extends BaseIntegrationTest {
             current = current.getCause();
         }
         return null;
+    }
+
+    private static String describeCauseChain(Throwable throwable) {
+        StringBuilder chain = new StringBuilder();
+        Throwable current = throwable;
+        while (current != null) {
+            if (chain.length() > 0) {
+                chain.append(" <- ");
+            }
+            chain.append(current.getClass().getName());
+            if (current.getMessage() != null) {
+                chain.append(": ").append(current.getMessage());
+            }
+            current = current.getCause();
+        }
+        return chain.toString();
     }
 
     private static boolean containsMessageInCauseChain(Throwable throwable, String... parts) {

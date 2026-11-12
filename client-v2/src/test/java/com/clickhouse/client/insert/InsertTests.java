@@ -909,7 +909,11 @@ public class InsertTests extends BaseIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testInsertIncompressibleMultiBlockData() throws Exception {
-        String tableName = "incompressible_multi_block_table";
+        String tableName = "incompressible_multi_block_"
+                + compressionMethod.name().toLowerCase(java.util.Locale.ROOT);
+        if (useClientCompression) {
+            tableName += useHttpCompression ? "_http" : "_block";
+        }
         String createSQL = "CREATE TABLE " + tableName
                 + " (id Int32, payload String, marker Float64) ORDER BY id";
 

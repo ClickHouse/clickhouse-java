@@ -26,17 +26,27 @@ public class CompressedBlockInputStream extends InputStream {
 
     private final byte[] tmpBuffer = new byte[1];
 
+    private final int maxBlockSize;
 
     public CompressedBlockInputStream(InputStream in, LZ4FastDecompressor decompressor, int bufferSize) {
+        this(in, decompressor, bufferSize, DEFAULT_MAX_BLOCK_SIZE);
+    }
+
+    public CompressedBlockInputStream(InputStream in, LZ4FastDecompressor decompressor, int bufferSize,
+                                      int maxBlockSize) {
         super();
         Objects.requireNonNull(in, "in is null");
         Objects.requireNonNull(decompressor, "decompressor is null");
         if (bufferSize <= 0) {
             throw new IllegalArgumentException("bufferSize must be greater than 0");
         }
+        if (maxBlockSize < 9 || maxBlockSize > MAX_COMPRESSED_BLOCK_SIZE) {
+            throw new IllegalArgumentException("Invalid maxBlockSize: " + maxBlockSize);
+        }
         LOG.debug("Using decompressor with buffer size {}", bufferSize);
         this.decompressor = decompressor;
         this.in = in;
+        this.maxBlockSize = maxBlockSize;
         this.buffer = ByteBuffer.allocate(bufferSize);
         this.buffer.limit(0);
     }
@@ -86,8 +96,10 @@ public class CompressedBlockInputStream extends InputStream {
     // A limit >= 2 GiB also requires reading the fields as unsigned.
     static final int MAX_COMPRESSED_BLOCK_SIZE = 0x40000000;
     static final int MAX_UNCOMPRESSED_BLOCK_SIZE = 0x40000000;
+    static final int DEFAULT_MAX_BLOCK_SIZE = 64 * 1024 * 1024;
 
     final byte[] headerBuff = new byte[HEADER_LENGTH];
+    private int headerBytesRead;
 
     /**
      * Method ensures to read all bytes from the input stream.
@@ -96,17 +108,14 @@ public class CompressedBlockInputStream extends InputStream {
      */
     private boolean readFully(byte[] b, int off, int len) throws IOException {
         int n = 0;
+        if (b == headerBuff) {
+            headerBytesRead = 0;
+        }
         while (n < len) {
             int count;
             try {
                 count = in.read(b, off + n, len - n);
             } catch (EOFException ex) {
-                // Same signal as read() == -1. A clean end (nothing read yet) must stay a
-                // false return so refill can end the stream or report a truncated block.
-                // Wrapping it here would hide that from the callers that branch on it.
-                if (n == 0) {
-                    return false;
-                }
                 throw new DataTransferException("Incomplete read: " + n + " of " + len, ex);
             } catch (IOException ex) {
                 throw new DataTransferException("Incomplete read: " + n + " of " + len, ex);
@@ -118,6 +127,9 @@ public class CompressedBlockInputStream extends InputStream {
                 throw new DataTransferException("Incomplete read: " + n + " of " + len);
             }
             n += count;
+            if (b == headerBuff) {
+                headerBytesRead = n;
+            }
         }
 
         return true;
@@ -125,6 +137,10 @@ public class CompressedBlockInputStream extends InputStream {
 
     public byte[] getHeaderBuffer() {
         return headerBuff;
+    }
+
+    public int getHeaderBytesRead() {
+        return headerBytesRead;
     }
 
     public InputStream getInputStream() {
@@ -158,8 +174,16 @@ public class CompressedBlockInputStream extends InputStream {
         if (compressedSizeWithHeader < offset || compressedSizeWithHeader > MAX_COMPRESSED_BLOCK_SIZE) {
             throw new DataTransferException("Corrupted stream: invalid compressed block size " + compressedSizeWithHeader);
         }
+        if (compressedSizeWithHeader > maxBlockSize) {
+            throw new DataTransferException("Corrupted stream: compressed block size " + compressedSizeWithHeader
+                    + " exceeds configured limit " + maxBlockSize);
+        }
         if (uncompressedSize < 0 || uncompressedSize > MAX_UNCOMPRESSED_BLOCK_SIZE) {
             throw new DataTransferException("Corrupted stream: invalid uncompressed block size " + uncompressedSize);
+        }
+        if (uncompressedSize > maxBlockSize) {
+            throw new DataTransferException("Corrupted stream: uncompressed block size " + uncompressedSize
+                    + " exceeds configured limit " + maxBlockSize);
         }
 
         final byte[] block =  new byte[compressedSizeWithHeader];

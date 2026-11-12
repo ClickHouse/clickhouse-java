@@ -326,6 +326,9 @@ public class Client implements AutoCloseable {
                 ClientConfigProperties.CA_CERTIFICATE,
                 ClientConfigProperties.SSL_CERTIFICATE,
         };
+        // 1 MiB matches the server default max_compress_block_size. A smaller limit rejects ordinary blocks.
+        private static final int MIN_COMPRESSION_BLOCK_SIZE = 1024 * 1024;
+        private static final int MAX_COMPRESSION_BLOCK_SIZE = 0x40000000;
 
         public Builder() {
             this.endpoints = new LinkedHashSet<>();
@@ -702,6 +705,20 @@ public class Client implements AutoCloseable {
          */
         public Builder setLZ4UncompressedBufferSize(int size) {
             this.configuration.put(ClientConfigProperties.COMPRESSION_LZ4_UNCOMPRESSED_BUF_SIZE.getKey(), String.valueOf(size));
+            return this;
+        }
+
+        /**
+         * Sets the maximum compressed or uncompressed native block size that the client will allocate while reading.
+         * The default is 64 MiB. Allowed values are 1 MiB through the 1 GiB ClickHouse protocol limit.
+         *
+         * @param size maximum block size in bytes
+         * @return this builder
+         */
+        public Builder setMaxCompressionBlockSize(int size) {
+            ValidationUtils.checkRange(size, MIN_COMPRESSION_BLOCK_SIZE, MAX_COMPRESSION_BLOCK_SIZE,
+                    ClientConfigProperties.COMPRESSION_MAX_BLOCK_SIZE.getKey());
+            this.configuration.put(ClientConfigProperties.COMPRESSION_MAX_BLOCK_SIZE.getKey(), String.valueOf(size));
             return this;
         }
 
@@ -1388,6 +1405,14 @@ public class Client implements AutoCloseable {
             // check if endpoint are empty. so can not initiate client
             if (this.endpoints.isEmpty()) {
                 throw new IllegalArgumentException("At least one endpoint is required");
+            }
+
+            String maxCompressionBlockSize =
+                    configuration.get(ClientConfigProperties.COMPRESSION_MAX_BLOCK_SIZE.getKey());
+            if (maxCompressionBlockSize != null) {
+                ValidationUtils.checkRange(Integer.parseInt(maxCompressionBlockSize),
+                        MIN_COMPRESSION_BLOCK_SIZE, MAX_COMPRESSION_BLOCK_SIZE,
+                        ClientConfigProperties.COMPRESSION_MAX_BLOCK_SIZE.getKey());
             }
 
             CredentialsManager cManager = new CredentialsManager(this.configuration);
@@ -2202,6 +2227,8 @@ public class Client implements AutoCloseable {
             try {
 
                 return new Records(response, newBinaryFormatReader(response));
+            } catch (DataTransferException e) {
+                throw e;
             } catch (Exception e) {
                 throw new ClientException("Failed to get query response", e);
             }
@@ -2246,7 +2273,12 @@ public class Client implements AutoCloseable {
                 return records;
             }
         } catch (ExecutionException e) {
+            if (e.getCause() instanceof DataTransferException) {
+                throw (DataTransferException) e.getCause();
+            }
             throw new ClientException("Failed to get query response", e.getCause());
+        } catch (DataTransferException e) {
+            throw e;
         } catch (Exception e) {
             throw new ClientException("Failed to get query response", e);
         }
@@ -2322,7 +2354,12 @@ public class Client implements AutoCloseable {
                 return records;
             }
         } catch (ExecutionException e) {
+            if (e.getCause() instanceof DataTransferException) {
+                throw (DataTransferException) e.getCause();
+            }
             throw new ClientException("Failed to get query response", e.getCause());
+        } catch (DataTransferException e) {
+            throw e;
         } catch (Exception e) {
             throw new ClientException("Failed to get query response", e);
         }
@@ -2402,8 +2439,13 @@ public class Client implements AutoCloseable {
         } catch (TimeoutException e) {
             throw new ClientException("Operation has likely timed out after " + getOperationTimeout() + " milliseconds.", e);
         } catch (ExecutionException e) {
+            if (e.getCause() instanceof DataTransferException) {
+                throw (DataTransferException) e.getCause();
+            }
             throw new ClientException("Failed to get table schema", e.getCause());
         } catch (ServerException e) {
+            throw e;
+        } catch (DataTransferException e) {
             throw e;
         } catch (Exception e) {
             throw new ClientException("Failed to get table schema", e);

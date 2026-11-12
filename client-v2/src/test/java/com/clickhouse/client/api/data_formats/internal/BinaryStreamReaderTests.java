@@ -563,7 +563,7 @@ public class BinaryStreamReaderTests {
     }
 
     @Test
-    public void testDataTransferExceptionIsWrappedAsClientException() {
+    public void testDataTransferExceptionIsPreserved() {
         DataTransferException failure = new DataTransferException("corrupted block");
         InputStream failing = new InputStream() {
             @Override
@@ -574,9 +574,9 @@ public class BinaryStreamReaderTests {
         BinaryStreamReader reader = new BinaryStreamReader(failing, TimeZone.getTimeZone("UTC"), null,
                 new BinaryStreamReader.CachingByteBufferAllocator(), false, null, false);
 
-        ClientException thrown = Assert.expectThrows(ClientException.class,
+        DataTransferException thrown = Assert.expectThrows(DataTransferException.class,
                 () -> reader.readValue(ClickHouseColumn.of("id", "Int32")));
-        Assert.assertSame(thrown.getCause(), failure);
+        Assert.assertSame(thrown, failure);
     }
 
     private static void assertEnumValue(Object actual, String expectedName, int expectedValue) {

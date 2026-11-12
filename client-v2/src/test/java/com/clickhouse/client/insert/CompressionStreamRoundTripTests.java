@@ -78,12 +78,12 @@ public class CompressionStreamRoundTripTests extends BaseIntegrationTest {
 
                 String insertQueryId = UUID.randomUUID().toString();
                 TableSchema schema = client.getTableSchema(table);
-                Random writeRandom = new Random(SEED);
                 InsertSettings insertSettings = new InsertSettings()
                         .setQueryId(insertQueryId)
                         .serverSetting(ServerSettings.ASYNC_INSERT, "0")
                         .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1");
                 try (InsertResponse response = client.insert(table, out -> {
+                    Random writeRandom = new Random(SEED);
                     RowBinaryFormatWriter writer = new RowBinaryFormatWriter(out, schema, ClickHouseFormat.RowBinary);
                     for (long id = 0; id < ROW_COUNT; id++) {
                         Row row = Row.next(writeRandom);

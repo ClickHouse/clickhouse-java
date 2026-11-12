@@ -473,10 +473,12 @@ public class HttpAPIClientHelper {
                     msg = errorBodyText(buffer, offset);
                 }
                 break;
-            } catch (ClientException e) {
-                // Invalid LZ4 Magic
+            } catch (ClickHouseException e) {
                 if (body instanceof CompressedBlockInputStream) {
                     CompressedBlockInputStream stream = (CompressedBlockInputStream) body;
+                    if (stream.getHeaderBytesRead() < CompressedBlockInputStream.HEADER_LENGTH) {
+                        throw e;
+                    }
                     body = stream.getInputStream();
                     byte[] lzHeader = stream.getHeaderBuffer(); // Here is read part of original body
                     int headerLength = lzHeader == null ? 0 : Math.min(lzHeader.length, buffer.length);
@@ -519,10 +521,12 @@ public class HttpAPIClientHelper {
             int rBytes = -1;
             try {
                 rBytes = body.read(buffer);
-            } catch (ClientException e) {
-                // Invalid LZ4 Magic
+            } catch (ClickHouseException e) {
                 if (body instanceof CompressedBlockInputStream) {
                     CompressedBlockInputStream stream = (CompressedBlockInputStream) body;
+                    if (stream.getHeaderBytesRead() < CompressedBlockInputStream.HEADER_LENGTH) {
+                        throw e;
+                    }
                     body = stream.getInputStream();
                     byte[] headerBuffer = stream.getHeaderBuffer();
                     System.arraycopy(headerBuffer, 0, buffer, 0, headerBuffer.length);
@@ -699,10 +703,13 @@ public class HttpAPIClientHelper {
 
         private final ClassicHttpResponse delegate;
 
+        private final String queryId;
+
         private boolean dataStreamCreated;
 
-        TransportResponseImpl(ClassicHttpResponse delegate) {
+        TransportResponseImpl(ClassicHttpResponse delegate, String queryId) {
             this.delegate = delegate;
+            this.queryId = queryId;
         }
 
         @Override
@@ -719,8 +726,7 @@ public class HttpAPIClientHelper {
 
         @Override
         public String getQueryId() {
-            return HttpAPIClientHelper.getHeaderVal(delegate
-                    .getFirstHeader(ClickHouseHttpProto.HEADER_QUERY_ID), null);
+            return queryId;
         }
 
         @Override
@@ -771,6 +777,74 @@ public class HttpAPIClientHelper {
         ResponseBodyInputStream(InputStream in, String queryId) {
             super(in);
             this.queryId = queryId;
+        }
+
+        @Override
+        public int read() throws IOException {
+            try {
+                return super.read();
+            } catch (DataTransferException e) {
+                throw withQueryId(e);
+            } catch (IOException e) {
+                throw transferFailure(e);
+            }
+        }
+
+        @Override
+        public int read(byte[] b) throws IOException {
+            try {
+                return super.read(b);
+            } catch (DataTransferException e) {
+                throw withQueryId(e);
+            } catch (IOException e) {
+                throw transferFailure(e);
+            }
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            try {
+                return super.read(b, off, len);
+            } catch (DataTransferException e) {
+                throw withQueryId(e);
+            } catch (IOException e) {
+                throw transferFailure(e);
+            }
+        }
+
+        @Override
+        public long skip(long n) throws IOException {
+            try {
+                return super.skip(n);
+            } catch (DataTransferException e) {
+                throw withQueryId(e);
+            } catch (IOException e) {
+                throw transferFailure(e);
+            }
+        }
+
+        @Override
+        public int available() throws IOException {
+            try {
+                return super.available();
+            } catch (DataTransferException e) {
+                throw withQueryId(e);
+            } catch (IOException e) {
+                throw transferFailure(e);
+            }
+        }
+
+        private DataTransferException transferFailure(IOException cause) {
+            DataTransferException failure = new DataTransferException("Failed to read response body", cause);
+            failure.setQueryId(queryId);
+            return failure;
+        }
+
+        private DataTransferException withQueryId(DataTransferException failure) {
+            if (failure.getQueryId() == null || failure.getQueryId().isEmpty()) {
+                failure.setQueryId(queryId);
+            }
+            return failure;
         }
 
         @Override
@@ -873,7 +947,7 @@ public class HttpAPIClientHelper {
             switch (statusCode) {
                 case HttpStatus.SC_OK:
                     closeResponse = false;
-                    return new TransportResponseImpl(httpResponse);
+                    return new TransportResponseImpl(httpResponse, getQueryId(httpResponse, req));
                 case HttpStatus.SC_PROXY_AUTHENTICATION_REQUIRED:
                     throw new ClientMisconfigurationException("Proxy authentication required. Please check your proxy settings.");
                 case HttpStatus.SC_BAD_GATEWAY:
@@ -1124,9 +1198,10 @@ public class HttpAPIClientHelper {
             return new CompressedEntity(httpEntity, false, CompressorStreamFactory.getSingleton());
         } else if (clientCompression && !appCompressedData) {
             int buffSize = ClientConfigProperties.COMPRESSION_LZ4_UNCOMPRESSED_BUF_SIZE.getOrDefault(requestConfig);
+            int maxBlockSize = ClientConfigProperties.COMPRESSION_MAX_BLOCK_SIZE.getOrDefault(requestConfig);
             CompressionMethod compressMethod = ClientConfigProperties.COMPRESSION_METHOD.getOrDefault(requestConfig);
             return new CompressedBlockEntity(httpEntity, useHttpCompression, false, true,
-                    buffSize, false, lz4Factory, compressMethod);
+                    buffSize, maxBlockSize, false, lz4Factory, compressMethod);
         } else {
             return httpEntity;
         }
@@ -1144,8 +1219,9 @@ public class HttpAPIClientHelper {
         // data compression
         if (serverCompression && !(httpStatus == HttpStatus.SC_FORBIDDEN || httpStatus == HttpStatus.SC_UNAUTHORIZED)) {
             int buffSize = ClientConfigProperties.COMPRESSION_LZ4_UNCOMPRESSED_BUF_SIZE.getOrDefault(requestConfig);
-            return new CompressedBlockEntity(httpEntity, useHttpCompression, true, false, buffSize, true, lz4Factory,
-                    ClientConfigProperties.COMPRESSION_METHOD.getDefObjVal());
+            int maxBlockSize = ClientConfigProperties.COMPRESSION_MAX_BLOCK_SIZE.getOrDefault(requestConfig);
+            return new CompressedBlockEntity(httpEntity, useHttpCompression, true, false, buffSize, maxBlockSize,
+                    true, lz4Factory, ClientConfigProperties.COMPRESSION_METHOD.getDefObjVal());
         }
 
         return httpEntity;
@@ -1243,7 +1319,11 @@ public class HttpAPIClientHelper {
         // are returned as-is so their specific type is preserved instead of being reboxed as a generic
         // ClickHouseException.
         if (cause instanceof ClickHouseException) {
-            return (ClickHouseException) cause;
+            ClickHouseException failure = (ClickHouseException) cause;
+            if (failure.getQueryId() == null || failure.getQueryId().isEmpty()) {
+                failure.setQueryId(queryId);
+            }
+            return failure;
         }
 
         if (cause instanceof SSLException) {
