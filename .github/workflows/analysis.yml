@@ -53,6 +53,11 @@ jobs:
       contents: read
       pull-requests: write
     timeout-minutes: 30
+    env:
+      # PRs only need client-v2 and jdbc-v2 coverage. Pushes to main and manual runs analyse
+      # every module, so released V1 modules keep their SonarCloud (SAST) coverage.
+      COVERAGE_MODULES: ${{ github.event_name == 'pull_request' && '--also-make --projects client-v2,jdbc-v2' || '' }}
+      SONAR_MODULES: ${{ github.event_name == 'pull_request' && '--projects client-v2,jdbc-v2' || '' }}
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v4
@@ -106,7 +111,7 @@ jobs:
       - name: Build and install
         run: |
           find . -type f -name "simplelogger.*" -exec rm -fv '{}' \;
-          mvn -q --no-transfer-progress --batch-mode --also-make --projects client-v2,jdbc-v2 -DskipTests install
+          mvn -q --no-transfer-progress --batch-mode $COVERAGE_MODULES -DskipTests install
       - name: Generate coverage report
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Needed to get PR information, if any
@@ -114,7 +119,7 @@ jobs:
           TEST_CLICKHOUSE_IMAGE_VERSION: ${{ env.PREFERRED_LTS_VERSION }}
         run: |
           mvn -fn --no-transfer-progress --batch-mode \
-            --projects client-v2,jdbc-v2 -Pcoverage verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=ClickHouse_clickhouse-java
+            $SONAR_MODULES -Pcoverage verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=ClickHouse_clickhouse-java
         continue-on-error: true
       - name: Generate and post coverage report
         env:
