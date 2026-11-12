@@ -9,6 +9,11 @@ on:
       - "**/docs/**"
       - "**/LICENSE"
       - "**/NOTICE"
+      # Repo metadata that does not affect the build (CODEOWNERS, ai-gate.yml, templates, ...).
+      # `*` does not cross `/`, so .github/workflows/** changes still trigger this workflow.
+      - ".github/*"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/scripts/**"
   pull_request:
     branches:
       - main
@@ -21,11 +26,20 @@ on:
       - "**/docs/**"
       - "**/LICENSE"
       - "**/NOTICE"
+      # Repo metadata that does not affect the build (CODEOWNERS, ai-gate.yml, templates, ...).
+      # `*` does not cross `/`, so .github/workflows/** changes still trigger this workflow.
+      - ".github/*"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/scripts/**"
   workflow_dispatch:
     inputs:
       pr:
         description: "Pull request#"
         required: false
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.number || github.sha }}
+  cancel-in-progress: true
 
 env:
   PREFERRED_LTS_VERSION: "26.8"
@@ -92,7 +106,7 @@ jobs:
       - name: Build and install
         run: |
           find . -type f -name "simplelogger.*" -exec rm -fv '{}' \;
-          mvn -q --no-transfer-progress --batch-mode -DskipTests install
+          mvn -q --no-transfer-progress --batch-mode --also-make --projects client-v2,jdbc-v2 -DskipTests install
       - name: Generate coverage report
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Needed to get PR information, if any
@@ -100,7 +114,7 @@ jobs:
           TEST_CLICKHOUSE_IMAGE_VERSION: ${{ env.PREFERRED_LTS_VERSION }}
         run: |
           mvn -fn --no-transfer-progress --batch-mode \
-            -Pcoverage verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=ClickHouse_clickhouse-java
+            --projects client-v2,jdbc-v2 -Pcoverage verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=ClickHouse_clickhouse-java
         continue-on-error: true
       - name: Generate and post coverage report
         env:
@@ -110,6 +124,4 @@ jobs:
           if [ ! -z $PR_NUMBER ]; then PR_ARG="--pr $PR_NUMBER"; fi;
           node jacoco-report-generator.mjs ./client-v2/target/site/jacoco-aggregate/jacoco.csv client-v2-cov.md --title "Client V2 Coverage" ${PR_ARG}
           node jacoco-report-generator.mjs ./jdbc-v2/target/site/jacoco-aggregate/jacoco.csv jdbc-v2-cov.md --title "JDBC V2 Coverage" ${PR_ARG}
-          node jacoco-report-generator.mjs ./clickhouse-jdbc/target/site/jacoco-aggregate/jacoco.csv jdbc-v1-cov.md --title "JDBC V1 Coverage" ${PR_ARG}
-          node jacoco-report-generator.mjs ./clickhouse-client/target/site/jacoco-aggregate/jacoco.csv client-v1-cov.md --title "Client V1 Coverage" ${PR_ARG}
           cat *-cov.md
