@@ -6,7 +6,7 @@ on:
       ch_version:
         description: ClickHouse Version
         required: false
-        default: 25.8
+        default: 26.8
       client_version:
         description: Build Type
         type: choice

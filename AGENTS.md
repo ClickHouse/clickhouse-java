@@ -1,3 +1,7 @@
+# Communication style
+
+- Follow ASD-STE100
+
 # AGENTS.md
 
 ## Project overview
