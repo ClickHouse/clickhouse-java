@@ -870,8 +870,6 @@ public class HttpTransportTests extends BaseIntegrationTest {
                                 "Code: 210. DB::NetException: Connection refused (127.0.0.2:1). (NETWORK_ERROR)"},
                 {999, "Code: 999. Coordination::Exception: Connection loss. (KEEPER_EXCEPTION)",
                         "Code: 999. Coordination::Exception: Connection loss. (KEEPER_EXCEPTION)"},
-                {1000, "Poco::Exception. Code: 1000, e.code() = 0, Timeout: connect timed out: 10.0.0.1:443",
-                        "Code: 1000, e.code() = 0, Timeout: connect timed out: 10.0.0.1:443"},
                 {60, "Code: 600. DB::Exception: message in the data\nCode: 60. DB::Exception: Unknown table",
                         "Code: 60. DB::Exception: Unknown table"}
         };

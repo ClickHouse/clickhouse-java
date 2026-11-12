@@ -9,7 +9,6 @@ import org.apache.hc.core5.function.Supplier;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpEntity;
 
-import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -17,9 +16,6 @@ import java.util.List;
 import java.util.Set;
 
 class CompressedBlockEntity implements HttpEntity {
-
-    // LZ4 frame magic number (4 bytes), frame descriptor (up to 15 bytes) and size of the first block (4 bytes)
-    private static final int LZ4_FRAME_START_MAX_LENGTH = 23;
 
     private final HttpEntity httpEntity;
 
@@ -60,10 +56,7 @@ class CompressedBlockEntity implements HttpEntity {
             throw new UnsupportedOperationException("Unsupported: getting compressed content of request");
         } else if (serverCompression) {
             if (useHttpCompression) {
-                // The constructor of FramedLZ4CompressorInputStream reads from the content before it can fail.
-                // The mark lets us go back to the start of the original content.
-                InputStream content = new BufferedInputStream(httpEntity.getContent());
-                content.mark(LZ4_FRAME_START_MAX_LENGTH);
+                InputStream content = httpEntity.getContent();
                 try {
                     return new FramedLZ4CompressorInputStream(content);
                 } catch (IOException e) {
@@ -71,8 +64,6 @@ class CompressedBlockEntity implements HttpEntity {
                     // - streams at this point wrapped with something else and we can't check content length
                     // - exception is thrown with no details
                     // So we just return original content and if there is a real data in it we will get error later
-                    // (for example, a server error message that the server did not compress)
-                    content.reset();
                     return content;
                 }
             } else  {

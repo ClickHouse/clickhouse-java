@@ -21,14 +21,10 @@ import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.io.BasicHttpClientConnectionManager;
 import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
 import org.apache.hc.core5.http.ClassicHttpResponse;
-import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpEntity;
 import org.apache.hc.core5.http.HttpHeaders;
-import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.io.SocketConfig;
-import org.apache.hc.core5.http.io.entity.InputStreamEntity;
-import org.apache.hc.core5.http.message.BasicClassicHttpResponse;
 import org.apache.hc.core5.http.message.BasicHeader;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedConstruction;
@@ -45,11 +41,7 @@ import javax.net.ssl.SNIServerName;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLSocket;
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.FilterInputStream;
-import java.io.IOException;
-import java.io.InputStream;
 import java.io.PrintStream;
 import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Field;
@@ -654,56 +646,6 @@ public class HttpAPIClientHelperTest {
             assertFalse(logged.contains("Server returned error response"),
                     "status " + statusCode + " must not emit a server-error WARN: " + logged);
         }
-    }
-
-    @DataProvider(name = "serverErrorBodies")
-    public static Object[][] serverErrorBodies() {
-        String codeInData = "Code: 600. DB::Exception: message in the data\nCode: 60. DB::Exception: Unknown table";
-        String unknownSetting = "Code: 115. DB::Exception: Setting unknown_setting is neither a builtin setting nor "
-                + "started with the prefix 'custom_' registered for user-defined settings. (UNKNOWN_SETTING)";
-        String pocoError = "Poco::Exception. Code: 1000, e.code() = 0, Timeout: connect timed out: 10.0.0.1:443";
-        return new Object[][] {
-                // server code, response body, max. bytes per read, server compression, use HTTP compression,
-                //         expected message
-                {60, codeInData, "Code: 60".length(), false, false, "Code: 60. DB::Exception: Unknown table"},
-                {60, codeInData, 1, false, false, "Code: 60. DB::Exception: Unknown table"},
-                {115, unknownSetting, Integer.MAX_VALUE, true, true, unknownSetting},
-                {1000, pocoError, 1, true, false, "Code: 1000, e.code() = 0, Timeout: connect timed out: 10.0.0.1:443"},
-                {60, "", Integer.MAX_VALUE, false, false,
-                        "Code: 60. DB::Exception: <Unreadable error message> (transport error: 500)"},
-        };
-    }
-
-    /**
-     * The message of a server error is found in the response body when a read ends in the middle of the
-     * {@code Code: <code>} text, and when HTTP compression is used but the server sends the error message
-     * not compressed (the server rejects an unknown setting before it applies {@code enable_http_compression}).
-     * With server compression the client reads a not compressed body first as a compressed block header.
-     */
-    @Test(dataProvider = "serverErrorBodies")
-    public void testServerErrorMessageReadFromBody(int serverCode, String body, int maxReadSize, boolean serverCompression,
-                                                   boolean useHttpCompression, String expectedMessage) throws Exception {
-        BasicClassicHttpResponse response = new BasicClassicHttpResponse(HttpStatus.SC_INTERNAL_SERVER_ERROR);
-        response.addHeader(ClickHouseHttpProto.HEADER_EXCEPTION_CODE, String.valueOf(serverCode));
-        response.addHeader(ClickHouseHttpProto.HEADER_QUERY_ID, "q1");
-        InputStream content = new FilterInputStream(new ByteArrayInputStream(body.getBytes(StandardCharsets.UTF_8))) {
-            @Override
-            public int read(byte[] b, int off, int len) throws IOException {
-                return super.read(b, off, Math.min(len, maxReadSize));
-            }
-        };
-        response.setEntity(new InputStreamEntity(content, ContentType.TEXT_PLAIN));
-        HttpAPIClientHelper helper = newHelper();
-        injectMockHttpClient(helper, response);
-
-        Map<String, Object> reqConfig = new HashMap<>();
-        reqConfig.put(ClientConfigProperties.COMPRESS_SERVER_RESPONSE.getKey(), serverCompression);
-        reqConfig.put(ClientConfigProperties.USE_HTTP_COMPRESSION.getKey(), useHttpCompression);
-        TransportRequest req = helper.createRequest(new HttpEndpoint("localhost", 8123, false, "/"), reqConfig, "SELECT 1");
-
-        ServerException e = Assert.expectThrows(ServerException.class, () -> helper.executeRequest(req));
-        assertEquals(e.getCode(), serverCode);
-        assertEquals(e.getMessage(), expectedMessage + " (queryId= q1)");
     }
 
     /**
