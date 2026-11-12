@@ -2251,7 +2251,9 @@ public class QueryTests extends BaseIntegrationTest {
                 .allowBinaryReaderToReuseBuffers(usePreallocatedBuffers)
                 .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
                 .serverSetting(ServerSettings.WAIT_ASYNC_INSERT, "1")
-                .serverSetting(ServerSettings.ASYNC_INSERT, "0");
+                .serverSetting(ServerSettings.ASYNC_INSERT, "0")
+                // Cloud can route a query to a replica that has not seen the previous insert yet
+                .serverSetting("select_sequential_consistency", isCloud() ? "1" : "0");
     }
 
     @Test(groups = {"integration"})

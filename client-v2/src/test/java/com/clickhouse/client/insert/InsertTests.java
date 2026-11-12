@@ -112,6 +112,8 @@ public class InsertTests extends BaseIntegrationTest {
                 .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
                 .serverSetting(ServerSettings.ASYNC_INSERT, "0")
                 .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1")
+                // Cloud can route a query to a replica that has not seen the previous insert yet
+                .serverSetting("select_sequential_consistency", isCloud() ? "1" : "0")
                 .setSharedOperationExecutor(Executors.newCachedThreadPool());
     }
 
