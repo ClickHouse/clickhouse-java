@@ -1526,6 +1526,30 @@ public class BinaryStreamReader {
     }
 
     /**
+     * Reads a {@code FixedString} value as raw bytes.
+     *
+     * @param length fixed length in bytes
+     * @return string value holding those bytes
+     * @throws IOException when IO error occurs
+     */
+    public StringValue readFixedStringValue(int length) throws IOException {
+        if (length < 0) {
+            throw new IllegalArgumentException("FixedString length is negative");
+        }
+        return new StringValue(readNBytes(input, length));
+    }
+
+    /**
+     * Reads a Dynamic type tag and returns the concrete column it describes.
+     *
+     * @return runtime column encoded by the tag
+     * @throws IOException when IO error occurs
+     */
+    public ClickHouseColumn readDynamicType() throws IOException {
+        return readDynamicData();
+    }
+
+    /**
      * Reads the raw bytes of a string from the input stream given its length.
      *
      * @param input - source of bytes
