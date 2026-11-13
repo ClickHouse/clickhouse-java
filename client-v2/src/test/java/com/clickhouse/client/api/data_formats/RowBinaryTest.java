@@ -11,13 +11,18 @@ import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
+import com.clickhouse.client.api.sql.SQLUtils;
+import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
 import lombok.Data;
 import org.testng.Assert;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.math.BigInteger;
 import java.time.ZonedDateTime;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -346,6 +351,40 @@ public class RowBinaryTest extends BaseIntegrationTest {
             }
         } catch (Exception e) {
             Assert.fail("Unexpected exception", e);
+        }
+    }
+
+    @DataProvider(name = "enumTypesInSchema")
+    private Object[][] enumTypesInSchema() {
+        return new Object[][]{
+                {"Enum('a' = 1000)", "a", 1000, ClickHouseDataType.Enum16},
+                {"enum('a' = 1, 'b' = 1000)", "a", 1, ClickHouseDataType.Enum16},
+                {"ENUM('a' = -129)", "a", -129, ClickHouseDataType.Enum16},
+                {"Enum('a' = 1, 'b' = 128)", "b", 128, ClickHouseDataType.Enum16},
+                {"Enum('a' = -128, 'b' = 127)", "a", -128, ClickHouseDataType.Enum8},
+                {"Enum8('a' = 1)", "a", 1, ClickHouseDataType.Enum8},
+                {"Enum16('a' = 1000)", "a", 1000, ClickHouseDataType.Enum16},
+                {"Nullable(Enum('a' = 1000))", "a", 1000, ClickHouseDataType.Enum16},
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "enumTypesInSchema")
+    void testReadEnumWithSchemaFromTypeName(String type, String name, int value, ClickHouseDataType expectedType) throws Exception {
+        TableSchema schema = new TableSchema(Arrays.asList(ClickHouseColumn.of("e", type), ClickHouseColumn.of("u", "UInt8")));
+        String sql = "SELECT CAST(" + SQLUtils.enquoteLiteral(name) + ", " + SQLUtils.enquoteLiteral(type)
+                + ") AS e, toUInt8(7) AS u FROM numbers(2)";
+        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinary);
+        try (Client client = newClient().build(); QueryResponse response = client.query(sql, settings).get()) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response, schema);
+            for (int row = 0; row < 2; row++) {
+                Assert.assertNotNull(reader.next());
+                BinaryStreamReader.EnumValue enumValue = reader.readValue("e");
+                Assert.assertEquals(enumValue.getName(), name);
+                Assert.assertEquals(enumValue.intValue(), value);
+                Assert.assertEquals(enumValue.getDataType(), expectedType);
+                Assert.assertEquals(reader.getShort("u"), 7);
+            }
+            Assert.assertNull(reader.next());
         }
     }
 

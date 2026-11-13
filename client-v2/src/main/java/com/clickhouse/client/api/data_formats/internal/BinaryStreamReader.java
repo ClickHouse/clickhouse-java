@@ -214,12 +214,12 @@ public class BinaryStreamReader {
                 case Enum8: {
                     byte enum8Val = (byte) readUnsignedByte();
                     String name = actualColumn.getEnumConstants().nameNullable(enum8Val);
-                    return (T) new EnumValue(name == null ? "<unknown>" : name, enum8Val);
+                    return (T) new EnumValue(name == null ? "<unknown>" : name, enum8Val, ClickHouseDataType.Enum8);
                 }
                 case Enum16: {
                     short enum16Val = (short) readUnsignedShortLE();
                     String name = actualColumn.getEnumConstants().nameNullable(enum16Val);
-                    return (T) new EnumValue(name == null ? "<unknown>" : name, enum16Val);
+                    return (T) new EnumValue(name == null ? "<unknown>" : name, enum16Val, ClickHouseDataType.Enum16);
                 }
                 case Date:
                     return (T) readDateAsLocalDate();
@@ -1035,9 +1035,24 @@ public class BinaryStreamReader {
 
         public final int value;
 
+        /**
+         * Type of the value: {@link ClickHouseDataType#Enum8} (1 byte) or {@link ClickHouseDataType#Enum16} (2 bytes).
+         */
+        public final ClickHouseDataType dataType;
+
+        /**
+         * Creates a value of the smallest Enum type that holds it: {@code Enum8} when the value is in -128..127,
+         * {@code Enum16} otherwise.
+         */
         public EnumValue(String name, int value) {
+            this(name, value, value >= Byte.MIN_VALUE && value <= Byte.MAX_VALUE ?
+                    ClickHouseDataType.Enum8 : ClickHouseDataType.Enum16);
+        }
+
+        public EnumValue(String name, int value, ClickHouseDataType dataType) {
             this.name = name;
             this.value = value;
+            this.dataType = dataType;
         }
 
         @Override
@@ -1062,6 +1077,10 @@ public class BinaryStreamReader {
 
         public String getName() {
             return name;
+        }
+
+        public ClickHouseDataType getDataType() {
+            return dataType;
         }
 
         @Override
