@@ -1,4 +1,17 @@
 #!/bin/sh
+# Updates the project version across the repository.
+#
+# Run from the repository root:
+#   ./scripts/set_version.sh <release-version>
+#
+# Arguments:
+#   <release-version>  Version without "-SNAPSHOT" suffix (e.g. 0.9.5 or 0.12.0-rc1).
+#
+# Updates:
+#   - VERSION: sets to <release-version>
+#   - pom.xml: sets <clickhouse-java.version> to <release-version>
+#   - examples/**/pom.xml: sets <clickhouse-java.version> to <release-version>-SNAPSHOT
+#   - performance/**/pom.xml: sets <ch.jdbc.revision> to <release-version>-SNAPSHOT
 
 echo $1
 RELEASE_VERSION=$1
