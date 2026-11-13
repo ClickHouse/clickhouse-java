@@ -65,6 +65,13 @@ Avoid broad dependency, formatting, or unrelated cleanup churn unless required b
 
 ## Testing expectations
 
+- Extend an existing test class first. Create a new test class only when the change adds a new production
+  class that has no existing test class.
+- Test behavior that depends on ClickHouse server semantics, protocols, data types, or read/write paths with
+  integration tests against a ClickHouse instance. Do not use a unit test with hand-built server output as a
+  substitute for this integration coverage.
+- Use unit tests only for server-independent code, such as utilities, parsers, converters, and isolated
+  validation logic.
 - Add negative tests when a change affects validation, error handling, parsing, serialization, or
   compatibility-sensitive behavior. The test should prove the failure path produces the correct
   result/exception, not just that the original bug no longer reproduces.
@@ -85,7 +92,7 @@ Avoid broad dependency, formatting, or unrelated cleanup churn unless required b
 - Prefer **integration** tests over unit-only tests for read/deserialization and other
   behavior that flows through the client's actual runtime path (`client-v2`
   `BinaryStreamReader`, the query/insert path); a unit test on a helper can pass while the
-  live path stays broken.
+  live path stays broken. Run these tests against a ClickHouse instance.
 
 ## Architecture conventions
 

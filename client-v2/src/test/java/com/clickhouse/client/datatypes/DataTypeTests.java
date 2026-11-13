@@ -37,6 +37,7 @@ import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.math.RoundingMode;
+import java.net.InetAddress;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -44,6 +45,7 @@ import java.time.LocalDateTime;
 import java.time.Period;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -2832,6 +2834,119 @@ public class DataTypeTests extends BaseIntegrationTest {
         Assert.assertEquals(arr3dInner.length, 1);
         Assert.assertTrue(arr3dInner[0] instanceof Object[]);
         Assert.assertEquals(((Object[]) arr3dInner[0]).length, 0);
+    }
+
+    @Test(groups = {"integration"})
+    public void testReadNullableArraysOfTypesReadAsOtherClasses() throws Exception {
+        GenericRecord record = client.queryAll(
+                "SELECT "
+                        + "[toNullable(toUInt64(0)), NULL, toNullable(toUInt64(1)), "
+                        + "toNullable(toUInt64(18446744073709551615))] AS uint64_arr, "
+                        + "[toNullable(toDateTime64('2026-01-01 13:34:56.780', 3, 'UTC')), NULL, "
+                        + "toNullable(toDateTime64('2025-10-20 08:32:13.678', 3, 'UTC'))] AS datetime64_arr, "
+                        + "[toNullable(toIPv6('::ffff:1.2.3.4')), NULL, "
+                        + "toNullable(toIPv6('2001:db8::1'))] AS ipv6_arr, "
+                        + "[NULL, NULL]::Array(Nullable(UInt64)) AS all_null_uint64_arr, "
+                        + "toInt64(777) AS trail").get(0);
+
+        Assert.assertEquals(record.getList("uint64_arr"), Arrays.asList(
+                BigInteger.ZERO,
+                null,
+                BigInteger.ONE,
+                new BigInteger("18446744073709551615")));
+
+        List<?> dateTimes = record.getList("datetime64_arr");
+        Assert.assertEquals(dateTimes.size(), 3);
+        assertDateTime64(dateTimes.get(0), "2026-01-01T13:34:56.780Z");
+        Assert.assertNull(dateTimes.get(1));
+        assertDateTime64(dateTimes.get(2), "2025-10-20T08:32:13.678Z");
+
+        Assert.assertEquals(record.getList("ipv6_arr"), Arrays.asList(
+                InetAddress.getByName("1.2.3.4"),
+                null,
+                InetAddress.getByName("2001:db8::1")));
+        Assert.assertEquals(record.getList("all_null_uint64_arr"), Arrays.asList(null, null));
+        Assert.assertEquals(record.getLong("trail"), 777L);
+    }
+
+    @Test(groups = {"integration"})
+    public void testReadArrayOfNullableDateTime64FromTable() throws Exception {
+        final String table = "test_nullable_datetime64_array";
+        client.execute("DROP TABLE IF EXISTS " + table).get().close();
+
+        try {
+            client.execute(tableDefinition(
+                    table,
+                    "id Int64",
+                    "col_timestamp Array(Nullable(DateTime64(6, 'UTC')))")).get().close();
+            client.execute("INSERT INTO " + table + " VALUES "
+                    + "(1, [NULL, NULL]), "
+                    + "(2, ['2026-01-01 13:34:56.780', '2025-10-20 08:32:13.678'])").get().close();
+
+            List<GenericRecord> records = client.queryAll(
+                    "SELECT id, col_timestamp FROM " + table + " ORDER BY id");
+
+            Assert.assertEquals(records.size(), 2);
+            Assert.assertEquals(records.get(0).getLong("id"), 1L);
+            Assert.assertEquals(records.get(0).getList("col_timestamp"), Arrays.asList(null, null));
+
+            Assert.assertEquals(records.get(1).getLong("id"), 2L);
+            List<?> timestamps = records.get(1).getList("col_timestamp");
+            Assert.assertEquals(timestamps.size(), 2);
+            assertDateTime64(timestamps.get(0), "2026-01-01T13:34:56.780Z");
+            assertDateTime64(timestamps.get(1), "2025-10-20T08:32:13.678Z");
+        } finally {
+            client.execute("DROP TABLE IF EXISTS " + table).get().close();
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testReadArrayOfNullableTuple() {
+        if (isVersionMatch("(,26.1)")) {
+            throw new SkipException("Nullable Tuple requires ClickHouse 26.1 or later");
+        }
+
+        QuerySettings querySettings = new QuerySettings();
+        if (isVersionMatch("(,26.9)")) {
+            querySettings.serverSetting("allow_experimental_nullable_tuple_type", "1");
+        }
+
+        GenericRecord record = client.queryAll(
+                "SELECT toInt32(1) AS lead, "
+                        + "[CAST((1, 30, 500), 'Tuple(months Int32, days Int32, nanos Int64)'), NULL, "
+                        + "CAST((4, 5, 6), 'Tuple(months Int32, days Int32, nanos Int64)')] AS v, "
+                        + "toInt64(777) AS trail",
+                querySettings).get(0);
+
+        Assert.assertEquals(record.getInteger("lead"), 1);
+        List<?> values = record.getList("v");
+        Assert.assertEquals(values.size(), 3);
+        Assert.assertEquals((Object[]) values.get(0), new Object[] {1, 30, 500L});
+        Assert.assertNull(values.get(1));
+        Assert.assertEquals((Object[]) values.get(2), new Object[] {4, 5, 6L});
+        Assert.assertEquals(record.getLong("trail"), 777L);
+    }
+
+    @Test(groups = {"integration"})
+    public void testReadArrayOfNullableStringWithBinaryStringSupport() {
+        try (Client binaryClient = newClient().binaryStringSupport(true).build()) {
+            GenericRecord record = binaryClient.queryAll(
+                    "SELECT toInt32(1) AS lead, "
+                            + "['first', NULL, 'last']::Array(Nullable(String)) AS v, "
+                            + "toInt64(777) AS trail").get(0);
+
+            Assert.assertEquals(record.getInteger("lead"), 1);
+            List<?> values = record.getList("v");
+            Assert.assertEquals(values, Arrays.asList("first", null, "last"));
+            Assert.assertTrue(values.get(0) instanceof String);
+            Assert.assertTrue(values.get(2) instanceof String);
+            Assert.assertEquals(record.getLong("trail"), 777L);
+        }
+    }
+
+    private static void assertDateTime64(Object value, String instant) {
+        Assert.assertTrue(value instanceof ZonedDateTime, "expected ZonedDateTime, got " + value);
+        Assert.assertEquals(((ZonedDateTime) value).toInstant(), Instant.parse(instant));
     }
 
     @Test(groups = {"integration"})
