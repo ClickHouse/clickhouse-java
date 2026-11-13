@@ -78,6 +78,9 @@ public final class ClickHouseColumn implements Serializable {
     private static final String KEYWORD_JSON = ClickHouseDataType.JSON.name();
     private static final String KEYWORD_QBIT = ClickHouseDataType.QBit.name();
 
+    private static final ClickHouseDataType[] ENUM_TYPES = { ClickHouseDataType.Enum, ClickHouseDataType.Enum8,
+            ClickHouseDataType.Enum16 };
+
     private static final Logger log = LoggerFactory.getLogger(ClickHouseColumn.class);
 
     // Element types documented for QBit(element_type, dimension[, stride]).
@@ -177,8 +180,18 @@ public final class ClickHouseColumn implements Serializable {
             case Enum:
             case Enum8:
             case Enum16:
-                column.template = ClickHouseEnumValue
-                        .ofNull(column.enumConstants = new ClickHouseEnum(column.parameters));
+                column.enumConstants = new ClickHouseEnum(column.parameters);
+                if (column.dataType == ClickHouseDataType.Enum && column.enumConstants.size() > 0) {
+                    // Same as the server: a bare Enum is Enum8 when all its values fit into Int8, else Enum16.
+                    column.dataType = isInt8(column.enumConstants.getValues()) ? ClickHouseDataType.Enum8
+                            : ClickHouseDataType.Enum16;
+                    column.valueDataType = column.dataType;
+                    if (!column.nullable) {
+                        column.fixedByteLength = true;
+                        column.estimatedByteLength += column.dataType.getByteLength();
+                    }
+                }
+                column.template = ClickHouseEnumValue.ofNull(column.enumConstants);
                 break;
             case Int8:
                 column.template = ClickHouseByteValue.ofNull();
@@ -363,6 +376,28 @@ public final class ClickHouseColumn implements Serializable {
         }
 
         return column;
+    }
+
+    private static boolean isInt8(int[] values) {
+        for (int value : values) {
+            if (value < Byte.MIN_VALUE || value > Byte.MAX_VALUE) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * The names of the Enum types are not case-sensitive. The server accepts {@code enum(...)}, and recent
+     * versions also accept {@code enum8(...)} and {@code enum16(...)}.
+     */
+    private static ClickHouseDataType typeOf(String typeName) {
+        for (ClickHouseDataType type : ENUM_TYPES) {
+            if (type.name().equalsIgnoreCase(typeName)) {
+                return type;
+            }
+        }
+        return ClickHouseDataType.of(typeName);
     }
 
     private static ClickHouseColumn createGeometryVariantColumn() {
@@ -711,7 +746,7 @@ public final class ClickHouseColumn implements Serializable {
                     }
                 }
             }
-            column = new ClickHouseColumn(ClickHouseDataType.of(builder.toString()), name,
+            column = new ClickHouseColumn(typeOf(builder.toString()), name,
                     args.substring(startIndex, i), nullable, lowCardinality, params, null);
             builder.setLength(0);
         }

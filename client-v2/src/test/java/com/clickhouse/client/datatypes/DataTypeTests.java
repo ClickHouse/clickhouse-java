@@ -18,6 +18,7 @@ import com.clickhouse.client.api.query.NullValueException;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.api.sql.SQLUtils;
+import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseVersion;
@@ -1176,6 +1177,51 @@ public class DataTypeTests extends BaseIntegrationTest {
                 });
     }
 
+    @DataProvider(name = "variantWithEnumSchemas")
+    public Object[][] variantWithEnumSchemas() {
+        return new Object[][]{
+                {"Variant(Bool, Enum('a' = 1, 'b' = 1000))", true},
+                {"Variant(Bool, Enum('a' = 1, 'b' = 1000))", false},
+                {"Variant(Bool, ENUM('a' = 1, 'b' = 1000))", true},
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "variantWithEnumSchemas")
+    public void testVariantWithEnum16(String variantType, boolean schemaFromTypeName) throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
+        String enumType = "Enum16('a' = 1, 'b' = 1000)";
+        String sql = "SELECT arrayJoin([CAST(CAST('b', " + SQLUtils.enquoteLiteral(enumType) + "), " + SQLUtils.enquoteLiteral(variantType) + "), "
+                + "CAST(CAST('a', " + SQLUtils.enquoteLiteral(enumType) + "), " + SQLUtils.enquoteLiteral(variantType) + "), "
+                + "CAST(true, " + SQLUtils.enquoteLiteral(variantType) + ")]) AS v, 42::Int32 AS num";
+        QuerySettings settings = new QuerySettings().serverSetting("allow_experimental_variant_type", "1");
+        TableSchema schema = null;
+        if (schemaFromTypeName) {
+            settings.setFormat(ClickHouseFormat.RowBinary);
+            schema = new TableSchema(Arrays.asList(ClickHouseColumn.of("v", variantType), ClickHouseColumn.of("num", "Int32")));
+        }
+
+        try (QueryResponse response = client.query(sql, settings).get()) {
+            ClickHouseBinaryFormatReader reader = schema == null ? client.newBinaryFormatReader(response)
+                    : client.newBinaryFormatReader(response, schema);
+            Object[][] expected = {{"b", 1000}, {"a", 1}};
+            for (Object[] e : expected) {
+                Assert.assertNotNull(reader.next());
+                BinaryStreamReader.EnumValue enumValue = reader.readValue("v");
+                Assert.assertEquals(enumValue.getName(), e[0]);
+                Assert.assertEquals(enumValue.intValue(), e[1]);
+                Assert.assertEquals(enumValue.getDataType(), ClickHouseDataType.Enum16);
+                Assert.assertEquals(reader.getInteger("num"), 42);
+            }
+            Assert.assertNotNull(reader.next());
+            Assert.assertEquals(reader.readValue("v"), Boolean.TRUE);
+            Assert.assertEquals(reader.getInteger("num"), 42);
+            Assert.assertNull(reader.next());
+        }
+    }
+
     @Test(groups = {"integration"}, enabled = false)
     public void testVariantWithTuple() throws Exception {
         // TODO: same as array
@@ -1582,6 +1628,32 @@ public class DataTypeTests extends BaseIntegrationTest {
         for (int i = 0; i < expected.length; i++) {
             Assert.assertEquals(String.valueOf(items[i]), expected[i]);
         }
+        Assert.assertEquals(records.get(0).getInteger("num"), 42);
+    }
+
+    @DataProvider(name = "dynamicEnumValues")
+    public Object[][] dynamicEnumValues() {
+        return new Object[][]{
+                {"Enum('a' = 1, 'b' = 1000)", "b", 1000, ClickHouseDataType.Enum16},
+                {"Enum('a' = 1, 'b' = 1000)", "a", 1, ClickHouseDataType.Enum16},
+                {"Enum('a' = -129)", "a", -129, ClickHouseDataType.Enum16},
+                {"Enum('a' = -128, 'b' = 127)", "b", 127, ClickHouseDataType.Enum8},
+                {"Enum16('a' = 1)", "a", 1, ClickHouseDataType.Enum16},
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "dynamicEnumValues")
+    public void testDynamicWithEnum(String enumType, String name, int value, ClickHouseDataType expectedType) throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
+        List<GenericRecord> records = client.queryAll("SELECT CAST(" + SQLUtils.enquoteLiteral(name) + ", "
+                + SQLUtils.enquoteLiteral(enumType) + ")::Dynamic AS v, 42::Int32 AS num");
+        BinaryStreamReader.EnumValue enumValue = (BinaryStreamReader.EnumValue) records.get(0).getObject("v");
+        Assert.assertEquals(enumValue.getName(), name);
+        Assert.assertEquals(enumValue.intValue(), value);
+        Assert.assertEquals(enumValue.getDataType(), expectedType);
         Assert.assertEquals(records.get(0).getInteger("num"), 42);
     }
 

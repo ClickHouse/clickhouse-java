@@ -23,7 +23,8 @@ import com.clickhouse.data.value.array.ClickHouseLongArrayValue;
 public class ClickHouseColumnTest {
     @DataProvider(name = "enumTypesProvider")
     private Object[][] getEnumTypes() {
-        return new Object[][] { { "Enum" }, { "Enum8" }, { "Enum16" } };
+        return new Object[][] { { "Enum", ClickHouseDataType.Enum8 }, { "Enum8", ClickHouseDataType.Enum8 },
+                { "Enum16", ClickHouseDataType.Enum16 } };
     }
 
     @DataProvider(name = "objectTypesProvider")
@@ -246,23 +247,69 @@ public class ClickHouseColumnTest {
     }
 
     @Test(dataProvider = "enumTypesProvider", groups = { "unit" })
-    public void testEnum(String typeName) {
+    public void testEnum(String typeName, ClickHouseDataType expectedType) {
         Assert.assertThrows(IllegalArgumentException.class,
                 () -> ClickHouseColumn.of("e", typeName + "('Query''Start' = a)"));
         Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseColumn.of("e", typeName + "(aa,1)"));
         ClickHouseColumn column = ClickHouseColumn.of("e", typeName + "('Query''Start' = 1, 'Query\\'Finish' = 10)");
         Assert.assertTrue(column.isEnum());
-        Assert.assertEquals(column.getDataType(), ClickHouseDataType.of(typeName));
+        Assert.assertEquals(column.getDataType(), expectedType);
         Assert.assertThrows(IllegalArgumentException.class, () -> column.getEnumConstants().name(2));
         Assert.assertThrows(IllegalArgumentException.class, () -> column.getEnumConstants().value(""));
         Assert.assertEquals(column.getEnumConstants().name(1), "Query'Start");
         Assert.assertEquals(column.getEnumConstants().name(10), "Query'Finish");
         Assert.assertEquals(column.getEnumConstants().value("Query'Start"), 1);
         Assert.assertEquals(column.getEnumConstants().value("Query'Finish"), 10);
-        if (column.getDataType() != ClickHouseDataType.Enum) { // virtual type
-            Assert.assertTrue(column.isFixedLength(), "Should have fixed length in byte");
-        }
+        Assert.assertTrue(column.isFixedLength(), "Should have fixed length in byte");
         Assert.assertEquals(column.getEstimatedLength(), column.getDataType().getByteLength());
+    }
+
+    @DataProvider(name = "enumWidthProvider")
+    private Object[][] getEnumWidths() {
+        return new Object[][] {
+                { "Enum('a' = -128, 'b' = 127)", ClickHouseDataType.Enum8 },
+                { "Enum('a' = 1, 'b' = 128)", ClickHouseDataType.Enum16 },
+                { "Enum('a' = -129)", ClickHouseDataType.Enum16 },
+                { "enum('a' = 1000)", ClickHouseDataType.Enum16 },
+                { "ENUM('a' = 1)", ClickHouseDataType.Enum8 },
+                { "enum8('a' = 1)", ClickHouseDataType.Enum8 },
+                { "enum16('a' = 1)", ClickHouseDataType.Enum16 },
+                { "Enum8('a' = 1)", ClickHouseDataType.Enum8 },
+                { "Enum16('a' = 1)", ClickHouseDataType.Enum16 },
+        };
+    }
+
+    @Test(dataProvider = "enumWidthProvider", groups = { "unit" })
+    public void testEnumWidth(String typeName, ClickHouseDataType expectedType) {
+        ClickHouseColumn column = ClickHouseColumn.of("e", typeName);
+        Assert.assertEquals(column.getDataType(), expectedType);
+        Assert.assertEquals(column.getValueDataType(), expectedType);
+        Assert.assertEquals(column.getOriginalTypeName(), typeName);
+        Assert.assertTrue(column.isFixedLength());
+        Assert.assertEquals(column.getEstimatedLength(), expectedType.getByteLength());
+
+        ClickHouseColumn nullable = ClickHouseColumn.of("e", "Nullable(" + typeName + ")");
+        Assert.assertEquals(nullable.getDataType(), expectedType);
+        Assert.assertTrue(nullable.isNullable());
+
+        Assert.assertEquals(ClickHouseColumn.of("e", "Array(" + typeName + ")").getArrayBaseColumn().getDataType(),
+                expectedType);
+        Assert.assertEquals(ClickHouseColumn.of("e", "Map(String, " + typeName + ")").getValueInfo().getDataType(),
+                expectedType);
+        ClickHouseColumn tuple = ClickHouseColumn.of("e", "Tuple(" + typeName + ", UInt8)");
+        Assert.assertEquals(tuple.getNestedColumns().get(0).getDataType(), expectedType);
+        Assert.assertEquals(tuple.getNestedColumns().get(1).getDataType(), ClickHouseDataType.UInt8);
+        ClickHouseColumn variant = ClickHouseColumn.of("e", "Variant(" + typeName + ", Bool)");
+        Assert.assertEquals(variant.getNestedColumns().get(0).getDataType(), ClickHouseDataType.Bool);
+        Assert.assertEquals(variant.getNestedColumns().get(1).getDataType(), expectedType);
+    }
+
+    @Test(groups = { "unit" })
+    public void testBareEnumWidthFromDataType() {
+        Assert.assertEquals(ClickHouseColumn.of("e", ClickHouseDataType.Enum, false, false, "'a'=1").getDataType(),
+                ClickHouseDataType.Enum8);
+        Assert.assertEquals(ClickHouseColumn.of("e", ClickHouseDataType.Enum, false, false, "'a'=1000").getDataType(),
+                ClickHouseDataType.Enum16);
     }
 
     @Test(dataProvider = "objectTypesProvider", groups = { "unit" })
