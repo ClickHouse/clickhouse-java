@@ -202,6 +202,25 @@ For each change:
 - In DTOs or metadata objects, confirm that serialization, deserialization, and tests cover the new field.
 - In JDBC or client settings, check whether the new field changes feature surface and needs documentation.
 
+# Binary read path or nested type changed
+
+Applies to `client-v2` `BinaryStreamReader` and to `Array`, `Map`, `Tuple`, `Nested`, `Dynamic`, and `Variant` reads, including nullable elements.
+
+## Common Sense / Lint Check
+
+- `BinaryStreamReader` stays a fast reader. The change does not add conversion, wrappers, copies, or a more convenient Java class on the read loop.
+- The Java class stored for a nested element, key, or value is the class the scalar read of that same ClickHouse type returns.
+- The component class is taken from the value just read. It is not taken from `ClickHouseDataType.getObjectClass()`, `getWiderObjectClass()`, or `getPrimitiveClass()` unless that catalog class is proven to be the class the reader returns.
+- Nullable and non-nullable forms of the same element stay consistent. An all-null array is not treated as proof, because `null` fits any reference array.
+- Java type mapping is not final. A more specific returned class is called out as a behavior change.
+
+## Context Check
+
+- A primitive-read change is reviewed together with every container that embeds that primitive.
+- A container-read change is checked against the scalar read, including `Nullable` elements and a value after the container so a shifted read is visible.
+- Convenience conversions stay in the value-converter classes and in JDBC or R2DBC mapping, not in `BinaryStreamReader`.
+- Focused tests cover a non-null element, a null element, and at least one type whose catalog class differs from the read value (`UInt64`, `DateTime` / `DateTime64`, or `Tuple`).
+
 # Conditional logic or guard changed
 
 ## Common Sense / Lint Check

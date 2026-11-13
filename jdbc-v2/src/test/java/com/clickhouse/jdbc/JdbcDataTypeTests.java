@@ -1813,6 +1813,54 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
     }
 
     @Test(groups = { "integration" })
+    public void testReadArraysOfNullableTypes() throws SQLException {
+        Properties props = new Properties();
+        props.put(ClientConfigProperties.BINARY_STRING_SUPPORT.getKey(), "true");
+
+        String sql = "SELECT toInt32(1) AS lead, "
+                + "[toNullable(toUInt64(0)), NULL, "
+                + "toNullable(toUInt64(18446744073709551615))] AS uint64_values, "
+                + "[toNullable(toDateTime64('2026-01-01 13:34:56.780', 6, 'UTC')), NULL, "
+                + "toNullable(toDateTime64('2025-10-20 08:32:13.678', 6, 'UTC'))] AS datetime_values, "
+                + "[CAST((1, 30, 500), 'Tuple(months Int32, days Int32, nanos Int64)'), NULL, "
+                + "CAST((4, 5, 6), 'Tuple(months Int32, days Int32, nanos Int64)')] AS tuple_values, "
+                + "['first', NULL, 'last']::Array(Nullable(String)) AS string_values, "
+                + "toInt64(777) AS trail";
+
+        try (Connection conn = getJdbcConnection(props);
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            assertTrue(rs.next());
+            assertEquals(rs.getInt("lead"), 1);
+
+            Object[] uint64Values = (Object[]) rs.getArray("uint64_values").getArray();
+            assertEquals(uint64Values, new Object[] {
+                    BigInteger.ZERO, null, new BigInteger("18446744073709551615")
+            });
+
+            Object[] dateTimeValues = (Object[]) rs.getArray("datetime_values").getArray();
+            assertEquals(dateTimeValues, new Object[] {
+                    Timestamp.valueOf("2026-01-01 13:34:56.780"),
+                    null,
+                    Timestamp.valueOf("2025-10-20 08:32:13.678")
+            });
+
+            Object[] tupleValues = (Object[]) rs.getArray("tuple_values").getArray();
+            assertEquals((Object[]) tupleValues[0], new Object[] {1, 30, 500L});
+            assertNull(tupleValues[1]);
+            assertEquals((Object[]) tupleValues[2], new Object[] {4, 5, 6L});
+
+            Object[] stringValues = (Object[]) rs.getArray("string_values").getArray();
+            assertEquals(stringValues, new Object[] {"first", null, "last"});
+            assertTrue(stringValues[0] instanceof String);
+            assertTrue(stringValues[2] instanceof String);
+
+            assertEquals(rs.getLong("trail"), 777L);
+            assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = { "integration" })
     public void testNestedType() throws SQLException {
         runQuery("DROP TABLE IF EXISTS test_nested_jdbc");
         runQuery("CREATE TABLE test_nested_jdbc (order Int8, "
