@@ -10,6 +10,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
@@ -208,20 +209,53 @@ public class BinaryStreamReaderTests {
         BinaryStreamReader.ArrayValue fromRow = (BinaryStreamReader.ArrayValue) rowReader.readValue(column);
         Assert.assertEquals(fromRow.getArray().getClass().getComponentType(), componentType, columnType);
         Assert.assertEquals(rowReader.readValue(ClickHouseColumn.of("trail", "Int32")), Integer.valueOf(7));
-
-        BinaryStreamReader itemReader = binaryReader(new byte[] {});
-        BinaryStreamReader.ArrayValue fromItem = itemReader.readArrayItem(column.getNestedColumns().get(0), 0);
-        Assert.assertEquals(fromItem.getArray().getClass().getComponentType(), componentType, columnType);
     }
 
     @DataProvider(name = "emptyArrayComponentTypes")
     public static Object[][] emptyArrayComponentTypes() {
         return new Object[][] {
                 {"Array(Int32)", int.class},
-                {"Array(Nullable(Int32))", Object.class},
-                {"Array(Nullable(Float64))", Object.class},
-                {"Array(Variant(Int32, String))", Object.class},
+                {"Array(Nullable(Int32))", int.class},
+                {"Array(Nullable(Float64))", double.class},
+                {"Array(Nullable(String))", String.class},
+                {"Array(Nullable(UInt64))", long.class},
+                {"Array(Nullable(DateTime64(6, 'UTC')))", LocalDateTime.class},
+                {"Array(Variant(Int32, String))", List.class},
         };
+    }
+
+    @Test
+    public void testReadArrayOfNullableTuple() throws Exception {
+        ClickHouseColumn leadColumn = ClickHouseColumn.of("lead", "Int32");
+        ClickHouseColumn arrayColumn = ClickHouseColumn.of(
+                "v", "Array(Nullable(Tuple(months Int32, days Int32, nanos Int64)))");
+        ClickHouseColumn trailColumn = ClickHouseColumn.of("trail", "Int64");
+
+        ByteArrayOutputStream row = new ByteArrayOutputStream();
+        BinaryStreamUtils.writeInt32(row, 1);
+        BinaryStreamUtils.writeVarInt(row, 3);
+        row.write(0);
+        BinaryStreamUtils.writeInt32(row, 1);
+        BinaryStreamUtils.writeInt32(row, 30);
+        BinaryStreamUtils.writeInt64(row, 500L);
+        row.write(1);
+        row.write(0);
+        BinaryStreamUtils.writeInt32(row, 4);
+        BinaryStreamUtils.writeInt32(row, 5);
+        BinaryStreamUtils.writeInt64(row, 6L);
+        BinaryStreamUtils.writeInt64(row, 777L);
+
+        BinaryStreamReader reader = binaryReader(row.toByteArray());
+        Assert.assertEquals(reader.readValue(leadColumn), Integer.valueOf(1));
+
+        BinaryStreamReader.ArrayValue array =
+                (BinaryStreamReader.ArrayValue) reader.readValue(arrayColumn);
+        Assert.assertEquals(array.getArray().getClass().getComponentType(), Object.class);
+        Assert.assertEquals((Object[]) array.get(0), new Object[] {1, 30, 500L});
+        Assert.assertNull(array.get(1));
+        Assert.assertEquals((Object[]) array.get(2), new Object[] {4, 5, 6L});
+
+        Assert.assertEquals(reader.readValue(trailColumn), Long.valueOf(777L));
     }
 
     @Test

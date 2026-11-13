@@ -2895,11 +2895,21 @@ public class DataTypeTests extends BaseIntegrationTest {
 
     @Test(groups = {"integration"})
     public void testReadArrayOfNullableTuple() {
+        if (isVersionMatch("(,26.1)")) {
+            throw new SkipException("Nullable Tuple requires ClickHouse 26.1 or later");
+        }
+
+        QuerySettings querySettings = new QuerySettings();
+        if (isVersionMatch("(,26.9)")) {
+            querySettings.serverSetting("allow_experimental_nullable_tuple_type", "1");
+        }
+
         GenericRecord record = client.queryAll(
                 "SELECT toInt32(1) AS lead, "
                         + "[CAST((1, 30, 500), 'Tuple(months Int32, days Int32, nanos Int64)'), NULL, "
                         + "CAST((4, 5, 6), 'Tuple(months Int32, days Int32, nanos Int64)')] AS v, "
-                        + "toInt64(777) AS trail").get(0);
+                        + "toInt64(777) AS trail",
+                querySettings).get(0);
 
         Assert.assertEquals(record.getInteger("lead"), 1);
         List<?> values = record.getList("v");

@@ -775,11 +775,17 @@ public class BinaryStreamReader {
      */
     public ArrayValue readArray(ClickHouseColumn column) throws IOException {
         int len = readVarInt(input);
+        return readArray(column, len);
+    }
 
+    public ArrayValue readArray(ClickHouseColumn column, int len) throws IOException {
         ArrayValue array;
         ClickHouseColumn itemTypeColumn = column.getNestedColumns().get(0);
-        if (len == 0 || column.getArrayNestedLevel() == 1) {
-            array = readArrayItem(itemTypeColumn, len);
+        if (len == 0) {
+            Class<?> itemClass = itemTypeColumn.getDataType().getPrimitiveClass();
+            array = new ArrayValue(itemClass == null ? Object.class : itemClass, 0);
+        } else if (column.getArrayNestedLevel() == 1) {
+            array = readArrayToArrayValue(itemTypeColumn, len);
         } else {
             array = new ArrayValue(ArrayValue.class, len);
             for (int i = 0; i < len; i++) {
@@ -790,53 +796,46 @@ public class BinaryStreamReader {
         return array;
     }
 
-    public ArrayValue readArrayItem(ClickHouseColumn itemTypeColumn, int len) throws IOException {
+    public ArrayValue readArrayToArrayValue(ClickHouseColumn itemTypeColumn, int len) throws IOException {
+        ArrayValue array;
         if (itemTypeColumn.isNullable()
                 || itemTypeColumn.getDataType() == ClickHouseDataType.Variant
                 || itemTypeColumn.getDataType() == ClickHouseDataType.Dynamic
                 || itemTypeColumn.getDataType() == ClickHouseDataType.Geometry) {
-            // Includes len == 0. A primitive component type cannot hold null, and there is no
-            // element to read that would tell us a narrower class.
-            ArrayValue array = new ArrayValue(Object.class, len);
+            array = new ArrayValue(Object.class, len);
             for (int i = 0; i < len; i++) {
                 array.set(i, readNestedValue(itemTypeColumn));
             }
-            return array;
-        }
-        if (len == 0) {
-            // Nothing to read. The branch below reads one element to learn the component type,
-            // which would consume the next value and index a zero-length array.
-            Class<?> itemClass = itemTypeColumn.getDataType().getPrimitiveClass();
-            return new ArrayValue(itemClass == null ? Object.class : itemClass, 0);
-        }
-        Object firstValue = readNestedValue(itemTypeColumn);
-        Class<?> itemClass = firstValue.getClass();
-        if (firstValue instanceof Byte) {
-            itemClass = byte.class;
-        } else if (firstValue instanceof Character) {
-            itemClass = char.class;
-        } else if (firstValue instanceof Short) {
-            itemClass = short.class;
-        } else if (firstValue instanceof Integer) {
-            itemClass = int.class;
-        } else if (firstValue instanceof Long) {
-            itemClass = long.class;
-        } else if (firstValue instanceof Boolean) {
-            itemClass = boolean.class;
-        } else if (firstValue instanceof Float) {
-            itemClass = float.class;
-        } else if (firstValue instanceof Double) {
-            itemClass = double.class;
-        } else if (firstValue instanceof Map) {
-            itemClass = Map.class;
-        } else if (firstValue instanceof List) {
-            itemClass = List.class;
-        }
+        } else {
+            Object firstValue = readNestedValue(itemTypeColumn);
+            Class<?> itemClass = firstValue.getClass();
+            if (firstValue instanceof Byte) {
+                itemClass = byte.class;
+            } else if (firstValue instanceof Character) {
+                itemClass = char.class;
+            } else if (firstValue instanceof Short) {
+                itemClass = short.class;
+            } else if (firstValue instanceof Integer) {
+                itemClass = int.class;
+            } else if (firstValue instanceof Long) {
+                itemClass = long.class;
+            } else if (firstValue instanceof Boolean) {
+                itemClass = boolean.class;
+            } else if (firstValue instanceof Float) {
+                itemClass = float.class;
+            } else if (firstValue instanceof Double) {
+                itemClass = double.class;
+            } else if (firstValue instanceof Map) {
+                itemClass = Map.class;
+            } else if (firstValue instanceof List) {
+                itemClass = List.class;
+            }
 
-        ArrayValue array = new ArrayValue(itemClass, len);
-        array.set(0, firstValue);
-        for (int i = 1; i < len; i++) {
-            array.set(i, readNestedValue(itemTypeColumn));
+            array = new ArrayValue(itemClass, len);
+            array.set(0, firstValue);
+            for (int i = 1; i < len; i++) {
+                array.set(i, readNestedValue(itemTypeColumn));
+            }
         }
         return array;
     }

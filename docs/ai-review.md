@@ -161,6 +161,8 @@ it must have secure random password. This password should never be logged or acc
 If `GRANT` is executed then it must be against test database only. Question if `GRANT ALL` should be used. Test can be run against cloud instance, 
 and it is crucial to review what is created in database. Flag any unusual things in queries.
 
+Do not specify an engine in integration-test `CREATE TABLE` statements unless the test validates engine-specific behavior. The test environment selects the default engine for standalone and cluster runs.
+
 Call out missing focused tests when a change affects:
 
 - public API behavior

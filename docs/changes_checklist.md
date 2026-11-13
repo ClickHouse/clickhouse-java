@@ -202,6 +202,16 @@ For each change:
 - In DTOs or metadata objects, confirm that serialization, deserialization, and tests cover the new field.
 - In JDBC or client settings, check whether the new field changes feature surface and needs documentation.
 
+# Integration test creates a table
+
+## Common Sense / Lint Check
+
+- The `CREATE TABLE` statement does not specify an engine unless the test validates engine-specific behavior.
+
+## Context Check
+
+- The test environment selects the default table engine for standalone and cluster runs. An explicit engine must not bypass that configuration accidentally.
+
 # Binary read path or nested type changed
 
 Applies to `client-v2` `BinaryStreamReader` and to `Array`, `Map`, `Tuple`, `Nested`, `Dynamic`, and `Variant` reads, including nullable elements.

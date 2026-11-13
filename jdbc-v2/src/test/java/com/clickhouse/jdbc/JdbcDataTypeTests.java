@@ -1822,8 +1822,6 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
                 + "toNullable(toUInt64(18446744073709551615))] AS uint64_values, "
                 + "[toNullable(toDateTime64('2026-01-01 13:34:56.780', 6, 'UTC')), NULL, "
                 + "toNullable(toDateTime64('2025-10-20 08:32:13.678', 6, 'UTC'))] AS datetime_values, "
-                + "[CAST((1, 30, 500), 'Tuple(months Int32, days Int32, nanos Int64)'), NULL, "
-                + "CAST((4, 5, 6), 'Tuple(months Int32, days Int32, nanos Int64)')] AS tuple_values, "
                 + "['first', NULL, 'last']::Array(Nullable(String)) AS string_values, "
                 + "toInt64(777) AS trail";
 
@@ -1845,15 +1843,43 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
                     Timestamp.valueOf("2025-10-20 08:32:13.678")
             });
 
-            Object[] tupleValues = (Object[]) rs.getArray("tuple_values").getArray();
-            assertEquals((Object[]) tupleValues[0], new Object[] {1, 30, 500L});
-            assertNull(tupleValues[1]);
-            assertEquals((Object[]) tupleValues[2], new Object[] {4, 5, 6L});
-
             Object[] stringValues = (Object[]) rs.getArray("string_values").getArray();
             assertEquals(stringValues, new Object[] {"first", null, "last"});
             assertTrue(stringValues[0] instanceof String);
             assertTrue(stringValues[2] instanceof String);
+
+            assertEquals(rs.getLong("trail"), 777L);
+            assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testReadArrayOfNullableTuple() throws SQLException {
+        if (isVersionMatch("(,26.1)")) {
+            throw new SkipException("Nullable Tuple requires ClickHouse 26.1 or later");
+        }
+
+        Properties props = new Properties();
+        if (isVersionMatch("(,26.9)")) {
+            props.setProperty(
+                    ClientConfigProperties.serverSetting("allow_experimental_nullable_tuple_type"), "1");
+        }
+
+        String sql = "SELECT toInt32(1) AS lead, "
+                + "[CAST((1, 30, 500), 'Tuple(months Int32, days Int32, nanos Int64)'), NULL, "
+                + "CAST((4, 5, 6), 'Tuple(months Int32, days Int32, nanos Int64)')] AS tuple_values, "
+                + "toInt64(777) AS trail";
+
+        try (Connection conn = getJdbcConnection(props);
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            assertTrue(rs.next());
+            assertEquals(rs.getInt("lead"), 1);
+
+            Object[] tupleValues = (Object[]) rs.getArray("tuple_values").getArray();
+            assertEquals((Object[]) tupleValues[0], new Object[] {1, 30, 500L});
+            assertNull(tupleValues[1]);
+            assertEquals((Object[]) tupleValues[2], new Object[] {4, 5, 6L});
 
             assertEquals(rs.getLong("trail"), 777L);
             assertFalse(rs.next());
