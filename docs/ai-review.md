@@ -161,6 +161,14 @@ it must have secure random password. This password should never be logged or acc
 If `GRANT` is executed then it must be against test database only. Question if `GRANT ALL` should be used. Test can be run against cloud instance, 
 and it is crucial to review what is created in database. Flag any unusual things in queries.
 
+Require contributors to extend an existing test class first. A new test class is appropriate only when the
+change adds a new production class that has no existing test class.
+
+Require integration tests against a ClickHouse instance for behavior that depends on server semantics,
+protocols, data types, or read/write paths. A unit test that constructs server output manually is not a
+substitute for this coverage. Accept unit tests only for server-independent code, such as utilities, parsers,
+converters, and isolated validation logic.
+
 Do not specify an engine in integration-test `CREATE TABLE` statements unless the test validates engine-specific behavior. The test environment selects the default engine for standalone and cluster runs.
 
 Call out missing focused tests when a change affects:
