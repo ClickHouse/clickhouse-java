@@ -39,6 +39,7 @@ Treat these as high-risk changes:
 - configuration properties, headers, query parameters, connection settings, constants, and defaults
 - retry behavior, timeouts, parsing, serialization, and error handling
 - JDBC and R2DBC semantics, compatibility, and type mappings
+- `client-v2` `BinaryStreamReader` and nested container reads (`Array`, `Map`, `Tuple`, `Nested`, `Dynamic`, `Variant`), including nullable elements
 
 If a breaking change seems possible, call it out explicitly and explain the user impact.
 
@@ -57,8 +58,9 @@ Be especially careful with:
 - date/time, number, enum, and boolean string formatting
 - JDBC metadata strings, driver-visible values, and textual protocol representations
 - cross-module compatibility between shared data classes, clients, JDBC, and R2DBC
+- component types of arrays, maps, and other nested values, including nullable elements
 
-Do not treat an internal cleanup as safe if it can change observable behavior.
+Do not treat an internal cleanup as safe if it can change observable behavior. Java type mapping is not final. A more specific returned class is a behavior change even when the diff is only inside a reader.
 
 ## Feature contract review
 
@@ -127,6 +129,23 @@ Do not accept a performance improvement if it changes formatting, null handling,
 
 Prefer the smallest safe optimization that preserves behavior.
 
+On `BinaryStreamReader`, also follow the binary read path section below. Do not trade read performance for a more convenient Java type.
+
+## Binary read path
+
+`client-v2` `com.clickhouse.client.api.data_formats.internal.BinaryStreamReader` is an internal fast reader. It decodes binary values into the objects callers already receive. Keep conversion on this path minimal. Performance stays ahead of convenience: do not add wrappers, extra copies, or a "nicer" Java class in this loop. Put convenience conversions in the value-converter classes and in JDBC or R2DBC mapping.
+
+Java type mapping is not final. Do not treat `ClickHouseDataType.getObjectClass()`, `getWiderObjectClass()`, or `getPrimitiveClass()` as the class `readValue` returns. The catalog and the reader disagree for some types today: `UInt64` is read as `BigInteger`, `DateTime` / `DateTime32` / `DateTime64` as `ZonedDateTime`, and `Tuple` as `Object[]`. Allocating a container from the catalog class, instead of from the value the reader just read, is a compatibility risk even when the change looks like a cleanup.
+
+Nested types need the same review as the primitive they contain. `Array`, `Map`, `Tuple`, `Nested`, `Dynamic`, and `Variant` store whatever the primitive read returns. The class stored for an element, a key, or a value must stay the class that primitive read produces, including inside `Nullable`. A typed array whose component class is not that value fails when the first non-null element is stored. An all-null array hides the mismatch, because `null` fits any reference array. When a primitive read changes, check every container that embeds it. When a container read changes, check that it still stores the primitive read's value unchanged, and that nullable and non-nullable forms of the same element stay consistent with each other.
+
+Treat these as review flags:
+
+- a new conversion, boxing choice, or component-class lookup inside `BinaryStreamReader`
+- a nested read that uses a different class, or a different read method, than the scalar read of the same ClickHouse type
+- a nullable container made more specific than `Object` without proof that every non-null element class matches
+- missing coverage for a non-null element, a null element, and a following fixed-width column
+
 ## Preferred change style
 
 - make the smallest safe change that solves the problem
@@ -141,6 +160,16 @@ Prefer the smallest safe optimization that preserves behavior.
 it must have secure random password. This password should never be logged or accessible externally. User should be deleted in the `finally` block. 
 If `GRANT` is executed then it must be against test database only. Question if `GRANT ALL` should be used. Test can be run against cloud instance, 
 and it is crucial to review what is created in database. Flag any unusual things in queries.
+
+Require contributors to extend an existing test class first. A new test class is appropriate only when the
+change adds a new production class that has no existing test class.
+
+Require integration tests against a ClickHouse instance for behavior that depends on server semantics,
+protocols, data types, or read/write paths. A unit test that constructs server output manually is not a
+substitute for this coverage. Accept unit tests only for server-independent code, such as utilities, parsers,
+converters, and isolated validation logic.
+
+Do not specify an engine in integration-test `CREATE TABLE` statements unless the test validates engine-specific behavior. The test environment selects the default engine for standalone and cluster runs.
 
 Call out missing focused tests when a change affects:
 
@@ -163,6 +192,7 @@ Explicitly check:
 - whether any default behavior is changing for existing callers
 - whether the change affects any feature or compatibility-sensitive trait listed in `docs/features.md`
 - whether the implementation differs from common JDBC, R2DBC, or Java library practice
+- whether a binary read or a nested container now returns a different Java class than the scalar read of the same type
 - whether focused tests are needed to lock in compatibility-sensitive behavior
 
 If the answer might be yes, treat the change as risky and investigate compatibility before proceeding.
