@@ -2,8 +2,10 @@ package com.clickhouse.client.api.data_formats;
 
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.client.api.query.QuerySettings;
+import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.format.BinaryStreamUtils;
 import org.testng.Assert;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.io.ByteArrayInputStream;
@@ -13,6 +15,7 @@ import java.math.BigInteger;
 import java.net.InetAddress;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.TimeZone;
@@ -381,9 +384,9 @@ public class ClickHouseBinaryFormatReaderNullableArrayTest {
     @Test
     public void testNullableArraysOfTypesReadAsOtherClasses() throws Exception {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        String[] names = new String[]{"uint64_arr", "datetime64_arr", "ipv6_arr", "all_null_uint64_arr"};
+        String[] names = new String[]{"uint64_arr", "datetime64_arr", "ipv6_arr"};
         String[] types = new String[]{"Array(Nullable(UInt64))", "Array(Nullable(DateTime64(3, 'UTC')))",
-                                   "Array(Nullable(IPv6))", "Array(Nullable(UInt64))"};
+                                   "Array(Nullable(IPv6))"};
 
         BinaryStreamUtils.writeVarInt(out, names.length);
         for (String name : names) {
@@ -418,11 +421,6 @@ public class ClickHouseBinaryFormatReaderNullableArrayTest {
         BinaryStreamUtils.writeNonNull(out);
         out.write(InetAddress.getByName("2001:db8::1").getAddress());
 
-        // Array(Nullable(UInt64)): [NULL, NULL]
-        BinaryStreamUtils.writeVarInt(out, 2);
-        BinaryStreamUtils.writeNull(out);
-        BinaryStreamUtils.writeNull(out);
-
         InputStream in = new ByteArrayInputStream(out.toByteArray());
         QuerySettings querySettings = new QuerySettings().setUseTimeZone(TimeZone.getTimeZone("UTC").toZoneId().getId());
         RowBinaryWithNamesAndTypesFormatReader reader =
@@ -439,9 +437,32 @@ public class ClickHouseBinaryFormatReaderNullableArrayTest {
         List<Object> ipv6List = reader.getList("ipv6_arr");
         Assert.assertEquals(ipv6List, Arrays.asList(InetAddress.getByName("1.2.3.4"), null,
                 InetAddress.getByName("2001:db8::1")));
+    }
 
-        List<Object> allNullList = reader.getList("all_null_uint64_arr");
-        Assert.assertEquals(allNullList, Arrays.asList(null, null));
+    @DataProvider(name = "allNullArrayTypes")
+    public Object[][] allNullArrayTypes() {
+        return new Object[][]{
+                {"Array(Nullable(UInt64))", BigInteger[].class},
+                {"Array(Nullable(DateTime64(3, 'UTC')))", ZonedDateTime[].class},
+                {"Array(Nullable(Tuple(Int32, Int32)))", Object[][].class},
+        };
+    }
+
+    @Test(dataProvider = "allNullArrayTypes")
+    public void testAllNullArrayHasTheTypeOfArrayWithValues(String type, Class<?> expectedArrayClass)
+            throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        BinaryStreamUtils.writeVarInt(out, 2);
+        BinaryStreamUtils.writeNull(out);
+        BinaryStreamUtils.writeNull(out);
+
+        BinaryStreamReader reader = new BinaryStreamReader(new ByteArrayInputStream(out.toByteArray()),
+                TimeZone.getTimeZone("UTC"), null, new BinaryStreamReader.DefaultByteBufferAllocator(), false, null,
+                false);
+        BinaryStreamReader.ArrayValue array = reader.readValue(ClickHouseColumn.of("a", type));
+
+        Assert.assertEquals(array.getArray().getClass(), expectedArrayClass);
+        Assert.assertEquals(array.asList(), Arrays.asList(null, null));
     }
 
     @Test

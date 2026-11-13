@@ -241,6 +241,43 @@ public class StringValueTests {
         }
     }
 
+    @DataProvider(name = "nullableStringArrayTypes")
+    public Object[][] nullableStringArrayTypes() {
+        return new Object[][]{
+                {"Array(Nullable(String))", 0},
+                {"Array(Nullable(FixedString(3)))", 3},
+        };
+    }
+
+    @Test(dataProvider = "nullableStringArrayTypes")
+    public void testReadNullableStringArrayKeepsStringWhenBinarySupportEnabled(String type, int fixedLength)
+            throws IOException {
+        // Elements of Array(Nullable(String)) stay String like the elements of Array(String).
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        BinaryStreamUtils.writeVarInt(baos, 3);
+        BinaryStreamUtils.writeNonNull(baos);
+        writeStringElement(baos, "abc", fixedLength);
+        BinaryStreamUtils.writeNull(baos);
+        BinaryStreamUtils.writeNonNull(baos);
+        writeStringElement(baos, "xyz", fixedLength);
+
+        Object read = reader(baos.toByteArray(), true).readValue(ClickHouseColumn.of("a", type));
+
+        Object raw = ((BinaryStreamReader.ArrayValue) read).getArray();
+        Assert.assertTrue(raw instanceof String[], "Nested array items must be String, got " + raw.getClass());
+        Assert.assertEquals((String[]) raw, new String[]{"abc", null, "xyz"});
+    }
+
+    private static void writeStringElement(ByteArrayOutputStream out, String value, int fixedLength)
+            throws IOException {
+        byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
+        if (fixedLength > 0) {
+            out.write(bytes, 0, fixedLength);
+        } else {
+            BinaryStreamUtils.writeString(out, bytes);
+        }
+    }
+
     @Test
     public void testReadStringMapKeepsStringWhenBinarySupportEnabled() throws IOException {
         // Even with the binary-string feature enabled, nested Map(String, String) keys and values are read as String.

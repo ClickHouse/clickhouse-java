@@ -806,7 +806,7 @@ public class BinaryStreamReader {
             Object[] values = new Object[len];
             Class<?> itemClass = null;
             for (int i = 0; i < len; i++) {
-                Object value = readValue(itemTypeColumn);
+                Object value = readNestedValue(itemTypeColumn);
                 values[i] = value;
                 if (value != null) {
                     itemClass = itemClass == null ? value.getClass() : commonSuperclass(itemClass, value.getClass());
