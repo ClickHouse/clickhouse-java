@@ -295,6 +295,10 @@ public abstract class AbstractBinaryFormatReader implements ClickHouseBinaryForm
         }
     }
 
+    protected Map<String, Object> wrapRecord(Object[] record) {
+        return new RecordWrapper(record, schema);
+    }
+
     protected void endReached() {
         initialState = false;
         hasNext = false;
