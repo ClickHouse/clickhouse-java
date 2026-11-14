@@ -152,7 +152,7 @@ public void executeWorkloadTask(Connection conn, String taskName) throws SQLExce
 
 #### How it is observed on the server (`User-Agent` header)
 
-The JDBC driver communicates over HTTP and passes the client name as the leading segment of the HTTP `User-Agent` header. The driver automatically appends the JDBC driver version, detected frameworks (e.g. Apache Spark), the client version, and a comment group with the Java version (`lv`), the operating system (`os`), and the HTTP client (`hc`: `ahc_` and the Apache HttpClient version):
+The JDBC driver communicates over HTTP and passes the client name as the leading segment of the HTTP `User-Agent` header. The driver automatically appends the JDBC driver version, the client version, and a comment group with detected frameworks (e.g. Apache Spark, as `fw`), the Java version (`lv`), the operating system (`os`), and the HTTP client (`hc`: `ahc_` and the Apache HttpClient version):
 
 ```text
 order-service/1.2.0 jdbc-v2/0.12.0 clickhouse-java-v2/0.12.0 (lv:java/17.0.2; os:Linux; hc:ahc_5.6.4)

@@ -86,28 +86,17 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
             this.appName = "";
             this.readOnly = false;
             this.holdability = ResultSet.HOLD_CURSORS_OVER_COMMIT;
-            String clientName = Driver.DRIVER_CLIENT_NAME + Driver.getLibraryVersion();
 
             Map<String, String> clientProperties = config.getClientProperties();
             if (clientProperties.get(ClientConfigProperties.CLIENT_NAME.getKey()) != null) {
                 this.appName = clientProperties.get(ClientConfigProperties.CLIENT_NAME.getKey()).trim();
-                clientName = this.appName + " " + clientName; // Use the application name as client name
             } else if (clientProperties.get(ClientConfigProperties.PRODUCT_NAME.getKey()) != null) {
                 // Backward compatibility for old property
                 this.appName = clientProperties.get(ClientConfigProperties.PRODUCT_NAME.getKey()).trim();
-                clientName = this.appName + " " + clientName; // Use the application name as client name
-            }
-
-            if (!this.config.isDisableFrameworkDetection()) {
-                String detectedFrameworks = Driver.FrameworksDetection.getFrameworksDetected();
-                LOG.debug("Detected frameworks: {}", detectedFrameworks);
-                if (!detectedFrameworks.trim().isEmpty()) {
-                    clientName += " (" + detectedFrameworks + ")";
-                }
             }
 
             Client.Builder clientBuilder = this.config.applyClientProperties(new Client.Builder())
-                    .setClientName(clientName);
+                    .setClientName(this.config.buildClientName(this.appName));
             final String metricsRecorderName = config.getDriverProperty(DriverProperties.METRICS_RECORDER.getKey(), null);
             if (metricsRecorderName != null) {
                 clientBuilder.setMetricsRecorder(instantiateUserClass(metricsRecorderName, MetricsRecorder.class,
