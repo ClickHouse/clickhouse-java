@@ -906,4 +906,52 @@ public class InsertTests extends BaseIntegrationTest {
             Mockito.verifyNoMoreInteractions(settings);
         }
     }
+
+    @Test(groups = { "integration" })
+    public void testInsertIncompressibleMultiBlockData() throws Exception {
+        String tableName = "incompressible_multi_block_"
+                + compressionMethod.name().toLowerCase(java.util.Locale.ROOT);
+        if (useClientCompression) {
+            tableName += useHttpCompression ? "_http" : "_block";
+        }
+        String createSQL = "CREATE TABLE " + tableName
+                + " (id Int32, payload String, marker Float64) ORDER BY id";
+
+        initTable(tableName, createSQL);
+
+        java.util.Random rng = new java.util.Random(42);
+        // Sizes spanning across 64 KiB block boundaries (> 200 KiB total)
+        int[] payloadSizes = new int[] { 65536, 65536, 70000, 12345 };
+        byte[][] payloads = new byte[payloadSizes.length][];
+        double[] markers = new double[payloadSizes.length];
+        for (int i = 0; i < payloadSizes.length; i++) {
+            payloads[i] = new byte[payloadSizes[i]];
+            rng.nextBytes(payloads[i]);
+            markers[i] = (i + 1) * 10.5d;
+        }
+
+        try (Client binClient = newClient().binaryStringSupport(true).build()) {
+            TableSchema schema = binClient.getTableSchema(tableName);
+            try (InsertResponse response = binClient.insert(tableName, out -> {
+                RowBinaryFormatWriter writer = new RowBinaryFormatWriter(out, schema, ClickHouseFormat.RowBinary);
+                for (int i = 0; i < payloads.length; i++) {
+                    writer.setValue(1, i);
+                    writer.setValue(2, payloads[i]);
+                    writer.setValue(3, markers[i]);
+                    writer.commitRow();
+                }
+            }, ClickHouseFormat.RowBinary, settings).get(30, TimeUnit.SECONDS)) {
+                assertEquals(response.getWrittenRows(), payloads.length);
+            }
+
+            List<GenericRecord> records = binClient.queryAll("SELECT id, payload, marker FROM " + tableName + " ORDER BY id");
+            assertEquals(records.size(), payloads.length);
+            for (int i = 0; i < payloads.length; i++) {
+                GenericRecord record = records.get(i);
+                assertEquals(record.getInteger("id"), i);
+                assertEquals(record.getByteArray("payload"), payloads[i]);
+                assertEquals(record.getDouble("marker"), markers[i]);
+            }
+        }
+    }
 }
