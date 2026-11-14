@@ -1,6 +1,7 @@
 package com.clickhouse.client.api.data_formats;
 
 import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.data_formats.internal.NumberConverter;
 import com.clickhouse.client.api.internal.SchemaUtils;
 import com.clickhouse.client.api.metadata.TableSchema;
@@ -115,6 +116,14 @@ public class JSONEachRowFormatReader implements ClickHouseTextFormatReader {
         try {
             nextRow = parser.nextRow();
             hasNext = nextRow != null;
+            if (isServerExceptionRow(nextRow)) {
+                // With http_write_exception_in_output_format (default) the server reports a
+                // failure after the response started as one more row: {"exception": "Code: ..."}.
+                String message = (String) nextRow.get("exception");
+                nextRow = null;
+                hasNext = true;
+                pendingException = new ServerException(parseServerCode(message), message, 200, "");
+            }
         } catch (Exception e) {
             nextRow = null;
             // Keep hasNext true so a hasNext()/next() loop calls next() again and
@@ -122,6 +131,33 @@ public class JSONEachRowFormatReader implements ClickHouseTextFormatReader {
             hasNext = true;
             pendingException = new RuntimeException("Failed to read next JSON row", e);
         }
+    }
+
+    private static int parseServerCode(String message) {
+        // message starts with "Code: " and is followed by the numeric server error code and a dot.
+        int end = message.indexOf('.', 6);
+        if (end > 6) {
+            try {
+                return Integer.parseInt(message.substring(6, end).trim());
+            } catch (NumberFormatException ignored) {
+                // fall through
+            }
+        }
+        return ServerException.CODE_UNKNOWN;
+    }
+
+    private boolean isServerExceptionRow(Map<String, Object> row) {
+        // JSONEachRow writes every selected column in every row, so a data row has one key per
+        // schema column. A one-key error row can only be data when the schema is exactly
+        // [exception], i.e. the query selects only its own "exception" column.
+        if (row == null || row.size() != 1) {
+            return false;
+        }
+        if (schema.getColumns().size() == 1 && "exception".equals(schema.getColumns().get(0).getColumnName())) {
+            return false;
+        }
+        Object value = row.get("exception");
+        return value instanceof String && ((String) value).startsWith("Code: ");
     }
 
     @Override

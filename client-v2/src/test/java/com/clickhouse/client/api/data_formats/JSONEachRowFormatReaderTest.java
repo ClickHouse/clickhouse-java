@@ -228,6 +228,66 @@ public class JSONEachRowFormatReaderTest {
         }
     }
 
+    @Test
+    public void testInBandServerExceptionRowIsThrown() throws Exception {
+        String msg = "Code: 395. DB::Exception: Value passed to 'throwIf' function is non-zero. (FUNCTION_THROW_IF_VALUE_IS_NON_ZERO)";
+        try (JSONEachRowFormatReader reader = readerOf(row("id", 1), row("id", 2), row("exception", msg))) {
+            Assert.assertNotNull(reader.next());
+            Assert.assertNotNull(reader.next());
+            Assert.assertTrue(reader.hasNext(), "the error must surface through next()");
+            try {
+                reader.next();
+                Assert.fail("Expected the server exception row to be thrown");
+            } catch (RuntimeException e) {
+                Assert.assertTrue(e instanceof com.clickhouse.client.api.ServerException, "Unexpected type: " + e);
+                Assert.assertEquals(((com.clickhouse.client.api.ServerException) e).getCode(), 395);
+                Assert.assertTrue(e.getMessage().contains("Code: 395"), "Unexpected message: " + e.getMessage());
+            }
+            Assert.assertFalse(reader.hasNext());
+        }
+    }
+
+    @Test
+    public void testInBandServerExceptionRowWithExceptionColumnInSchemaIsThrown() throws Exception {
+        String msg = "Code: 395. DB::Exception: Value passed to 'throwIf' function is non-zero. (FUNCTION_THROW_IF_VALUE_IS_NON_ZERO)";
+        try (JSONEachRowFormatReader reader = readerOf(row("query_id", "a", "exception", ""), row("exception", msg))) {
+            Assert.assertNotNull(reader.next());
+            Assert.assertTrue(reader.hasNext());
+            try {
+                reader.next();
+                Assert.fail("Expected the server exception row to be thrown");
+            } catch (RuntimeException e) {
+                Assert.assertTrue(e instanceof com.clickhouse.client.api.ServerException, "Unexpected type: " + e);
+                Assert.assertEquals(((com.clickhouse.client.api.ServerException) e).getCode(), 395);
+            }
+        }
+    }
+
+    @Test
+    public void testExceptionColumnWithOtherDataIsNotAnError() throws Exception {
+        try (JSONEachRowFormatReader reader = readerOf(row("exception", "Code: 1 is a value"), row("exception", "ok"))) {
+            Assert.assertNotNull(reader.next());
+            Assert.assertNotNull(reader.next());
+            Assert.assertFalse(reader.hasNext());
+        }
+        try (JSONEachRowFormatReader reader = readerOf(row("id", 1, "exception", "Code: 1"))) {
+            Assert.assertNotNull(reader.next());
+            Assert.assertFalse(reader.hasNext());
+        }
+    }
+
+    @Test
+    public void testSingleExceptionColumnWithErrorLikeValuesIsData() throws Exception {
+        try (JSONEachRowFormatReader reader = readerOf(
+                row("exception", "x"),
+                row("exception", "Code: 60. DB::Exception: Table doesn't exist. (UNKNOWN_TABLE)"))) {
+            Assert.assertNotNull(reader.next());
+            Assert.assertTrue(reader.hasNext());
+            Assert.assertNotNull(reader.next());
+            Assert.assertFalse(reader.hasNext());
+        }
+    }
+
     // ---------------------------------------------------------------------
     // Row navigation, readValue, hasValue
     // ---------------------------------------------------------------------
