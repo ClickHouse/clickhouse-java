@@ -589,6 +589,27 @@ public abstract class BaseSqlParserFacadeTest {
         };
     }
 
+    @Test(dataProvider = "insertWithLeadingCteDP")
+    public void testInsertWithLeadingCte(String sql, boolean insert, int args) {
+        ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
+        Assert.assertEquals(stmt.isHasErrors(), !insert, "Parse errors mismatch for: " + sql);
+        Assert.assertEquals(stmt.isInsert(), insert, "Insert type mismatch for: " + sql);
+        Assert.assertEquals(stmt.isHasResultSet(), !insert, "Result set flag mismatch for: " + sql);
+        Assert.assertEquals(stmt.getArgCount(), args, "Args mismatch for: " + sql);
+        Assert.assertEquals(parser.parsedStatement(sql).isHasResultSet(), !insert, "Result set flag mismatch for: " + sql);
+    }
+
+    @DataProvider
+    public static Object[][] insertWithLeadingCteDP() {
+        return new Object[][] {
+                {"WITH a AS (SELECT eid FROM src) INSERT INTO dst SELECT eid FROM a", true, 0},
+                {"with a as (select ts, eid from t), b as (select ts, eid from t)"
+                        + " insert into t (ts, eid) select a.ts, b.eid from a left join b on a.eid = b.eid", true, 0},
+                {"WITH ? AS x INSERT INTO t SELECT x", true, 1},
+                {"WITH a AS (SELECT 1) DELETE FROM t WHERE 1", false, 0},
+        };
+    }
+
     @Test(dataProvider = "javaCcHeredocStatementsDP")
     public void testHeredocStatementsJavaCcOnly(String sql, String expectedValuesList) {
         // The ANTLR4 grammars do not accept these two heredoc bodies yet, so the expectations only
