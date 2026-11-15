@@ -97,7 +97,81 @@ public class DataTypeTests extends BaseIntegrationTest {
     public void tearDown() {
         client.close();
     }
+    public enum EnumInsertStatus { active, inactive }
 
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class DTOForEnumInsertTests {
+        private int rowId;
+        private Object status;
+    }
+
+    @DataProvider(name = "enumInsertValues")
+    public static Object[][] enumInsertValues() {
+        return new Object[][] {
+                {"Enum8('active' = 5, 'inactive' = 10)", "inactive", "inactive", 10},
+                {"Enum8('active' = 5, 'inactive' = 10)", 5, "active", 5},
+                {"Enum8('active' = 5, 'inactive' = 10)", EnumInsertStatus.inactive, "inactive", 10},
+                {"Enum16('active' = 500, 'inactive' = 1000)", "inactive", "inactive", 1000},
+                {"Enum16('active' = 500, 'inactive' = 1000)", 500, "active", 500},
+                {"Enum16('active' = 500, 'inactive' = 1000)", EnumInsertStatus.inactive, "inactive", 1000},
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "enumInsertValues")
+    public void testInsertIntoEnumWritesDeclaredValue(String enumType, Object input,
+                                                      String expectedName, int expectedValue) throws Exception {
+        final String table = "test_enum_insert_" + System.nanoTime();
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        client.execute(tableDefinition(table, "rowId Int32", "status " + enumType)).get();
+
+        client.register(DTOForEnumInsertTests.class, client.getTableSchema(table));
+        client.insert(table, Collections.singletonList(new DTOForEnumInsertTests(1, input)))
+                .get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS);
+
+        List<GenericRecord> rows = client.queryAll(
+                "SELECT status, CAST(status AS Int32) AS v FROM " + table);
+        Assert.assertEquals(rows.size(), 1);
+        Assert.assertEquals(rows.get(0).getString("status"), expectedName);
+        Assert.assertEquals(rows.get(0).getInteger("v"), expectedValue);
+    }
+
+    @DataProvider(name = "enumInsertInvalidValues")
+    public static Object[][] enumInsertInvalidValues() {
+        return new Object[][] {
+                {"Enum8('active' = 5, 'inactive' = 10)", 7, "Unknown enum value: 7"},
+                {"Enum16('active' = 500, 'inactive' = 1000)", 7, "Unknown enum value: 7"},
+                {"Enum8('inactive' = 10)", EnumInsertStatus.active, "Unknown enum name: active"},
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "enumInsertInvalidValues")
+    public void testInsertInvalidEnumValueThrows(String enumType, Object input, String expectedMessage) throws Exception {
+        final String table = "test_enum_insert_invalid_" + System.nanoTime();
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        client.execute(tableDefinition(table, "rowId Int32", "status " + enumType)).get();
+
+        client.register(DTOForEnumInsertTests.class, client.getTableSchema(table));
+
+        Exception thrown = null;
+        try {
+            client.insert(table, Collections.singletonList(new DTOForEnumInsertTests(1, input)))
+                    .get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            thrown = e;
+        }
+
+        Assert.assertNotNull(thrown, "Expected the insert to fail for " + input + " into " + enumType);
+        boolean found = false;
+        for (Throwable t = thrown; t != null; t = t.getCause()) {
+            if (t.getMessage() != null && t.getMessage().contains(expectedMessage)) {
+                found = true;
+                break;
+            }
+        }
+        Assert.assertTrue(found, "Expected message '" + expectedMessage + "' but got: " + thrown);
+    }
     private <T> void writeReadVerify(String table, String tableDef, Class<T> dtoClass, List<T> data,
                                      BiConsumer<List<T>, T> rowVerifier) throws Exception {
         writeReadVerify(table, tableDef, dtoClass, data, rowVerifier, null);

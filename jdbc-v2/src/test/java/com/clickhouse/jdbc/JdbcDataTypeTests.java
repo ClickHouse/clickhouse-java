@@ -75,6 +75,59 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
         Driver.load();
     }
 
+    private Properties rowBinaryWriterProperties() {
+        Properties props = new Properties();
+        props.setProperty(DriverProperties.BETA_ROW_BINARY_WRITER.getKey(), "true");
+        return props;
+    }
+
+    @Test(groups = {"integration"})
+    public void testInsertNumberIntoEnumColumn() throws SQLException {
+        String table = "jdbc_enum_number_insert_" + System.nanoTime();
+        runQuery("CREATE TABLE " + table + " (id Int32, e8 Enum8('active' = 5, 'inactive' = 10), "
+                + "e16 Enum16('active' = 500, 'inactive' = 1000)) ENGINE = Memory");
+
+        try (Connection conn = getJdbcConnection(rowBinaryWriterProperties());
+             PreparedStatement stmt = conn.prepareStatement("INSERT INTO " + table + " VALUES (?, ?, ?)")) {
+            stmt.setInt(1, 1);
+            stmt.setInt(2, 10);
+            stmt.setInt(3, 500);
+            stmt.executeUpdate();
+        }
+
+        try (Connection conn = getJdbcConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT e8, CAST(e8 AS Int32), e16, CAST(e16 AS Int32) FROM " + table)) {
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getString(1), "inactive");
+            Assert.assertEquals(rs.getInt(2), 10);
+            Assert.assertEquals(rs.getString(3), "active");
+            Assert.assertEquals(rs.getInt(4), 500);
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testInsertNonMemberNumberIntoEnumColumnThrows() throws SQLException {
+        String table = "jdbc_enum_invalid_insert_" + System.nanoTime();
+        runQuery("CREATE TABLE " + table + " (id Int32, e8 Enum8('active' = 5, 'inactive' = 10)) ENGINE = Memory");
+
+        try (Connection conn = getJdbcConnection(rowBinaryWriterProperties());
+             PreparedStatement stmt = conn.prepareStatement("INSERT INTO " + table + " VALUES (?, ?)")) {
+            stmt.setInt(1, 1);
+            stmt.setInt(2, 7);
+            SQLException ex = Assert.expectThrows(SQLException.class, stmt::executeUpdate);
+
+            boolean found = false;
+            for (Throwable t = ex; t != null; t = t.getCause()) {
+                if (t.getMessage() != null && t.getMessage().contains("Unknown enum value: 7")) {
+                    found = true;
+                    break;
+                }
+            }
+            Assert.assertTrue(found, "Expected 'Unknown enum value: 7' but got: " + ex);
+        }
+    }
+
     private int insertData(String sql) throws SQLException {
         try (Connection conn = getJdbcConnection()) {
             try (Statement stmt = conn.createStatement()) {
