@@ -122,14 +122,13 @@ public class MetricsTest extends BaseIntegrationTest {
         assertEquals(meterRegistry.getMeters().size(), 6);
     }
 
-    //Disabled because we can't assume the time is greater than 0
-    @Test(groups = { "integration" }, enabled = false)
+    @Test(groups = { "integration" })
     public void testConnectionTime() throws Exception {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
         boolean isSecure = isCloud();
 
         try (Client client = new Client.Builder()
-                .addEndpoint(Protocol.HTTP, "192.168.1.1", node.getPort(), isSecure)
+                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isSecure)
                 .setUsername("default")
                 .setPassword(ClickHouseServerForTest.getPassword())
                 .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
@@ -140,8 +139,11 @@ public class MetricsTest extends BaseIntegrationTest {
             client.ping();
             Gauge times = meterRegistry.get("httpcomponents.httpclient.connect.time").gauge();
 
-            Assert.assertTrue(times.value() > 0);
-            assertEquals(times.value(), 0);//Second time should be 0
+            Assert.assertTrue(times.value() > 0, "A new connection should record its establishment time");
+
+            client.ping();
+            Assert.assertEquals(times.value(), 0.0, 0.0,
+                    "Reusing a pooled connection should not record another sample");
         }
     }
 }

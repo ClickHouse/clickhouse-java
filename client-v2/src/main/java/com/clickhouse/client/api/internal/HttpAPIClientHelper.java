@@ -24,6 +24,8 @@ import com.clickhouse.data.ClickHouseFormat;
 import net.jpountz.lz4.LZ4Factory;
 import org.apache.commons.compress.compressors.CompressorStreamFactory;
 import org.apache.hc.client5.http.ConnectTimeoutException;
+import org.apache.hc.client5.http.DnsResolver;
+import org.apache.hc.client5.http.SchemePortResolver;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.config.RequestConfig;
@@ -35,6 +37,7 @@ import org.apache.hc.client5.http.impl.io.BasicHttpClientConnectionManager;
 import org.apache.hc.client5.http.impl.io.DefaultManagedHttpClientConnection;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
+import org.apache.hc.client5.http.io.HttpClientConnectionOperator;
 import org.apache.hc.client5.http.io.HttpClientConnectionManager;
 import org.apache.hc.client5.http.io.ManagedHttpClientConnection;
 import org.apache.hc.client5.http.protocol.HttpClientContext;
@@ -75,12 +78,14 @@ import org.apache.hc.core5.http.io.entity.EntityTemplate;
 import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.hc.core5.io.CloseMode;
 import org.apache.hc.core5.io.IOCallback;
+import org.apache.hc.core5.net.NamedEndpoint;
 import org.apache.hc.core5.net.URIAuthority;
 import org.apache.hc.core5.net.URIBuilder;
 import org.apache.hc.core5.pool.ConnPoolControl;
 import org.apache.hc.core5.pool.PoolConcurrencyPolicy;
 import org.apache.hc.core5.pool.PoolReusePolicy;
 import org.apache.hc.core5.util.TimeValue;
+import org.apache.hc.core5.util.Timeout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -106,6 +111,7 @@ import java.net.URISyntaxException;
 import java.net.URLEncoder;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
@@ -263,8 +269,22 @@ public class HttpAPIClientHelper {
     }
 
     private HttpClientConnectionManager poolConnectionManager(LayeredConnectionSocketFactory sslConnectionSocketFactory, SocketConfig socketConfig, Map<String, Object> configuration) {
-        PoolingHttpClientConnectionManagerBuilder connMgrBuilder = PoolingHttpClientConnectionManagerBuilder.create()
-                .setPoolConcurrencyPolicy(PoolConcurrencyPolicy.LAX);
+        MeteredManagedHttpClientConnectionFactory connectionFactory = new MeteredManagedHttpClientConnectionFactory(
+                Http1Config.custom()
+                        .setBufferSize(ClientConfigProperties.CLIENT_NETWORK_BUFFER_SIZE.getOrDefault(configuration))
+                        .build(),
+                CharCodingConfig.DEFAULT,
+                DefaultHttpResponseParserFactory.INSTANCE);
+        PoolingHttpClientConnectionManagerBuilder connMgrBuilder = new PoolingHttpClientConnectionManagerBuilder() {
+            @Override
+            protected HttpClientConnectionOperator createConnectionOperator(SchemePortResolver schemePortResolver,
+                                                                            DnsResolver dnsResolver,
+                                                                            TlsSocketStrategy tlsSocketStrategy) {
+                return new MeteredHttpClientConnectionOperator(
+                        super.createConnectionOperator(schemePortResolver, dnsResolver, tlsSocketStrategy),
+                        connectionFactory);
+            }
+        }.setPoolConcurrencyPolicy(PoolConcurrencyPolicy.LAX);
 
         ConnectionReuseStrategy connectionReuseStrategy = ClientConfigProperties.CONNECTION_REUSE_STRATEGY.getOrDefault(configuration);
         switch (connectionReuseStrategy) {
@@ -283,14 +303,6 @@ public class HttpAPIClientHelper {
         connMgrBuilder.setMaxConnTotal(Integer.MAX_VALUE); // as we do not know how many routes we will have
         ClientConfigProperties.HTTP_MAX_OPEN_CONNECTIONS.applyIfSet(configuration, connMgrBuilder::setMaxConnPerRoute);
 
-        int networkBufferSize = ClientConfigProperties.CLIENT_NETWORK_BUFFER_SIZE.getOrDefault(configuration);
-        MeteredManagedHttpClientConnectionFactory connectionFactory = new MeteredManagedHttpClientConnectionFactory(
-                Http1Config.custom()
-                        .setBufferSize(networkBufferSize)
-                        .build(),
-                CharCodingConfig.DEFAULT,
-                DefaultHttpResponseParserFactory.INSTANCE);
-
         connMgrBuilder.setConnectionFactory(connectionFactory);
         connMgrBuilder.setSSLSocketFactory(sslConnectionSocketFactory);
         connMgrBuilder.setDefaultSocketConfig(socketConfig);
@@ -308,7 +320,6 @@ public class HttpAPIClientHelper {
                 applyMethod.invoke(micrometerLoader, metricsRegistry, mGroupName, connectionFactory);
             } catch (Exception e) {
                 LOG.error("Failed to register metrics", e);
-                // No gauge will drain the recorded times, so stop recording them.
                 connectionFactory.disableMetrics();
             }
         }
@@ -1383,8 +1394,6 @@ public class HttpAPIClientHelper {
 
         ConcurrentLinkedQueue<Long> times = new ConcurrentLinkedQueue<>();
 
-        // Connection times are drained only by the metrics gauge (see getTime()), so they are recorded
-        // only when a metrics registry is attached. Otherwise the queue would grow with every new connection.
         private volatile boolean metricsEnabled = false;
 
         public void enableMetrics() {
@@ -1396,31 +1405,94 @@ public class HttpAPIClientHelper {
             this.times.clear();
         }
 
-        @Override
-        public ManagedHttpClientConnection createConnection(Socket socket) throws IOException {
-            if (!metricsEnabled) {
-                return super.createConnection(socket);
-            }
-            long startT = System.currentTimeMillis();
-            try {
-                return super.createConnection(socket);
-            } finally {
-                long endT = System.currentTimeMillis();
-                times.add(endT - startT);
+        private boolean isMetricsEnabled() {
+            return metricsEnabled;
+        }
+
+        void recordConnectTime(long connectTimeNanos) {
+            if (metricsEnabled) {
+                times.add(connectTimeNanos);
             }
         }
 
         public long getTime() {
+            return (long) getAverageTimeInMillis();
+        }
+
+        public double getAverageTimeInMillis() {
             int count = times.size();
-            long runningAverage = 0;
+            double totalNanos = 0;
+            int sampleCount = 0;
             for (int i = 0; i < count; i++) {
-                Long t = times.poll();
-                if (t != null) {
-                    runningAverage += t;
+                Long connectTimeNanos = times.poll();
+                if (connectTimeNanos != null) {
+                    totalNanos += connectTimeNanos;
+                    sampleCount++;
                 }
             }
 
-            return count > 0 ? runningAverage / count : 0;
+            return sampleCount > 0 ? totalNanos / sampleCount / 1_000_000.0 : 0;
+        }
+    }
+
+    static class MeteredHttpClientConnectionOperator implements HttpClientConnectionOperator {
+        private final HttpClientConnectionOperator delegate;
+        private final MeteredManagedHttpClientConnectionFactory connectionFactory;
+
+        MeteredHttpClientConnectionOperator(HttpClientConnectionOperator delegate,
+                                             MeteredManagedHttpClientConnectionFactory connectionFactory) {
+            this.delegate = delegate;
+            this.connectionFactory = connectionFactory;
+        }
+
+        private void connect(ConnectAction action) throws IOException {
+            if (!connectionFactory.isMetricsEnabled()) {
+                action.run();
+                return;
+            }
+            long startTime = System.nanoTime();
+            try {
+                action.run();
+            } finally {
+                connectionFactory.recordConnectTime(System.nanoTime() - startTime);
+            }
+        }
+
+        @Override
+        public void connect(ManagedHttpClientConnection connection, HttpHost host, InetSocketAddress localAddress,
+                            TimeValue connectTimeout, SocketConfig socketConfig, HttpContext context) throws IOException {
+            connect(() -> delegate.connect(connection, host, localAddress, connectTimeout, socketConfig, context));
+        }
+
+        @Override
+        public void connect(ManagedHttpClientConnection connection, HttpHost host, NamedEndpoint namedEndpoint,
+                            InetSocketAddress localAddress, Timeout connectTimeout, SocketConfig socketConfig,
+                            Object attachment, HttpContext context) throws IOException {
+            connect(() -> delegate.connect(connection, host, namedEndpoint, localAddress, connectTimeout,
+                    socketConfig, attachment, context));
+        }
+
+        @Override
+        public void connect(ManagedHttpClientConnection connection, HttpHost host, NamedEndpoint namedEndpoint,
+                            Path path, InetSocketAddress localAddress, Timeout connectTimeout,
+                            SocketConfig socketConfig, Object attachment, HttpContext context) throws IOException {
+            connect(() -> delegate.connect(connection, host, namedEndpoint, path, localAddress, connectTimeout,
+                    socketConfig, attachment, context));
+        }
+
+        @Override
+        public void upgrade(ManagedHttpClientConnection connection, HttpHost host, HttpContext context) throws IOException {
+            delegate.upgrade(connection, host, context);
+        }
+
+        @Override
+        public void upgrade(ManagedHttpClientConnection connection, HttpHost host, NamedEndpoint namedEndpoint,
+                            Object attachment, HttpContext context) throws IOException {
+            delegate.upgrade(connection, host, namedEndpoint, attachment, context);
+        }
+
+        private interface ConnectAction {
+            void run() throws IOException;
         }
     }
 
