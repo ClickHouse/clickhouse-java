@@ -6,6 +6,7 @@
 #   <type>.txt  - rows as SQL tuples only (Interval and Nothing types, which cannot be stored in a table)
 #   <type>.tsv  - the same rows in the TabSeparated format, exactly as ClickHouse writes them, for example
 #                 the output of `SELECT * FROM test_data ORDER BY id FORMAT TSV`
+#   index.tsv   - tab-separated index (name, type, clickhouse_type, kind) of the generated data sets
 #
 # Usage: clickhouse-client/scripts/generate-datasets.sh [--skip-build] [--seed <long>]
 #   --skip-build  do not run `mvn test-compile`, use already compiled test classes
@@ -30,17 +31,9 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Array(Nullable(String)) -> array_nullable_string, DateTime64(3, 'UTC') -> date_time64_3_utc,
-# IntervalDay -> interval_day
-file_name() {
-    echo "$1" | sed -e 's/\([a-z0-9]\)\([A-Z]\)/\1_\2/g' | tr '[:upper:]' '[:lower:]' \
-        | sed -e 's/[^a-z0-9]\{1,\}/_/g' -e 's/^_//' -e 's/_$//'
-}
-
 generate() {
-    local type="$1" format="$2" extension="$3"
-    local file
-    file="${OUTPUT_DIR}/$(file_name "${type}").${extension}"
+    local name="$1" type="$2" format="$3" extension="$4"
+    local file="${OUTPUT_DIR}/${name}.${extension}"
     java -cp "${CLASSES_DIR}" "${MAIN_CLASS}" "${SEED_ARGS[@]+"${SEED_ARGS[@]}"}" \
         --format "${format}" --output "${file}" "value ${type}"
 }
@@ -49,20 +42,22 @@ if [[ "${SKIP_BUILD}" == false ]]; then
     (cd "${ROOT_DIR}" && mvn -q -pl clickhouse-client test-compile)
 fi
 
-# Type lists are defined in GenerateTestDataSet, so tests can use the same types
-mapfile -t STORABLE_TYPES < <(java -cp "${CLASSES_DIR}" "${MAIN_CLASS}" --list-types storable)
-mapfile -t VALUES_ONLY_TYPES < <(java -cp "${CLASSES_DIR}" "${MAIN_CLASS}" --list-types values-only)
-
 mkdir -p "${OUTPUT_DIR}"
 rm -f "${OUTPUT_DIR}"/*.sql "${OUTPUT_DIR}"/*.txt "${OUTPUT_DIR}"/*.tsv
 
-for type in "${STORABLE_TYPES[@]}"; do
-    generate "${type}" sql sql
-    generate "${type}" tsv tsv
-done
-for type in "${VALUES_ONLY_TYPES[@]}"; do
-    generate "${type}" values txt
-    generate "${type}" tsv tsv
-done
+INDEX_FILE="${OUTPUT_DIR}/index.tsv"
+printf 'name\ttype\tclickhouse_type\tkind\n' > "${INDEX_FILE}"
 
-echo "Generated $(ls "${OUTPUT_DIR}"/*.tsv | wc -l) data sets in ${OUTPUT_DIR}"
+count=0
+while IFS=$'\t' read -r name type clickhouse_type kind; do
+    if [[ "${kind}" == "storable" ]]; then
+        generate "${name}" "${type}" sql sql
+    else
+        generate "${name}" "${type}" values txt
+    fi
+    generate "${name}" "${type}" tsv tsv
+    printf '%s\t%s\t%s\t%s\n' "${name}" "${type}" "${clickhouse_type}" "${kind}" >> "${INDEX_FILE}"
+    count=$((count + 1))
+done < <(java -cp "${CLASSES_DIR}" "${MAIN_CLASS}" --list-index)
+
+echo "Generated ${count} data sets in ${OUTPUT_DIR}"

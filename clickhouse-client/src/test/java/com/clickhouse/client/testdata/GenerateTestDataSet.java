@@ -1,19 +1,26 @@
 package com.clickhouse.client.testdata;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
+import java.io.UncheckedIOException;
 import java.io.Writer;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -33,11 +40,15 @@ import java.util.regex.Pattern;
  */
 public final class GenerateTestDataSet {
 
+    public static final String INDEX_RESOURCE = "/datasets/index.tsv";
+    public static final String KIND_STORABLE = "storable";
+    public static final String KIND_VALUES_ONLY = "values-only";
+    private static final String INDEX_HEADER = "name\ttype\tclickhouse_type\tkind";
+
     /**
-     * Types of the pre-generated data sets in {@code src/test/resources/datasets}, also used by tests that
-     * verify how clients handle every type.
+     * Storable types supported for pre-generated data sets.
      */
-    public static final List<String> STORABLE_TYPES = Collections.unmodifiableList(Arrays.asList(
+    private static final List<String> STORABLE_TYPES = Collections.unmodifiableList(Arrays.asList(
             // Integers and floating point
             "Int8", "UInt8", "Int16", "UInt16", "Int32", "UInt32", "Int64", "UInt64",
             "Int128", "UInt128", "Int256", "UInt256",
@@ -69,9 +80,9 @@ public final class GenerateTestDataSet {
             "Nested(id UInt32, name String)"));
 
     /**
-     * Types of the pre-generated data sets that cannot be stored in a table.
+     * Types supported for pre-generated data sets that cannot be stored in a table.
      */
-    public static final List<String> VALUES_ONLY_TYPES = Collections.unmodifiableList(Arrays.asList(
+    private static final List<String> VALUES_ONLY_TYPES = Collections.unmodifiableList(Arrays.asList(
             "IntervalNanosecond", "IntervalMicrosecond", "IntervalMillisecond", "IntervalSecond", "IntervalMinute",
             "IntervalHour", "IntervalDay", "IntervalWeek", "IntervalMonth", "IntervalQuarter", "IntervalYear",
             "Nothing", "Array(Nullable(Nothing))"));
@@ -95,8 +106,9 @@ public final class GenerateTestDataSet {
             "                           tsv    - rows in the TabSeparated format, as ClickHouse writes them",
             "  -t, --table <name>       table name for the sql format (default: test_data)",
             "  -s, --seed <long>        random seed (default: " + TestDataSet.DEFAULT_SEED + ")",
-            "  --list-types <kind>      print types of the pre-generated data sets, one per line, and exit:",
+            "  --list-types <kind>      print types supported for pre-generated data sets, one per line, and exit:",
             "                           storable or values-only",
+            "  --list-index             print tab-separated index rows (name, type, clickhouse_type, kind) and exit",
             "  -h, --help               print this help",
             "",
             "Types:",
@@ -152,12 +164,16 @@ public final class GenerateTestDataSet {
                         break;
                     case "--list-types":
                         String kind = optionValue(args, ++i, arg);
-                        if (!"storable".equals(kind) && !"values-only".equals(kind)) {
+                        if (!KIND_STORABLE.equals(kind) && !KIND_VALUES_ONLY.equals(kind)) {
                             throw new IllegalArgumentException("Unknown type kind: " + kind);
                         }
-                        for (String type : "storable".equals(kind) ? STORABLE_TYPES : VALUES_ONLY_TYPES) {
+                        for (String type : KIND_STORABLE.equals(kind) ? STORABLE_TYPES : VALUES_ONLY_TYPES) {
                             System.out.println(type);
                         }
+                        return;
+                    case "--list-index":
+                        printIndex(STORABLE_TYPES, KIND_STORABLE);
+                        printIndex(VALUES_ONLY_TYPES, KIND_VALUES_ONLY);
                         return;
                     default:
                         if (arg.startsWith("-")) {
@@ -210,6 +226,179 @@ public final class GenerateTestDataSet {
             out.println(dataSet.getInsertSql(table) + ";");
         }
         out.flush();
+    }
+
+    /**
+     * Reads the index of pre-generated data sets from {@value #INDEX_RESOURCE}.
+     *
+     * @return immutable list of entries in index order
+     */
+    public static List<DataSetEntry> readDataSetIndex() {
+        try (InputStream in = GenerateTestDataSet.class.getResourceAsStream(INDEX_RESOURCE)) {
+            if (in == null) {
+                throw new IllegalStateException("Dataset index resource not found: " + INDEX_RESOURCE);
+            }
+            return readDataSetIndex(in);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to read dataset index: " + INDEX_RESOURCE, e);
+        }
+    }
+
+    /**
+     * Reads a dataset index file in TSV format ({@code name}, {@code type}, {@code clickhouse_type}, {@code kind}).
+     *
+     * @param indexFile path to the index file
+     * @return immutable list of entries in index order
+     * @throws IOException if reading fails
+     */
+    public static List<DataSetEntry> readDataSetIndex(Path indexFile) throws IOException {
+        try (InputStream in = Files.newInputStream(indexFile)) {
+            return readDataSetIndex(in);
+        }
+    }
+
+    /**
+     * Reads a dataset index from a UTF-8 TSV stream.
+     *
+     * @param in input stream to read from
+     * @return immutable list of entries in index order
+     * @throws IOException if reading fails
+     */
+    public static List<DataSetEntry> readDataSetIndex(InputStream in) throws IOException {
+        BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
+        String header = reader.readLine();
+        if (header == null) {
+            throw new IllegalArgumentException("Dataset index is empty");
+        }
+        if (!INDEX_HEADER.equals(header)) {
+            throw new IllegalArgumentException("Invalid dataset index header: " + header);
+        }
+        List<DataSetEntry> entries = new ArrayList<>();
+        String line;
+        int lineNumber = 1;
+        while ((line = reader.readLine()) != null) {
+            lineNumber++;
+            if (line.isEmpty()) {
+                continue;
+            }
+            String[] fields = line.split("\t", -1);
+            if (fields.length != 4) {
+                throw new IllegalArgumentException(
+                        "Expected 4 tab-separated fields at line " + lineNumber + ": " + line);
+            }
+            for (String field : fields) {
+                if (field.isEmpty()) {
+                    throw new IllegalArgumentException("Empty field at line " + lineNumber + ": " + line);
+                }
+            }
+            if (!KIND_STORABLE.equals(fields[3]) && !KIND_VALUES_ONLY.equals(fields[3])) {
+                throw new IllegalArgumentException(
+                        "Unknown dataset kind at line " + lineNumber + ": " + fields[3]);
+            }
+            entries.add(new DataSetEntry(fields[0], fields[1], fields[2], fields[3]));
+        }
+        return Collections.unmodifiableList(entries);
+    }
+
+    /**
+     * Returns the generator type expressions for all storable pre-generated data sets listed in
+     * {@value #INDEX_RESOURCE}.
+     */
+    public static List<String> getStorableTypes() {
+        return getTypes(KIND_STORABLE);
+    }
+
+    /**
+     * Returns the generator type expressions for all values-only pre-generated data sets listed in
+     * {@value #INDEX_RESOURCE}.
+     */
+    public static List<String> getValuesOnlyTypes() {
+        return getTypes(KIND_VALUES_ONLY);
+    }
+
+    private static List<String> getTypes(String kind) {
+        List<String> types = new ArrayList<>();
+        for (DataSetEntry entry : readDataSetIndex()) {
+            if (kind.equals(entry.getKind())) {
+                types.add(entry.getType());
+            }
+        }
+        return Collections.unmodifiableList(types);
+    }
+
+    static String datasetName(String type) {
+        return type.replaceAll("([a-z0-9])([A-Z])", "$1_$2")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("[^a-z0-9]+", "_")
+                .replaceAll("^_|_$", "");
+    }
+
+    private static void printIndex(List<String> types, String kind) {
+        for (String type : types) {
+            String name = datasetName(type);
+            String clickHouseType = parseType(type).getType();
+            System.out.println(name + "\t" + type + "\t" + clickHouseType + "\t" + kind);
+        }
+    }
+
+    /**
+     * Entry in {@value #INDEX_RESOURCE} describing one pre-generated data set.
+     */
+    public static final class DataSetEntry {
+        private final String name;
+        private final String type;
+        private final String clickHouseType;
+        private final String kind;
+
+        public DataSetEntry(String name, String type, String clickHouseType, String kind) {
+            this.name = Objects.requireNonNull(name, "name");
+            this.type = Objects.requireNonNull(type, "type");
+            this.clickHouseType = Objects.requireNonNull(clickHouseType, "clickHouseType");
+            this.kind = Objects.requireNonNull(kind, "kind");
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public String getType() {
+            return type;
+        }
+
+        public String getClickHouseType() {
+            return clickHouseType;
+        }
+
+        public String getKind() {
+            return kind;
+        }
+
+        public boolean isStorable() {
+            return KIND_STORABLE.equals(kind);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (!(o instanceof DataSetEntry)) {
+                return false;
+            }
+            DataSetEntry that = (DataSetEntry) o;
+            return name.equals(that.name) && type.equals(that.type)
+                    && clickHouseType.equals(that.clickHouseType) && kind.equals(that.kind);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(name, type, clickHouseType, kind);
+        }
+
+        @Override
+        public String toString() {
+            return name + " (" + type + " -> " + clickHouseType + ", " + kind + ")";
+        }
     }
 
     /**

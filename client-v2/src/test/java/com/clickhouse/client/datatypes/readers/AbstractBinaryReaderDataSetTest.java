@@ -6,7 +6,7 @@ import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.command.CommandSettings;
-import com.clickhouse.client.api.data_formats.ClickHouseBinaryFormatReader;
+import com.clickhouse.client.api.data_formats.ClickHouseFormatReader;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.QueryResponse;
@@ -29,6 +29,7 @@ import org.testng.annotations.Test;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Callable;
@@ -37,10 +38,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
 /**
- * Reads the data set of every type in {@link GenerateTestDataSet#STORABLE_TYPES} with a binary format reader and
- * verifies every accessor of {@link com.clickhouse.client.api.data_formats.ClickHouseFormatReader} for every row,
- * by column index and by name, against {@link ReaderExpectations}. Deviations listed in {@link ReaderKnownIssues}
- * are allowed; known issues that do not happen anymore fail {@link #testKnownIssuesAreCurrent()}.
+ * Reads the data set of every type in {@link GenerateTestDataSet#getStorableTypes()} with a format reader constructed
+ * by {@link #createReader(QueryResponse, TableSchema)} and verifies every accessor of {@link ClickHouseFormatReader}
+ * for every row, by column index and by name, against {@link ReaderExpectations}. Deviations listed in
+ * {@link ReaderKnownIssues} are allowed; known issues that do not happen anymore fail
+ * {@link #testKnownIssuesAreCurrent()}.
  */
 public abstract class AbstractBinaryReaderDataSetTest extends BaseIntegrationTest {
 
@@ -55,7 +57,16 @@ public abstract class AbstractBinaryReaderDataSetTest extends BaseIntegrationTes
     private Client client;
     private ClickHouseVersion serverVersion;
 
+    /**
+     * @return format requested from ClickHouse for queries in this test
+     */
     protected abstract ClickHouseFormat getFormat();
+
+    /**
+     * Constructs the reader under test for the given query response and table schema.
+     */
+    protected abstract ClickHouseFormatReader createReader(QueryResponse response, TableSchema schema)
+            throws Exception;
 
     @BeforeClass(groups = {"integration"})
     public void setUp() {
@@ -77,9 +88,10 @@ public abstract class AbstractBinaryReaderDataSetTest extends BaseIntegrationTes
 
     @DataProvider
     public Object[][] dataSetTypes() {
-        Object[][] types = new Object[GenerateTestDataSet.STORABLE_TYPES.size()][];
+        List<String> storableTypes = GenerateTestDataSet.getStorableTypes();
+        Object[][] types = new Object[storableTypes.size()][];
         for (int i = 0; i < types.length; i++) {
-            types[i] = new Object[] {GenerateTestDataSet.STORABLE_TYPES.get(i)};
+            types[i] = new Object[] {storableTypes.get(i)};
         }
         return types;
     }
@@ -91,8 +103,9 @@ public abstract class AbstractBinaryReaderDataSetTest extends BaseIntegrationTes
         }
         DataTypeGenerator generator = GenerateTestDataSet.parseType(type);
         TestDataSet dataSet = TestDataSet.of(generator);
-        String table = "reader_" + getFormat().name().toLowerCase() + "_"
-                + type.toLowerCase().replaceAll("[^a-z0-9]+", "_").replaceAll("^_|_$", "");
+        String readerName = getClass().getSimpleName().isEmpty() ? getFormat().name() : getClass().getSimpleName();
+        String table = "reader_" + readerName.toLowerCase(Locale.ROOT) + "_"
+                + type.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "_").replaceAll("^_|_$", "");
         Map<String, String> settings = dataSet.getRequiredSettings();
 
         dropTable(table);
@@ -127,7 +140,7 @@ public abstract class AbstractBinaryReaderDataSetTest extends BaseIntegrationTes
 
     @Test(groups = {"integration"}, dependsOnMethods = "testReadDataSet", alwaysRun = true)
     public void testKnownIssuesAreCurrent() {
-        if (!testedTypes.containsAll(GenerateTestDataSet.STORABLE_TYPES)) {
+        if (!testedTypes.containsAll(GenerateTestDataSet.getStorableTypes())) {
             throw new SkipException("Not all data sets were read, cannot tell whether known issues still happen");
         }
         List<String> fixed = new ArrayList<>();
@@ -151,7 +164,7 @@ public abstract class AbstractBinaryReaderDataSetTest extends BaseIntegrationTes
         int rowCount = 0;
         try (QueryResponse response = client.query("SELECT * FROM " + table + " ORDER BY id", querySettings)
                 .get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
-             ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response, tableSchema)) {
+             ClickHouseFormatReader reader = createReader(response, tableSchema)) {
             ReaderExpectations expectations = null;
             while (reader.hasNext()) {
                 Map<String, Object> record = reader.next();
@@ -175,7 +188,7 @@ public abstract class AbstractBinaryReaderDataSetTest extends BaseIntegrationTes
         return deviations;
     }
 
-    private void verifyRow(ClickHouseBinaryFormatReader reader, Map<String, Object> record,
+    private void verifyRow(ClickHouseFormatReader reader, Map<String, Object> record,
             ReaderExpectations expectations, Object[] row, Map<String, DeviationSummary> deviations) {
         Object value = row[1];
         Object raw = reader.readValue(VALUE_INDEX);

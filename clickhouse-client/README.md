@@ -91,7 +91,10 @@ The `sql` output can be loaded with `clickhouse client --multiquery < data.sql`.
 
 `src/test/resources/datasets` contains a data set for every supported type, with the data in a single
 `value` column. Files are named after the type with words separated by underscores, for example
-`array_nullable_string.*` for `Array(Nullable(String))` and `interval_day.*` for `IntervalDay`. Every data set
+`array_nullable_string.*` for `Array(Nullable(String))` and `interval_day.*` for `IntervalDay`.
+`index.tsv` lists every generated data set with tab-separated columns `name`, `type`,
+`clickhouse_type`, and `kind` (`storable` or `values-only`), so tests in Java and other languages can
+discover what data sets were generated and their ClickHouse SQL types. Every data set
 has two files with the same rows:
 
 - `<type>.sql` - `SET` statements for required settings, `CREATE TABLE test_data` and `INSERT ... VALUES`.
@@ -110,16 +113,18 @@ In `.sql` files floats are written as their bits, for example `reinterpretAsFloa
 for `1`, and maps with the `map()` function: older ClickHouse versions parse float literals inexactly, so this is
 the only way to load the same values into every supported version.
 
-`client-v2` reads every data set with each binary format reader and verifies all reader accessors, see
+`client-v2` reads every storable data set listed in `index.tsv` (via `GenerateTestDataSet.getStorableTypes()`)
+with each binary format reader and verifies all reader accessors, see
 `com.clickhouse.client.datatypes.readers.AbstractBinaryReaderDataSetTest`.
 
-To regenerate them after changing the generators, or to add a type to the `STORABLE_TYPES` or
-`VALUES_ONLY_TYPES` lists in `GenerateTestDataSet` (client tests use the same lists), run:
+To regenerate the data sets and `index.tsv` after changing the generators or the type lists in
+`GenerateTestDataSet`, run:
 
 ```bash
 clickhouse-client/scripts/generate-datasets.sh              # builds test classes first
 clickhouse-client/scripts/generate-datasets.sh --skip-build # uses already compiled test classes
 ```
 
-The script replaces all `.sql`, `.txt` and `.tsv` files in the directory. With the default seed the output is
-reproducible, so a diff of the regenerated files shows exactly what changed in the generated values.
+The script replaces all `.sql`, `.txt` and `.tsv` files (including `index.tsv`) in the directory. With the
+default seed the output is reproducible, so a diff of the regenerated files shows exactly what changed in the
+generated values.
