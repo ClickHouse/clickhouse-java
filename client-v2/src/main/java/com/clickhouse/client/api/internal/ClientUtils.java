@@ -15,6 +15,33 @@ public final class ClientUtils {
 
     private ClientUtils() {}
 
+    /** Value used when a server error code cannot be read from a message. */
+    public static final int SERVER_ERROR_CODE_UNKNOWN = -1;
+
+    private static final String SERVER_ERROR_PREFIX = "Code: ";
+
+    /** @return {@code true} if the message starts with {@code "Code: <digits>"}. */
+    public static boolean hasServerErrorCode(String message) {
+        return parseServerErrorCode(message) != SERVER_ERROR_CODE_UNKNOWN;
+    }
+
+    /**
+     * Reads the code from a server error message such as {@code "Code: 395. DB::Exception: ..."}.
+     *
+     * @return the code or {@link #SERVER_ERROR_CODE_UNKNOWN} when the message has no leading code
+     */
+    public static int parseServerErrorCode(String message) {
+        if (message == null || !message.startsWith(SERVER_ERROR_PREFIX)) {
+            return SERVER_ERROR_CODE_UNKNOWN;
+        }
+        int start = SERVER_ERROR_PREFIX.length();
+        int end = start;
+        while (end < message.length() && Character.isDigit(message.charAt(end))) {
+            end++;
+        }
+        return end == start || end - start > 9 ? SERVER_ERROR_CODE_UNKNOWN : Integer.parseInt(message.substring(start, end));
+    }
+
     public static boolean isNotBlank(String str) {
         return !isBlank(str);
     }

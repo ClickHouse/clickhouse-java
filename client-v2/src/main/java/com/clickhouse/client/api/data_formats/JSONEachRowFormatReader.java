@@ -3,10 +3,12 @@ package com.clickhouse.client.api.data_formats;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.ServerException;
 import com.clickhouse.client.api.data_formats.internal.NumberConverter;
+import com.clickhouse.client.api.internal.ClientUtils;
 import com.clickhouse.client.api.internal.SchemaUtils;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.NullValueException;
 import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.value.ClickHouseBitmap;
 import com.clickhouse.data.value.ClickHouseGeoMultiPolygonValue;
 import com.clickhouse.data.value.ClickHouseGeoPointValue;
@@ -32,7 +34,12 @@ import java.util.Map;
 import java.util.UUID;
 
 public class JSONEachRowFormatReader implements ClickHouseTextFormatReader {
+    /** Key of the row the server appends when a query fails after the response started. */
+    static final String SERVER_EXCEPTION_KEY = "exception";
+
     private final JsonParser parser;
+    private final boolean detectServerException;
+    private boolean serverExceptionDetectable;
     private TableSchema schema;
     private Map<String, Object> currentRow;
     private Map<String, Object> nextRow;
@@ -40,7 +47,19 @@ public class JSONEachRowFormatReader implements ClickHouseTextFormatReader {
     private RuntimeException pendingException;
 
     public JSONEachRowFormatReader(JsonParser parser) {
+        this(parser, false);
+    }
+
+    /**
+     * @param parser source of rows
+     * @param detectServerException when {@code true}, a row {@code {"exception": "Code: ..."}} that the server
+     *        appends after the response started (see {@code http_write_exception_in_output_format}) is reported
+     *        as a {@link ServerException} instead of being returned as data. Off by default to keep the row
+     *        path free of the extra check.
+     */
+    public JSONEachRowFormatReader(JsonParser parser, boolean detectServerException) {
         this.parser = parser;
+        this.detectServerException = detectServerException;
         try {
             this.nextRow = parser.nextRow();
             this.hasNext = this.nextRow != null;
@@ -56,6 +75,11 @@ public class JSONEachRowFormatReader implements ClickHouseTextFormatReader {
                     columns.add(ClickHouseColumn.of(key, SchemaUtils.inferDataType(nextRow.get(key)), false));
                 }
                 this.schema = new TableSchema(columns);
+                // The schema does not change between rows, so decide once whether an error row can be
+                // told apart from data: it cannot when the query selects only a String column "exception".
+                this.serverExceptionDetectable = detectServerException && !(columns.size() == 1
+                        && SERVER_EXCEPTION_KEY.equals(columns.get(0).getColumnName())
+                        && columns.get(0).getDataType() == ClickHouseDataType.String);
             } else {
                 this.schema = new TableSchema(new ArrayList<>());
             }
@@ -116,13 +140,13 @@ public class JSONEachRowFormatReader implements ClickHouseTextFormatReader {
         try {
             nextRow = parser.nextRow();
             hasNext = nextRow != null;
-            if (isServerExceptionRow(nextRow)) {
+            if (serverExceptionDetectable && isServerExceptionRow(nextRow)) {
                 // With http_write_exception_in_output_format (default) the server reports a
                 // failure after the response started as one more row: {"exception": "Code: ..."}.
-                String message = (String) nextRow.get("exception");
+                String message = (String) nextRow.get(SERVER_EXCEPTION_KEY);
                 nextRow = null;
                 hasNext = true;
-                pendingException = new ServerException(parseServerCode(message), message, 200, "");
+                pendingException = new ServerException(ClientUtils.parseServerErrorCode(message), message, 200, "");
             }
         } catch (Exception e) {
             nextRow = null;
@@ -133,31 +157,14 @@ public class JSONEachRowFormatReader implements ClickHouseTextFormatReader {
         }
     }
 
-    private static int parseServerCode(String message) {
-        // message starts with "Code: " and is followed by the numeric server error code and a dot.
-        int end = message.indexOf('.', 6);
-        if (end > 6) {
-            try {
-                return Integer.parseInt(message.substring(6, end).trim());
-            } catch (NumberFormatException ignored) {
-                // fall through
-            }
-        }
-        return ServerException.CODE_UNKNOWN;
-    }
-
-    private boolean isServerExceptionRow(Map<String, Object> row) {
-        // JSONEachRow writes every selected column in every row, so a data row has one key per
-        // schema column. A one-key error row can only be data when the schema is exactly
-        // [exception], i.e. the query selects only its own "exception" column.
+    private static boolean isServerExceptionRow(Map<String, Object> row) {
+        // Only called when the option is on and the schema allows telling an error row from data.
+        // Key order is not relied on: an error row has exactly one key, "exception", holding a String.
         if (row == null || row.size() != 1) {
             return false;
         }
-        if (schema.getColumns().size() == 1 && "exception".equals(schema.getColumns().get(0).getColumnName())) {
-            return false;
-        }
-        Object value = row.get("exception");
-        return value instanceof String && ((String) value).startsWith("Code: ");
+        Object value = row.get(SERVER_EXCEPTION_KEY);
+        return value instanceof String && ClientUtils.hasServerErrorCode((String) value);
     }
 
     @Override
