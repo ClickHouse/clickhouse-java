@@ -312,9 +312,14 @@ public class JSONEachRowFormatReaderTest {
         }
         Assert.assertEquals(com.clickhouse.client.api.internal.ClientUtils.parseServerErrorCode("Code: 60. X"), 60);
         Assert.assertEquals(com.clickhouse.client.api.internal.ClientUtils.parseServerErrorCode("Code: 60"), 60);
+        Assert.assertEquals(com.clickhouse.client.api.internal.ClientUtils.parseServerErrorCode("Error: 57. DB::Exception: x"), 57);
         Assert.assertEquals(com.clickhouse.client.api.internal.ClientUtils.parseServerErrorCode("Code: . X"), -1);
         Assert.assertEquals(com.clickhouse.client.api.internal.ClientUtils.parseServerErrorCode("Code: 99999999999. X"), -1);
         Assert.assertEquals(com.clickhouse.client.api.internal.ClientUtils.parseServerErrorCode(null), -1);
+        try (JSONEachRowFormatReader reader = detectingReaderOf(row("id", 1), row("exception", "Code: 1 is a value"))) {
+            Assert.assertNotNull(reader.next());
+            Assert.assertNotNull(reader.next());
+        }
     }
 
     // ---------------------------------------------------------------------
