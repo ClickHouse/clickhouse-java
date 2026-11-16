@@ -22,7 +22,7 @@ final class ReaderKnownIssues {
     private static final String FLOATS = "Float(32|64)";
     private static final String DECIMALS = "(Nullable\\()?Decimal.*";
     private static final String NUMBERS = INTEGERS + "|" + FLOATS + "|" + DECIMALS;
-    private static final String ENUMS = "Enum(8|16)";
+    private static final String ENUMS = "Enum.*";
     private static final String STRINGS = "(Nullable\\(|LowCardinality\\()*(Binary)?String\\)*";
     private static final String NULLABLE = "(LowCardinality\\()?Nullable\\(.*";
     private static final String TIME = "Time(64\\(\\d\\))?";
@@ -57,7 +57,7 @@ final class ReaderKnownIssues {
                     + "any string other than 'true'").accessors(BOOLEAN),
             KnownIssue.of(MISSING_EXCEPTION, "getFloat returns infinity for values out of the float range")
                     .accessors(FLOAT).types("Float64|Int256|UInt128|UInt256"),
-            KnownIssue.of(MISSING_EXCEPTION, "getEnum8 truncates Enum16 values").accessors(ENUM8).types("Enum16"),
+            KnownIssue.of(MISSING_EXCEPTION, "getEnum8 truncates Enum16 values").accessors(ENUM8).types("Enum.*16.*"),
             KnownIssue.of(MISSING_EXCEPTION, "getTuple returns geo values as arrays").accessors(TUPLE).types(GEO),
             KnownIssue.of(MISSING_EXCEPTION, "getLocalTime wraps Time values that are negative or 24 hours and more")
                     .accessors(LOCAL_TIME).types(TIME),

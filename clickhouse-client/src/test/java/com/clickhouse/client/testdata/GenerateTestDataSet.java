@@ -53,7 +53,8 @@ public final class GenerateTestDataSet {
             "DateTime64(0, 'UTC')", "DateTime64(3, 'UTC')", "DateTime64(6, 'Europe/Berlin')",
             "DateTime64(9, 'Asia/Kolkata')",
             // Network, identifiers and enums
-            "IPv4", "IPv6", "UUID", "Enum8", "Enum16",
+            "IPv4", "IPv6", "UUID", "Enum8", "Enum8All", "Enum8Single", "Enum8Unsorted",
+            "Enum16", "Enum16Many", "EnumNearMax8", "EnumNearMax16",
             // Geo
             "Point", "Ring", "LineString", "Polygon", "MultiLineString", "MultiPolygon",
             // Composite
@@ -103,7 +104,8 @@ public final class GenerateTestDataSet {
             "  Decimal(P[, S]), Decimal32(S), Decimal64(S), Decimal128(S), Decimal256(S),",
             "  String, BinaryString (String with arbitrary bytes), FixedString(N),",
             "  Date, Date32, Time, Time64(P), DateTime[('tz')], DateTime64(P[, 'tz']) (default tz: UTC),",
-            "  IPv4, IPv6, UUID, Enum8, Enum16, Enum8('a' = 1, ...), Enum16('a' = 1, ...),",
+            "  IPv4, IPv6, UUID, Enum8, Enum8All, Enum8Single, Enum8Unsorted, Enum16, Enum16Many,",
+            "  EnumNearMax8, EnumNearMax16, Enum('a' = 1, ...), Enum8('a' = 1, ...), Enum16('a' = 1, ...),",
             "  Point, Ring, LineString, Polygon, MultiLineString, MultiPolygon,",
             "  Array(T), Tuple(T, ...), Tuple(name T, ...), Map(K, V), Nested(name T, ...),",
             "  Nullable(T), LowCardinality(T),",
@@ -302,10 +304,24 @@ public final class GenerateTestDataSet {
                 return noArgs(args, type, DataTypeGenerators.ipv6());
             case "UUID":
                 return noArgs(args, type, DataTypeGenerators.uuid());
+            case "Enum":
+                return args.isEmpty() ? DataTypeGenerators.enumNearMax8() : enumeration(name, args);
             case "Enum8":
                 return args.isEmpty() ? DataTypeGenerators.enum8() : enumeration(name, args);
+            case "Enum8All":
+                return noArgs(args, type, DataTypeGenerators.enum8All());
+            case "Enum8Single":
+                return noArgs(args, type, DataTypeGenerators.enum8Single());
+            case "Enum8Unsorted":
+                return noArgs(args, type, DataTypeGenerators.enum8Unsorted());
             case "Enum16":
                 return args.isEmpty() ? DataTypeGenerators.enum16() : enumeration(name, args);
+            case "Enum16Many":
+                return noArgs(args, type, DataTypeGenerators.enum16Many());
+            case "EnumNearMax8":
+                return noArgs(args, type, DataTypeGenerators.enumNearMax8());
+            case "EnumNearMax16":
+                return noArgs(args, type, DataTypeGenerators.enumNearMax16());
             case "Nothing":
                 return noArgs(args, type, DataTypeGenerators.nothing());
             case "Point":

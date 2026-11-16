@@ -147,6 +147,9 @@ public class DataTypeGeneratorsTest {
                 {decimal(76, 38), "Decimal(76, 38)"},
                 {dateTime64(9, "America/New_York"), "DateTime64(9, 'America/New_York')"},
                 {enumeration("Enum8", Collections.singletonMap("a'b", 1), false), "Enum8('a\\'b' = 1)"},
+                {enum8Single(), "Enum8('only' = 42)"},
+                {enum8Unsorted(), "Enum8('max' = 127, 'min' = -128, 'zero' = 0, 'positive' = 1, 'negative' = -1, "
+                        + "'near_max' = 126, 'near_min' = -127)"},
                 {map(lowCardinality(string()), nullable(ipv4())), "Map(LowCardinality(String), Nullable(IPv4))"},
                 {array(array(nothing())), "Array(Array(Nullable(Nothing)))"},
                 {namedTuple(fields), "Tuple(`a.b` Int32, `we\\`ird` LowCardinality(String))"},
@@ -185,6 +188,15 @@ public class DataTypeGeneratorsTest {
                         Instant.parse("2262-04-11T23:47:16.854775807Z").atZone(ZoneId.of("UTC"))}},
                 {dateTime64(2, "UTC"), new Object[] {Instant.parse("2299-12-31T23:59:59.99Z").atZone(ZoneId.of("UTC"))}},
                 {nullable(bool()), new Object[] {null, true, false}},
+                {enum8(), new Object[] {"min", "v-127", "v-123", "v-64", " padded ", "a=b", "a, b", "", "zero",
+                        "quote'", "v122", "v126", "max"}},
+                {enum16(), new Object[] {"min", "v-32767", "v-32763", "v-129", "v-128", "v-127", "zero", "v127",
+                        "v128", "v129", "v32762", "v32766", "max"}},
+                {enum8Single(), new Object[] {"only"}},
+                {enum8Unsorted(), new Object[] {"max", "min", "zero", "near_max", "near_min"}},
+                {enum16Many(), new Object[] {"v-32768", "v-1000", "v0", "v1000", "v32767"}},
+                {enumNearMax8(), new Object[] {"v1", "v126", "v127"}},
+                {enumNearMax16(), new Object[] {"v-32768", "v-129", "v-128", "v127", "v128", "v32767"}},
                 {array(int8()), new Object[] {Collections.emptyList(), Collections.singletonList(Byte.MIN_VALUE)}},
                 {nothing(), new Object[] {null}},
         };
@@ -200,12 +212,23 @@ public class DataTypeGeneratorsTest {
 
     @DataProvider
     public Object[][] exhaustiveTypes() {
-        return new Object[][] {{int8(), 256}, {uint8(), 256}, {int16(), 65536}, {uint16(), 65536}, {bool(), 2}};
+        return new Object[][] {{int8(), 256}, {uint8(), 256}, {int16(), 65536}, {uint16(), 65536}, {bool(), 2},
+                {enum8All(), 256}, {enum16All(), 65536}};
     }
 
     @Test(groups = {"unit"}, dataProvider = "exhaustiveTypes")
     public void testExhaustiveTypes(DataTypeGenerator generator, int expectedSize) {
         Assert.assertEquals(new HashSet<>(generator.generate(new Random(1))).size(), expectedSize);
+    }
+
+    @Test(groups = {"unit"})
+    public void testEnumVariations() {
+        Assert.assertTrue(enum16Many().generate(new Random(1)).size() > 256);
+        Assert.assertTrue(enumNearMax8().getType().startsWith("Enum("));
+        Assert.assertEquals(enumNearMax8().generate(new Random(1)).size(), 127);
+        Assert.assertTrue(enumNearMax16().getType().startsWith("Enum("));
+        Assert.assertTrue(enum16All().getRequiredSettings().containsKey("max_query_size"));
+        Assert.assertTrue(enum16All().getRequiredSettings().containsKey("max_ast_elements"));
     }
 
     @Test(groups = {"unit"})

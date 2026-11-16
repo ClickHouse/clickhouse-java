@@ -80,7 +80,7 @@ Supported types:
 - `Decimal(P[, S])`, `Decimal32(S)`, `Decimal64(S)`, `Decimal128(S)`, `Decimal256(S)`
 - `String`, `FixedString(N)`, `BinaryString` (not a ClickHouse type: a `String` column with arbitrary bytes)
 - `Date`, `Date32`, `Time`, `Time64(P)`, `DateTime[('tz')]`, `DateTime64(P[, 'tz'])` (timezone defaults to `UTC`)
-- `IPv4`, `IPv6`, `UUID`, `Enum8`, `Enum16` (with built-in constants) or `Enum8('a' = 1, ...)`
+- `IPv4`, `IPv6`, `UUID`, `Enum8`, `Enum16` (with built-in constants), `Enum8All`, `Enum8Single`, `Enum8Unsorted`, `Enum16Many`, `EnumNearMax8`, `EnumNearMax16`, or `Enum('a' = 1, ...)` / `Enum8('a' = 1, ...)` / `Enum16('a' = 1, ...)`
 - `Point`, `Ring`, `LineString`, `Polygon`, `MultiLineString`, `MultiPolygon`
 - `Array(T)`, `Tuple(T, ...)`, `Tuple(name T, ...)`, `Map(K, V)`, `Nested(name T, ...)`, `Nullable(T)`, `LowCardinality(T)`
 - `Interval<Unit>` and `Nothing` - cannot be stored in a table, so only with `-f values` or `-f tsv`

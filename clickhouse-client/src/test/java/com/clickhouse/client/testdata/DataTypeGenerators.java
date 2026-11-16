@@ -32,6 +32,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.StringJoiner;
+import java.util.TreeMap;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.LongFunction;
@@ -48,7 +49,7 @@ public final class DataTypeGenerators {
     static final int NULL_FREQUENCY = 5;
     private static final int LONG_STRING_LENGTH = 10_000;
     private static final String CLICKHOUSE = "ClickHouse";
-    private static final String RUSSIAN = "абвгдеёжзийклмнопрстуфхцчшщъыьэюяАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ";
+    private static final String UTF8 = "абвгдеёжзийклмнопрстуфхцчшщъыьэюяАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ";
     private static final String[] SMILES = {
             "😀", "😁", "😂", "😊", "😉", "😍", "😎", "🙂", "👍", "👎", "🔥", "🎉", "🙏"};
     private static final byte[] CLICKHOUSE_LOGO = loadClickHouseLogo();
@@ -377,7 +378,73 @@ public final class DataTypeGenerators {
     }
 
     /**
-     * @param type             {@code Enum8} or {@code Enum16}
+     * {@code Enum8} covering every value in {@code [-128, 127]}.
+     */
+    public static DataTypeGenerator enum8All() {
+        return enumeration("Enum8", enumConstantsRange(Byte.MIN_VALUE, Byte.MAX_VALUE), false);
+    }
+
+    /**
+     * {@code Enum16} covering every value in {@code [-32768, 32767]}.
+     */
+    public static DataTypeGenerator enum16All() {
+        return ((SimpleGenerator) enumeration("Enum16", enumConstantsRange(Short.MIN_VALUE, Short.MAX_VALUE), false))
+                .withSetting("max_query_size", "2097152")
+                .withSetting("max_ast_elements", "1000000");
+    }
+
+    public static DataTypeGenerator enum8Single() {
+        return enumeration("Enum8", Collections.singletonMap("only", 42), false);
+    }
+
+    public static DataTypeGenerator enum8Unsorted() {
+        Map<String, Integer> constants = new LinkedHashMap<>();
+        constants.put("max", (int) Byte.MAX_VALUE);
+        constants.put("min", (int) Byte.MIN_VALUE);
+        constants.put("zero", 0);
+        constants.put("positive", 1);
+        constants.put("negative", -1);
+        constants.put("near_max", Byte.MAX_VALUE - 1);
+        constants.put("near_min", Byte.MIN_VALUE + 1);
+        return enumeration("Enum8", constants, false);
+    }
+
+    /**
+     * {@code Enum16} with more than 256 constants across extremums and power-of-two boundaries.
+     */
+    public static DataTypeGenerator enum16Many() {
+        Map<Integer, String> byValue = new TreeMap<>();
+        addEnumRange(byValue, Short.MIN_VALUE, Short.MIN_VALUE + 49);
+        addEnumRange(byValue, -1024, -975);
+        addEnumRange(byValue, -150, -101);
+        addEnumRange(byValue, -25, 25);
+        addEnumRange(byValue, 101, 150);
+        addEnumRange(byValue, 975, 1024);
+        addEnumRange(byValue, Short.MAX_VALUE - 49, Short.MAX_VALUE);
+        return enumeration("Enum16", toEnumConstants(byValue), false);
+    }
+
+    /**
+     * {@code Enum} whose values stay in the {@code Enum8} range up to {@link Byte#MAX_VALUE}.
+     */
+    public static DataTypeGenerator enumNearMax8() {
+        return enumeration("Enum", enumConstantsRange(1, Byte.MAX_VALUE), false);
+    }
+
+    /**
+     * {@code Enum} whose values cross into {@code Enum16} and cover its extremums.
+     */
+    public static DataTypeGenerator enumNearMax16() {
+        Map<Integer, String> byValue = new TreeMap<>();
+        addEnumRange(byValue, Short.MIN_VALUE, Short.MIN_VALUE + 8);
+        addEnumRange(byValue, Byte.MIN_VALUE - 2, Byte.MIN_VALUE + 1);
+        addEnumRange(byValue, 1, Byte.MAX_VALUE + 2);
+        addEnumRange(byValue, Short.MAX_VALUE - 8, Short.MAX_VALUE);
+        return enumeration("Enum", toEnumConstants(byValue), false);
+    }
+
+    /**
+     * @param type             {@code Enum}, {@code Enum8} or {@code Enum16}
      * @param constants        enum constant names and their numeric values
      * @param numericLiterals  write values as numbers instead of quoted names
      */
@@ -572,7 +639,8 @@ public final class DataTypeGenerators {
                 uint128(), int256(), uint256(), float32(), float64(), decimal(9, 2), decimal(18, 6),
                 decimal(38, 0), decimal(76, 38), bool(), string(), binaryString(), fixedString(16), date(), date32(),
                 time(), time64(3), time64(9), dateTime("UTC"), dateTime("America/New_York"),
-                dateTime64(3, "UTC"), dateTime64(9, "Asia/Kolkata"), ipv4(), ipv6(), uuid(), enum8(), enum16(),
+                dateTime64(3, "UTC"), dateTime64(9, "Asia/Kolkata"), ipv4(), ipv6(), uuid(), enum8(), enum8All(),
+                enum8Single(), enum8Unsorted(), enum16(), enum16Many(), enumNearMax8(), enumNearMax16(),
                 point(), ring(), lineString(), polygon(), multiLineString(), multiPolygon());
     }
 
@@ -1048,7 +1116,7 @@ public final class DataTypeGenerators {
 
     private static String nextTextUnit(Random random, int script) {
         if (script == 0) {
-            return String.valueOf(RUSSIAN.charAt(random.nextInt(RUSSIAN.length())));
+            return String.valueOf(UTF8.charAt(random.nextInt(UTF8.length())));
         }
         return SMILES[random.nextInt(SMILES.length)];
     }
@@ -1239,15 +1307,53 @@ public final class DataTypeGenerators {
     }
 
     private static Map<String, Integer> defaultEnumConstants(int min, int max) {
-        Map<String, Integer> constants = new LinkedHashMap<>();
-        constants.put("min", min);
-        constants.put("minus one", -1);
-        constants.put("zero", 0);
-        constants.put("quote'", 1);
-        constants.put("back\\slash", 2);
-        constants.put("юникод", 3);
-        constants.put("😀", 4);
-        constants.put("max", max);
+        Map<Integer, String> byValue = new TreeMap<>();
+        byValue.put(min, "min");
+        byValue.put(-5, " padded ");
+        byValue.put(-4, "a=b");
+        byValue.put(-3, "a, b");
+        byValue.put(-2, "");
+        byValue.put(-1, "minus one");
+        byValue.put(0, "zero");
+        byValue.put(1, "quote'");
+        byValue.put(2, "back\\slash");
+        byValue.put(3, "юникод");
+        byValue.put(4, "😀");
+        byValue.put(max, "max");
+
+        addEnumRange(byValue, min, Math.min(max, min + 5));
+        addEnumRange(byValue, Math.max(min, -5), Math.min(max, 5));
+        addEnumRange(byValue, Math.max(min, max - 5), max);
+        for (int bits = 3; bits <= 15; bits++) {
+            int power = 1 << bits;
+            for (int v : new int[] {power - 1, power, power + 1, -power - 1, -power, -power + 1}) {
+                if (v >= min && v <= max) {
+                    byValue.putIfAbsent(v, "v" + v);
+                }
+            }
+        }
+        return toEnumConstants(byValue);
+    }
+
+    private static Map<String, Integer> enumConstantsRange(int min, int max) {
+        Map<String, Integer> constants = new LinkedHashMap<>(max - min + 1);
+        for (int v = min; v <= max; v++) {
+            constants.put("v" + v, v);
+        }
+        return constants;
+    }
+
+    private static void addEnumRange(Map<Integer, String> byValue, int from, int to) {
+        for (int v = from; v <= to; v++) {
+            byValue.putIfAbsent(v, "v" + v);
+        }
+    }
+
+    private static Map<String, Integer> toEnumConstants(Map<Integer, String> byValue) {
+        Map<String, Integer> constants = new LinkedHashMap<>(byValue.size());
+        for (Map.Entry<Integer, String> entry : byValue.entrySet()) {
+            constants.put(entry.getValue(), entry.getKey());
+        }
         return constants;
     }
 

@@ -239,6 +239,7 @@ final class ReaderExpectations {
                 return Category.DECIMAL;
             case Bool:
                 return Category.BOOL;
+            case Enum:
             case Enum8:
             case Enum16:
                 return Category.ENUM;
@@ -297,6 +298,7 @@ final class ReaderExpectations {
         switch (element.getDataType()) {
             case String:
             case FixedString:
+            case Enum:
             case Enum8:
             case Enum16:
                 return EnumSet.of(STRING_ARRAY);
