@@ -92,6 +92,11 @@ Prefer `Properties` over embedding credentials in the URL. URL/Properties parsin
 
 When an application expects external users to provide connection configuration, build an adaptation layer between the application and the JDBC driver properties to decouple your system from changes in the JDBC driver. Having this layer also helps with migrating to new versions and resolving compatibility issues. Always separate your application or connector configuration (such as common properties across connectors like `host`, `username`, and credentials) from the JDBC driver properties; otherwise, resolving name collisions and handling upgrades can become very problematic in the future. It is also important to document how the JDBC driver can be configured by users and where to find driver configuration references ([`DriverProperties`](../jdbc-v2/src/main/java/com/clickhouse/jdbc/DriverProperties.java) and [`ClientConfigProperties`](../client-v2/src/main/java/com/clickhouse/client/api/ClientConfigProperties.java)).
 
+**Important**
+Pin  properties values by setting them at last configuration step for next two reasons: 
+- Prevent behavior change with future upgrade of the library. If property is deprecated - then review will show it. Even if default value is fine for you, it make sense to pin it. 
+- Prevent users override important configuration. It is also recommended to whitelist user configurable properties and document them (give reference to the driver documentation, too).
+
 ```java
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.jdbc.DriverProperties;
@@ -110,7 +115,7 @@ public Properties toDriverProperties(UserConnectorConfig userConfig) {
     props.setProperty(ClientConfigProperties.PASSWORD.getKey(), userConfig.getPassword());
     props.setProperty(DriverProperties.SECURE_CONNECTION.getKey(), String.valueOf(userConfig.isSsl()));
 
-    // 3. Enforce guardrails and pin internal properties to prevent system overload
+    // 3. Enforce pin internal properties to prevent system overload (this step should be always last to override user set properties)
     props.setProperty(ClientConfigProperties.CLIENT_NAME.getKey(), "my-service/1.0");
     props.setProperty(ClientConfigProperties.HTTP_MAX_OPEN_CONNECTIONS.getKey(), "10");
     props.setProperty(ClientConfigProperties.CONNECTION_REQUEST_TIMEOUT.getKey(), "10000");
