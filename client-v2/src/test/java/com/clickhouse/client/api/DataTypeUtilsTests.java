@@ -501,4 +501,16 @@ public class DataTypeUtilsTests {
         assertEquals(dateTimeInNy.toLocalDate(), LocalDate.of(2024, 7, 4).minusDays(1),
                 "Same instant should be previous day in New York");
     }
+
+    @Test(groups = {"unit"})
+    public void testDurationToTimeStringIgnoresDefaultLocale() {
+        java.util.Locale original = java.util.Locale.getDefault();
+        try {
+            java.util.Locale.setDefault(java.util.Locale.forLanguageTag("fa-IR"));
+            assertEquals(DataTypeUtils.durationToTimeString(Duration.ofSeconds(3661, 123456789), 9), "1:01:01.123456789");
+            assertEquals(DataTypeUtils.durationToTimeString(Duration.ofSeconds(1, 5000000), 3), "0:00:01.005");
+        } finally {
+            java.util.Locale.setDefault(original);
+        }
+    }
 }

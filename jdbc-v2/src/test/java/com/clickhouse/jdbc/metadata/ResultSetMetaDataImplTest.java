@@ -5,6 +5,9 @@ import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
+import java.net.Inet4Address;
+import java.net.Inet6Address;
+import java.net.InetAddress;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
@@ -265,6 +268,46 @@ public class ResultSetMetaDataImplTest extends JdbcIntegrationTest {
             String type = rsmd.getColumnTypeName(1);
             assertEquals(rsmd.getPrecision(1), precision, type);
             assertEquals(rsmd.getScale(1), scale, type);
+        }
+    }
+
+    @DataProvider(name = "ipAddressTypes")
+    public static Object[][] ipAddressTypesProvider() {
+        return new Object[][] {
+                { "toIPv4('10.0.0.1')", "IPv4", Inet4Address.class, Inet4Address.class },
+                { "toNullable(toIPv4('10.0.0.1'))", "Nullable(IPv4)", Inet4Address.class, Inet4Address.class },
+                { "toLowCardinality(toIPv4('10.0.0.1'))", "LowCardinality(IPv4)", Inet4Address.class, Inet4Address.class },
+                { "toIPv6('2001:db8::1')", "IPv6", InetAddress.class, Inet6Address.class },
+                { "toNullable(toIPv6('2001:db8::1'))", "Nullable(IPv6)", InetAddress.class, Inet6Address.class },
+                { "toLowCardinality(toIPv6('2001:db8::1'))", "LowCardinality(IPv6)", InetAddress.class, Inet6Address.class },
+                { "toIPv6('::ffff:10.0.0.1')", "IPv6", InetAddress.class, Inet4Address.class },
+        };
+    }
+
+    @Test(groups = { "integration" }, dataProvider = "ipAddressTypes")
+    public void testGetColumnClassNameOfIpAddressTypes(String expression, String typeName, Class<?> columnClass,
+                                                       Class<?> valueClass) throws Exception {
+        try (Connection conn = getJdbcConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT " + expression + " AS ip, [" + expression + "] AS ips")) {
+            ResultSetMetaData rsmd = rs.getMetaData();
+            assertEquals(rsmd.getColumnTypeName(1), typeName);
+            assertEquals(rsmd.getColumnType(1), Types.OTHER);
+            assertEquals(rsmd.getColumnClassName(1), columnClass.getName());
+
+            assertTrue(rs.next());
+            Object value = rs.getObject(1);
+            assertEquals(value.getClass(), valueClass);
+            assertTrue(Class.forName(rsmd.getColumnClassName(1)).isInstance(value));
+
+            ResultSet elements = rs.getArray(2).getResultSet();
+            ResultSetMetaData elementsMetaData = elements.getMetaData();
+            assertEquals(elementsMetaData.getColumnTypeName(2), typeName);
+            assertEquals(elementsMetaData.getColumnType(2), Types.OTHER);
+            assertEquals(elementsMetaData.getColumnClassName(2), columnClass.getName());
+            assertTrue(elements.next());
+            assertEquals(elements.getObject(2), value);
+            assertEquals(elements.getObject(2).getClass(), valueClass);
         }
     }
 

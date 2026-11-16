@@ -9,6 +9,7 @@ import com.clickhouse.client.api.CompressionMethod;
 import com.clickhouse.client.api.ConnectionInitiationException;
 import com.clickhouse.client.api.ConnectionReuseStrategy;
 import com.clickhouse.client.api.ServerException;
+import com.clickhouse.client.api.command.CommandResponse;
 import com.clickhouse.client.api.command.CommandSettings;
 import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertSettings;
@@ -24,6 +25,9 @@ import com.clickhouse.client.api.query.Records;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseVersion;
+import com.github.tomakehurst.wiremock.WireMockServer;
+import com.github.tomakehurst.wiremock.client.WireMock;
+import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,6 +39,7 @@ import org.testng.util.Strings;
 
 import java.io.ByteArrayInputStream;
 import java.net.ConnectException;
+import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -833,6 +838,71 @@ public class ClientTests extends BaseIntegrationTest {
         }
     }
 
+    @Test(timeOut = 15000)
+    public void testRuntimeNetworkTimeoutAppliesToSubsequentRequests() throws Exception {
+        WireMockServer server = new WireMockServer(WireMockConfiguration.options()
+                .bindAddress("127.0.0.1").dynamicPort());
+        server.start();
+        try {
+            server.stubFor(WireMock.post(WireMock.anyUrl())
+                    .willReturn(WireMock.aResponse().withFixedDelay(500)
+                            .withHeader("X-ClickHouse-Summary", "{\"read_rows\":\"0\",\"read_bytes\":\"0\"}")));
+
+            try (Client client = new Client.Builder()
+                    .addEndpoint("http://127.0.0.1:" + server.port())
+                    .setUsername("default")
+                    .setPassword("")
+                    .setDefaultDatabase("default")
+                    .setSocketTimeout(200)
+                    .setMaxRetries(0)
+                    .compressServerResponse(false)
+                    .build()) {
+                Assert.assertEquals(client.getNetworkTimeout(), 200);
+
+                client.setNetworkTimeout(50);
+                Assert.assertEquals(client.getNetworkTimeout(), 50);
+                Exception error = Assert.expectThrows(Exception.class,
+                        () -> client.execute("SELECT 1").get(5, TimeUnit.SECONDS));
+                Assert.assertTrue(hasCause(error, SocketTimeoutException.class),
+                        "Expected a socket timeout, got: " + error);
+
+                CommandSettings requestSettings = new CommandSettings();
+                requestSettings.setNetworkTimeout(0, MILLIS);
+                try (CommandResponse response = client.execute("SELECT 1", requestSettings)
+                        .get(5, TimeUnit.SECONDS)) {
+                    Assert.assertEquals(response.getReadRows(), 0);
+                }
+                Assert.assertEquals(client.getNetworkTimeout(), 50);
+
+                client.setNetworkTimeout(0, MILLIS);
+                Assert.assertEquals(client.getNetworkTimeout(), 0);
+                try (CommandResponse response = client.execute("SELECT 1").get(5, TimeUnit.SECONDS)) {
+                    Assert.assertEquals(response.getReadRows(), 0);
+                }
+            }
+        } finally {
+            server.stop();
+        }
+    }
+
+    @Test
+    public void testNetworkTimeoutUnitConversionAndValidation() {
+        try (Client client = new Client.Builder()
+                .addEndpoint("http://127.0.0.1:1")
+                .setUsername("default")
+                .setPassword("")
+                .build()) {
+            client.setNetworkTimeout(2, SECONDS);
+            Assert.assertEquals(client.getNetworkTimeout(), 2000);
+
+            Assert.assertThrows(IllegalArgumentException.class, () -> client.setNetworkTimeout(-1));
+            Assert.assertThrows(IllegalArgumentException.class, () -> client.setNetworkTimeout(-1, MILLIS));
+            Assert.assertThrows(IllegalArgumentException.class,
+                    () -> client.setNetworkTimeout((long) Integer.MAX_VALUE + 1, MILLIS));
+            Assert.assertThrows(IllegalArgumentException.class, () -> client.setNetworkTimeout(1, null));
+        }
+    }
+
     @Test(groups = {"integration"})
     public void testOverrideSettings() throws Exception {
         final String clientTimezone = "America/Los_Angeles";
@@ -864,6 +934,17 @@ public class ClientTests extends BaseIntegrationTest {
             Assert.assertTrue(e.getCause() instanceof ServerException, "Expected ServerException but got " + e.getCause());
             Assert.assertEquals(((ServerException) e.getCause()).getCode(), ServerException.TABLE_NOT_FOUND);
         }
+    }
+
+    private static boolean hasCause(Throwable error, Class<? extends Throwable> type) {
+        Throwable current = error;
+        while (current != null) {
+            if (type.isInstance(current)) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 
     protected Client.Builder newClient() {
