@@ -21,12 +21,12 @@ public abstract class CompressedBlockOutputStream extends OutputStream {
 
     private final ByteBuffer compressedBuffer;
 
-    public CompressedBlockOutputStream(OutputStream out, int bufferSize) {
+    public CompressedBlockOutputStream(OutputStream out, int bufferSize, int maxCompressedBufferSize) {
         super();
         LOG.debug("Using compressor with buffer size {}", bufferSize);
         this.inBuffer = ByteBuffer.allocate(bufferSize);
         this.out = out;
-        this.compressedBuffer = ByteBuffer.allocate(bufferSize + CompressedBlockInputStream.HEADER_LENGTH);
+        this.compressedBuffer = ByteBuffer.allocate(maxCompressedBufferSize + CompressedBlockInputStream.HEADER_LENGTH);
     }
 
     @Override
@@ -116,7 +116,7 @@ public abstract class CompressedBlockOutputStream extends OutputStream {
         private final LZ4Compressor compressor;
 
         public LZ4OutputStream(OutputStream out, LZ4Compressor compressor, int bufferSize) {
-            super(out, bufferSize);
+            super(out, bufferSize, compressor.maxCompressedLength(bufferSize));
             this.compressor = compressor;
         }
 
@@ -137,7 +137,7 @@ public abstract class CompressedBlockOutputStream extends OutputStream {
         private static final int COMPRESSION_LEVEL = 3;
 
         public ZSTDOutputStream(OutputStream out, int bufferSize) {
-            super(out, bufferSize);
+            super(out, bufferSize, (int) Zstd.compressBound(bufferSize));
         }
 
         @Override
