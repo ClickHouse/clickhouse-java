@@ -17,14 +17,14 @@ import java.util.Objects;
  * {@link #deepEquals}: arrays and lists become lists, internal value holders their values, decimals lose trailing
  * zeros.
  */
-final class ReaderValues {
+public final class ReaderValues {
 
     private static final int MAX_DESCRIPTION_LENGTH = 200;
 
     private ReaderValues() {
     }
 
-    static Object normalize(Object value) {
+    public static Object normalize(Object value) {
         if (value == null) {
             return null;
         } else if (value instanceof BinaryStreamReader.ArrayValue) {
@@ -60,11 +60,11 @@ final class ReaderValues {
         return value;
     }
 
-    static boolean deepEquals(Object expected, Object actual) {
+    public static boolean deepEquals(Object expected, Object actual) {
         return Objects.equals(expected, actual);
     }
 
-    static String describe(Object value) {
+    public static String describe(Object value) {
         Object normalized = normalize(value);
         String text = normalized == null ? "null"
                 : normalized.getClass().getSimpleName() + " " + normalized;
