@@ -1249,4 +1249,81 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
             assertEquals(read.asString(), expectedString, via + "/" + description);
         }
     }
+
+    private enum WriterSampleEnum {
+        ZERO,
+        ONE
+    }
+
+    @Test(groups = {"integration"})
+    public void writeDynamicExtendedAndTime64Tests() throws Exception {
+        if (!isVersionMatch("[24.8,)")) {
+            return;
+        }
+
+        String tableName = "rowBinaryFormatWriterTest_writeDynamicExt_" + UUID.randomUUID().toString().replace('-', '_');
+        String tableCreate = "CREATE TABLE \"" + tableName + "\" "
+                + " (id Int32, dyn Dynamic, tail Int32) ORDER BY id";
+
+        Map<String, Integer> mapVal = Collections.singletonMap("k", 7);
+        List<List<Integer>> nestedWithNull = Arrays.asList(
+                Arrays.asList(1, null, 2),
+                Collections.emptyList());
+
+        Field[][] rows = new Field[][] {
+                {new Field("id", 1), new Field("dyn", ZonedDateTime.parse("2025-07-15T10:20:30Z")), new Field("tail", 99)},
+                {new Field("id", 2), new Field("dyn", LocalDate.of(2025, 7, 15)), new Field("tail", 99)},
+                {new Field("id", 3), new Field("dyn", mapVal), new Field("tail", 99)},
+                {new Field("id", 4), new Field("dyn", nestedWithNull), new Field("tail", 99)},
+                {new Field("id", 5), new Field("dyn", WriterSampleEnum.ONE), new Field("tail", 99)},
+                {new Field("id", 6), new Field("dyn", new BigDecimal("123.45")), new Field("tail", 99)},
+                {new Field("id", 7), new Field("dyn", java.time.Duration.ofNanos(5)), new Field("tail", 99)},
+                {new Field("id", 8), new Field("dyn", java.time.Period.ofDays(2)), new Field("tail", 99)},
+        };
+
+        initTable(tableName, tableCreate, new CommandSettings());
+        TableSchema schema = client.getTableSchema(tableName);
+        ClickHouseFormat format = ClickHouseFormat.RowBinaryWithDefaults;
+        try (InsertResponse response = client.insert(tableName, out -> {
+            RowBinaryFormatWriter w = new RowBinaryFormatWriter(out, schema, format);
+            for (Field[] row : rows) {
+                for (Field field : row) {
+                    w.setValue(schema.nameToColumnIndex(field.name), field.value);
+                }
+                w.commitRow();
+            }
+        }, format, settings).get()) {
+            assertEquals(response.getWrittenRows(), rows.length);
+        }
+
+        List<GenericRecord> records = client.queryAll("SELECT * FROM \"" + tableName + "\" ORDER BY id");
+        assertEquals(records.size(), rows.length);
+        for (GenericRecord record : records) {
+            assertEquals(record.getInteger("tail"), 99);
+        }
+        assertEquals(records.get(2).getObject("dyn"), mapVal);
+        assertEquals(records.get(4).getString("dyn"), "ONE");
+        assertEquals(records.get(5).getBigDecimal("dyn").compareTo(new BigDecimal("123.45")), 0);
+
+        if (isVersionMatch("[25.6,)")) {
+            String t64Table = "rowBinaryFormatWriterTest_writeTime64BigInt_" + UUID.randomUUID().toString().replace('-', '_');
+            CommandSettings time64Settings = (CommandSettings) new CommandSettings()
+                    .serverSetting("allow_experimental_time_time64_type", "1");
+            initTable(t64Table, "CREATE TABLE \"" + t64Table + "\" (id Int32, t Time64(9), tail Int32) ORDER BY id", time64Settings);
+            TableSchema t64Schema = client.getTableSchema(t64Table);
+            try (InsertResponse response = client.insert(t64Table, out -> {
+                RowBinaryFormatWriter w = new RowBinaryFormatWriter(out, t64Schema, ClickHouseFormat.RowBinaryWithDefaults);
+                w.setValue("id", 1);
+                w.setValue("t", BigInteger.valueOf(1_500_000_000L));
+                w.setValue("tail", 77);
+                w.commitRow();
+            }, ClickHouseFormat.RowBinaryWithDefaults, settings).get()) {
+                assertEquals(response.getWrittenRows(), 1);
+            }
+            List<GenericRecord> t64Rows = client.queryAll("SELECT * FROM \"" + t64Table + "\" ORDER BY id");
+            assertEquals(t64Rows.size(), 1);
+            assertEquals(t64Rows.get(0).getInteger("tail"), 77);
+            assertEquals(t64Rows.get(0).getDuration("t"), java.time.Duration.ofNanos(1_500_000_000L));
+        }
+    }
 }
