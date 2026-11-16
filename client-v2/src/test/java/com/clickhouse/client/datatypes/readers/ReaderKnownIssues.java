@@ -1,5 +1,7 @@
 package com.clickhouse.client.datatypes.readers;
 
+import com.clickhouse.client.api.ClientException;
+
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -73,6 +75,9 @@ final class ReaderKnownIssues {
                     .throwing(NumberFormatException.class).accessors(BIG_DECIMAL).types(ENUMS),
             KnownIssue.of(UNEXPECTED_EXCEPTION, "getInstant throws NullPointerException for NULL")
                     .throwing(NullPointerException.class).accessors(INSTANT).types(NULLABLE).onNullOnly(),
+            KnownIssue.of(UNEXPECTED_EXCEPTION, "getStringArray rejects arrays of nullable strings")
+                    .throwing(ClientException.class).accessors(STRING_ARRAY)
+                    .types("Array\\(Nullable\\(String\\)\\)"),
 
             // getString differs from the text ClickHouse writes
             KnownIssue.of(WRONG_VALUE, "getString formats floats with Double.toString, for example 0.0 and 1.0E-7")
