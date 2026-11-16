@@ -101,7 +101,7 @@ public final class TestDataSet {
     }
 
     public String getCreateTableSql(String table) {
-        return getCreateTableSql(table, null);
+        return getCreateTableSql(table, null, false);
     }
 
     /**
@@ -111,9 +111,19 @@ public final class TestDataSet {
      * @return CREATE TABLE statement
      */
     public String getCreateTableSql(String table, String cluster) {
+        return getCreateTableSql(table, cluster, cluster != null);
+    }
+
+    /**
+     * @param table      table name
+     * @param cluster    cluster for {@code ON CLUSTER}, or {@code null} when DDL replicates through the database
+     * @param replicated {@code true} to use {@code ReplicatedMergeTree}, {@code false} for {@code MergeTree}
+     * @return CREATE TABLE statement
+     */
+    public String getCreateTableSql(String table, String cluster, boolean replicated) {
         String prefix = cluster == null ? "CREATE TABLE " + table + " ("
                 : "CREATE TABLE " + table + " ON CLUSTER " + DataTypeGenerators.quoteIdentifier(cluster) + " (";
-        String engine = cluster == null ? "MergeTree" : "ReplicatedMergeTree";
+        String engine = replicated ? "ReplicatedMergeTree" : "MergeTree";
         StringJoiner definition = new StringJoiner(", ", prefix, ") ENGINE = " + engine + " ORDER BY " + ID_COLUMN);
         definition.add(ID_COLUMN + " Int32");
         for (Map.Entry<String, DataTypeGenerator> column : columns.entrySet()) {

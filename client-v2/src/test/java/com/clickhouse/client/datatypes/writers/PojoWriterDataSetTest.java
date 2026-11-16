@@ -132,7 +132,7 @@ public class PojoWriterDataSetTest extends BaseIntegrationTest {
 
         try (Client client = newClient(entry, settings)) {
             dropTable(client, table);
-            client.execute(dataSet.getCreateTableSql(table, getClusterName()), commandSettings(settings))
+            client.execute(dataSet.getCreateTableSql(table, null, isCluster()), commandSettings(settings))
                     .get(TIMEOUT_SECONDS, TimeUnit.SECONDS).close();
             try {
                 TableSchema schema = client.getTableSchema(table);
@@ -240,7 +240,7 @@ public class PojoWriterDataSetTest extends BaseIntegrationTest {
     }
 
     private static void dropTable(Client client, String table) throws Exception {
-        client.execute("DROP TABLE IF EXISTS " + table + onCluster() + " SYNC")
+        client.execute("DROP TABLE IF EXISTS " + table + " SYNC")
                 .get(TIMEOUT_SECONDS, TimeUnit.SECONDS).close();
     }
 

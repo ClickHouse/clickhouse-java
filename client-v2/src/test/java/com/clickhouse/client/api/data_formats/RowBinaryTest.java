@@ -356,7 +356,7 @@ public class RowBinaryTest extends BaseIntegrationTest {
     @Test(groups = {"integration"})
     void testRowBinaryEmptyResult() throws Exception {
         try (Client client = newClient().build()) {
-            TableSchema schema = client.getTableSchema("SELECT toInt32(0) AS id, '' AS name");
+            TableSchema schema = client.getTableSchemaFromQuery("SELECT toInt32(0) AS id, '' AS name");
             QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinary);
             try (QueryResponse response = client.query(
                     "SELECT toInt32(number) AS id, toString(number) AS name FROM system.numbers LIMIT 0", settings).get();
