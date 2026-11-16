@@ -34,16 +34,19 @@ final class KnownIssue {
     private final Pattern types;
     private final Set<ClickHouseFormat> formats;
     private final boolean onNullOnly;
+    private final boolean readersOnly;
     private final Class<? extends Throwable> thrown;
 
     private KnownIssue(Deviation deviation, String description, Set<ReaderAccessor> accessors, Pattern types,
-            Set<ClickHouseFormat> formats, boolean onNullOnly, Class<? extends Throwable> thrown) {
+            Set<ClickHouseFormat> formats, boolean onNullOnly, boolean readersOnly,
+            Class<? extends Throwable> thrown) {
         this.deviation = deviation;
         this.description = description;
         this.accessors = accessors;
         this.types = types;
         this.formats = formats;
         this.onNullOnly = onNullOnly;
+        this.readersOnly = readersOnly;
         this.thrown = thrown;
     }
 
@@ -53,12 +56,12 @@ final class KnownIssue {
      */
     static KnownIssue of(Deviation deviation, String description) {
         return new KnownIssue(deviation, description, Collections.emptySet(), null, Collections.emptySet(), false,
-                null);
+                false, null);
     }
 
     KnownIssue accessors(ReaderAccessor... accessors) {
         return new KnownIssue(deviation, description, EnumSet.copyOf(Arrays.asList(accessors)), types, formats,
-                onNullOnly, thrown);
+                onNullOnly, readersOnly, thrown);
     }
 
     /**
@@ -66,26 +69,37 @@ final class KnownIssue {
      */
     KnownIssue types(String regex) {
         return new KnownIssue(deviation, description, accessors, Pattern.compile(regex), formats, onNullOnly,
-                thrown);
+                readersOnly, thrown);
     }
 
     KnownIssue formats(ClickHouseFormat... formats) {
         return new KnownIssue(deviation, description, accessors, types, EnumSet.copyOf(Arrays.asList(formats)),
-                onNullOnly, thrown);
+                onNullOnly, readersOnly, thrown);
     }
 
     /**
      * Restricts the issue to {@code NULL} values, so it does not hide deviations for other values.
      */
     KnownIssue onNullOnly() {
-        return new KnownIssue(deviation, description, accessors, types, formats, true, thrown);
+        return new KnownIssue(deviation, description, accessors, types, formats, true, readersOnly, thrown);
+    }
+
+    /**
+     * Restricts the issue to format readers (and records delegating directly to them), excluding {@code MapBackedRecord}.
+     */
+    KnownIssue readersOnly() {
+        return new KnownIssue(deviation, description, accessors, types, formats, onNullOnly, true, thrown);
     }
 
     /**
      * Restricts the issue to deviations where the reader throws the given exception.
      */
     KnownIssue throwing(Class<? extends Throwable> thrown) {
-        return new KnownIssue(deviation, description, accessors, types, formats, onNullOnly, thrown);
+        return new KnownIssue(deviation, description, accessors, types, formats, onNullOnly, readersOnly, thrown);
+    }
+
+    boolean isReadersOnly() {
+        return readersOnly;
     }
 
     boolean appliesTo(ClickHouseFormat format) {

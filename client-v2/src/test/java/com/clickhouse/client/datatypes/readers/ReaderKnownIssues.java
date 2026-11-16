@@ -70,11 +70,11 @@ final class ReaderKnownIssues {
             KnownIssue.of(WRONG_VALUE, "negative Time64 values with a fraction are one second off")
                     .accessors(DURATION, TEMPORAL_AMOUNT, INSTANT, LOCAL_DATE_TIME).types("Time64\\(\\d\\)"),
             KnownIssue.of(WRONG_VALUE, "IPv4-mapped IPv6 values are read as 4 byte IPv4 addresses")
-                    .accessors(BYTE_ARRAY).types("IPv6"),
+                    .accessors(BYTE_ARRAY).types("IPv6").readersOnly(),
             KnownIssue.of(UNEXPECTED_EXCEPTION, "getBigDecimal parses the enum name as a number")
                     .throwing(NumberFormatException.class).accessors(BIG_DECIMAL).types(ENUMS),
             KnownIssue.of(UNEXPECTED_EXCEPTION, "getInstant throws NullPointerException for NULL")
-                    .throwing(NullPointerException.class).accessors(INSTANT).types(NULLABLE).onNullOnly(),
+                    .throwing(NullPointerException.class).accessors(INSTANT).types(NULLABLE).onNullOnly().readersOnly(),
             KnownIssue.of(UNEXPECTED_EXCEPTION, "getStringArray rejects arrays of nullable strings")
                     .throwing(ClientException.class).accessors(STRING_ARRAY)
                     .types("Array\\(Nullable\\(String\\)\\)"),
