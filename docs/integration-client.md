@@ -576,14 +576,14 @@ The reasoning is only valid for **short-lived read operations**, where connectio
 
 The `Client` uses an internal Apache HttpClient 5 pool. Key pool settings exposed by client configuration are listed below:
 
-| Property                      | Builder method                      | Purpose                                                                                   |
-|-------------------------------|-------------------------------------|-------------------------------------------------------------------------------------------|
-| `max_open_connections`        | `.setMaxConnections()`              | Maximum open HTTP connections per server endpoint. Size set from parallelism guidance above.|
-| `connection_ttl`              | `.setConnectionTTL()`               | Time-to-live after which an active connection is closed and recreated.                     |
-| `http_keep_alive_timeout`     | `.setKeepAliveTimeout()`            | HTTP Keep-Alive duration for idle pooled connections.                                      |
-| `connection_request_timeout`  | `.setConnectionRequestTimeout()`    | Maximum time a thread blocks waiting for an available connection from the pool.            |
-| `connection_reuse_strategy`   | `.setConnectionReuseStrategy()`     | Connection pool allocation strategy (`FIFO` or `LIFO`).                                    |
-| `connection_pool_enabled`     | `.enableConnectionPool()`           | Enable/disable HTTP connection pooling (keep enabled).                                     |
+| Property                     | Builder method                   | Default         | Recommended value                                                                                                     | Purpose                                                                         |
+|------------------------------|----------------------------------|-----------------|-----------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------|
+| `max_open_connections`       | `.setMaxConnections()`           | `10`            | Size to peak concurrent operations: typically `10–20` for low concurrency and `20–100` for high concurrency.          | Maximum open HTTP connections per server endpoint.                              |
+| `connection_ttl`             | `.setConnectionTTL()`            | `-1` (no limit) | `20s` for ClickHouse Cloud or another load-balanced endpoint; otherwise keep the default unless rotation is required. | Time-to-live after which an active connection is closed and recreated.          |
+| `http_keep_alive_timeout`    | `.setKeepAliveTimeout()`         | Server value    | Shorter than the server, proxy, or load balancer idle timeout; `10–15s` is a typical starting point.                  | HTTP Keep-Alive duration for idle pooled connections.                           |
+| `connection_request_timeout` | `.setConnectionRequestTimeout()` | `10s`           | `5s` for fail-fast interactive traffic; up to `30s` for bounded batch workloads.                                      | Maximum time a thread blocks waiting for an available connection from the pool. |
+| `connection_reuse_strategy`  | `.setConnectionReuseStrategy()`  | `FIFO`          | `FIFO` for load-balanced endpoints; `LIFO` for direct endpoints with bursty traffic.                                  | Connection pool allocation strategy.                                            |
+| `connection_pool_enabled`    | `.enableConnectionPool()`        | `true`          | `true`                                                                                                                | Enable or disable HTTP connection pooling.                                      |
 
 
 - **`http_keep_alive_timeout` and stale connections.** If your application encounters `NoHttpResponseException`, it usually indicates stale pooled connections that were closed by the server or an intermediate proxy/load balancer due to idle timeouts. Setting `setKeepAliveTimeout` to a duration shorter than the server's Keep-Alive timeout ensures idle connections are refreshed before sending a request.
@@ -594,6 +594,25 @@ The `Client` uses an internal Apache HttpClient 5 pool. Key pool settings expose
 
 **Balancing connection reuse and pod utilization:**
 Configuring the pool requires balancing two competing goals: **maximizing connection reuse** (to avoid TCP/TLS handshake latency on every request) and **distributing load across backend pods/nodes** (so a single replica is not overwhelmed while newly scaled or idle pods sit unused). Keeping connections alive too long pins traffic to the specific pods they first connected to, whereas expiring them too aggressively wastes time re-establishing connections. Tuning `connection_ttl` (around 20s for load-balanced endpoints), `http_keep_alive_timeout`, and `connection_reuse_strategy` (`FIFO` vs `LIFO`) lets you control this trade-off for your deployment topology.
+
+**Baseline connection pool configuration (concurrent requests):**
+
+Use this minimal configuration as a starting point for services executing concurrent requests (uses the default `FIFO` reuse strategy):
+
+```java
+import com.clickhouse.client.api.Client;
+
+public Client createDefaultClient(String endpoint, String username, String password) {
+    return new Client.Builder()
+        .addEndpoint(endpoint)
+        .setUsername(username)
+        .setPassword(password)
+        .setMaxConnections(20)
+        .setKeepAliveTimeout(10, ChronoUnit.SECONDS)
+        .setConnectionRequestTimeout(3, ChronoUnit.SECONDS)
+        .build();
+}
+```
 
 Here are a few common configuration examples:
 
