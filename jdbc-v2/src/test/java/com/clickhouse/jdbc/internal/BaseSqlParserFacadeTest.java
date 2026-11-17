@@ -428,6 +428,33 @@ public abstract class BaseSqlParserFacadeTest {
         Assert.assertEquals(stmt.getTable(), expectedTableName, "Table name mismatch for: " + sql);
     }
 
+    @DataProvider(name = "insertTargetWithSourceTablesDP")
+    public static Object[][] insertTargetWithSourceTablesDP() {
+        return new Object[][] {
+                {"INSERT INTO dst WITH r AS (SELECT 1 AS n) SELECT n FROM r", null, "dst"},
+                {"INSERT INTO dst SELECT * FROM src", null, "dst"},
+                {"INSERT INTO db1.dst SELECT * FROM db2.src", "db1", "db1.dst"},
+                {"INSERT INTO dst WITH r AS (SELECT 1 AS n) SELECT n FROM r JOIN other USING (n)", null, "dst"},
+                {"INSERT INTO dst VALUES (?, (SELECT max(x) FROM src))", null, "dst"},
+                {"INSERT INTO dst (a) VALUES (?)", null, "dst"},
+                {"INSERT INTO dst SELECT 1", null, "dst"},
+                // not an insert: the table read is the only table name
+                {"SELECT * FROM src", null, "src"},
+                {"WITH r AS (SELECT 1 AS n) SELECT n FROM r", null, "r"},
+        };
+    }
+
+    @Test(dataProvider = "insertTargetWithSourceTablesDP")
+    public void testInsertTargetIsNotReplacedBySourceTable(String sql, String expectedDatabase, String expectedTable) {
+        ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
+        Assert.assertFalse(stmt.isHasErrors(), "Query should parse without errors: " + sql);
+        Assert.assertEquals(stmt.getTable(), expectedTable, "Table name mismatch for: " + sql);
+        if (!javaCcBackend) {
+            // JavaCC reports the database only as part of the table name
+            Assert.assertEquals(stmt.getDatabase(), expectedDatabase, "Database mismatch for: " + sql);
+        }
+    }
+
     @Test(dataProvider = "antlr4HeredocStatementsDP")
     public void testHeredocStatementsAntlr4Only(String sql, boolean insert, String expectedTable,
                                                 String expectedValuesList, int expectedArgCount) {
@@ -1640,5 +1667,37 @@ public abstract class BaseSqlParserFacadeTest {
         ParsedPreparedStatement stmt = parser.parsePreparedStatement("SELECT hex(x'AB') WHERE v = ?");
         Assert.assertFalse(stmt.isInsert(), "Statement is recognized as an insert");
         Assert.assertFalse(stmt.isUseFunction(), "Function usage is reported for a statement that is not an insert");
+    }
+
+    @Test(dataProvider = "testShuffleClauseDP")
+    public void testShuffleClause(String sql, int[] paramPositions, boolean hasResultSet) {
+        ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
+        Assert.assertFalse(stmt.isHasErrors(), "Query should parse without errors: " + sql);
+        assertEquals(stmt.getArgCount(), paramPositions.length, "Parameter count for: " + sql);
+        assertEquals(Arrays.copyOf(stmt.getParamPositions(), stmt.getArgCount()), paramPositions,
+                "Parameter positions for: " + sql);
+        assertEquals(stmt.isHasResultSet(), hasResultSet, "Result set flag mismatch for: " + sql);
+    }
+
+    @DataProvider
+    public static Object[][] testShuffleClauseDP() {
+        return new Object[][]{
+                {"SELECT * FROM t SHUFFLE", new int[]{}, true},
+                {"SELECT * FROM t SHUFFLE LIMIT ?", new int[]{30}, true},
+                {"SELECT * FROM t WHERE a = ? SHUFFLE LIMIT ?", new int[]{26, 42}, true},
+                {"SELECT a, count() FROM t GROUP BY a SHUFFLE LIMIT ? OFFSET ?", new int[]{50, 59}, true},
+                {"SELECT DISTINCT a FROM t SHUFFLE LIMIT 5 SETTINGS allow_experimental_shuffle_query = 1", new int[]{}, true},
+                {"SELECT 1 AS shuffle", new int[]{}, true},
+                {"INSERT INTO dst SELECT * FROM src SHUFFLE LIMIT ?", new int[]{48}, false},
+                /* a placeholder inside a string literal is not a parameter */
+                {"SELECT '?' AS q FROM t SHUFFLE LIMIT ?", new int[]{37}, true},
+        };
+    }
+
+    @Test
+    public void testShuffleIsNotTakenAsTable() {
+        ParsedPreparedStatement stmt = parser.parsePreparedStatement("SELECT * FROM t SHUFFLE LIMIT ?");
+        Assert.assertFalse(stmt.isHasErrors());
+        assertEquals(stmt.getTable(), "t");
     }
 }
