@@ -258,7 +258,8 @@ public class Client implements AutoCloseable {
                     if (tmpDbUser != null && !tmpDbUser.isEmpty()) {
                         this.dbUser = tmpDbUser;
                     }
-                    this.configuration.put(ClientConfigProperties.SERVER_TIMEZONE.getKey(), reader.getString("timezone"));
+                    this.configuration.put(ClientConfigProperties.SERVER_TIMEZONE.getKey(),
+                            ClientConfigProperties.SERVER_TIMEZONE.parseValue(reader.getString("timezone")));
                     serverVersion = reader.getString("version");
                 }
             }
