@@ -1,13 +1,16 @@
 package com.clickhouse.client.api.data_formats;
 
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
+import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.QuerySettings;
+import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.format.BinaryStreamUtils;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;
@@ -15,6 +18,7 @@ import java.math.BigInteger;
 import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.TimeZone;
 import java.util.function.Consumer;
@@ -906,5 +910,27 @@ public class ClickHouseBinaryFormatReaderTest {
         Assert.assertEquals(reader.getList(1).size(), 0);
         Assert.assertEquals(reader.getList(2).size(), 0);
         Assert.assertEquals(reader.getList(3).size(), 0);
+    }
+
+    @Test
+    public void testRowBinaryReadRecordTruncatedStreamThrowsEof() throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        // Row 1 (consumed by RowBinaryFormatReader constructor's readNextRecord())
+        BinaryStreamUtils.writeInt32(out, 1);
+        BinaryStreamUtils.writeString(out, "ok");
+        // Row 2: truncated after first column so EOFException occurs mid-row
+        BinaryStreamUtils.writeInt32(out, 2);
+
+        TableSchema schema = new TableSchema(Arrays.asList(
+                ClickHouseColumn.of("id", "Int32"),
+                ClickHouseColumn.of("name", "String")));
+        QuerySettings querySettings = new QuerySettings().setUseTimeZone("UTC");
+        RowBinaryFormatReader reader = new RowBinaryFormatReader(
+                new ByteArrayInputStream(out.toByteArray()),
+                querySettings,
+                schema,
+                new BinaryStreamReader.DefaultByteBufferAllocator());
+
+        Assert.assertThrows(EOFException.class, () -> reader.readRecord(new LinkedHashMap<>()));
     }
 }
