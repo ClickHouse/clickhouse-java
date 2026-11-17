@@ -638,7 +638,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
             throw new SQLFeatureNotSupportedException("typeName cannot be null");
         }
 
-        ClickHouseColumn column = ClickHouseColumn.of("array", typeName);
+        ClickHouseColumn column = parseColumnType("array", typeName);
         try {
             return new com.clickhouse.jdbc.types.Array(column, elements,
                     config.isFlagSet(DriverProperties.MULTI_DIMENSIONAL_ARRAY_ELEMENT_TYPE));
@@ -653,11 +653,19 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
         if (typeName == null) {
             throw new SQLFeatureNotSupportedException("typeName cannot be null");
         }
-        ClickHouseColumn column = ClickHouseColumn.of("v", typeName);
+        ClickHouseColumn column = parseColumnType("v", typeName);
         if (column.getDataType().equals(ClickHouseDataType.Tuple)) {
             return new com.clickhouse.jdbc.types.Struct(column, attributes);
         } else {
             throw new SQLException("Only Tuple datatype is supported for Struct", ExceptionUtils.SQL_STATE_CLIENT_ERROR);
+        }
+    }
+
+    private static ClickHouseColumn parseColumnType(String columnName, String typeName) throws SQLException {
+        try {
+            return ClickHouseColumn.of(columnName, typeName);
+        } catch (RuntimeException e) {
+            throw new SQLException("Invalid type name '" + typeName + "'", ExceptionUtils.SQL_STATE_CLIENT_ERROR, e);
         }
     }
 

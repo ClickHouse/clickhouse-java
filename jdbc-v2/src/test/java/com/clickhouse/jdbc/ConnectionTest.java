@@ -965,6 +965,44 @@ public class ConnectionTest extends JdbcIntegrationTest {
         }
     }
 
+    @DataProvider
+    public static Object[][] invalidTypeNames() {
+        return new Object[][] {
+                {"NoSuchType"},
+                {"Nullable(Strng)"},
+                {"Array(NoSuchType)"},
+                {"Tuple(NoSuchType, UInt8)"},
+                {"Array(Int32"},
+                {"Tuple(Int8, String"},
+                {"Decimal(abc, 2)"},
+                {"Tuple(Decimal(abc, 2), UInt8)"},
+                {""},
+        };
+    }
+
+    @Test(dataProvider = "invalidTypeNames", timeOut = 10000)
+    public void testCreateArrayOfAndStructRejectInvalidTypeName(String typeName) throws Exception {
+        WireMockServer server = new WireMockServer(WireMockConfiguration.options()
+                .bindAddress("127.0.0.1").dynamicPort());
+        server.start();
+        try (ConnectionImpl connection = new ConnectionImpl(
+                "jdbc:clickhouse://127.0.0.1:" + server.port() + "/default", connectionProperties(null))) {
+            assertInvalidTypeName(expectThrows(SQLException.class,
+                    () -> connection.createArrayOf(typeName, new Object[] {1})), typeName);
+            assertInvalidTypeName(expectThrows(SQLException.class,
+                    () -> connection.createStruct(typeName, new Object[] {1})), typeName);
+        } finally {
+            server.stop();
+        }
+    }
+
+    private static void assertInvalidTypeName(SQLException error, String typeName) {
+        assertEquals(error.getClass(), SQLException.class);
+        assertEquals(error.getSQLState(), ExceptionUtils.SQL_STATE_CLIENT_ERROR);
+        assertTrue(error.getMessage().contains("'" + typeName + "'"), error.getMessage());
+        assertTrue(error.getCause() instanceof IllegalArgumentException, String.valueOf(error.getCause()));
+    }
+
     private static void stubDelayedSelectOne(WireMockServer server, int delayMillis) {
         // RowBinaryWithNamesAndTypes: one UInt8 column named "1", containing one row with value 1.
         server.stubFor(WireMock.post(WireMock.anyUrl())
