@@ -304,6 +304,10 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
                 {"ENUM('a' = -128, 'b' = 127)", "b"},
                 {"Variant(Bool, Enum('a' = 1, 'b' = 1000))", "b"},
                 {"Nullable(Enum('a' = 1, 'b' = 1000))", "a"},
+                {"Enum8('a', 'b')", "b"},
+                {"Enum8('a' = 5, 'b', 'c')", "c"},
+                {"Enum('a' = 127, 'b')", "b"},
+                {"Nullable(Enum8('x=y', 'b'))", "x=y"},
         };
     }
 
