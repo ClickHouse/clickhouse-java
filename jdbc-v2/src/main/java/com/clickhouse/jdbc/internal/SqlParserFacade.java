@@ -445,7 +445,9 @@ public abstract class SqlParserFacade {
 
             @Override
             public void enterTableExprIdentifier(ClickHouseParser.TableExprIdentifierContext ctx) {
-                if (ctx.tableIdentifier() != null) {
+                // In an INSERT these are the tables the statement reads (CTE, FROM, subquery). The target
+                // is set by enterInsertStmt, which is entered first, and must not be overwritten.
+                if (ctx.tableIdentifier() != null && !parsedStatement.isInsert()) {
                     extractAndSetDatabaseAndTable(ctx.tableIdentifier());
                 }
             }

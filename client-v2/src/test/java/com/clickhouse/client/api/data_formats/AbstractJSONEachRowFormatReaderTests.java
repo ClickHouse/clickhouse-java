@@ -222,6 +222,23 @@ public abstract class AbstractJSONEachRowFormatReaderTests extends BaseIntegrati
         }
     }
 
+    @Test(groups = {"integration"})
+    public void testUnsupportedIndexAccessorsThrowOnServerRow() throws Exception {
+        try (QueryResponse response = client.query("SELECT 1 AS a", newJsonEachRowSettings()).get();
+             ClickHouseTextFormatReader reader = createReader(response)) {
+            Assert.assertNotNull(reader.next());
+            Assert.expectThrows(UnsupportedOperationException.class, () -> reader.getInstant(1));
+            Assert.expectThrows(UnsupportedOperationException.class, () -> reader.getZonedDateTime(1));
+            Assert.expectThrows(UnsupportedOperationException.class, () -> reader.getDuration(1));
+            Assert.expectThrows(UnsupportedOperationException.class, () -> reader.getInet4Address(1));
+            Assert.expectThrows(UnsupportedOperationException.class, () -> reader.getInet6Address(1));
+            Assert.expectThrows(UnsupportedOperationException.class, () -> reader.getGeoPoint(1));
+            Assert.expectThrows(UnsupportedOperationException.class, () -> reader.getGeoRing(1));
+            Assert.expectThrows(UnsupportedOperationException.class, () -> reader.getGeoPolygon(1));
+            Assert.expectThrows(UnsupportedOperationException.class, () -> reader.getGeoMultiPolygon(1));
+        }
+    }
+
     private static void assertAccessorThrows(ClickHouseTextFormatReader reader,
                                              Consumer<ClickHouseTextFormatReader> call,
                                              String context) {

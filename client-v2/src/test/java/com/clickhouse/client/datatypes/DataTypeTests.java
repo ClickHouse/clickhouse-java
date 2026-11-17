@@ -38,13 +38,16 @@ import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.math.RoundingMode;
+import java.net.InetAddress;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.Period;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -2907,6 +2910,119 @@ public class DataTypeTests extends BaseIntegrationTest {
     }
 
     @Test(groups = {"integration"})
+    public void testReadNullableArraysOfTypesReadAsOtherClasses() throws Exception {
+        GenericRecord record = client.queryAll(
+                "SELECT "
+                        + "[toNullable(toUInt64(0)), NULL, toNullable(toUInt64(1)), "
+                        + "toNullable(toUInt64(18446744073709551615))] AS uint64_arr, "
+                        + "[toNullable(toDateTime64('2026-01-01 13:34:56.780', 3, 'UTC')), NULL, "
+                        + "toNullable(toDateTime64('2025-10-20 08:32:13.678', 3, 'UTC'))] AS datetime64_arr, "
+                        + "[toNullable(toIPv6('::ffff:1.2.3.4')), NULL, "
+                        + "toNullable(toIPv6('2001:db8::1'))] AS ipv6_arr, "
+                        + "[NULL, NULL]::Array(Nullable(UInt64)) AS all_null_uint64_arr, "
+                        + "toInt64(777) AS trail").get(0);
+
+        Assert.assertEquals(record.getList("uint64_arr"), Arrays.asList(
+                BigInteger.ZERO,
+                null,
+                BigInteger.ONE,
+                new BigInteger("18446744073709551615")));
+
+        List<?> dateTimes = record.getList("datetime64_arr");
+        Assert.assertEquals(dateTimes.size(), 3);
+        assertDateTime64(dateTimes.get(0), "2026-01-01T13:34:56.780Z");
+        Assert.assertNull(dateTimes.get(1));
+        assertDateTime64(dateTimes.get(2), "2025-10-20T08:32:13.678Z");
+
+        Assert.assertEquals(record.getList("ipv6_arr"), Arrays.asList(
+                InetAddress.getByName("1.2.3.4"),
+                null,
+                InetAddress.getByName("2001:db8::1")));
+        Assert.assertEquals(record.getList("all_null_uint64_arr"), Arrays.asList(null, null));
+        Assert.assertEquals(record.getLong("trail"), 777L);
+    }
+
+    @Test(groups = {"integration"})
+    public void testReadArrayOfNullableDateTime64FromTable() throws Exception {
+        final String table = "test_nullable_datetime64_array";
+        client.execute("DROP TABLE IF EXISTS " + table).get().close();
+
+        try {
+            client.execute(tableDefinition(
+                    table,
+                    "id Int64",
+                    "col_timestamp Array(Nullable(DateTime64(6, 'UTC')))")).get().close();
+            client.execute("INSERT INTO " + table + " VALUES "
+                    + "(1, [NULL, NULL]), "
+                    + "(2, ['2026-01-01 13:34:56.780', '2025-10-20 08:32:13.678'])").get().close();
+
+            List<GenericRecord> records = client.queryAll(
+                    "SELECT id, col_timestamp FROM " + table + " ORDER BY id");
+
+            Assert.assertEquals(records.size(), 2);
+            Assert.assertEquals(records.get(0).getLong("id"), 1L);
+            Assert.assertEquals(records.get(0).getList("col_timestamp"), Arrays.asList(null, null));
+
+            Assert.assertEquals(records.get(1).getLong("id"), 2L);
+            List<?> timestamps = records.get(1).getList("col_timestamp");
+            Assert.assertEquals(timestamps.size(), 2);
+            assertDateTime64(timestamps.get(0), "2026-01-01T13:34:56.780Z");
+            assertDateTime64(timestamps.get(1), "2025-10-20T08:32:13.678Z");
+        } finally {
+            client.execute("DROP TABLE IF EXISTS " + table).get().close();
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testReadArrayOfNullableTuple() {
+        if (isVersionMatch("(,26.1)")) {
+            throw new SkipException("Nullable Tuple requires ClickHouse 26.1 or later");
+        }
+
+        QuerySettings querySettings = new QuerySettings();
+        if (isVersionMatch("(,26.9)")) {
+            querySettings.serverSetting("allow_experimental_nullable_tuple_type", "1");
+        }
+
+        GenericRecord record = client.queryAll(
+                "SELECT toInt32(1) AS lead, "
+                        + "[CAST((1, 30, 500), 'Tuple(months Int32, days Int32, nanos Int64)'), NULL, "
+                        + "CAST((4, 5, 6), 'Tuple(months Int32, days Int32, nanos Int64)')] AS v, "
+                        + "toInt64(777) AS trail",
+                querySettings).get(0);
+
+        Assert.assertEquals(record.getInteger("lead"), 1);
+        List<?> values = record.getList("v");
+        Assert.assertEquals(values.size(), 3);
+        Assert.assertEquals((Object[]) values.get(0), new Object[] {1, 30, 500L});
+        Assert.assertNull(values.get(1));
+        Assert.assertEquals((Object[]) values.get(2), new Object[] {4, 5, 6L});
+        Assert.assertEquals(record.getLong("trail"), 777L);
+    }
+
+    @Test(groups = {"integration"})
+    public void testReadArrayOfNullableStringWithBinaryStringSupport() {
+        try (Client binaryClient = newClient().binaryStringSupport(true).build()) {
+            GenericRecord record = binaryClient.queryAll(
+                    "SELECT toInt32(1) AS lead, "
+                            + "['first', NULL, 'last']::Array(Nullable(String)) AS v, "
+                            + "toInt64(777) AS trail").get(0);
+
+            Assert.assertEquals(record.getInteger("lead"), 1);
+            List<?> values = record.getList("v");
+            Assert.assertEquals(values, Arrays.asList("first", null, "last"));
+            Assert.assertTrue(values.get(0) instanceof String);
+            Assert.assertTrue(values.get(2) instanceof String);
+            Assert.assertEquals(record.getLong("trail"), 777L);
+        }
+    }
+
+    private static void assertDateTime64(Object value, String instant) {
+        Assert.assertTrue(value instanceof ZonedDateTime, "expected ZonedDateTime, got " + value);
+        Assert.assertEquals(((ZonedDateTime) value).toInstant(), Instant.parse(instant));
+    }
+
+    @Test(groups = {"integration"})
     public void testGetStringArrayAndGetObjectArrayWhenValueIsList() throws Exception {
         final String table = "test_get_string_array_and_object_array_when_value_is_list";
         client.execute("DROP TABLE IF EXISTS " + table).get();
@@ -3266,6 +3382,271 @@ public class DataTypeTests extends BaseIntegrationTest {
         Assert.assertEquals(client.queryAll(UINT64_BOXED_SQL, DTOForUInt64BoxedTests.class, schema),
                 Collections.singletonList(new DTOForUInt64BoxedTests(1,
                         new BigInteger("18446744073709551615"), 777L)));
+    }
+
+    @Test(groups = {"integration"})
+    public void testDynamicExtraWireTypes() throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+        List<GenericRecord> arrRecords = client.queryAll(
+                "SELECT [1::Int32::Dynamic, 'x'::Dynamic]::Array(Dynamic)::Dynamic AS val, 42::Int32 AS tail");
+        Assert.assertEquals(arrRecords.size(), 1);
+        Assert.assertEquals(arrRecords.get(0).getObjectArray("val"), new Object[] {1, "x"});
+        Assert.assertEquals(arrRecords.get(0).getInteger("tail"), 42);
+
+        List<GenericRecord> tupleRecords = client.queryAll(
+                "SELECT (1, 'a', 2)::Tuple(`A0_` Int32, `a-b` String, `c` Int32)::Dynamic AS val, 42::Int32 AS tail");
+        Assert.assertEquals(tupleRecords.size(), 1);
+        Assert.assertEquals(tupleRecords.get(0).getObject("val"), new Object[] {1, "a", 2});
+        Assert.assertEquals(tupleRecords.get(0).getInteger("tail"), 42);
+    }
+
+    @Test(groups = {"integration"})
+    public void testFixedStringOverBufferLength() throws Exception {
+        String longPrefix = StringUtils.repeat('a', 1500);
+        String expected = longPrefix + StringUtils.repeat('\0', 2048 - longPrefix.length());
+        List<GenericRecord> records = client.queryAll(
+                "SELECT toFixedString('" + longPrefix + "', 2048) AS fs, 42::Int32 AS tail");
+        Assert.assertEquals(records.size(), 1);
+        Assert.assertEquals(records.get(0).getString("fs"), expected);
+        Assert.assertEquals(records.get(0).getInteger("tail"), 42);
+    }
+
+    @Test(groups = {"integration"})
+    public void testArrayOfGeometryRead() throws Exception {
+        if (isVersionMatch("(,25.10]")) {
+            return;
+        }
+        List<GenericRecord> records = client.queryAll(
+                "SELECT [CAST(CAST((1.0, 2.0), 'Point'), 'Geometry'), "
+                        + "CAST(CAST([(0.0, 0.0), (1.0, 1.0)], 'Ring'), 'Geometry')]::Array(Geometry) AS geoms, "
+                        + "42::Int32 AS tail SETTINGS allow_suspicious_variant_types = 1");
+        Assert.assertEquals(records.size(), 1);
+        Object[] geoms = records.get(0).getObjectArray("geoms");
+        Assert.assertEquals(geoms.length, 2);
+        assertGeometryValue(geoms[0], new double[] {1D, 2D});
+        assertGeometryValue(geoms[1], new double[][] {{0D, 0D}, {1D, 1D}});
+        Assert.assertEquals(records.get(0).getInteger("tail"), 42);
+    }
+
+    @Test(groups = {"integration"})
+    public void testJsonEmptyAndNullPaths() throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+        final String table = "test_json_empty_and_null_paths";
+        CommandSettings jsonSettings = (CommandSettings) new CommandSettings()
+                .serverSetting("enable_json_type", "1")
+                .serverSetting("allow_experimental_json_type", "1");
+
+        client.execute("DROP TABLE IF EXISTS " + table).get().close();
+        client.execute(tableDefinition(table, "rowId Int32", "j JSON(a Nullable(Int32), b String)", "tail Int32"),
+                jsonSettings).get().close();
+        client.execute("INSERT INTO " + table + " VALUES "
+                        + "(1, '{}', 10), "
+                        + "(2, '{\"a\": null, \"b\": \"ok\", \"dynNull\": null, \"dyn_A0\": 5}', 20)",
+                jsonSettings).get().close();
+
+        List<GenericRecord> records = client.queryAll("SELECT * FROM " + table + " ORDER BY rowId");
+        Assert.assertEquals(records.size(), 2);
+
+        Map<String, Object> row1 = (Map<String, Object>) records.get(0).getObject("j");
+        Assert.assertEquals(records.get(0).getInteger("tail"), 10);
+        Assert.assertNull(row1.get("a"));
+        Assert.assertEquals(row1.get("b"), "");
+
+        Map<String, Object> row2 = (Map<String, Object>) records.get(1).getObject("j");
+        Assert.assertEquals(records.get(1).getInteger("tail"), 20);
+        Assert.assertNull(row2.get("a"));
+        Assert.assertEquals(row2.get("b"), "ok");
+        Assert.assertFalse(row2.containsKey("dynNull"));
+        Assert.assertEquals(row2.get("dyn_A0"), 5L);
+    }
+
+    @Test(groups = {"integration"})
+    public void testVariantGeoGetString() throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+        List<GenericRecord> records = client.queryAll(
+                "SELECT "
+                        + "CAST(CAST((1.0, 2.0), 'Point') AS Variant(Int32, Point)) AS vp, "
+                        + "CAST(CAST([(0.0, 0.0), (1.0, 1.0)], 'Ring') AS Variant(Int32, Ring)) AS vr, "
+                        + "CAST(CAST([[(0.0, 0.0), (1.0, 0.0)]], 'MultiLineString') AS Variant(Int32, MultiLineString)) AS vml, "
+                        + "CAST(CAST([[[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)]]], 'MultiPolygon') AS Variant(Int32, MultiPolygon)) AS vmpg, "
+                        + "42::Int32 AS tail "
+                        + "SETTINGS allow_experimental_variant_type = 1");
+        Assert.assertEquals(records.size(), 1);
+        GenericRecord row = records.get(0);
+        Assert.assertEquals(row.getString("vp"), "(1.0,2.0)");
+        Assert.assertEquals(row.getString("vr"), "[(0.0,0.0),(1.0,1.0)]");
+        Assert.assertEquals(row.getString("vml"), "[[(0.0,0.0),(1.0,0.0)]]");
+        Assert.assertEquals(row.getString("vmpg"), "[[[(0.0,0.0),(1.0,0.0),(0.0,1.0)]]]");
+        Assert.assertEquals(row.getInteger("tail"), 42);
+
+        try (Client listClient = newClient()
+                .typeHintMapping(Collections.singletonMap(ClickHouseDataType.Array, List.class))
+                .build()) {
+            List<GenericRecord> listRows = listClient.queryAll("SELECT [10, 20]::Array(Int32) AS arr");
+            Assert.assertEquals(listRows.size(), 1);
+            Assert.assertEquals(listRows.get(0).getString("arr"), "[10, 20]");
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testInsertDurationToIntervalDayAndPrimitiveGeoArrays() throws Exception {
+        if (!isVersionMatch("(,24.8]")) {
+            final String intervalTable = "test_variant_duration_interval_day";
+            client.execute("DROP TABLE IF EXISTS " + intervalTable).get();
+            client.execute("CREATE TABLE " + intervalTable + " (rowId Int64, field Variant(String, IntervalDay)) ORDER BY ()",
+                    (CommandSettings) new CommandSettings().serverSetting("allow_experimental_variant_type", "1")).get();
+            client.register(DTOForVariantPrimitivesTests.class, client.getTableSchema(intervalTable));
+            client.insert(intervalTable, Collections.singletonList(
+                    new DTOForVariantPrimitivesTests(1, Duration.ofDays(3)))).get().close();
+
+            List<GenericRecord> rows = client.queryAll("SELECT * FROM " + intervalTable);
+            Assert.assertEquals(rows.size(), 1);
+            Assert.assertEquals(rows.get(0).getTemporalAmount("field"), Period.ofDays(3));
+        }
+
+        if (!isVersionMatch("(,25.10]")) {
+            final String geoTable = "test_geometry_primitive_arrays";
+            CommandSettings geoSettings = (CommandSettings) new CommandSettings()
+                    .serverSetting("allow_suspicious_variant_types", "1");
+            Object[] expectedValues = new Object[] {
+                    new double[] {1D, 2D},
+                    new double[][] {{1D, 2D}, {3D, 4D}, {1D, 2D}},
+                    new double[][][] {{{1D, 2D}, {3D, 4D}, {1D, 2D}}},
+                    new double[][][][] {{{{1D, 2D}, {3D, 4D}, {1D, 2D}}}}
+            };
+            client.execute("DROP TABLE IF EXISTS " + geoTable).get().close();
+            client.execute(tableDefinition(geoTable, "rowId Int32", "geom Geometry"), geoSettings).get().close();
+            client.register(DTOForGeometryTests.class, client.getTableSchema(geoTable));
+
+            List<DTOForGeometryTests> data = new ArrayList<>();
+            for (int i = 0; i < expectedValues.length; i++) {
+                data.add(new DTOForGeometryTests(i, expectedValues[i]));
+            }
+            client.insert(geoTable, data).get().close();
+
+            List<GenericRecord> records = client.queryAll("SELECT * FROM " + geoTable + " ORDER BY rowId");
+            Assert.assertEquals(records.size(), expectedValues.length);
+            for (GenericRecord record : records) {
+                assertGeometryValue(record.getObject("geom"), expectedValues[record.getInteger("rowId")]);
+            }
+        }
+    }
+
+    private enum SampleEnum {
+        FIRST,
+        SECOND
+    }
+
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class DTOForJavaEnumAndTemporalTypes {
+        private int rowId;
+        private SampleEnum e8;
+        private SampleEnum e16;
+        private OffsetDateTime dOffset;
+        private ZonedDateTime d32Zoned;
+        private java.sql.Timestamp dtTs;
+        private Instant dtInstant;
+        private java.sql.Timestamp dt64Ts;
+        private Instant dt64Instant;
+        private long trailing;
+    }
+
+    @Test(groups = {"integration"})
+    public void testInsertJavaEnumAndTemporalTypes() throws Exception {
+        final String table = "test_java_enum_and_temporal_types";
+        client.execute("DROP TABLE IF EXISTS " + table).get().close();
+        client.execute(tableDefinition(table,
+                "rowId Int32",
+                "e8 Enum8('FIRST' = 0, 'SECOND' = 1)",
+                "e16 Enum16('FIRST' = 0, 'SECOND' = 1)",
+                "dOffset Date",
+                "d32Zoned Date32",
+                "dtTs DateTime('UTC')",
+                "dtInstant DateTime('UTC')",
+                "dt64Ts DateTime64(3, 'UTC')",
+                "dt64Instant DateTime64(3, 'UTC')",
+                "trailing Int64")).get().close();
+        client.register(DTOForJavaEnumAndTemporalTypes.class, client.getTableSchema(table));
+
+        Instant inst = Instant.parse("2025-07-15T12:34:56.789Z");
+        ZonedDateTime zdt = ZonedDateTime.ofInstant(inst, ZoneOffset.UTC);
+        OffsetDateTime odt = OffsetDateTime.ofInstant(inst, ZoneOffset.UTC);
+        java.sql.Timestamp ts = java.sql.Timestamp.valueOf("2025-07-15 12:34:56.789");
+        DTOForJavaEnumAndTemporalTypes input = new DTOForJavaEnumAndTemporalTypes(
+                1, SampleEnum.SECOND, SampleEnum.FIRST, odt, zdt, ts, inst, ts, inst, 777L);
+        client.insert(table, Collections.singletonList(input)).get().close();
+
+        List<GenericRecord> rows = client.queryAll("SELECT * FROM " + table + " ORDER BY rowId");
+        Assert.assertEquals(rows.size(), 1);
+        GenericRecord row = rows.get(0);
+        Assert.assertEquals(row.getString("e8"), "SECOND");
+        Assert.assertEquals(row.getString("e16"), "FIRST");
+        Assert.assertEquals(row.getLocalDate("dOffset"), LocalDate.of(2025, 7, 15));
+        Assert.assertEquals(row.getLocalDate("d32Zoned"), LocalDate.of(2025, 7, 15));
+        Assert.assertEquals(row.getInstant("dtTs"), Instant.parse("2025-07-15T12:34:56Z"));
+        Assert.assertEquals(row.getInstant("dtInstant"), Instant.parse("2025-07-15T12:34:56Z"));
+        Assert.assertEquals(row.getInstant("dt64Ts"), inst);
+        Assert.assertEquals(row.getInstant("dt64Instant"), inst);
+        Assert.assertEquals(row.getLong("trailing"), 777L);
+    }
+
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class DTOForWidenedPrimitives {
+        private int rowId;
+        private byte i32ToByte;
+        private short i32ToShort;
+        private char i32ToChar;
+        private float i32ToFloat;
+        private double i32ToDouble;
+        private int i64ToInt;
+        private float i64ToFloat;
+        private double i64ToDouble;
+        private int f32ToInt;
+        private long f32ToLong;
+        private double f32ToDouble;
+        private int f64ToInt;
+        private long f64ToLong;
+        private float f64ToFloat;
+        private long trailing;
+    }
+
+    @Test(groups = {"integration"})
+    public void testReadWidenedPrimitivePojoFields() {
+        String sql = "SELECT toInt32(1) AS rowId"
+                + ", toInt32(65) AS i32ToByte"
+                + ", toInt32(66) AS i32ToShort"
+                + ", toInt32(67) AS i32ToChar"
+                + ", toInt32(68) AS i32ToFloat"
+                + ", toInt32(69) AS i32ToDouble"
+                + ", toInt64(70) AS i64ToInt"
+                + ", toInt64(71) AS i64ToFloat"
+                + ", toInt64(72) AS i64ToDouble"
+                + ", toFloat32(73) AS f32ToInt"
+                + ", toFloat32(74) AS f32ToLong"
+                + ", toFloat32(75) AS f32ToDouble"
+                + ", toFloat64(76) AS f64ToInt"
+                + ", toFloat64(77) AS f64ToLong"
+                + ", toFloat64(78) AS f64ToFloat"
+                + ", toInt64(777) AS trailing";
+        TableSchema schema = client.getTableSchemaFromQuery(sql);
+        client.register(DTOForWidenedPrimitives.class, schema);
+
+        List<DTOForWidenedPrimitives> rows = client.queryAll(sql, DTOForWidenedPrimitives.class, schema);
+        Assert.assertEquals(rows, Collections.singletonList(new DTOForWidenedPrimitives(
+                1, (byte) 65, (short) 66, 'C', 68f, 69d,
+                70, 71f, 72d,
+                73, 74L, 75d,
+                76, 77L, 78f, 777L)));
     }
 
     public static String tableDefinition(String table, String... columns) {

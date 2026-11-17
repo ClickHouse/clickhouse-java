@@ -25,6 +25,7 @@ Ask a human reviewer to inspect important changes directly when the diff touches
 - public API surface such as public classes, interfaces, methods, constructors, fields, or enums
 - behavioral compatibility such as defaults, retries, timeouts, parsing, serialization, formatting, or exception behavior
 - JDBC or R2DBC semantics, driver metadata, or type mappings
+- `client-v2` `BinaryStreamReader`, or nested reads (`Array`, `Map`, `Tuple`, `Nested`, `Dynamic`, `Variant`), including how nullable elements are typed
 - documented features in `docs/features.md`
 - security-sensitive code, authentication, credentials, or network-facing behavior
 - cross-module contracts where the same concept exists in multiple modules
