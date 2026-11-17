@@ -102,6 +102,9 @@ public enum ClientConfigProperties {
 
     COMPRESSION_LZ4_UNCOMPRESSED_BUF_SIZE("compression.lz4.uncompressed_buffer_size", Integer.class, String.valueOf(CompressedBlockOutputStream.UNCOMPRESSED_BUFF_SIZE)),
 
+    // Default 64 MiB. Allowed range is 1 MiB through the 1 GiB protocol limit.
+    COMPRESSION_MAX_BLOCK_SIZE("compression.max_block_size", Integer.class, "67108864"),
+
     COMPRESSION_METHOD("compression.method", CompressionMethod.class, CompressionMethod.ZSTD.name()),
 
     DISABLE_NATIVE_COMPRESSION("disable_native_compression", Boolean.class, "false"),

@@ -23,6 +23,8 @@ class CompressedBlockEntity implements HttpEntity {
 
     private final int bufferSize;
 
+    private final int maxBlockSize;
+
     private final boolean isResponse;
 
     private final boolean serverCompression;
@@ -34,10 +36,12 @@ class CompressedBlockEntity implements HttpEntity {
     private final CompressionMethod compressionMethod;
 
     CompressedBlockEntity(HttpEntity httpEntity, boolean useHttpCompression, boolean serverCompression, boolean clientCompression,
-                          int bufferSize, boolean isResponse, LZ4Factory lz4Factory, CompressionMethod compressMethod) {
+                          int bufferSize, int maxBlockSize, boolean isResponse, LZ4Factory lz4Factory,
+                          CompressionMethod compressMethod) {
         this.httpEntity = httpEntity;
         this.useHttpCompression = useHttpCompression;
         this.bufferSize = bufferSize;
+        this.maxBlockSize = maxBlockSize;
         this.serverCompression = serverCompression;
         this.clientCompression = clientCompression;
         this.isResponse = isResponse;
@@ -68,7 +72,7 @@ class CompressedBlockEntity implements HttpEntity {
                 }
             } else  {
                 return new CompressedBlockInputStream(httpEntity.getContent(), lz4Factory.fastDecompressor(),
-                        bufferSize);
+                        bufferSize, maxBlockSize);
             }
         } else {
             return httpEntity.getContent();

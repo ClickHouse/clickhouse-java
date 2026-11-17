@@ -340,7 +340,7 @@ public class ClientTests extends BaseIntegrationTest {
                     Assert.assertEquals(config.get(p.getKey()), p.getDefaultValue(), "Default value doesn't match");
                 }
             }
-            Assert.assertEquals(config.size(), 37); // to check everything is set. Increment when new added.
+            Assert.assertEquals(config.size(), 38); // to check everything is set. Increment when new added.
         }
 
         try (Client client = new Client.Builder()
@@ -375,7 +375,7 @@ public class ClientTests extends BaseIntegrationTest {
                 .queryFormat(ClickHouseFormat.CSV.name())
                 .build()) {
             Map<String, String> config = client.getConfiguration();
-            Assert.assertEquals(config.size(), 40); // to check everything is set. Increment when new added.
+            Assert.assertEquals(config.size(), 41); // to check everything is set. Increment when new added.
             Assert.assertEquals(config.get(ClientConfigProperties.DATABASE.getKey()), "mydb");
             Assert.assertEquals(config.get(ClientConfigProperties.MAX_EXECUTION_TIME.getKey()), "10");
             Assert.assertEquals(config.get(ClientConfigProperties.COMPRESSION_LZ4_UNCOMPRESSED_BUF_SIZE.getKey()), "300000");
@@ -403,6 +403,8 @@ public class ClientTests extends BaseIntegrationTest {
             Assert.assertEquals(config.get(ClientConfigProperties.BINARY_STRING_SUPPORT.getKey()), "true");
             Assert.assertEquals(config.get(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey()), "CSV");
             Assert.assertEquals(config.get(ClientConfigProperties.COMPRESSION_METHOD.getKey()), CompressionMethod.ZSTD.name());
+            Assert.assertEquals(config.get(ClientConfigProperties.COMPRESSION_MAX_BLOCK_SIZE.getKey()),
+                    ClientConfigProperties.COMPRESSION_MAX_BLOCK_SIZE.getDefaultValue());
             // Add new assertion for default value
         }
     }

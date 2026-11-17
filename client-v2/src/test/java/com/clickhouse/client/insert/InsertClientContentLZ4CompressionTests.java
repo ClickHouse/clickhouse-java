@@ -40,6 +40,7 @@ public class InsertClientContentLZ4CompressionTests extends InsertTests {
                 .setRootCertificate("containers/clickhouse-server/certs/localhost.crt")
                 .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
                 .compressClientRequest(true)
+                .compressionMethod(CompressionMethod.LZ4)
                 .build()) {
             final String tableName = "single_pojo_table";
             final String createSQL = SamplePOJO.generateTableCreateSQL(tableName);

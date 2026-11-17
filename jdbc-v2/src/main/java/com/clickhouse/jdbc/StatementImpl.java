@@ -20,8 +20,11 @@ import java.net.SocketTimeoutException;
 import java.sql.*;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Deque;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
@@ -370,9 +373,21 @@ public class StatementImpl implements Statement, JdbcV2Wrapper {
     }
 
     protected void handleSocketTimeoutException(Exception e) {
-        if (e.getCause() instanceof SocketTimeoutException || e instanceof SocketTimeoutException) {
+        if (hasCause(e, SocketTimeoutException.class)) {
             this.connection.onNetworkTimeout();
         }
+    }
+
+    static boolean hasCause(Throwable failure, Class<? extends Throwable> type) {
+        Set<Throwable> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+        Throwable current = failure;
+        while (current != null && visited.add(current)) {
+            if (type.isInstance(current)) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 
     protected void throwOnExecutionTimeout(Exception e, String queryId) throws SQLTimeoutException {
