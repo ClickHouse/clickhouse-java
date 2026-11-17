@@ -3,6 +3,7 @@ package com.clickhouse.client.api.internal;
 import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.time.zone.ZoneRules;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -58,7 +59,8 @@ public class ValidationUtils {
      * @param name - name of the setting, used in the error message
      * @return time zone for the ID
      * @throws SettingsValidationException if the ID is not a valid time zone ID, or if it is a fixed offset
-     *                                     that {@link TimeZone} cannot represent (an offset with seconds)
+     *                                     with seconds, for example {@code +05:30:45} (on Java 17 and earlier,
+     *                                     {@link TimeZone#getTimeZone(ZoneId)} returns GMT for it)
      */
     public static TimeZone toTimeZone(String timeZoneId, String name) {
         ZoneId zoneId;
@@ -75,14 +77,14 @@ public class ValidationUtils {
             // TimeZone does not recognise these offset IDs and returns GMT for them. Use the offset itself.
             zoneId = zoneId.normalized();
         }
-        TimeZone timeZone = TimeZone.getTimeZone(zoneId);
-        if (zoneId.getRules().isFixedOffset()
-                && timeZone.getRawOffset() != zoneId.getRules().getOffset(Instant.EPOCH).getTotalSeconds() * 1000L) {
-            // TimeZone returns GMT for an offset with seconds, for example +05:30:45.
+        ZoneRules rules = zoneId.getRules();
+        if (rules.isFixedOffset() && rules.getOffset(Instant.EPOCH).getTotalSeconds() % 60 != 0) {
+            // On Java 17 and earlier, TimeZone.getTimeZone returns GMT for an offset with seconds. Reject such
+            // offsets on every Java version, so that the result does not depend on the runtime.
             throw new SettingsValidationException(name, "\"" + name
                     + "\" must be a time zone ID with an offset in whole minutes, but was '" + timeZoneId + "'");
         }
-        return timeZone;
+        return TimeZone.getTimeZone(zoneId);
     }
 
     /**

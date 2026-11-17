@@ -248,8 +248,11 @@ public class SettingsTests {
                 {"UTC", "UTC"},
                 {"GMT", "GMT"},
                 {"Etc/GMT+5", "Etc/GMT+5"},
+                {"Africa/Monrovia", "Africa/Monrovia"},
                 {"GMT+05:30", "GMT+05:30"},
                 {"+05:30", "GMT+05:30"},
+                {"+05:30:00", "GMT+05:30"},
+                {"-09:30", "GMT-09:30"},
                 {"UTC+05:30", "GMT+05:30"},
                 {"UT-03:00", "GMT-03:00"},
         };
@@ -267,7 +270,7 @@ public class SettingsTests {
     public static Object[][] invalidTimeZoneIds() {
         return new Object[][]{
                 {"Mars/Olympus_Mons"}, {"America/Los_Angels"}, {""}, {" UTC"}, {"+25:00"}, {"UTC+5:3"},
-                {"+05:30:45"}, {"UTC+05:30:45"},
+                {"+05:30:45"}, {"-05:30:45"}, {"UTC+05:30:45"}, {"GMT+05:30:45"},
         };
     }
 
