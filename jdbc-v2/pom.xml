@@ -144,7 +144,8 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <executions>
                     <execution>
-                        <!-- main sources only: the test compilation finds Lombok on the test class path -->
+                        <!-- main sources only: a processor path at plugin level would also replace the processor
+                             discovery on the class path of the test compilation, which uses Lombok -->
                         <id>default-compile</id>
                         <configuration>
                             <annotationProcessorPaths>

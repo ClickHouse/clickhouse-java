@@ -37,6 +37,8 @@
                 <configuration>
                     <!-- the processor registered in src/main/resources must not run on its own sources -->
                     <proc>none</proc>
+                    <!-- javac 8 loads the processor in the builds of client-v2 and jdbc-v2 -->
+                    <release>8</release>
                 </configuration>
             </plugin>
         </plugins>

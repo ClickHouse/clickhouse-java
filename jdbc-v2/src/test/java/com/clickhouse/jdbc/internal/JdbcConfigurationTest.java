@@ -186,6 +186,12 @@ public class JdbcConfigurationTest {
         assertEquals(new ArrayList<>(descriptions.keySet()), Arrays.asList(DriverProperties.values()));
         descriptions.forEach((p, d) -> assertFalse(d.trim().isEmpty(), "Description of " + p));
         assertThrows(UnsupportedOperationException.class, () -> descriptions.put(DriverProperties.SQL_PARSER, "a"));
+
+        Set<String> driverKeys = Arrays.stream(DriverProperties.values()).map(DriverProperties::getKey)
+            .collect(Collectors.toSet());
+        Set<String> sharedKeys = Arrays.stream(ClientConfigProperties.values()).map(ClientConfigProperties::getKey)
+            .filter(driverKeys::contains).collect(Collectors.toSet());
+        assertTrue(sharedKeys.isEmpty(), "Keys of both a client and a driver property: " + sharedKeys);
     }
 
     @DataProvider(name = "propertyInfoDescriptions")
@@ -228,6 +234,9 @@ public class JdbcConfigurationTest {
             String expected = descriptions.getOrDefault(info.name, JdbcConfiguration.USER_DEFINED_PROPERTY_DESCRIPTION);
             assertEquals(info.description, expected, "Description of " + info.name);
         }
+        assertEquals(infos.get(ClientConfigProperties.USER.getKey()).description, "User name for authentication.");
+        assertEquals(infos.get(DriverProperties.SQL_PARSER.getKey()).description,
+            "SQL parser of the driver. Choices: ANTLR4, ANTLR4_PARAMS_PARSER, JAVACC.");
         setValues.forEach((key, value) -> assertEquals(infos.get(key).value, value, "Value of " + key));
     }
 
