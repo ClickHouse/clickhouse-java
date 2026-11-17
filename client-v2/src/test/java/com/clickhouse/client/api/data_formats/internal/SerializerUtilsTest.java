@@ -481,6 +481,7 @@ public class SerializerUtilsTest {
         Assert.assertEquals(valueOut.toByteArray(), new byte[] {2});
     }
 
+
     @Test(dataProvider = "nestedNullableData")
     public void testNestedNullableRoundTrip(String typeName, Object value) throws Exception {
         ClickHouseColumn column = ClickHouseColumn.of("v", typeName);
