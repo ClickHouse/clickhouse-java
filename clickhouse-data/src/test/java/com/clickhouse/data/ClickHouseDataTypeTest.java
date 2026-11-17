@@ -34,6 +34,15 @@ public class ClickHouseDataTypeTest {
     }
 
     @Test(groups = { "unit" })
+    public void testEnumTypeNames() {
+        Assert.assertEquals(ClickHouseDataType.of("Enum"), ClickHouseDataType.Enum);
+        Assert.assertEquals(ClickHouseDataType.of("enum"), ClickHouseDataType.Enum);
+        Assert.assertEquals(ClickHouseDataType.of("ENUM"), ClickHouseDataType.Enum);
+        Assert.assertEquals(ClickHouseDataType.of("Enum8"), ClickHouseDataType.Enum8);
+        Assert.assertEquals(ClickHouseDataType.of("Enum16"), ClickHouseDataType.Enum16);
+    }
+
+    @Test(groups = { "unit" })
     public void testMatch() {
         List<String> matched = ClickHouseDataType.match("INT1");
         Assert.assertEquals(matched.size(), 3);

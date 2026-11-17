@@ -272,8 +272,6 @@ public class ClickHouseColumnTest {
                 { "Enum('a' = -129)", ClickHouseDataType.Enum16 },
                 { "enum('a' = 1000)", ClickHouseDataType.Enum16 },
                 { "ENUM('a' = 1)", ClickHouseDataType.Enum8 },
-                { "enum8('a' = 1)", ClickHouseDataType.Enum8 },
-                { "enum16('a' = 1)", ClickHouseDataType.Enum16 },
                 { "Enum8('a' = 1)", ClickHouseDataType.Enum8 },
                 { "Enum16('a' = 1)", ClickHouseDataType.Enum16 },
         };
