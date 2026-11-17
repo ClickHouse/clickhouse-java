@@ -425,6 +425,10 @@ public class HttpAPIClientHelper {
 
     private static final String ERROR_CODE_PREFIX_PATTERN = "%d. DB::Exception:";
 
+    // Start of the server message after "Code: ", for any exception type
+    // ("<code>. DB::Exception:", "<code>. DB::NetException:", "<code>. Coordination::Exception:", ...)
+    private static final String ERROR_CODE_LOOKUP_PATTERN = "%d. ";
+
     /**
      * Reads status line and if error tries to parse response body to get server error message.
      *
@@ -488,7 +492,7 @@ public class HttpAPIClientHelper {
     private static ServerException readClickHouseError(HttpEntity httpEntity, int serverCode, String queryId, int httpCode) throws Exception {
         InputStream body = httpEntity.getContent();
         byte[] buffer = new byte[ERROR_BODY_BUFFER_SIZE];
-        byte[] lookUpStr = String.format(ERROR_CODE_PREFIX_PATTERN, serverCode).getBytes(StandardCharsets.UTF_8);
+        byte[] lookUpStr = String.format(ERROR_CODE_LOOKUP_PATTERN, serverCode).getBytes(StandardCharsets.UTF_8);
         StringBuilder msgBuilder = new StringBuilder();
         boolean found = false;
         while (true) {
