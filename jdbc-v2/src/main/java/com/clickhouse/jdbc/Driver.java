@@ -47,12 +47,12 @@ public class Driver implements java.sql.Driver {
                 for (StackTraceElement ste : Thread.currentThread().getStackTrace()) {
                     for (String framework : FRAMEWORKS_TO_DETECT) {
                         if (ste.toString().contains(framework)) {
-                            inferredFrameworks.add(String.format("(%s)", framework));
+                            inferredFrameworks.add(framework);
                         }
                     }
                 }
 
-                frameworksDetected = String.join("; ", inferredFrameworks);
+                frameworksDetected = String.join("+", inferredFrameworks);
             }
 
             return frameworksDetected;

@@ -379,4 +379,28 @@ public class ParameterizedQueryTest extends BaseIntegrationTest {
         };
     }
 
+    @Test(groups = {"integration"})
+    void testContainerQueryParameters() throws Exception {
+        Map<String, Integer> mapParam = new java.util.LinkedHashMap<>();
+        mapParam.put("a", 1);
+        mapParam.put("b", 2);
+
+        Map<String, Object> params = new HashMap<>();
+        params.put("m", mapParam);
+        params.put("arr", new int[] {10, 20, 30});
+        params.put("nested", Arrays.asList(Arrays.asList("x", null), Collections.singletonList("y")));
+
+        try (QueryResponse response = client.query(
+                "SELECT {m:Map(String, Int32)} AS m, {arr:Array(Int32)} AS arr, "
+                        + "{nested:Array(Array(Nullable(String)))} AS nested",
+                params).get();
+             ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response)) {
+            Assert.assertNotNull(reader.next());
+            Assert.assertEquals(reader.<Map<String, Integer>>readValue("m"), mapParam);
+            Assert.assertEquals(reader.getIntArray("arr"), new int[] {10, 20, 30});
+            Assert.assertEquals(reader.getList("nested"),
+                    Arrays.asList(Arrays.asList("x", null), Collections.singletonList("y")));
+        }
+    }
+
 }

@@ -214,7 +214,7 @@ public void executeWorkloadTask(Connection conn, String taskName) throws SQLExce
 
 #### How it is observed on the server (`User-Agent` header)
 
-The JDBC driver communicates over HTTP and passes the client name as the leading segment of the HTTP `User-Agent` header. The driver automatically appends the JDBC driver version, detected frameworks (e.g. Apache Spark), the client version, and a comment group with the Java version (`lv`), the operating system (`os`), and the HTTP client (`hc`: `ahc_` and the Apache HttpClient version):
+The JDBC driver communicates over HTTP and passes the client name as the leading segment of the HTTP `User-Agent` header. The driver automatically appends the JDBC driver version, the client version, and a comment group with detected frameworks (e.g. Apache Spark, as `fw`), the Java version (`lv`), the operating system (`os`), and the HTTP client (`hc`: `ahc_` and the Apache HttpClient version):
 
 ```text
 order-service/1.2.0 jdbc-v2/0.12.0 clickhouse-java-v2/0.12.0 (lv:java/17.0.2; os:Linux; hc:ahc_5.6.4)
@@ -373,12 +373,12 @@ public Connection createTokenAuthConnection() throws SQLException {
 
 #### JWT Authentication (ClickHouse Cloud)
 
-> **Main Documentation:** See [JWT Authentication in ClickHouse Cloud](https://clickhouse.com/docs/concepts/features/security/external-authenticators/jwt) and the local reference in [clickhouse-docs/jdbc.mdx#jwt-authentication](clickhouse-docs/jdbc.mdx#jwt-authentication).
+> **Main Documentation:** See [JWT Authentication in ClickHouse Cloud](https://clickhouse.com/docs/concepts/features/security/external-authenticators/jwt) and [JDBC JWT Authentication](https://clickhouse.com/docs/integrations/language-clients/java/jdbc#jwt-authentication).
 
 - **Cloud-Only Feature:** JWT authentication is a **ClickHouse Cloud-only** feature. ClickHouse Cloud dynamically creates **ephemeral users** derived from token claims.
 - **User-to-Service Authentication:** JWT authentication is designed for **user-to-service** authentication patterns.
 - **Service-to-Service Recommendation:** Using JWT for **service-to-service** communication is **not recommended** because JWT tokens have a short lifespan and require frequent refreshing.
-- **No Standard JDBC Token Update:** In standard JDBC, there is **no standard API or mechanism to update authentication tokens on active `Connection` instances**. Pooled JDBC connections are long-lived and initialized with static connection properties. While you can unwrap the underlying Java Client via `connection.unwrap(ConnectionImpl.class).getClient().updateBearerToken(...)` (see [clickhouse-docs/jdbc.mdx#jwt-authentication](clickhouse-docs/jdbc.mdx#jwt-authentication)), this is non-standard for JDBC applications. For JDBC service applications, standard username/password authentication is recommended.
+- **No Standard JDBC Token Update:** In standard JDBC, there is **no standard API or mechanism to update authentication tokens on active `Connection` instances**. Pooled JDBC connections are long-lived and initialized with static connection properties. While you can unwrap the underlying Java Client via `connection.unwrap(ConnectionImpl.class).getClient().updateBearerToken(...)` (see [JDBC JWT Authentication](https://clickhouse.com/docs/integrations/language-clients/java/jdbc#jwt-authentication)), this is non-standard for JDBC applications. For JDBC service applications, standard username/password authentication is recommended.
 
 ### Option C — Mutual TLS (client certificate)
 
@@ -989,7 +989,7 @@ public int getParameterCount(PreparedStatement ps) throws SQLException {
 
 ### Type mapping
 
-The driver maps ClickHouse types to JDBC types (e.g. `UInt64` → `NUMERIC`, `Tuple` → `STRUCT`); see [type_mapping.md](../type_mapping.md). Override defaults:
+The driver maps ClickHouse types to JDBC types (e.g. `UInt64` → `NUMERIC`, `Tuple` → `STRUCT`); see [JDBC Type Mapping](https://clickhouse.com/docs/integrations/language-clients/java/jdbc#jdbc-type-mapping) and the [Date/Time values guide](https://clickhouse.com/docs/integrations/language-clients/java/jdbc_date_time_guide). Override defaults:
 
 
 ```java
@@ -1057,7 +1057,7 @@ Key JDBC-specific properties (see [`DriverProperties`](../jdbc-v2/src/main/java/
 
 ## Observability & Monitoring
 
-The ClickHouse JDBC driver (V2) supports metrics and distributed tracing by leveraging the underlying Client V2 engine and standard JDBC application instrumentation. For detailed metric definitions, span attributes, and OpenTelemetry semantic conventions, see the [Client V2 Observability Documentation](https://clickhouse.com/docs/integrations/language-clients/java/client#v2-o11y).
+The ClickHouse JDBC driver (V2) supports metrics and distributed tracing by leveraging the underlying Client V2 engine and standard JDBC application instrumentation. For detailed metric definitions, span attributes, and OpenTelemetry semantic conventions, see the [JDBC Observability Documentation](https://clickhouse.com/docs/integrations/language-clients/java/jdbc#jdbc-v2-o11y) and [Client V2 Observability Documentation](https://clickhouse.com/docs/integrations/language-clients/java/client#v2-o11y).
 
 ### Distributed Tracing & Spans
 
@@ -1128,10 +1128,10 @@ For a complete sample demonstrating JDBC driver setup and telemetry in a Spring 
 
 **Related documents in this repository:**
 
-- [integration-common.md](integration-common.md) — choosing JDBC vs Client
+- [integration-index.md](integration-index.md) — choosing JDBC vs Client
 - [integration-client.md](integration-client.md) — Java Client integration path
 - [integration-ops.md](integration-ops.md) — operations and observability guide
 - [authentication.md](authentication.md) — full authentication and TLS reference
 - [features.md](features.md) — compatibility contract
-- [type_mapping.md](../type_mapping.md) — JDBC type mapping recommendations
+- [JDBC Type Mapping](https://clickhouse.com/docs/integrations/language-clients/java/jdbc#jdbc-type-mapping) — JDBC type mapping reference
 - [integration-testing.md](integration-testing.md) — integration testing recommendations and practices

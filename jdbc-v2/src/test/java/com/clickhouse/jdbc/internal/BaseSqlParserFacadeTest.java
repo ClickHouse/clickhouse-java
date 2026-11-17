@@ -428,6 +428,33 @@ public abstract class BaseSqlParserFacadeTest {
         Assert.assertEquals(stmt.getTable(), expectedTableName, "Table name mismatch for: " + sql);
     }
 
+    @DataProvider(name = "insertTargetWithSourceTablesDP")
+    public static Object[][] insertTargetWithSourceTablesDP() {
+        return new Object[][] {
+                {"INSERT INTO dst WITH r AS (SELECT 1 AS n) SELECT n FROM r", null, "dst"},
+                {"INSERT INTO dst SELECT * FROM src", null, "dst"},
+                {"INSERT INTO db1.dst SELECT * FROM db2.src", "db1", "db1.dst"},
+                {"INSERT INTO dst WITH r AS (SELECT 1 AS n) SELECT n FROM r JOIN other USING (n)", null, "dst"},
+                {"INSERT INTO dst VALUES (?, (SELECT max(x) FROM src))", null, "dst"},
+                {"INSERT INTO dst (a) VALUES (?)", null, "dst"},
+                {"INSERT INTO dst SELECT 1", null, "dst"},
+                // not an insert: the table read is the only table name
+                {"SELECT * FROM src", null, "src"},
+                {"WITH r AS (SELECT 1 AS n) SELECT n FROM r", null, "r"},
+        };
+    }
+
+    @Test(dataProvider = "insertTargetWithSourceTablesDP")
+    public void testInsertTargetIsNotReplacedBySourceTable(String sql, String expectedDatabase, String expectedTable) {
+        ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
+        Assert.assertFalse(stmt.isHasErrors(), "Query should parse without errors: " + sql);
+        Assert.assertEquals(stmt.getTable(), expectedTable, "Table name mismatch for: " + sql);
+        if (!javaCcBackend) {
+            // JavaCC reports the database only as part of the table name
+            Assert.assertEquals(stmt.getDatabase(), expectedDatabase, "Database mismatch for: " + sql);
+        }
+    }
+
     @Test(dataProvider = "antlr4HeredocStatementsDP")
     public void testHeredocStatementsAntlr4Only(String sql, boolean insert, String expectedTable,
                                                 String expectedValuesList, int expectedArgCount) {

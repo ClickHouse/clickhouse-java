@@ -75,7 +75,7 @@ The JDBC driver is a thin adaptation layer that uses the Java Client underneath 
 
 **Official documentation:**
 
-- Java Client: [clickhouse.com/docs/integrations/java](https://clickhouse.com/docs/integrations/java)
+- Java Client: [clickhouse.com/docs/integrations/language-clients/java/client](https://clickhouse.com/docs/integrations/language-clients/java/client)
 - JDBC Driver: [clickhouse.com/docs/integrations/language-clients/java/jdbc](https://clickhouse.com/docs/integrations/language-clients/java/jdbc)
 - Repository README: [README.md](../README.md)
 - Feature contract (for reviewers and advanced users): [features.md](features.md)
