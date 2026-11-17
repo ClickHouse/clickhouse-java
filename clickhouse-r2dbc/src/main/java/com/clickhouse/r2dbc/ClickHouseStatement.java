@@ -11,6 +11,7 @@ import io.r2dbc.spi.Clob;
 import io.r2dbc.spi.Parameter;
 import io.r2dbc.spi.Result;
 import io.r2dbc.spi.Statement;
+import reactor.core.Exceptions;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -18,6 +19,8 @@ import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 public class ClickHouseStatement implements Statement {
@@ -136,8 +139,9 @@ public class ClickHouseStatement implements Statement {
             request.option(ClickHouseClientOption.MAX_RESULT_ROWS, fetchSize);
         }
         if (boundList.isEmpty()) {
-            return Flux.from(Mono.fromFuture(request::execute)
-                    .map(ClickHouseResult::new));
+            return Flux.from(executeRequest(request::execute)
+                    .map(ClickHouseResult::new))
+                    .doOnDiscard(ClickHouseResult.class, ClickHouseResult::close);
         } else {
             Stream<Mono<ClickHouseResponse>> monoStream = boundList.stream().map(binding -> {
                 for (int i = 0; i < binding.values.length; i++ ) {
@@ -146,11 +150,34 @@ public class ClickHouseStatement implements Statement {
                     }
                 }
                 request.params(binding.values);
-                return Mono.fromFuture(request::execute);
+                return executeRequest(request::execute);
             });
             return Flux.fromStream(monoStream)
                     .flatMap(Mono::flux)
-                    .map(ClickHouseResult::new);
+                    .map(ClickHouseResult::new)
+                    .doOnDiscard(ClickHouseResult.class, ClickHouseResult::close);
+        }
+    }
+
+    static Mono<ClickHouseResponse> executeRequest(Supplier<CompletableFuture<ClickHouseResponse>> request) {
+        return Mono.fromFuture(() -> {
+            CompletableFuture<ClickHouseResponse> future = request.get();
+            CompletableFuture<ClickHouseResponse> bridge = new FutureBridge<>();
+            future.whenComplete((response, error) -> {
+                if (error != null) {
+                    bridge.completeExceptionally(Exceptions.unwrap(error));
+                } else {
+                    bridge.complete(response);
+                }
+            });
+            return bridge;
+        }).doOnDiscard(ClickHouseResponse.class, ClickHouseResponse::close);
+    }
+
+    private static final class FutureBridge<T> extends CompletableFuture<T> {
+        @Override
+        public boolean cancel(boolean mayInterruptIfRunning) {
+            return false;
         }
     }
 
