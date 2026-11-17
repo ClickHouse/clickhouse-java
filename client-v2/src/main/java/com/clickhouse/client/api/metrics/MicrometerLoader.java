@@ -54,8 +54,9 @@ public class MicrometerLoader {
 
     public static void applyConnectionMetricsBinder(Object registry, String metricsGroupName, HttpAPIClientHelper.MeteredManagedHttpClientConnectionFactory factory) {
         if (registry instanceof MeterRegistry) {
-            Gauge.builder("httpcomponents.httpclient.connect.time", factory, HttpAPIClientHelper.MeteredManagedHttpClientConnectionFactory::getTime)
-                    .description("The running average connection creation time.")
+            Gauge.builder("httpcomponents.httpclient.connect.time", factory,
+                            HttpAPIClientHelper.MeteredManagedHttpClientConnectionFactory::getAverageTimeInMillis)
+                    .description("Average connection establishment time in milliseconds.")
                     .tag("httpclient", metricsGroupName)
                     .register((MeterRegistry) registry);
         } else {
