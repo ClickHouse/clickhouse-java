@@ -141,6 +141,34 @@
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <!-- main sources only: the test compilation finds Lombok on the test class path -->
+                        <id>default-compile</id>
+                        <configuration>
+                            <annotationProcessorPaths>
+                                <path>
+                                    <!-- generates DriverPropertiesDescriptions from the @Description annotations -->
+                                    <groupId>${project.parent.groupId}</groupId>
+                                    <artifactId>clickhouse-annotation-processor</artifactId>
+                                    <version>${revision}</version>
+                                </path>
+                            </annotationProcessorPaths>
+                        </configuration>
+                    </execution>
+                </executions>
+                <dependencies>
+                    <!-- makes Maven build clickhouse-annotation-processor before this module -->
+                    <dependency>
+                        <groupId>${project.parent.groupId}</groupId>
+                        <artifactId>clickhouse-annotation-processor</artifactId>
+                        <version>${revision}</version>
+                    </dependency>
+                </dependencies>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-failsafe-plugin</artifactId>
             </plugin>
             <plugin>

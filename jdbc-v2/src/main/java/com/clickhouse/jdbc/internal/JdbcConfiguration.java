@@ -2,19 +2,18 @@ package com.clickhouse.jdbc.internal;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.ClientConfigPropertiesDescriptions;
 import com.clickhouse.client.api.enums.SSLMode;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.Driver;
 import com.clickhouse.jdbc.DriverProperties;
+import com.clickhouse.jdbc.DriverPropertiesDescriptions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -49,9 +48,8 @@ public class JdbcConfiguration {
     private static final Pattern PATTERN_HTTP_TOKEN = Pattern.compile(
         "[A-Za-z0-9!#$%&'*+\\.\\^_`\\|~-]+");
 
-    static final String PROPERTY_DESCRIPTIONS_RESOURCE = "property-descriptions.properties";
     static final String USER_DEFINED_PROPERTY_DESCRIPTION = "(User Defined)";
-    private static final Map<String, String> PROPERTY_DESCRIPTIONS = loadPropertyDescriptions();
+    private static final Map<String, String> PROPERTY_DESCRIPTIONS = propertyDescriptions();
 
     private final boolean disableFrameworkDetection;
     private final Map<String, Class<?>> typeMap;
@@ -455,26 +453,14 @@ public class JdbcConfiguration {
     }
 
     /**
-     * Reads the descriptions of the client and driver properties from {@link #PROPERTY_DESCRIPTIONS_RESOURCE}.
-     * Returns an empty map when the resource cannot be read, so that the configuration does not fail.
+     * Returns the descriptions of the client and driver properties by property key. The descriptions come from the
+     * {@code @Description} annotations of {@link ClientConfigProperties} and {@link DriverProperties}.
      */
-    static Map<String, String> loadPropertyDescriptions() {
-        try (InputStream in = JdbcConfiguration.class.getResourceAsStream(PROPERTY_DESCRIPTIONS_RESOURCE)) {
-            if (in == null) {
-                LOG.warn("Resource '{}' is not found. Driver properties have no descriptions.", PROPERTY_DESCRIPTIONS_RESOURCE);
-                return Collections.emptyMap();
-            }
-            Properties descriptions = new Properties();
-            descriptions.load(new InputStreamReader(in, StandardCharsets.UTF_8));
-            ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
-            for (String key : descriptions.stringPropertyNames()) {
-                builder.put(key, descriptions.getProperty(key).trim());
-            }
-            return builder.build();
-        } catch (IOException | IllegalArgumentException e) {
-            LOG.warn("Failed to read resource '{}'. Driver properties have no descriptions.", PROPERTY_DESCRIPTIONS_RESOURCE, e);
-            return Collections.emptyMap();
-        }
+    static Map<String, String> propertyDescriptions() {
+        Map<String, String> descriptions = new HashMap<>();
+        ClientConfigPropertiesDescriptions.getDescriptions().forEach((p, d) -> descriptions.put(p.getKey(), d));
+        DriverPropertiesDescriptions.getDescriptions().forEach((p, d) -> descriptions.put(p.getKey(), d));
+        return Collections.unmodifiableMap(descriptions);
     }
 
     /**

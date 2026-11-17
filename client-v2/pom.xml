@@ -221,9 +221,23 @@
                             <artifactId>lombok</artifactId>
                             <version>1.18.38</version>
                         </path>
+                        <path>
+                            <!-- generates ClientConfigPropertiesDescriptions from the @Description annotations -->
+                            <groupId>${project.parent.groupId}</groupId>
+                            <artifactId>clickhouse-annotation-processor</artifactId>
+                            <version>${revision}</version>
+                        </path>
                     </annotationProcessorPaths>
                     <release>8</release>
                 </configuration>
+                <dependencies>
+                    <!-- makes Maven build clickhouse-annotation-processor before this module -->
+                    <dependency>
+                        <groupId>${project.parent.groupId}</groupId>
+                        <artifactId>clickhouse-annotation-processor</artifactId>
+                        <version>${revision}</version>
+                    </dependency>
+                </dependencies>
             </plugin>
             <plugin>
                 <!-- generates classes from src/main/java-templates, for example the versions of the client and its dependencies -->

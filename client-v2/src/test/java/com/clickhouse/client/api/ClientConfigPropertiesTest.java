@@ -132,4 +132,14 @@ public class ClientConfigPropertiesTest {
         Map<String, String> parsed = ClientConfigProperties.toKeyValuePairs(ClientConfigProperties.fromKeyValuePairs(pairs));
         Assert.assertEquals(new ArrayList<>(parsed.entrySet()), new ArrayList<>(pairs.entrySet()));
     }
+
+    @Test(groups = {"unit"})
+    public void testDescriptions() {
+        Map<ClientConfigProperties, String> descriptions = ClientConfigPropertiesDescriptions.getDescriptions();
+        Assert.assertEquals(new ArrayList<>(descriptions.keySet()), Arrays.asList(ClientConfigProperties.values()));
+        descriptions.forEach((p, d) -> Assert.assertFalse(d.trim().isEmpty(), "Description of " + p));
+        Assert.assertEquals(descriptions.get(ClientConfigProperties.USER), "User name for authentication.");
+        Assert.expectThrows(UnsupportedOperationException.class,
+                () -> descriptions.put(ClientConfigProperties.USER, "a"));
+    }
 }

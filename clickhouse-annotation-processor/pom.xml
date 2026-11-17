@@ -1,0 +1,44 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.clickhouse</groupId>
+        <artifactId>clickhouse-java</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>clickhouse-annotation-processor</artifactId>
+    <packaging>jar</packaging>
+
+    <name>ClickHouse Annotation Processor</name>
+    <description>Annotation processors that the build of the ClickHouse Java libraries uses. Not published.</description>
+    <url>https://github.com/ClickHouse/clickhouse-java/tree/main/clickhouse-annotation-processor</url>
+
+    <properties>
+        <!-- Build-time tool: client-v2 and jdbc-v2 use it only to compile. See also excludeArtifacts in the release profile. -->
+        <maven.deploy.skip>true</maven.deploy.skip>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.testng</groupId>
+            <artifactId>testng</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <!-- the processor registered in src/main/resources must not run on its own sources -->
+                    <proc>none</proc>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

@@ -22,7 +22,7 @@ This guide names only the properties relevant to each step. The exhaustive lists
 - **Operation configuration** — set per statement or as connection defaults: fetch size, timeouts, batch behavior, dedup tokens. Covered in Steps 4–6. 
 
 - Property routing (see [`DriverProperties`](../jdbc-v2/src/main/java/com/clickhouse/jdbc/DriverProperties.java)): if a property is a JDBC-specific driver property it is handled by the driver; **all other properties are forwarded to `ClientConfigProperties`**.
-- Property descriptions: `Driver#getPropertyInfo` returns each client and driver property with its default value and a description. The descriptions are in [`property-descriptions.properties`](../jdbc-v2/src/main/resources/com/clickhouse/jdbc/internal/property-descriptions.properties). When you add a property to `DriverProperties` or `ClientConfigProperties`, add its description to this file. `JdbcConfigurationTest` fails when a property has no description.
+- Property descriptions: `Driver#getPropertyInfo` returns each client and driver property with its default value and a description. Each constant of `DriverProperties` and `ClientConfigProperties` has its description in a `@com.clickhouse.client.api.Description` annotation. At build time, the annotation processor in `clickhouse-annotation-processor` generates `DriverPropertiesDescriptions` and `ClientConfigPropertiesDescriptions` with the maps of these descriptions. The build fails when a constant has no description.
 
 ### Maven Artifacts
 

@@ -2,23 +2,23 @@ package com.clickhouse.jdbc.internal;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.ClientConfigPropertiesDescriptions;
 import com.clickhouse.client.api.ClientMisconfigurationException;
 import com.clickhouse.client.api.enums.SSLMode;
 
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.Driver;
 import com.clickhouse.jdbc.DriverProperties;
+import com.clickhouse.jdbc.DriverPropertiesDescriptions;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import javax.net.ssl.SSLContext;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.lang.reflect.Field;
-import java.nio.charset.StandardCharsets;
 import java.sql.DriverPropertyInfo;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -26,7 +26,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 import static org.testng.Assert.assertEquals;
@@ -182,30 +181,11 @@ public class JdbcConfigurationTest {
     }
 
     @Test
-    public void testPropertyDescriptionsMatchProperties() throws Exception {
-        Properties resource = new Properties();
-        try (InputStream in = JdbcConfiguration.class.getResourceAsStream(JdbcConfiguration.PROPERTY_DESCRIPTIONS_RESOURCE)) {
-            assertNotNull(in, JdbcConfiguration.PROPERTY_DESCRIPTIONS_RESOURCE);
-            resource.load(new InputStreamReader(in, StandardCharsets.UTF_8));
-        }
-        Map<String, String> descriptions = JdbcConfiguration.loadPropertyDescriptions();
-        assertEquals(descriptions, resource.stringPropertyNames().stream()
-            .collect(Collectors.toMap(key -> key, key -> resource.getProperty(key).trim())));
-
-        Set<String> propertyKeys = new TreeSet<>();
-        Arrays.stream(ClientConfigProperties.values()).forEach(p -> propertyKeys.add(p.getKey()));
-        Arrays.stream(DriverProperties.values()).forEach(p -> propertyKeys.add(p.getKey()));
-
-        Set<String> missing = propertyKeys.stream()
-            .filter(key -> descriptions.getOrDefault(key, "").isEmpty())
-            .collect(Collectors.toCollection(TreeSet::new));
-        assertTrue(missing.isEmpty(), "Properties without a description in "
-            + JdbcConfiguration.PROPERTY_DESCRIPTIONS_RESOURCE + ": " + missing);
-
-        Set<String> unknown = new TreeSet<>(descriptions.keySet());
-        unknown.removeAll(propertyKeys);
-        assertTrue(unknown.isEmpty(), "Descriptions of unknown properties in "
-            + JdbcConfiguration.PROPERTY_DESCRIPTIONS_RESOURCE + ": " + unknown);
+    public void testDriverPropertiesDescriptions() {
+        Map<DriverProperties, String> descriptions = DriverPropertiesDescriptions.getDescriptions();
+        assertEquals(new ArrayList<>(descriptions.keySet()), Arrays.asList(DriverProperties.values()));
+        descriptions.forEach((p, d) -> assertFalse(d.trim().isEmpty(), "Description of " + p));
+        assertThrows(UnsupportedOperationException.class, () -> descriptions.put(DriverProperties.SQL_PARSER, "a"));
     }
 
     @DataProvider(name = "propertyInfoDescriptions")
@@ -232,7 +212,9 @@ public class JdbcConfigurationTest {
     @Test(dataProvider = "propertyInfoDescriptions")
     public void testGetPropertyInfoDescriptions(String url, Properties properties, Map<String, String> setValues)
             throws Exception {
-        Map<String, String> descriptions = JdbcConfiguration.loadPropertyDescriptions();
+        Map<String, String> descriptions = new HashMap<>();
+        ClientConfigPropertiesDescriptions.getDescriptions().forEach((p, d) -> descriptions.put(p.getKey(), d));
+        DriverPropertiesDescriptions.getDescriptions().forEach((p, d) -> descriptions.put(p.getKey(), d));
         Map<String, DriverPropertyInfo> infos = new HashMap<>();
         for (DriverPropertyInfo info : new Driver().getPropertyInfo(url, properties)) {
             assertNotNull(info.description, "Description of " + info.name);
