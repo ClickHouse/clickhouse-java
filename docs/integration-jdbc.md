@@ -16,6 +16,8 @@ This guide is a **step-by-step integration path** for the **JDBC Driver V2** (`j
 > - **Operation configuration** — set per statement or as connection defaults: fetch size, timeouts, batch behavior, dedup tokens. Covered in Steps 4–6.
 >
 > Property routing (see [`DriverProperties`](../jdbc-v2/src/main/java/com/clickhouse/jdbc/DriverProperties.java)): if a property is a JDBC-specific driver property it is handled by the driver; **all other properties are forwarded to `ClientConfigProperties`**.
+>
+> Property descriptions: `Driver#getPropertyInfo` returns each client and driver property with its default value and a description. The descriptions are in [`property-descriptions.properties`](../jdbc-v2/src/main/resources/com/clickhouse/jdbc/internal/property-descriptions.properties). When you add a property to `DriverProperties` or `ClientConfigProperties`, add its description to this file. `JdbcConfigurationTest` fails when a property has no description.
 
 ## Artifacts
 

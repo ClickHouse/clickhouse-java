@@ -12,6 +12,9 @@ import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -45,6 +48,10 @@ public class JdbcConfiguration {
     private static final String PARSE_URL_CONN_URL_PROP = "connection_url";
     private static final Pattern PATTERN_HTTP_TOKEN = Pattern.compile(
         "[A-Za-z0-9!#$%&'*+\\.\\^_`\\|~-]+");
+
+    static final String PROPERTY_DESCRIPTIONS_RESOURCE = "property-descriptions.properties";
+    static final String USER_DEFINED_PROPERTY_DESCRIPTION = "(User Defined)";
+    private static final Map<String, String> PROPERTY_DESCRIPTIONS = loadPropertyDescriptions();
 
     private final boolean disableFrameworkDetection;
     private final Map<String, Class<?>> typeMap;
@@ -382,7 +389,7 @@ public class JdbcConfiguration {
         // create initial list of properties that will be passed to a client
         for (Map.Entry<String, String> prop : props.entrySet()) {
             DriverPropertyInfo propertyInfo = new DriverPropertyInfo(prop.getKey(), prop.getValue());
-            propertyInfo.description = "(User Defined)";
+            propertyInfo.description = PROPERTY_DESCRIPTIONS.getOrDefault(prop.getKey(), USER_DEFINED_PROPERTY_DESCRIPTION);
             propertyInfos.put(prop.getKey(), propertyInfo);
 
             if (DRIVER_PROP_KEYS.contains(prop.getKey())) {
@@ -428,7 +435,7 @@ public class JdbcConfiguration {
             DriverPropertyInfo propertyInfo = propertyInfos.get(clientProp.getKey());
             if (propertyInfo == null) {
                 propertyInfo = new DriverPropertyInfo(clientProp.getKey(), clientProp.getDefaultValue());
-                // TODO: read description from resource file
+                propertyInfo.description = PROPERTY_DESCRIPTIONS.get(clientProp.getKey());
                 propertyInfos.put(clientProp.getKey(), propertyInfo);
             }
         }
@@ -439,11 +446,35 @@ public class JdbcConfiguration {
             DriverPropertyInfo propertyInfo = propertyInfos.get(driverProp.getKey());
             if (propertyInfo == null) {
                 propertyInfo = new DriverPropertyInfo(driverProp.getKey(), driverProp.getDefaultValue());
+                propertyInfo.description = PROPERTY_DESCRIPTIONS.get(driverProp.getKey());
                 propertyInfos.put(driverProp.getKey(), propertyInfo);
             }
         }
 
         listOfProperties = propertyInfos.values().stream().sorted(Comparator.comparing(o -> o.name)).collect(Collectors.toList());
+    }
+
+    /**
+     * Reads the descriptions of the client and driver properties from {@link #PROPERTY_DESCRIPTIONS_RESOURCE}.
+     * Returns an empty map when the resource cannot be read, so that the configuration does not fail.
+     */
+    static Map<String, String> loadPropertyDescriptions() {
+        try (InputStream in = JdbcConfiguration.class.getResourceAsStream(PROPERTY_DESCRIPTIONS_RESOURCE)) {
+            if (in == null) {
+                LOG.warn("Resource '{}' is not found. Driver properties have no descriptions.", PROPERTY_DESCRIPTIONS_RESOURCE);
+                return Collections.emptyMap();
+            }
+            Properties descriptions = new Properties();
+            descriptions.load(new InputStreamReader(in, StandardCharsets.UTF_8));
+            ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
+            for (String key : descriptions.stringPropertyNames()) {
+                builder.put(key, descriptions.getProperty(key).trim());
+            }
+            return builder.build();
+        } catch (IOException | IllegalArgumentException e) {
+            LOG.warn("Failed to read resource '{}'. Driver properties have no descriptions.", PROPERTY_DESCRIPTIONS_RESOURCE, e);
+            return Collections.emptyMap();
+        }
     }
 
     /**

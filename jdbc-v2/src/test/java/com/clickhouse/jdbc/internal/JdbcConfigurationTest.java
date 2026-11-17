@@ -6,13 +6,17 @@ import com.clickhouse.client.api.ClientMisconfigurationException;
 import com.clickhouse.client.api.enums.SSLMode;
 
 import com.clickhouse.data.ClickHouseDataType;
+import com.clickhouse.jdbc.Driver;
 import com.clickhouse.jdbc.DriverProperties;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import javax.net.ssl.SSLContext;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.lang.reflect.Field;
+import java.nio.charset.StandardCharsets;
 import java.sql.DriverPropertyInfo;
 import java.sql.SQLException;
 import java.util.Arrays;
@@ -22,6 +26,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 import static org.testng.Assert.assertEquals;
@@ -174,6 +179,74 @@ public class JdbcConfigurationTest {
             .findAny()
             .orElseThrow();
         assertEquals(p.value, "default1");
+    }
+
+    @Test
+    public void testPropertyDescriptionsMatchProperties() throws Exception {
+        Properties resource = new Properties();
+        try (InputStream in = JdbcConfiguration.class.getResourceAsStream(JdbcConfiguration.PROPERTY_DESCRIPTIONS_RESOURCE)) {
+            assertNotNull(in, JdbcConfiguration.PROPERTY_DESCRIPTIONS_RESOURCE);
+            resource.load(new InputStreamReader(in, StandardCharsets.UTF_8));
+        }
+        Map<String, String> descriptions = JdbcConfiguration.loadPropertyDescriptions();
+        assertEquals(descriptions, resource.stringPropertyNames().stream()
+            .collect(Collectors.toMap(key -> key, key -> resource.getProperty(key).trim())));
+
+        Set<String> propertyKeys = new TreeSet<>();
+        Arrays.stream(ClientConfigProperties.values()).forEach(p -> propertyKeys.add(p.getKey()));
+        Arrays.stream(DriverProperties.values()).forEach(p -> propertyKeys.add(p.getKey()));
+
+        Set<String> missing = propertyKeys.stream()
+            .filter(key -> descriptions.getOrDefault(key, "").isEmpty())
+            .collect(Collectors.toCollection(TreeSet::new));
+        assertTrue(missing.isEmpty(), "Properties without a description in "
+            + JdbcConfiguration.PROPERTY_DESCRIPTIONS_RESOURCE + ": " + missing);
+
+        Set<String> unknown = new TreeSet<>(descriptions.keySet());
+        unknown.removeAll(propertyKeys);
+        assertTrue(unknown.isEmpty(), "Descriptions of unknown properties in "
+            + JdbcConfiguration.PROPERTY_DESCRIPTIONS_RESOURCE + ": " + unknown);
+    }
+
+    @DataProvider(name = "propertyInfoDescriptions")
+    public Object[][] propertyInfoDescriptions() {
+        Properties properties = new Properties();
+        properties.setProperty(ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey(), "1000");
+        properties.setProperty(DriverProperties.SQL_PARSER.getKey(), "ANTLR4");
+        properties.setProperty("custom_property", "a");
+        return new Object[][] {
+            { "jdbc:clickhouse://localhost:8123", new Properties(), Map.of() },
+            { "jdbc:clickhouse://localhost:8123/db1?async=true&jdbc_resultset_auto_close=false"
+                + "&clickhouse_setting_max_threads=2", null,
+                Map.of(ClientConfigProperties.DATABASE.getKey(), "db1",
+                    ClientConfigProperties.ASYNC_OPERATIONS.getKey(), "true",
+                    DriverProperties.RESULTSET_AUTO_CLOSE.getKey(), "false",
+                    ClientConfigProperties.serverSetting("max_threads"), "2") },
+            { "jdbc:clickhouse://localhost:8123", properties,
+                Map.of(ClientConfigProperties.SOCKET_OPERATION_TIMEOUT.getKey(), "1000",
+                    DriverProperties.SQL_PARSER.getKey(), "ANTLR4",
+                    "custom_property", "a") },
+        };
+    }
+
+    @Test(dataProvider = "propertyInfoDescriptions")
+    public void testGetPropertyInfoDescriptions(String url, Properties properties, Map<String, String> setValues)
+            throws Exception {
+        Map<String, String> descriptions = JdbcConfiguration.loadPropertyDescriptions();
+        Map<String, DriverPropertyInfo> infos = new HashMap<>();
+        for (DriverPropertyInfo info : new Driver().getPropertyInfo(url, properties)) {
+            assertNotNull(info.description, "Description of " + info.name);
+            assertFalse(info.description.trim().isEmpty(), "Description of " + info.name);
+            infos.put(info.name, info);
+        }
+
+        Arrays.stream(ClientConfigProperties.values()).forEach(p -> assertTrue(infos.containsKey(p.getKey()), p.getKey()));
+        Arrays.stream(DriverProperties.values()).forEach(p -> assertTrue(infos.containsKey(p.getKey()), p.getKey()));
+        for (DriverPropertyInfo info : infos.values()) {
+            String expected = descriptions.getOrDefault(info.name, JdbcConfiguration.USER_DEFINED_PROPERTY_DESCRIPTION);
+            assertEquals(info.description, expected, "Description of " + info.name);
+        }
+        setValues.forEach((key, value) -> assertEquals(infos.get(key).value, value, "Value of " + key));
     }
 
     @DataProvider(name = "sslModeValues")
