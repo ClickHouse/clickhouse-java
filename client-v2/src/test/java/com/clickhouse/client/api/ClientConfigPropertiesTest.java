@@ -12,6 +12,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TimeZone;
 
 
 public class ClientConfigPropertiesTest {
@@ -131,5 +132,22 @@ public class ClientConfigPropertiesTest {
         pairs.put("x,y", "z");
         Map<String, String> parsed = ClientConfigProperties.toKeyValuePairs(ClientConfigProperties.fromKeyValuePairs(pairs));
         Assert.assertEquals(new ArrayList<>(parsed.entrySet()), new ArrayList<>(pairs.entrySet()));
+    }
+
+    @DataProvider(name = "timeZoneProperties")
+    public static Object[][] timeZoneProperties() {
+        return new Object[][]{
+                {ClientConfigProperties.USE_TIMEZONE}, {ClientConfigProperties.SERVER_TIMEZONE},
+        };
+    }
+
+    @Test(groups = {"unit"}, dataProvider = "timeZoneProperties")
+    public void testTimeZoneParsing(ClientConfigProperties property) {
+        Assert.assertEquals(property.parseValue("America/Los_Angeles"), TimeZone.getTimeZone("America/Los_Angeles"));
+        Assert.assertEquals(property.parseValue("UTC+05:30"), TimeZone.getTimeZone("GMT+05:30"));
+        IllegalArgumentException e = Assert.expectThrows(IllegalArgumentException.class,
+                () -> property.parseValue("Mars/Olympus_Mons"));
+        Assert.assertTrue(e.getMessage().contains(property.getKey()), e.getMessage());
+        Assert.assertTrue(e.getMessage().contains("'Mars/Olympus_Mons'"), e.getMessage());
     }
 }

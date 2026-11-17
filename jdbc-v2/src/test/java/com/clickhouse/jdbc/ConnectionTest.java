@@ -1410,6 +1410,24 @@ public class ConnectionTest extends JdbcIntegrationTest {
 
     }
 
+    @DataProvider(name = "invalidTimeZoneProperties")
+    public static Object[][] invalidTimeZoneProperties() {
+        return new Object[][]{
+                {ClientConfigProperties.USE_TIMEZONE.getKey()},
+                {ClientConfigProperties.SERVER_TIMEZONE.getKey()},
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "invalidTimeZoneProperties")
+    public void testInvalidTimeZoneIdRejected(String property) {
+        Properties props = new Properties();
+        props.put(ClientConfigProperties.USE_TIMEZONE.getKey(), "America/New_York");
+        props.put(property, "America/New_Yrok");
+        SQLException e = expectThrows(SQLException.class, () -> getJdbcConnection(props));
+        assertTrue(e.getCause() instanceof IllegalArgumentException, String.valueOf(e.getCause()));
+        assertTrue(e.getCause().getMessage().contains("America/New_Yrok"), e.getCause().getMessage());
+    }
+
     @Test(groups = {"integration"})
     public void testEndpointUrlPathIsPreserved() throws Exception {
         if (isCloud()) {
