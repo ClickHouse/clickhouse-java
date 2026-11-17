@@ -1,9 +1,13 @@
 package com.clickhouse.client.api.internal;
 
+import java.time.DateTimeException;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.TimeZone;
 
 public class ValidationUtils {
 
@@ -43,6 +47,42 @@ public class ValidationUtils {
         if (!validValues.contains(value)) {
             throw new SettingsValidationException(name, "\"" + name + "\" must be one of " + validValues);
         }
+    }
+
+    /**
+     * Converts a time zone ID to a {@link TimeZone}. Unlike {@link TimeZone#getTimeZone(String)}, which returns
+     * GMT for an ID that it does not recognise, this method throws an exception for an unknown or malformed ID.
+     * IDs are validated by {@link ZoneId#of(String)}.
+     *
+     * @param timeZoneId - time zone ID, for example {@code Europe/Berlin}, {@code UTC} or {@code +05:30}
+     * @param name - name of the setting, used in the error message
+     * @return time zone for the ID
+     * @throws SettingsValidationException if the ID is not a valid time zone ID, or if it is a fixed offset
+     *                                     that {@link TimeZone} cannot represent (an offset with seconds)
+     */
+    public static TimeZone toTimeZone(String timeZoneId, String name) {
+        ZoneId zoneId;
+        try {
+            zoneId = ZoneId.of(timeZoneId);
+        } catch (DateTimeException e) {
+            SettingsValidationException error = new SettingsValidationException(name,
+                    "\"" + name + "\" must be a valid time zone ID, but was '" + timeZoneId + "'");
+            error.initCause(e);
+            throw error;
+        }
+        String id = zoneId.getId();
+        if (id.startsWith("UTC+") || id.startsWith("UTC-") || id.startsWith("UT+") || id.startsWith("UT-")) {
+            // TimeZone does not recognise these offset IDs and returns GMT for them. Use the offset itself.
+            zoneId = zoneId.normalized();
+        }
+        TimeZone timeZone = TimeZone.getTimeZone(zoneId);
+        if (zoneId.getRules().isFixedOffset()
+                && timeZone.getRawOffset() != zoneId.getRules().getOffset(Instant.EPOCH).getTotalSeconds() * 1000L) {
+            // TimeZone returns GMT for an offset with seconds, for example +05:30:45.
+            throw new SettingsValidationException(name, "\"" + name
+                    + "\" must be a time zone ID with an offset in whole minutes, but was '" + timeZoneId + "'");
+        }
+        return timeZone;
     }
 
     /**
