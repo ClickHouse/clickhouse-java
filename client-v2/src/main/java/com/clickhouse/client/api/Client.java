@@ -1167,10 +1167,10 @@ public class Client implements AutoCloseable {
          * Sets the client name and the client metadata, which identify the application to the server. See
          * {@link #setClientName(String)} for the client name. The client adds the metadata to the comment group of the
          * {@code User-Agent} header, in the iteration order of {@code metadata}, and then its own {@code lv},
-         * {@code os} and {@code hc} (HTTP client) entries if the metadata does not set these keys. For example, the
-         * client name {@code my-app/1.0} and the metadata {@code fv=flink/2.0.0} and {@code api=table} give
-         * {@code my-app/1.0 clickhouse-java-v2/<version> (fv:flink/2.0.0; api:table; lv:java/<java.version>;
-         * os:<os.name>; hc:ahc_<Apache HttpClient version>)}.
+         * {@code os}, {@code arch} (CPU architecture) and {@code hc} (HTTP client) entries if the metadata does not set
+         * these keys. For example, the client name {@code my-app/1.0} and the metadata {@code fv=flink/2.0.0} and
+         * {@code api=table} give {@code my-app/1.0 clickhouse-java-v2/<version> (fv:flink/2.0.0; api:table;
+         * lv:java/<java.version>; os:<os.name>; arch:<os.arch>; hc:ahc_<Apache HttpClient version>)}.
          * <p>
          * Keys and values are trimmed, and entries with a {@code null} or empty key or value are ignored. Keys and
          * values must be printable ASCII, a key must not contain spaces or any of {@code :;(),=}, and a value must not
