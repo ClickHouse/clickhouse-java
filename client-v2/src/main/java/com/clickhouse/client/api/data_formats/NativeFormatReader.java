@@ -11,7 +11,9 @@ import com.clickhouse.data.ClickHouseDataType;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -82,8 +84,11 @@ public class NativeFormatReader extends AbstractBinaryFormatReader {
     /** Column names of the first block, {@code null} before it. The rows of all blocks use these names. */
     private List<String> columnNames;
 
-    /** Column types of the first block, as the server wrote them. All later blocks must have the same types. */
-    private List<String> columnTypes;
+    /**
+     * Column names and types of the first block, as the bytes that the server wrote: name, type, name, type, and so
+     * on. All later blocks must have the same bytes.
+     */
+    private List<byte[]> firstBlockHeader;
 
     public NativeFormatReader(InputStream inputStream, QuerySettings settings,
                               BinaryStreamReader.ByteBufferAllocator byteBufferAllocator,
@@ -193,24 +198,32 @@ public class NativeFormatReader extends AbstractBinaryFormatReader {
         List<ClickHouseColumn> columns = firstBlock ? new ArrayList<>(nColumns) : getSchema().getColumns();
         if (firstBlock) {
             columnNames = new ArrayList<>(nColumns);
-            columnTypes = new ArrayList<>(nColumns);
+            firstBlockHeader = new ArrayList<>(nColumns * 2);
         }
         Block block = new Block(columnNames, nRows);
         for (int i = 0; i < nColumns; i++) {
-            String name = BinaryStreamReader.readString(input);
-            String type = BinaryStreamReader.readString(input);
             ClickHouseColumn column;
             if (firstBlock) {
-                column = ClickHouseColumn.of(name, type);
+                byte[] name = BinaryStreamReader.readStringBytes(input, BinaryStreamReader.readVarInt(input));
+                byte[] type = BinaryStreamReader.readStringBytes(input, BinaryStreamReader.readVarInt(input));
+                column = ClickHouseColumn.of(new String(name, StandardCharsets.UTF_8),
+                        new String(type, StandardCharsets.UTF_8));
                 columns.add(column);
                 columnNames.add(column.getColumnName());
-                columnTypes.add(type);
-            } else if (name.equals(columnNames.get(i)) && type.equals(columnTypes.get(i))) {
-                column = columns.get(i);
+                firstBlockHeader.add(name);
+                firstBlockHeader.add(type);
             } else {
-                // Do not put the name and the type into the message: they were read from wrong bytes.
-                throw new ClientException("Failed to read block: column " + (i + 1)
-                        + " has a different name or type than in the first block" + NOT_AT_BLOCK_BOUNDARY);
+                column = columns.get(i);
+                for (byte[] expected : firstBlockHeader.subList(2 * i, 2 * i + 2)) {
+                    // Compare the length first: a length read from wrong bytes can be too large to allocate.
+                    int length = BinaryStreamReader.readVarInt(input);
+                    if (length != expected.length
+                            || !Arrays.equals(BinaryStreamReader.readStringBytes(input, length), expected)) {
+                        // Do not put the name and the type into the message: they were read from wrong bytes.
+                        throw new ClientException("Failed to read block: column " + (i + 1)
+                                + " has a different name or type than in the first block" + NOT_AT_BLOCK_BOUNDARY);
+                    }
+                }
             }
 
             List<Object> values;
