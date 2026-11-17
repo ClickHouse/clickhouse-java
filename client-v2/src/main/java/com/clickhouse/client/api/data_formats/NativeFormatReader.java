@@ -124,7 +124,7 @@ public class NativeFormatReader extends AbstractBinaryFormatReader {
                 long prevOffset = 0;
                 for (int j = 0; j < nRows; j++) {
                     int len = Math.toIntExact(offsets[j] - prevOffset);
-                    values.add(binaryStreamReader.readArrayItem(column.getNestedColumns().get(0), len));
+                    values.add(binaryStreamReader.readArray(column, len));
                     prevOffset = offsets[j];
                 }
             } else if (column.isNullable() && !column.isLowCardinality()) {

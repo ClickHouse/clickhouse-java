@@ -9,6 +9,11 @@ on:
       - "**/docs/**"
       - "**/LICENSE"
       - "**/NOTICE"
+      # Repo metadata that does not affect the build (CODEOWNERS, ai-gate.yml, templates, ...).
+      # `*` does not cross `/`, so .github/workflows/** changes still trigger this workflow.
+      - ".github/*"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/scripts/**"
 
   pull_request:
     types:
@@ -20,6 +25,11 @@ on:
       - "**/docs/**"
       - "**/LICENSE"
       - "**/NOTICE"
+      # Repo metadata that does not affect the build (CODEOWNERS, ai-gate.yml, templates, ...).
+      # `*` does not cross `/`, so .github/workflows/** changes still trigger this workflow.
+      - ".github/*"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/scripts/**"
 
   workflow_dispatch:
     inputs:
@@ -63,6 +73,58 @@ jobs:
             if [ -e $d/pom.xml ]; then cd $d && mvn  --batch-mode --no-transfer-progress clean compile; fi;
           done
 
+  # Builds and installs every module once (without -Dj8, i.e. with the Java 11/17
+  # multi-release classes and flattened POMs) and shares ~/.m2/repository/com/clickhouse
+  # with the test jobs, so they don't each repeat the same `mvn install`.
+  build-artifacts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    name: Build artifacts
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Check out PR
+        run: |
+          git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
+            origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
+        if: github.event.inputs.pr != ''
+      - name: Install JDK 17 and Maven
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: |
+            8
+            17
+          cache: "maven"
+      - name: Setup Toolchain
+        shell: bash
+        run: |
+          mkdir -p $HOME/.m2 \
+          && cat << EOF > $HOME/.m2/toolchains.xml
+          <?xml version="1.0" encoding="UTF8"?>
+          <toolchains>
+            <toolchain>
+              <type>jdk</type>
+              <provides>
+                <version>17</version>
+              </provides>
+              <configuration>
+                <jdkHome>${{ env.JAVA_HOME }}</jdkHome>
+              </configuration>
+            </toolchain>
+          </toolchains>
+          EOF
+      - name: Build and install libraries
+        run: mvn --batch-mode --no-transfer-progress -DskipTests=true -Dmaven.javadoc.skip=true install
+      - name: Package Maven artifacts
+        run: tar -C "$HOME/.m2/repository" -czf "$RUNNER_TEMP/clickhouse-maven-repository.tar.gz" com/clickhouse
+      - name: Upload Maven artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: clickhouse-maven-repository
+          path: ${{ runner.temp }}/clickhouse-maven-repository.tar.gz
+          retention-days: 1
+
   test-native-image:
     runs-on: ubuntu-latest
     needs: compile
@@ -97,7 +159,7 @@ jobs:
 
   test-java-client:
     runs-on: ubuntu-latest
-    needs: compile
+    needs: [compile, build-artifacts]
     strategy:
       matrix:
         # most recent LTS releases as well as latest stable builds
@@ -141,8 +203,15 @@ jobs:
             </toolchain>
           </toolchains>
           EOF
-      - name: Build and install libraries
-        run: mvn --batch-mode --no-transfer-progress --show-version --strict-checksums --threads 2 -Dmaven.wagon.rto=30000 -Dj8 -DskipTests=true -Dmaven.javadoc.skip=true install
+      - name: Download Maven artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: clickhouse-maven-repository
+          path: ${{ runner.temp }}/clickhouse-maven-repository
+      - name: Restore Maven artifacts
+        run: |
+          mkdir -p "$HOME/.m2/repository"
+          tar -C "$HOME/.m2/repository" -xzf "$RUNNER_TEMP/clickhouse-maven-repository/clickhouse-maven-repository.tar.gz"
       - name: Test Java client
         env:
           TEST_CLICKHOUSE_IMAGE_VERSION: ${{ matrix.clickhouse }}
@@ -151,7 +220,7 @@ jobs:
 
   test-with-cluster:
     runs-on: ubuntu-latest
-    needs: compile
+    needs: [compile, build-artifacts]
     strategy:
       matrix:
         clickhouse: ["25.8", "26.3", "26.8", "latest"]
@@ -196,14 +265,22 @@ jobs:
             </toolchain>
           </toolchains>
           EOF
-      - name: Install Java client
-        run: mvn --also-make --batch-mode --no-transfer-progress -DskipTests=true -Dmaven.javadoc.skip=true install
+      - name: Download Maven artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: clickhouse-maven-repository
+          path: ${{ runner.temp }}/clickhouse-maven-repository
+      - name: Restore Maven artifacts
+        run: |
+          mkdir -p "$HOME/.m2/repository"
+          tar -C "$HOME/.m2/repository" -xzf "$RUNNER_TEMP/clickhouse-maven-repository/clickhouse-maven-repository.tar.gz"
       - name: Test ${{ matrix.project }}
         run: |
           mvn --batch-mode --no-transfer-progress --projects ${{ matrix.project }} -Dmaven.javadoc.skip=true verify
 
   test-jdbc-driver:
     runs-on: ubuntu-latest
+    needs: build-artifacts
     strategy:
       matrix:
         clickhouse: ["25.8", "26.3", "26.8", "latest"]
@@ -247,8 +324,15 @@ jobs:
             </toolchain>
           </toolchains>
           EOF
-      - name: Install Java client
-        run: mvn --also-make --batch-mode --no-transfer-progress --projects clickhouse-http-client,client-v2 -DskipTests=true -Dmaven.javadoc.skip=true install
+      - name: Download Maven artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: clickhouse-maven-repository
+          path: ${{ runner.temp }}/clickhouse-maven-repository
+      - name: Restore Maven artifacts
+        run: |
+          mkdir -p "$HOME/.m2/repository"
+          tar -C "$HOME/.m2/repository" -xzf "$RUNNER_TEMP/clickhouse-maven-repository/clickhouse-maven-repository.tar.gz"
       - name: Test JDBC driver
         env:
           TEST_CLICKHOUSE_IMAGE_VERSION: ${{ matrix.clickhouse }}
@@ -257,7 +341,7 @@ jobs:
 
   test-r2dbc-driver:
     runs-on: ubuntu-latest
-    needs: test-jdbc-driver
+    needs: build-artifacts
     strategy:
       matrix:
         clickhouse: ["25.8", "26.3", "26.8", "latest"]
@@ -301,8 +385,15 @@ jobs:
             </toolchain>
           </toolchains>
           EOF
-      - name: Install Java client
-        run: mvn --also-make --no-transfer-progress --batch-mode --projects clickhouse-jdbc -DskipTests=true -Dmaven.javadoc.skip=true install
+      - name: Download Maven artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: clickhouse-maven-repository
+          path: ${{ runner.temp }}/clickhouse-maven-repository
+      - name: Restore Maven artifacts
+        run: |
+          mkdir -p "$HOME/.m2/repository"
+          tar -C "$HOME/.m2/repository" -xzf "$RUNNER_TEMP/clickhouse-maven-repository/clickhouse-maven-repository.tar.gz"
       - name: Test R2DBC ${{ matrix.r2dbc }}
         env:
           TEST_CLICKHOUSE_IMAGE_VERSION: ${{ matrix.clickhouse }}
