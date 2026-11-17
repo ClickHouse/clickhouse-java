@@ -55,6 +55,39 @@ public class NativeFormatReader extends AbstractBinaryFormatReader {
         return true;
     }
 
+    // A Native block is fully in memory, so rows are taken from it directly instead of through the
+    // one-row read-ahead of the base class. Each block re-publishes the schema, which replaces the row
+    // buffers, so the next block is read only when no row of the current one is still pending.
+    @Override
+    public boolean hasNext() {
+        while (currentBlock != null && blockRowIndex >= currentBlock.getnRows()) {
+            try {
+                if (!readBlock()) {
+                    currentBlock = null;
+                }
+            } catch (IOException e) {
+                currentBlock = null;
+                endReached();
+                throw new ClientException("Failed to read block", e);
+            }
+        }
+        if (currentBlock == null) {
+            endReached();
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public Map<String, Object> next() {
+        if (!hasNext()) {
+            return null;
+        }
+        currentBlock.fillRecord(blockRowIndex, currentRecord);
+        blockRowIndex++;
+        return wrapRecord(currentRecord);
+    }
+
     @Override
     protected boolean readRecord(Object[] record) throws IOException {
         if (blockRowIndex >= currentBlock.getnRows()) {

@@ -1,8 +1,16 @@
 package com.clickhouse.client.api.data_formats;
 
+import com.clickhouse.client.BaseIntegrationTest;
+import com.clickhouse.client.ClickHouseNode;
+import com.clickhouse.client.ClickHouseProtocol;
+import com.clickhouse.client.ClickHouseServerForTest;
+import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
+import com.clickhouse.client.api.enums.Protocol;
+import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
+import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.format.BinaryStreamUtils;
 
 import org.testng.Assert;
@@ -12,14 +20,55 @@ import org.testng.annotations.Test;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
- * QBit handling in {@link NativeFormatReader}, driven by Native-format blocks captured from ClickHouse
- * 26.5.1 and by minimal hand-built block headers. These run without a live server, so the block-level
- * routing (decode a plain float QBit, reject every other shape) stays covered on the coverage build,
- * whose older server skips the QBit integration tests.
+ * Tests for {@link NativeFormatReader}.
+ * <p>
+ * The QBit tests are driven by Native-format blocks captured from ClickHouse 26.5.1 and by minimal hand-built
+ * block headers. These run without a live server, so the block-level routing (decode a plain float QBit, reject
+ * every other shape) stays covered on the coverage build, whose older server skips the QBit integration tests.
  */
-public class NativeFormatReaderQBitTest {
+public class NativeFormatReaderTest extends BaseIntegrationTest {
+
+    @Test(groups = {"integration"})
+    public void testReadsEveryRowAcrossBlocks() throws Exception {
+        // Small blocks put several block boundaries in a short result. The row count was right even when the
+        // rows around each boundary were lost, so every value is checked.
+        String sql = "SELECT toInt32(number) AS n FROM numbers(25) SETTINGS max_block_size = 10";
+        List<Object> expected = new ArrayList<>();
+        for (int i = 0; i < 25; i++) {
+            expected.add(i);
+        }
+
+        try (Client client = newClient().build();
+             QueryResponse response = client.query(sql, new QuerySettings().setFormat(ClickHouseFormat.Native))
+                     .get(30, TimeUnit.SECONDS)) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+            List<Object> values = new ArrayList<>();
+            List<Object> fromGetters = new ArrayList<>();
+            Map<String, Object> row;
+            while ((row = reader.next()) != null) {
+                values.add(row.get("n"));
+                fromGetters.add(reader.getInteger("n"));
+            }
+            Assert.assertEquals(values, expected);
+            Assert.assertEquals(fromGetters, expected);
+            Assert.assertFalse(reader.hasNext());
+        }
+    }
+
+    private Client.Builder newClient() {
+        ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
+        return new Client.Builder()
+                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isCloud())
+                .setUsername("default")
+                .setPassword(ClickHouseServerForTest.getPassword())
+                .setDefaultDatabase(ClickHouseServerForTest.getDatabase());
+    }
 
     // Full single-row Native blocks (SELECT CAST(<vec> AS QBit(<type>)) FORMAT Native), one per decodable
     // element type, with the vector each encodes.
