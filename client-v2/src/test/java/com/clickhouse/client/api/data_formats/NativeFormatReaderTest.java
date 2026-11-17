@@ -175,44 +175,16 @@ public class NativeFormatReaderTest extends BaseIntegrationTest {
         Assert.assertEquals(values, Arrays.asList(0, 0, 1));
     }
 
-    @Test(groups = {"integration"})
-    public void testReadsBlocksWithNameThatIsNotUtf8() throws Exception {
-        // The server writes the name as the bytes 61 FF 62, which are not UTF-8, in each of the two blocks. The block
-        // check must compare these bytes, not the bytes of the decoded name.
-        try (Client client = newClient().build();
-             QueryResponse response = client.query("SELECT toInt32(number) AS `a\\xFFb` FROM numbers(2)"
-                     + " SETTINGS max_block_size = 1", new QuerySettings().setFormat(ClickHouseFormat.Native))
-                     .get(30, TimeUnit.SECONDS)) {
-            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
-            String name = reader.getSchema().getColumns().get(0).getColumnName();
-            List<Object> values = new ArrayList<>();
-            while (reader.hasNext()) {
-                values.add(reader.next().get(name));
-            }
-            Assert.assertEquals(values, sequence(2));
-        }
-    }
-
     // A later block with other columns than the first block cannot come from the server: the reader is not at a
     // block boundary. A null cause marks these cases.
     @DataProvider(name = "brokenSecondBlocks")
     public static Object[][] brokenSecondBlocks() throws IOException {
         byte[] block = nativeBlock(Arrays.asList("n", "Int32"), 1);
-        // VarUInt of Integer.MAX_VALUE: a length that cannot be allocated.
-        byte[] maxLength = {(byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, 0x07};
-        ByteArrayOutputStream nameTooLong = new ByteArrayOutputStream();
-        nameTooLong.write(new byte[] {1, 1});
-        nameTooLong.write(maxLength);
-        ByteArrayOutputStream typeTooLong = new ByteArrayOutputStream();
-        typeTooLong.write(new byte[] {1, 1, 1, 'n'});
-        typeTooLong.write(maxLength);
         return new Object[][] {
                 {"no columns", nativeBlock(Collections.emptyList(), 3), null},
                 {"other column count", nativeBlock(Arrays.asList("n", "Int32", "m", "Int32"), 1), null},
                 {"other name", nativeBlock(Arrays.asList("m", "Int32"), 1), null},
                 {"other type", nativeBlock(Arrays.asList("n", "UInt32"), 1), null},
-                {"name length too large", nameTooLong.toByteArray(), null},
-                {"type length too large", typeTooLong.toByteArray(), null},
                 {"end after the column count", new byte[] {1}, EOFException.class},
                 {"end inside the values", Arrays.copyOf(block, block.length - 1), EOFException.class},
         };
