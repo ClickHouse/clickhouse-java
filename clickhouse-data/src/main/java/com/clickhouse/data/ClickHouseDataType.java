@@ -57,8 +57,8 @@ public enum ClickHouseDataType implements SQLType {
     DateTime(LocalDateTime.class, true, false, false, 0, 29, 0, 0, 9, false, 0x11, "TIMESTAMP"),
     DateTime32(LocalDateTime.class, true, false, false, 4, 19, 0, 0, 0, false, 0x12),
     DateTime64(LocalDateTime.class, true, false, false, 8, 29, 3, 0, 9, false, 0x14), // we always write timezone as argument
-    Enum(String.class, true, true, false, 0, 0, 0, 0, 0, false),
-    Enum8(String.class, true, true, false, 1, 0, 0, 0, 0, false, 0x17, "ENUM"),
+    Enum(String.class, true, true, false, 0, 0, 0, 0, 0, false, "ENUM"),
+    Enum8(String.class, true, true, false, 1, 0, 0, 0, 0, false, 0x17),
     Enum16(String.class, true, true, false, 2, 0, 0, 0, 0, false, 0x18),
     FixedString(String.class, true, true, false, 0, 0, 0, 0, 0, false, 0x16, "BINARY"),
     Int8(Byte.class, false, true, true, 1, 3, 0, 0, 0, false, 0x07,"BYTE", "INT1", "INT1 SIGNED", "TINYINT",

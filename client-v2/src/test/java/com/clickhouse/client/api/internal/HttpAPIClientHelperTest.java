@@ -595,7 +595,8 @@ public class HttpAPIClientHelperTest {
 
     private static String clientPart() {
         return "clickhouse-java-v2/" + Client.clientVersion + " (lv:java/" + System.getProperty("java.version")
-                + "; os:" + System.getProperty("os.name") + "; hc:ahc_" + Versions.APACHE_HTTP_CLIENT + ")";
+                + "; os:" + System.getProperty("os.name") + "; arch:" + System.getProperty("os.arch") + "; hc:ahc_"
+                + Versions.APACHE_HTTP_CLIENT + ")";
     }
 
     private static String headerValue(HttpPost req, String name) {

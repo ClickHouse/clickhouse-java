@@ -58,6 +58,7 @@ public class UserAgentUnitTest {
         Map<String, String> osMetadata = new LinkedHashMap<>();
         osMetadata.put("os", "Android 14");
         osMetadata.put("api", "table");
+        osMetadata.put("arch", "arm64-v8a");
 
         Map<String, String> withIgnoredEntries = new LinkedHashMap<>();
         withIgnoredEntries.put("api", "");
@@ -103,7 +104,8 @@ public class UserAgentUnitTest {
                 {(Consumer<Client.Builder>) b -> b.setClientName(" my-app/1.0 "),
                         userAgent("my-app/1.0", null)},
                 {(Consumer<Client.Builder>) b -> b.setClientName("my-app/1.0", osMetadata),
-                        "my-app/1.0 clickhouse-java-v2/" + Client.clientVersion + " (os:Android 14; api:table; lv:java/"
+                        "my-app/1.0 clickhouse-java-v2/" + Client.clientVersion
+                                + " (os:Android 14; api:table; arch:arm64-v8a; lv:java/"
                                 + System.getProperty("java.version") + "; hc:ahc_" + Versions.APACHE_HTTP_CLIENT
                                 + ")"},
         };
@@ -165,6 +167,7 @@ public class UserAgentUnitTest {
                 + " (" + (metadata == null ? "" : metadata + "; ")
                 + "lv:java/" + System.getProperty("java.version")
                 + "; os:" + System.getProperty("os.name")
+                + "; arch:" + System.getProperty("os.arch")
                 + "; hc:ahc_" + Versions.APACHE_HTTP_CLIENT + ")";
     }
 }

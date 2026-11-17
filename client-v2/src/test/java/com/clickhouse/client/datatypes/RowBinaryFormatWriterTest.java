@@ -296,6 +296,43 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
     }
 
 
+    @DataProvider(name = "enumTypesInSchema")
+    private Object[][] enumTypesInSchema() {
+        return new Object[][] {
+                {"Enum('a' = 1, 'b' = 1000)", "a"},
+                {"enum('a' = 1, 'b' = 1000)", "b"},
+                {"ENUM('a' = -128, 'b' = 127)", "b"},
+                {"Variant(Bool, Enum('a' = 1, 'b' = 1000))", "b"},
+                {"Nullable(Enum('a' = 1, 'b' = 1000))", "a"},
+        };
+    }
+
+    @Test (groups = { "integration" }, dataProvider = "enumTypesInSchema")
+    public void writeEnumWithSchemaFromTypeNameTest(String type, String value) throws Exception {
+        String tableName = "rowBinaryFormatWriterTest_enumSchemaFromTypeName_" + UUID.randomUUID().toString().replace('-', '_');
+        initTable(tableName,
+                "CREATE TABLE \"" + tableName + "\" (id Int32, e " + type + ", tail UInt8) ORDER BY id",
+                new CommandSettings());
+        TableSchema schema = new TableSchema(Arrays.asList(ClickHouseColumn.of("id", "Int32"),
+                ClickHouseColumn.of("e", type), ClickHouseColumn.of("tail", "UInt8")));
+        ClickHouseFormat format = ClickHouseFormat.RowBinary;
+
+        try (InsertResponse response = client.insert(tableName, out -> {
+            RowBinaryFormatWriter w = new RowBinaryFormatWriter(out, schema, format);
+            w.setValue("id", 1);
+            w.setValue("e", value);
+            w.setValue("tail", 7);
+            w.commitRow();
+        }, format, settings).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS)) {
+            Assert.assertEquals(response.getWrittenRows(), 1);
+        }
+
+        List<GenericRecord> records = client.queryAll("SELECT e, tail FROM \"" + tableName + "\"");
+        Assert.assertEquals(records.size(), 1);
+        Assert.assertEquals(records.get(0).getString("e"), value);
+        Assert.assertEquals(records.get(0).getInteger("tail"), 7);
+    }
+
     // A null element in a non-nullable Enum sub-column reaches serializeEnumData directly (no
     // per-element null preamble is written for non-nullable nested columns), which is the path
     // that used to throw an opaque NullPointerException. Covers every container seam that routes

@@ -2,7 +2,7 @@
 
 ## Preface 
 
-This document describes usage of  **JDBC Driver V2** (`jdbc-v2`, published as `com.clickhouse:clickhouse-jdbc`). Here you will find information about different aspects of ClickHouse JDBC Driver integration (authentication, configuration, operations, etc) and about internal logic and mechanics of the driver. Treat this document as a guide of how to use driver for different use cases. [Library documentation](https://clickhouse.com/docs/integrations/language-clients/java/jdbc), however, stays single source of truth.
+This document describes usage of  **JDBC Driver V2** (`jdbc-v2`, published as `com.clickhouse:clickhouse-jdbc`). Here you will find information about different aspects of ClickHouse JDBC Driver integration (authentication, configuration, operations, etc) and about internal logic and mechanics of the driver. Treat this document as a guide of how to use driver for different use cases. Library documentation, however, stays single source of truth.
 
 
 **Important:** Please read [integration-index.md](integration-index.md) to get over overview of `clickhouse-java` project as library and its components.
@@ -17,7 +17,7 @@ Every JDBC `Connection` wraps a `client-v2` [`Client`](../client-v2/src/main/jav
 
 ### Configuration References 
 
-This guide names only the properties relevant to each step. The exhaustive lists live in [`DriverProperties`](../jdbc-v2/src/main/java/com/clickhouse/jdbc/DriverProperties.java), [`ClientConfigProperties`](../client-v2/src/main/java/com/clickhouse/client/api/ClientConfigProperties.java), and [the official docs](https://clickhouse.com/docs/integrations/language-clients/java/jdbc#configuration). Configuration splits into two groups:
+This guide names only the properties relevant to each step. The exhaustive lists live in [`DriverProperties`](../jdbc-v2/src/main/java/com/clickhouse/jdbc/DriverProperties.java), [`ClientConfigProperties`](../client-v2/src/main/java/com/clickhouse/client/api/ClientConfigProperties.java), and the official docs. Configuration splits into two groups:
 - **Init configuration** — set once via the JDBC URL or `Properties`: endpoint, connection pool size, authentication, TLS. Covered in Steps 1–3.
 - **Operation configuration** — set per statement or as connection defaults: fetch size, timeouts, batch behavior, dedup tokens. Covered in Steps 4–6. 
 
@@ -37,7 +37,7 @@ Two distributions are published under the same artifact:
 
 ## Integration path at a glance
 
-Integration can be done in several step. Please read through all of them to get full information about library capabilities and specific behavior.
+Work through these steps in order. Each one covers a different aspect of the integration. "Common Pitfalls" highlights key considerations and potential dangers.
 
 | # | Step                                                                             | Core decision |
 |---|----------------------------------------------------------------------------------|---------------|
@@ -91,9 +91,41 @@ Prefer `Properties` over embedding credentials in the URL. URL/Properties parsin
 
 #### User configuration
 
-When application expects external user to provide connection configuration then building an adoption layer between application and JDBC driver properties is needed to  decouple your system from changes in JDBC driver. Having such layer helps also with migration to new version and resolving compatibility issues. Always separate your application or connector configuration from JDBC driver. It may be very problematic in future to resolve name collisions and handle upgrades. It is very important to document how JDBC driver can be configured by user and where to find [driver configuration references](https://clickhouse.com/docs/integrations/language-clients/java/jdbc#configuration).
+When an application expects external users to provide connection configuration, build an adaptation layer between the application and the JDBC driver properties to decouple your system from changes in the JDBC driver. Having this layer also helps with migrating to new versions and resolving compatibility issues. Always separate your application or connector configuration (such as common properties across connectors like `host`, `username`, and credentials) from the JDBC driver properties; otherwise, resolving name collisions and handling upgrades can become very problematic in the future. It is also important to document how the JDBC driver can be configured by users and where to find driver configuration references ([`DriverProperties`](../jdbc-v2/src/main/java/com/clickhouse/jdbc/DriverProperties.java) and [`ClientConfigProperties`](../client-v2/src/main/java/com/clickhouse/client/api/ClientConfigProperties.java)).
 
-**Security Note** Always validate input for configuration. JDBC verifies it own configuration but some values can be semantically invalid. For example, do not let to reconfigure client name.
+**Important**
+Pin  properties values by setting them at last configuration step for next two reasons: 
+- Prevent behavior change with future upgrade of the library. If property is deprecated - then review will show it. Even if default value is fine for you, it make sense to pin it. 
+- Prevent users override important configuration. It is also recommended to whitelist user configurable properties and document them (give reference to the driver documentation, too).
+
+```java
+import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.jdbc.DriverProperties;
+
+public Properties toDriverProperties(UserConnectorConfig userConfig) {
+    Properties props = new Properties();
+
+    // 1. Copy user-supplied driver properties (if allowed by the service)
+    if (userConfig.getDriverProps() != null) {
+        props.putAll(userConfig.getDriverProps());
+    }
+
+    // 2. Map common service-level properties to driver properties
+    //    (can be adjusted on driver upgrades without changing UserConnectorConfig)
+    props.setProperty(ClientConfigProperties.USER.getKey(), userConfig.getUsername());
+    props.setProperty(ClientConfigProperties.PASSWORD.getKey(), userConfig.getPassword());
+    props.setProperty(DriverProperties.SECURE_CONNECTION.getKey(), String.valueOf(userConfig.isSsl()));
+
+    // 3. Enforce pin internal properties to prevent system overload (this step should be always last to override user set properties)
+    props.setProperty(ClientConfigProperties.CLIENT_NAME.getKey(), "my-service/1.0");
+    props.setProperty(ClientConfigProperties.HTTP_MAX_OPEN_CONNECTIONS.getKey(), "10");
+    props.setProperty(ClientConfigProperties.CONNECTION_REQUEST_TIMEOUT.getKey(), "10000");
+
+    return props;
+}
+```
+
+**Security Note:** Always validate input for configuration. The JDBC driver verifies its own configuration, but some user-provided values can still be semantically invalid or unsafe for your environment (for example, do not let users reconfigure `client_name` or set unbounded connection/buffer limits).
 
 ### Server and Client Settings
 
@@ -183,13 +215,13 @@ public void executeWorkloadTask(Connection conn, String taskName) throws SQLExce
 
 #### How it is observed on the server (`User-Agent` header)
 
-The JDBC driver communicates over HTTP and passes the client name as the leading segment of the HTTP `User-Agent` header. The driver automatically appends the JDBC driver version, the client version, and a comment group with detected frameworks (e.g. Apache Spark, as `fw`), the Java version (`lv`), the operating system (`os`), and the HTTP client (`hc`: `ahc_` and the Apache HttpClient version):
+The JDBC driver communicates over HTTP and passes the client name as the leading segment of the HTTP `User-Agent` header. The driver automatically appends the JDBC driver version, the client version, and a comment group with detected frameworks (e.g. Apache Spark, as `fw`), the Java version (`lv`), the operating system (`os`), the CPU architecture (`arch`), and the HTTP client (`hc`: `ahc_` and the Apache HttpClient version):
 
 ```text
-order-service/1.2.0 jdbc-v2/0.12.0 clickhouse-java-v2/0.12.0 (lv:java/17.0.2; os:Linux; hc:ahc_5.6.4)
+order-service/1.2.0 jdbc-v2/0.12.0 clickhouse-java-v2/0.12.0 (lv:java/17.0.2; os:Linux; arch:amd64; hc:ahc_5.6.4)
 ```
 
-To add key/value pairs to the comment group of the header, set the `client_id_metadata` property (for example, `client_id_metadata=fv=flink/2.0.0,api=table` gives `(fv:flink/2.0.0; api:table; lv:java/17.0.2; os:Linux; hc:ahc_5.6.4)`).
+To add key/value pairs to the comment group of the header, set the `client_id_metadata` property (for example, `client_id_metadata=fv=flink/2.0.0,api=table` gives `(fv:flink/2.0.0; api:table; lv:java/17.0.2; os:Linux; arch:amd64; hc:ahc_5.6.4)`).
 
 Always identify the application with the client name (`client_name` or `ApplicationName`). Do not set a custom `User-Agent` HTTP header for this: it replaces the application part of the header, including `jdbc-v2/<version>`.
 
@@ -828,46 +860,53 @@ A schema change — such as adding, removing, or altering a column — can resul
 - **ClickHouse Error Code 33 — "UNABLE TO READ ALL DATA"**:  
   This error appears when the data sent from the client does not match the expected table schema on the server (column count, order, or types are incompatible).  
   - For example, if you use a RowBinary writer and the schema is out of sync, ClickHouse cannot parse the incoming data block, resulting in this error.
-  - Code 33 may also be reported as a generic SQL exception by the JDBC layer, and the actual error code is only accessible if the exception's cause is a `ServerException` from the ClickHouse client.
+  - Code 33 may be reported as a generic SQL or framework exception, and the actual ClickHouse error details are accessible when a `com.clickhouse.client.api.ServerException` is present in the exception's cause chain.
 
 **Detection & Handling:**
 - **Detection:**  
   Error Code 33 signals that ClickHouse could not read all required data — most often due to a schema drift or column mismatch between the client and ClickHouse table.  
-  However, in the JDBC pathway, the underlying ClickHouse error code is accessible *only if* the root cause of the `SQLException` is a `com.clickhouse.client.ServerException`. You should check if `SQLException.getCause()` is a `ServerException` and inspect the code/message.
+  While the JDBC driver preserves `com.clickhouse.client.api.ServerException` in the cause chain of `SQLException` (and copies its code to `SQLException.getErrorCode()` on direct wraps), higher-level frameworks (such as Spring `DataAccessException` or Hibernate `JDBCException`), connection pools, or async execution (`ExecutionException`) often wrap exceptions in multiple layers. Walk the full `getCause()` chain to locate `ServerException` and inspect its error code and message.
 - **Best practices for handling:**  
-  1. **Catch and examine SQL exceptions.**  
-     - If `ex.getCause()` is a `ServerException` with code 33 (or message indicating unable to read all data), assume a schema mismatch.
+  1. **Catch and walk the full exception cause chain.**  
+     - Traverse `getCause()` until you find a `ServerException` with `getCode() == 33` (or a message indicating unable to read all data), and treat it as a schema mismatch.
   2. **Proactively refresh schema.**  
      - Fetch the latest table schema using JDBC's `DatabaseMetaData` or a `DESCRIBE TABLE` query.
   3. **Regenerate SQL or update your ingestion/mapping logic.**  
      - Make sure your SQL, `PreparedStatement`, or RowBinary column mapping exactly matches the current table schema.
   4. **Retry the operation.**
 
-**Example: Handling Error Code 33 (ServerException only)**
+**Example: Handling Error Code 33 (walking the exception cause chain)**
 
 ```java
-import com.clickhouse.client.ServerException;
+import com.clickhouse.client.api.ServerException;
+import com.clickhouse.client.api.metadata.TableSchema;
 
-void writeData(List<Data> data, TableSchema schema) {
+public void writeData(Connection conn, List<Data> data, TableSchema schema) throws Exception {
     try {
-        // ... ingestion code ... using schema
-    } catch (SQLException ex) {
-        Throwable cause = ex.getCause();
-        if (cause instanceof ServerException) {
-            ServerException serverEx = (ServerException) cause;
-            // ClickHouse code 33: UNABLE TO READ ALL DATA (schema mismatch)
-            if (serverEx.getErrorCode() == 33) {
-                // Possible table schema mismatch
-                // 1. Reload schema via DatabaseMetaData or DESCRIBE TABLE
-                // 2. Update SQL or RowBinary mapping as needed
-                // 3. Retry with updated logic
-            } else {
-                throw ex; // not a schema mismatch
-            }
+        // ... ingestion code using schema ...
+    } catch (Exception ex) {
+        ServerException serverEx = findServerException(ex);
+        // ClickHouse code 33: CANNOT_READ_ALL_DATA (schema mismatch)
+        if (serverEx != null && serverEx.getCode() == 33) {
+            // Possible table schema mismatch:
+            // 1. Reload schema via DatabaseMetaData or DESCRIBE TABLE
+            // 2. Update SQL or RowBinary mapping as needed
+            // 3. Retry with updated logic
         } else {
-            throw ex; // Cannot determine server error code
+            throw ex; // Not a schema mismatch or ServerException was not in the cause chain
         }
     }
+}
+
+private static ServerException findServerException(Throwable t) {
+    Throwable curr = t;
+    for (int depth = 0; curr != null && depth < 20; depth++) {
+        if (curr instanceof ServerException) {
+            return (ServerException) curr;
+        }
+        curr = curr.getCause() == curr ? null : curr.getCause();
+    }
+    return null;
 }
 ```
 
