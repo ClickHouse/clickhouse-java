@@ -185,7 +185,7 @@ public class NativeFormatReaderTest extends BaseIntegrationTest {
                 {"other column count", nativeBlock(Arrays.asList("n", "Int32", "m", "Int32"), 1), null},
                 {"other name", nativeBlock(Arrays.asList("m", "Int32"), 1), null},
                 {"other type", nativeBlock(Arrays.asList("n", "UInt32"), 1), null},
-                {"end inside the column count", new byte[] {(byte) 0x81}, EOFException.class},
+                {"end after the column count", new byte[] {1}, EOFException.class},
                 {"end inside the values", Arrays.copyOf(block, block.length - 1), EOFException.class},
         };
     }
@@ -202,7 +202,8 @@ public class NativeFormatReaderTest extends BaseIntegrationTest {
         ClientException ex = Assert.expectThrows(ClientException.class, reader::hasNext);
         Assert.assertEquals(ex.getCause() == null ? null : ex.getCause().getClass(), cause, label);
         Assert.assertTrue(ex.getMessage().startsWith("Failed to read block")
-                && (cause != null || ex.getMessage().contains("block boundary")), label + ": " + ex.getMessage());
+                && (cause != null || ex.getMessage().endsWith("not at a block boundary, see the Javadoc of "
+                        + NativeFormatReader.class.getName())), label + ": " + ex.getMessage());
         Assert.assertFalse(reader.hasNext(), label);
         Assert.assertNull(reader.next(), label);
     }
