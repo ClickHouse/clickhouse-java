@@ -49,6 +49,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Properties;
+import java.util.regex.Pattern;
 import java.util.UUID;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -437,6 +438,59 @@ public class ConnectionTest extends JdbcIntegrationTest {
             userAgent = executeQueryAndVerifyUserAgent(stmt, "my-app/1.0");
             Assert.assertTrue(userAgent.endsWith(expectedSuffix),
                     "Expected to end with '" + expectedSuffix + "' but value was '" + userAgent + "'");
+        }
+    }
+
+    @DataProvider(name = "frameworksInUserAgentDP")
+    public static Object[][] frameworksInUserAgentDP() {
+        return new Object[][] {
+            {"apache.spark", "", false, null},
+            {"apache.spark+apache.flink", "my-app/1.0", false, null},
+            {"apache.spark", "my-app/1.0", false, "fv=flink/2.0.0,api=table"},
+            {"apache.spark", "my-app/1.0", false, "fw=custom"},
+            {"apache.spark", "my-app/1.0", true, null},
+            {"", "my-app/1.0", false, null},
+        };
+    }
+
+    @Test(groups = { "integration" }, dataProvider = "frameworksInUserAgentDP")
+    public void testDetectedFrameworksInUserAgent(String frameworks, String appName, boolean disabled,
+                                                  String metadata) throws Exception {
+        if (isCloud()) {
+            throw new SkipException("Cloud does not support flushing query_log");
+        }
+
+        String previous = Driver.FrameworksDetection.frameworksDetected;
+        try {
+            Driver.FrameworksDetection.frameworksDetected = frameworks;
+            Properties info = new Properties();
+            info.setProperty("user", "default");
+            info.setProperty("password", ClickHouseServerForTest.getPassword());
+            info.setProperty(ClientConfigProperties.DATABASE.getKey(), ClickHouseServerForTest.getDatabase());
+            info.setProperty(DriverProperties.DISABLE_FRAMEWORKS_DETECTION.getKey(), Boolean.toString(disabled));
+            if (metadata != null) {
+                info.setProperty(ClientConfigProperties.CLIENT_ID_METADATA.getKey(), metadata);
+            }
+
+            String expectedFw = disabled || frameworks.isEmpty() ? null
+                    : (metadata != null && metadata.startsWith("fw=") ? "custom" : frameworks);
+            // <app_name>/<app_version> <client_name>/<client_version> (<key1>:<value1>; <key2>:<value2>)
+            String app = appName.isEmpty() ? "" : Pattern.quote(appName) + " ";
+            String format = app + "jdbc-v2/\\S+ clickhouse-java-v2/\\S+ \\([^()]*\\)";
+
+            try (Connection localConnection = new ConnectionImpl(getEndpointString(), info);
+                 Statement stmt = localConnection.createStatement()) {
+                // the application name is set the same way as clients do it after connecting
+                localConnection.setClientInfo(ClientInfoProperties.APPLICATION_NAME.getKey(), appName);
+                String userAgent = executeQueryAndVerifyUserAgent(stmt, appName);
+                Assert.assertTrue(userAgent.matches(format), "Unexpected User-Agent format: " + userAgent);
+                Assert.assertEquals(userAgent.contains("fw:" + expectedFw), expectedFw != null, userAgent);
+                if (expectedFw != null) {
+                    Assert.assertTrue(userAgent.contains("fw:" + expectedFw + ";") || userAgent.contains("fw:" + expectedFw + ")"), userAgent);
+                }
+            }
+        } finally {
+            Driver.FrameworksDetection.frameworksDetected = previous;
         }
     }
 
