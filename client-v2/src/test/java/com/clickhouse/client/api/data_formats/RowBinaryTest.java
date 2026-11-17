@@ -11,15 +11,22 @@ import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
+import com.clickhouse.client.api.sql.SQLUtils;
+import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
 import lombok.Data;
 import org.testng.Assert;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.math.BigInteger;
 import java.time.ZonedDateTime;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Test(groups = {"integration"})
 public class RowBinaryTest extends BaseIntegrationTest {
@@ -346,6 +353,145 @@ public class RowBinaryTest extends BaseIntegrationTest {
             }
         } catch (Exception e) {
             Assert.fail("Unexpected exception", e);
+        }
+    }
+
+    @DataProvider(name = "enumTypesInSchema")
+    private Object[][] enumTypesInSchema() {
+        return new Object[][]{
+                {"Enum('a' = 1000)", "a", 1000, ClickHouseDataType.Enum16},
+                {"enum('a' = 1, 'b' = 1000)", "a", 1, ClickHouseDataType.Enum16},
+                {"ENUM('a' = -129)", "a", -129, ClickHouseDataType.Enum16},
+                {"Enum('a' = 1, 'b' = 128)", "b", 128, ClickHouseDataType.Enum16},
+                {"Enum('a' = -128, 'b' = 127)", "a", -128, ClickHouseDataType.Enum8},
+                {"Enum8('a' = 1)", "a", 1, ClickHouseDataType.Enum8},
+                {"Enum16('a' = 1000)", "a", 1000, ClickHouseDataType.Enum16},
+                {"Nullable(Enum('a' = 1000))", "a", 1000, ClickHouseDataType.Enum16},
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "enumTypesInSchema")
+    void testReadEnumWithSchemaFromTypeName(String type, String name, int value, ClickHouseDataType expectedType) throws Exception {
+        TableSchema schema = new TableSchema(Arrays.asList(ClickHouseColumn.of("e", type), ClickHouseColumn.of("u", "UInt8")));
+        String sql = "SELECT CAST(" + SQLUtils.enquoteLiteral(name) + ", " + SQLUtils.enquoteLiteral(type)
+                + ") AS e, toUInt8(7) AS u FROM numbers(2)";
+        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinary);
+        try (Client client = newClient().build(); QueryResponse response = client.query(sql, settings).get()) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response, schema);
+            for (int row = 0; row < 2; row++) {
+                Assert.assertNotNull(reader.next());
+                BinaryStreamReader.EnumValue enumValue = reader.readValue("e");
+                Assert.assertEquals(enumValue.getName(), name);
+                Assert.assertEquals(enumValue.intValue(), value);
+                Assert.assertEquals(enumValue.getDataType(), expectedType);
+                Assert.assertEquals(reader.getShort("u"), 7);
+            }
+            Assert.assertNull(reader.next());
+        }
+    }
+
+    @Test(groups = {"integration"})
+    void testRowBinaryEmptyResult() throws Exception {
+        try (Client client = newClient().build()) {
+            TableSchema schema = client.getTableSchemaFromQuery("SELECT toInt32(0) AS id, '' AS name");
+            QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinary);
+            try (QueryResponse response = client.query(
+                    "SELECT toInt32(number) AS id, toString(number) AS name FROM system.numbers LIMIT 0", settings).get();
+                 RowBinaryFormatReader reader = new RowBinaryFormatReader(response.getInputStream(),
+                         response.getSettings(), schema, new BinaryStreamReader.DefaultByteBufferAllocator())) {
+                Assert.assertFalse(reader.hasNext());
+                Assert.assertNull(reader.next());
+                Assert.assertFalse(reader.readRecord(new LinkedHashMap<>()));
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    void testRowBinaryNextWithoutHasNext() throws Exception {
+        final String table = "test_row_binary_next_without_has_next";
+        try (Client client = newClient().build()) {
+            client.execute("DROP TABLE IF EXISTS " + table).get();
+            client.execute("CREATE TABLE " + table + " (id Int32, name String) ORDER BY id").get();
+            client.execute("INSERT INTO " + table + " VALUES (1, 'one'), (2, 'two')").get();
+
+            TableSchema schema = client.getTableSchema(table);
+            QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinary);
+            try (QueryResponse response = client.query("SELECT * FROM " + table + " ORDER BY id", settings).get();
+                 RowBinaryFormatReader reader = new RowBinaryFormatReader(response.getInputStream(),
+                         response.getSettings(), schema, new BinaryStreamReader.DefaultByteBufferAllocator())) {
+                Map<String, Object> first = reader.next();
+                Assert.assertNotNull(first);
+                Assert.assertEquals(reader.getInteger("id"), 1);
+                Assert.assertEquals(reader.getString("name"), "one");
+
+                Map<String, Object> second = reader.next();
+                Assert.assertNotNull(second);
+                Assert.assertEquals(reader.getInteger("id"), 2);
+                Assert.assertEquals(reader.getString("name"), "two");
+
+                Assert.assertNull(reader.next());
+                Assert.assertFalse(reader.hasNext());
+            } finally {
+                client.execute("DROP TABLE IF EXISTS " + table).get();
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    void testRowBinaryWithTypeHintMapping() throws Exception {
+        final String table = "test_row_binary_type_hint";
+        try (Client client = newClient().build()) {
+            client.execute("DROP TABLE IF EXISTS " + table).get();
+            client.execute("CREATE TABLE " + table + " (id Int32, arr Array(Int32)) ORDER BY id").get();
+            client.execute("INSERT INTO " + table + " VALUES (1, [10, 20, 30])").get();
+
+            TableSchema schema = client.getTableSchema(table);
+            QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinary);
+            Map<ClickHouseDataType, Class<?>> hints = Collections.singletonMap(ClickHouseDataType.Array, Object.class);
+            try (QueryResponse response = client.query("SELECT * FROM " + table + " ORDER BY id", settings).get();
+                 RowBinaryFormatReader reader = new RowBinaryFormatReader(response.getInputStream(),
+                         response.getSettings(), schema, new BinaryStreamReader.DefaultByteBufferAllocator(), hints)) {
+                Assert.assertTrue(reader.hasNext());
+                reader.next();
+                Object raw = reader.readValue("arr");
+                Assert.assertTrue(raw instanceof List<?>, "Expected List due to typeHintMapping, got " + raw);
+                Assert.assertEquals(raw, Arrays.asList(10, 20, 30));
+            } finally {
+                client.execute("DROP TABLE IF EXISTS " + table).get();
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    void testRowBinaryReadRecordMap() throws Exception {
+        final String table = "test_row_binary_read_record_map";
+        try (Client client = newClient().build()) {
+            client.execute("DROP TABLE IF EXISTS " + table).get();
+            client.execute("CREATE TABLE " + table + " (id Int32, name Nullable(String)) ORDER BY id").get();
+            client.execute("INSERT INTO " + table + " VALUES (1, 'first'), (2, NULL), (3, 'third')").get();
+
+            TableSchema schema = client.getTableSchema(table);
+            QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinary);
+            try (QueryResponse response = client.query("SELECT * FROM " + table + " ORDER BY id", settings).get();
+                 RowBinaryFormatReader reader = new RowBinaryFormatReader(response.getInputStream(),
+                         response.getSettings(), schema, new BinaryStreamReader.DefaultByteBufferAllocator())) {
+                // RowBinaryFormatReader constructor pre-reads row 1 via readNextRecord(), so readRecord(Map)
+                // reads the remaining rows from the stream.
+                Map<String, Object> row2 = new LinkedHashMap<>();
+                Assert.assertTrue(reader.readRecord(row2));
+                Assert.assertEquals(row2.get("id"), 2);
+                Assert.assertFalse(row2.containsKey("name"));
+
+                Map<String, Object> row3 = new LinkedHashMap<>();
+                Assert.assertTrue(reader.readRecord(row3));
+                Assert.assertEquals(row3.get("id"), 3);
+                Assert.assertEquals(row3.get("name"), "third");
+
+                Assert.assertFalse(reader.readRecord(new LinkedHashMap<>()));
+                Assert.assertFalse(reader.hasNext());
+            } finally {
+                client.execute("DROP TABLE IF EXISTS " + table).get();
+            }
         }
     }
 

@@ -22,6 +22,8 @@ public class WorkloadIdentitySupportTest {
 
     private static final String OS = "os:" + System.getProperty("os.name");
 
+    private static final String ARCHITECTURE = "arch:" + System.getProperty("os.arch");
+
     private static final String HTTP_CLIENT = "hc:ahc_" + Versions.APACHE_HTTP_CLIENT;
 
     @Test(dataProvider = "requestUserAgents")
@@ -102,12 +104,15 @@ public class WorkloadIdentitySupportTest {
     @DataProvider(name = "clientEntriesMetadata")
     public static Object[][] clientEntriesMetadata() {
         return new Object[][]{
-                {"os=Android 14", "os:Android 14; " + LANGUAGE_VERSION + "; " + HTTP_CLIENT},
-                {"api=table,lv=kotlin/2.0", "api:table; lv:kotlin/2.0; " + OS + "; " + HTTP_CLIENT},
-                {"hc=okhttp_4.12", "hc:okhttp_4.12; " + LANGUAGE_VERSION + "; " + OS},
-                {"OS=Android 14,LV=kotlin/2.0", "OS:Android 14; LV:kotlin/2.0; " + HTTP_CLIENT},
-                {"os=Android 14,hc=okhttp_4.12,api=table,lv=kotlin/2.0",
-                        "os:Android 14; hc:okhttp_4.12; api:table; lv:kotlin/2.0"},
+                {"os=Android 14", "os:Android 14; " + LANGUAGE_VERSION + "; " + ARCHITECTURE + "; " + HTTP_CLIENT},
+                {"api=table,lv=kotlin/2.0",
+                        "api:table; lv:kotlin/2.0; " + OS + "; " + ARCHITECTURE + "; " + HTTP_CLIENT},
+                {"hc=okhttp_4.12", "hc:okhttp_4.12; " + LANGUAGE_VERSION + "; " + OS + "; " + ARCHITECTURE},
+                {"arch=arm64-v8a", "arch:arm64-v8a; " + LANGUAGE_VERSION + "; " + OS + "; " + HTTP_CLIENT},
+                {"OS=Android 14,LV=kotlin/2.0,ARCH=arm64-v8a",
+                        "OS:Android 14; LV:kotlin/2.0; ARCH:arm64-v8a; " + HTTP_CLIENT},
+                {"os=Android 14,hc=okhttp_4.12,api=table,arch=arm64-v8a,lv=kotlin/2.0",
+                        "os:Android 14; hc:okhttp_4.12; api:table; arch:arm64-v8a; lv:kotlin/2.0"},
         };
     }
 
@@ -146,6 +151,7 @@ public class WorkloadIdentitySupportTest {
 
     private static String userAgent(String application, String metadata) {
         return (application == null ? "" : application + " ") + "clickhouse-java-v2/" + Client.clientVersion + " ("
-                + (metadata == null ? "" : metadata + "; ") + LANGUAGE_VERSION + "; " + OS + "; " + HTTP_CLIENT + ")";
+                + (metadata == null ? "" : metadata + "; ") + LANGUAGE_VERSION + "; " + OS + "; " + ARCHITECTURE + "; "
+                + HTTP_CLIENT + ")";
     }
 }
