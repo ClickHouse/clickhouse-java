@@ -517,6 +517,37 @@ public class BinaryStreamReaderTests {
         Assert.assertEquals(reader.readValue(ClickHouseColumn.of("guard", "Int32")), Integer.valueOf(4242));
     }
 
+    @Test
+    public void testDynamicUnnamedTupleConsumesElementTypeEncodings() throws Exception {
+        // Array(Tuple(Tuple(Int32, String), Nullable(Int8))) with unnamed tuples
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(ClickHouseDataType.Array.getBinTag());
+        baos.write(ClickHouseDataType.TUPLE_WITHOUT_NAMES_BIN_TAG);
+        BinaryStreamUtils.writeVarInt(baos, 2);
+        baos.write(ClickHouseDataType.TUPLE_WITHOUT_NAMES_BIN_TAG);
+        BinaryStreamUtils.writeVarInt(baos, 2);
+        baos.write(ClickHouseDataType.Int32.getBinTag());
+        baos.write(ClickHouseDataType.String.getBinTag());
+        baos.write(ClickHouseDataType.Nullable.getBinTag());
+        baos.write(ClickHouseDataType.Int8.getBinTag());
+        BinaryStreamUtils.writeVarInt(baos, 2);
+        BinaryStreamUtils.writeInt32(baos, 1);
+        BinaryStreamUtils.writeString(baos, "a");
+        BinaryStreamUtils.writeNonNull(baos);
+        BinaryStreamUtils.writeInt8(baos, 2);
+        BinaryStreamUtils.writeInt32(baos, 3);
+        BinaryStreamUtils.writeString(baos, "b");
+        BinaryStreamUtils.writeNull(baos);
+        BinaryStreamUtils.writeInt32(baos, 4242);
+
+        BinaryStreamReader reader = dynamicReader(baos);
+        Object[] values = ((BinaryStreamReader.ArrayValue) reader.readValue(ClickHouseColumn.of("v", "Dynamic"))).getArrayOfObjects();
+        Assert.assertEquals(values, new Object[]{
+                new Object[]{new Object[]{1, "a"}, (byte) 2},
+                new Object[]{new Object[]{3, "b"}, null}});
+        Assert.assertEquals(reader.readValue(ClickHouseColumn.of("guard", "Int32")), Integer.valueOf(4242));
+    }
+
     private static void assertEnumValue(Object actual, String expectedName, int expectedValue) {
         BinaryStreamReader.EnumValue value = (BinaryStreamReader.EnumValue) actual;
         Assert.assertEquals(value.getName(), expectedName);
