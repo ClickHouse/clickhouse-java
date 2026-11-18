@@ -368,7 +368,11 @@ public class SerializerUtils {
 
     private static ClickHouseColumn enumValue2Column(Enum<?> enumValue) {
         ClickHouseEnum clickHouseEnum= ClickHouseEnum.of(enumValue.getClass());
-        return new ClickHouseColumn(clickHouseEnum.size() > 127 ? ClickHouseDataType.Enum16 : ClickHouseDataType.Enum8, "v", "Enum16", false, false, Collections.emptyList(), Collections.emptyList(),
+        ClickHouseDataType dataType = clickHouseEnum.size() > 127 ? ClickHouseDataType.Enum16 : ClickHouseDataType.Enum8;
+        // A Map type is parsed again from the type names of its key and value,
+        // so the name has to carry the width and the elements.
+        String typeName = dataType.name() + "(" + clickHouseEnum.toSqlException() + ")";
+        return new ClickHouseColumn(dataType, "v", typeName, false, false, Collections.emptyList(), Collections.emptyList(),
                 clickHouseEnum);
     }
 
