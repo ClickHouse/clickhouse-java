@@ -19,8 +19,12 @@ import org.testng.annotations.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.EOFException;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -59,6 +63,149 @@ public class NativeFormatReaderTest extends BaseIntegrationTest {
             Assert.assertEquals(fromGetters, expected);
             Assert.assertFalse(reader.hasNext());
         }
+    }
+
+    // 0 rows: the server sends an empty stream. 25 rows with max_block_size = 10: three blocks.
+    @DataProvider(name = "rowCounts")
+    public static Object[][] rowCounts() {
+        return new Object[][] {{0}, {1}, {25}};
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "rowCounts")
+    public void testHasNextIsIdempotent(int rows) throws Exception {
+        try (Client client = newClient().build();
+             QueryResponse response = queryNative(client, rows)) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+            List<Object> values = new ArrayList<>();
+            List<Object> fromGetters = new ArrayList<>();
+            while (reader.hasNext()) {
+                Assert.assertTrue(reader.hasNext());
+                Map<String, Object> row = reader.next();
+                // After the last row of a block, this reads the next block.
+                reader.hasNext();
+                values.add(row.get("n"));
+                fromGetters.add(reader.getInteger("n"));
+            }
+            Assert.assertEquals(values, sequence(rows));
+            Assert.assertEquals(fromGetters, sequence(rows));
+            Assert.assertFalse(reader.hasNext());
+            Assert.assertNull(reader.next());
+        }
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "rowCounts")
+    public void testReadRecordReadsEveryRow(int rows) throws Exception {
+        try (Client client = newClient().build();
+             QueryResponse response = queryNative(client, rows)) {
+            NativeFormatReader reader = (NativeFormatReader) client.newBinaryFormatReader(response);
+            List<Object> values = new ArrayList<>();
+            Map<String, Object> record = new HashMap<>();
+            while (reader.readRecord(record)) {
+                values.add(record.get("n"));
+            }
+            Assert.assertEquals(values, sequence(rows));
+            Assert.assertFalse(reader.readRecord(record));
+        }
+    }
+
+    private static QueryResponse queryNative(Client client, int rows) throws Exception {
+        return client.query("SELECT toInt32(number) AS n FROM numbers(" + rows + ") SETTINGS max_block_size = 10",
+                new QuerySettings().setFormat(ClickHouseFormat.Native)).get(30, TimeUnit.SECONDS);
+    }
+
+    private static List<Object> sequence(int rows) {
+        List<Object> values = new ArrayList<>();
+        for (int i = 0; i < rows; i++) {
+            values.add(i);
+        }
+        return values;
+    }
+
+    // Row count of each block in the stream. No blocks: an empty stream.
+    @DataProvider(name = "blockRowCounts")
+    public static Object[][] blockRowCounts() {
+        return new Object[][] {{new int[0]}, {new int[] {0}}, {new int[] {0, 2}}, {new int[] {2, 0, 1}},
+                {new int[] {2, 0}}};
+    }
+
+    @Test(dataProvider = "blockRowCounts")
+    public void testSkipsBlocksWithoutRows(int[] blockRows) throws IOException {
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        List<Object> expected = new ArrayList<>();
+        for (int rows : blockRows) {
+            stream.write(nativeBlock(Arrays.asList("n", "Int32"), rows));
+            expected.addAll(sequence(rows));
+        }
+
+        NativeFormatReader reader = nativeReader(stream.toByteArray());
+        List<Object> fromNext = new ArrayList<>();
+        Map<String, Object> row;
+        while ((row = reader.next()) != null) {
+            fromNext.add(row.get("n"));
+        }
+        Assert.assertEquals(fromNext, expected);
+
+        reader = nativeReader(stream.toByteArray());
+        List<Object> fromReadRecord = new ArrayList<>();
+        Map<String, Object> record = new HashMap<>();
+        while (reader.readRecord(record)) {
+            fromReadRecord.add(record.get("n"));
+        }
+        Assert.assertEquals(fromReadRecord, expected);
+    }
+
+    @Test
+    public void testReadsBlocksWithManyColumns() throws IOException {
+        List<String> columns = new ArrayList<>();
+        for (int i = 0; i < 130; i++) {
+            columns.add("c" + i);
+            columns.add("Int32");
+        }
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        stream.write(nativeBlock(columns, 1));
+        stream.write(nativeBlock(columns, 2));
+        NativeFormatReader reader = nativeReader(stream.toByteArray());
+
+        Assert.assertEquals(reader.getSchema().getColumns().size(), 130);
+        List<Object> values = new ArrayList<>();
+        Map<String, Object> row;
+        while ((row = reader.next()) != null) {
+            values.add(row.get("c129"));
+        }
+        Assert.assertEquals(values, Arrays.asList(0, 0, 1));
+    }
+
+    // A later block with other columns than the first block cannot come from the server: the reader is not at a
+    // block boundary. A null cause marks these cases.
+    @DataProvider(name = "brokenSecondBlocks")
+    public static Object[][] brokenSecondBlocks() throws IOException {
+        byte[] block = nativeBlock(Arrays.asList("n", "Int32"), 1);
+        return new Object[][] {
+                {"no columns", nativeBlock(Collections.emptyList(), 3), null},
+                {"other column count", nativeBlock(Arrays.asList("n", "Int32", "m", "Int32"), 1), null},
+                {"other name", nativeBlock(Arrays.asList("m", "Int32"), 1), null},
+                {"other type", nativeBlock(Arrays.asList("n", "UInt32"), 1), null},
+                {"end after the column count", new byte[] {1}, EOFException.class},
+                {"end inside the values", Arrays.copyOf(block, block.length - 1), EOFException.class},
+        };
+    }
+
+    @Test(dataProvider = "brokenSecondBlocks")
+    public void testFailsOnBrokenBlock(String label, byte[] secondBlock, Class<?> cause) throws IOException {
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        stream.write(nativeBlock(Arrays.asList("n", "Int32"), 2));
+        stream.write(secondBlock);
+        NativeFormatReader reader = nativeReader(stream.toByteArray());
+
+        Assert.assertEquals(reader.next().get("n"), 0, label);
+        Assert.assertEquals(reader.next().get("n"), 1, label);
+        ClientException ex = Assert.expectThrows(ClientException.class, reader::hasNext);
+        Assert.assertEquals(ex.getCause() == null ? null : ex.getCause().getClass(), cause, label);
+        Assert.assertTrue(ex.getMessage().startsWith("Failed to read block")
+                && (cause != null || ex.getMessage().endsWith("not at a block boundary, see the Javadoc of "
+                        + NativeFormatReader.class.getName())), label + ": " + ex.getMessage());
+        Assert.assertFalse(reader.hasNext(), label);
+        Assert.assertNull(reader.next(), label);
     }
 
     private Client.Builder newClient() {
@@ -135,6 +282,25 @@ public class NativeFormatReaderTest extends BaseIntegrationTest {
         BinaryStreamUtils.writeVarInt(out, 1); // one row
         BinaryStreamUtils.writeString(out, columnName);
         BinaryStreamUtils.writeString(out, columnType);
+        return out.toByteArray();
+    }
+
+    /**
+     * Builds a Native block with {@code Int32} values 0, 1, ... in each column.
+     *
+     * @param columns column names and types, in pairs
+     */
+    private static byte[] nativeBlock(List<String> columns, int rows) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        BinaryStreamUtils.writeVarInt(out, columns.size() / 2);
+        BinaryStreamUtils.writeVarInt(out, rows);
+        for (int i = 0; i < columns.size(); i += 2) {
+            BinaryStreamUtils.writeString(out, columns.get(i));
+            BinaryStreamUtils.writeString(out, columns.get(i + 1));
+            for (int row = 0; row < rows; row++) {
+                BinaryStreamUtils.writeInt32(out, row);
+            }
+        }
         return out.toByteArray();
     }
 

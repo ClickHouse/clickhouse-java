@@ -16,15 +16,74 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * For the backward compatibility server will not send TZ id in column type. Client should send version to a server
+ * Reads a result in the {@code Native} format.
+ *
+ * <p><b>Stream layout.</b> A Native result is a sequence of blocks. There is no header and no trailer. The server
+ * sends an empty result as an empty stream, but the reader also accepts blocks without rows. One block is:
+ * <pre>
+ * VarUInt   number of columns
+ * VarUInt   number of rows
+ * for each column:
+ *   String  column name
+ *   String  column type
+ *   bytes   values of all rows of the column, in the Native (column-oriented) layout of the type
+ * </pre>
+ * All blocks of one result have the same columns: the same number, in the same order, with the same names and
+ * types.
+ *
+ * <p><b>How rows are read.</b>
+ * <ul>
+ *     <li>{@code readBlock()} decodes one full block into memory, column by column. The constructor reads the first
+ *     block, so the schema is known before the first row is read. For an empty stream, {@link #getSchema()} returns
+ *     {@code null}. The schema comes from the first block and does not change.</li>
+ *     <li>Rows are taken from the block in memory by their index in the block. The next block is read only when all
+ *     rows of the current block were taken. Blocks without rows are skipped.</li>
+ *     <li>{@link #hasNext()} reads a block only when the current block has no row left. Thus, more calls before
+ *     {@link #next()} read nothing and give the same result. Reading the next block does not change the values of
+ *     the current row. {@link #next()} takes the row and moves to the next index. It does not read ahead.
+ *     {@link #readRecord(Map)} takes rows in the same way.</li>
+ *     <li>The result ends when the stream ends before or inside the column count of the next block. If the stream
+ *     ends after the column count, reading fails.</li>
+ *     <li>After a read failure, {@link #hasNext()} returns {@code false}.</li>
+ * </ul>
+ * This reader does not use the one-row read-ahead of {@link AbstractBinaryFormatReader}.
+ *
+ * <p><b>Block check: "the reader is not at a block boundary".</b> The server does not send a block with columns
+ * that are different from the first block. Thus, the reader compares the column count, the names, and the types of
+ * each later block with the first block. If they are different, the reader did not read the previous block to its
+ * end, and it reads other bytes as a block header. Usual causes:
+ * <ul>
+ *     <li>A column of the previous block uses a Native layout that this reader does not decode, and the reader read
+ *     a wrong number of bytes for it. Examples: {@code LowCardinality}, and some nested {@code Array}, {@code Map},
+ *     and {@code Tuple} types.</li>
+ *     <li>The server wrote an error message into the stream.</li>
+ * </ul>
+ * Reading then fails with a {@link ClientException}, and no row of that block is returned. Rows of the block that was
+ * decoded with a wrong layout can have wrong values. Some wrong layouts read the correct number of bytes, and this
+ * check does not find them. To read such columns, use a {@code RowBinary} format, for example
+ * {@code RowBinaryWithNamesAndTypes}.
+ *
+ * <p>For the backward compatibility server will not send TZ id in column type. Client should send version to a server
  * to get the correct column type.
  * (see: https://github.com/ClickHouse/ClickHouse/issues/38209)
  */
 public class NativeFormatReader extends AbstractBinaryFormatReader {
 
+    /** End of the message of a failed block check. It refers to the class Javadoc, which explains the check. */
+    private static final String NOT_AT_BLOCK_BOUNDARY = ". The reader is not at a block boundary, see the Javadoc of "
+            + NativeFormatReader.class.getName();
+
+    /** Block that rows are taken from. {@code null} at the end of the result and after a read failure. */
     private Block currentBlock;
 
+    /** Index of the next row to take from {@link #currentBlock}. */
     private int blockRowIndex;
+
+    /** Column names of the first block, {@code null} before it. The rows of all blocks use these names. */
+    private List<String> columnNames;
+
+    /** Column types of the first block, as the server wrote them. All later blocks must have the same types. */
+    private List<String> columnTypes;
 
     public NativeFormatReader(InputStream inputStream, QuerySettings settings,
                               BinaryStreamReader.ByteBufferAllocator byteBufferAllocator,
@@ -44,10 +103,8 @@ public class NativeFormatReader extends AbstractBinaryFormatReader {
 
     @Override
     public boolean readRecord(Map<String, Object> record) throws IOException {
-        if (blockRowIndex >= currentBlock.getnRows()) {
-            if (!readBlock()) {
-                return false;
-            }
+        if (!hasRowInBlock()) {
+            return false;
         }
 
         currentBlock.fillRecord(blockRowIndex, record);
@@ -55,27 +112,13 @@ public class NativeFormatReader extends AbstractBinaryFormatReader {
         return true;
     }
 
-    // A Native block is fully in memory, so rows are taken from it directly instead of through the
-    // one-row read-ahead of the base class. Each block re-publishes the schema, which replaces the row
-    // buffers, so the next block is read only when no row of the current one is still pending.
     @Override
     public boolean hasNext() {
-        while (currentBlock != null && blockRowIndex >= currentBlock.getnRows()) {
-            try {
-                if (!readBlock()) {
-                    currentBlock = null;
-                }
-            } catch (IOException e) {
-                currentBlock = null;
-                endReached();
-                throw new ClientException("Failed to read block", e);
-            }
+        try {
+            return hasRowInBlock();
+        } catch (IOException e) {
+            throw new ClientException("Failed to read block", e);
         }
-        if (currentBlock == null) {
-            endReached();
-            return false;
-        }
-        return true;
     }
 
     @Override
@@ -90,10 +133,8 @@ public class NativeFormatReader extends AbstractBinaryFormatReader {
 
     @Override
     protected boolean readRecord(Object[] record) throws IOException {
-        if (blockRowIndex >= currentBlock.getnRows()) {
-            if (!readBlock()) {
-                return false;
-            }
+        if (!hasRowInBlock()) {
+            return false;
         }
 
         currentBlock.fillRecord(blockRowIndex, record);
@@ -101,28 +142,76 @@ public class NativeFormatReader extends AbstractBinaryFormatReader {
         return true;
     }
 
-    private boolean readBlock() throws IOException {
+    /**
+     * Makes sure that {@link #currentBlock} has a row at {@link #blockRowIndex} that was not taken yet. Reads the next
+     * block only when all rows of the current block were taken, and skips blocks without rows. If the current block
+     * has a row, this method reads nothing. Thus, it gives the same result for each call until the row is taken.
+     *
+     * @return {@code true} if there is a row to take, {@code false} at the end of the result
+     * @throws IOException if the next block cannot be read. The reader is then at the end of the result.
+     * @throws ClientException if the next block has other columns than the first block, or a column that this reader
+     *         does not decode. The reader is then at the end of the result.
+     */
+    private boolean hasRowInBlock() throws IOException {
+        try {
+            while (currentBlock != null && blockRowIndex >= currentBlock.getnRows()) {
+                readBlock();
+            }
+        } catch (IOException | RuntimeException e) {
+            currentBlock = null;
+            endReached();
+            throw e;
+        }
+        return currentBlock != null;
+    }
+
+    /**
+     * Reads the next block into {@link #currentBlock} and sets {@link #blockRowIndex} to its first row. If the stream
+     * ends before the block, sets {@link #currentBlock} to {@code null}. The first block sets the schema. A later block
+     * must have the same columns as the first block.
+     *
+     * @throws IOException if the stream cannot be read or ends after the column count of the block
+     * @throws ClientException if the block has other columns than the first block (the reader is then not at a block
+     *         boundary), or a column that this reader does not decode
+     */
+    private void readBlock() throws IOException {
         int nColumns;
         try {
             nColumns = BinaryStreamReader.readVarInt(input);
         } catch (EOFException e) {
+            currentBlock = null;
             endReached();
-            return false;
+            return;
         }
         int nRows = BinaryStreamReader.readVarInt(input);
 
-        List<String> names = new ArrayList<>(nColumns);
-        List<String> types = new ArrayList<>(nColumns);
-        currentBlock = new Block(names, types, nRows);
-        List<ClickHouseColumn> columns = new ArrayList<>(nColumns);
+        boolean firstBlock = columnNames == null;
+        if (!firstBlock && nColumns != columnNames.size()) {
+            throw new ClientException("Failed to read block: it has " + nColumns + " columns, the first block has "
+                    + columnNames.size() + NOT_AT_BLOCK_BOUNDARY);
+        }
+        List<ClickHouseColumn> columns = firstBlock ? new ArrayList<>(nColumns) : getSchema().getColumns();
+        if (firstBlock) {
+            columnNames = new ArrayList<>(nColumns);
+            columnTypes = new ArrayList<>(nColumns);
+        }
+        Block block = new Block(columnNames, nRows);
         for (int i = 0; i < nColumns; i++) {
-
-            ClickHouseColumn column = ClickHouseColumn.of(BinaryStreamReader.readString(input),
-                    BinaryStreamReader.readString(input));
-            columns.add(column);
-
-            names.add(column.getColumnName());
-            types.add(column.getDataType().name());
+            String name = BinaryStreamReader.readString(input);
+            String type = BinaryStreamReader.readString(input);
+            ClickHouseColumn column;
+            if (firstBlock) {
+                column = ClickHouseColumn.of(name, type);
+                columns.add(column);
+                columnNames.add(column.getColumnName());
+                columnTypes.add(type);
+            } else if (name.equals(columnNames.get(i)) && type.equals(columnTypes.get(i))) {
+                column = columns.get(i);
+            } else {
+                // Do not put the name and the type into the message: they were read from wrong bytes.
+                throw new ClientException("Failed to read block: column " + (i + 1)
+                        + " has a different name or type than in the first block" + NOT_AT_BLOCK_BOUNDARY);
+            }
 
             List<Object> values;
             if (isNativeDecodableQBit(column)) {
@@ -190,14 +279,15 @@ public class NativeFormatReader extends AbstractBinaryFormatReader {
                     values.add(value);
                 }
             }
-            currentBlock.add(values);
+            block.add(values);
         }
-        TableSchema schema = new TableSchema(columns);
+        if (firstBlock) {
+            // Later blocks have the same columns, so the schema and the row buffers that it creates stay the same.
+            setSchema(new TableSchema(columns));
+        }
 
-        setSchema(schema);
-
+        currentBlock = block;
         blockRowIndex = 0;
-        return true;
     }
 
     /**
@@ -267,16 +357,15 @@ public class NativeFormatReader extends AbstractBinaryFormatReader {
         return false;
     }
 
+    /** Decoded values of one block: one list of {@code nRows} values for each column. */
     private static class Block {
         final List<String> names;
-        final List<String> types;
 
         final List<List<Object>> values = new ArrayList<>();
         final int nRows;
 
-        Block(List<String> names, List<String> types, int nRows) {
+        Block(List<String> names, int nRows) {
             this.names = names;
-            this.types = types;
             this.nRows = nRows;
         }
 
