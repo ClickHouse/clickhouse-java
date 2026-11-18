@@ -1296,14 +1296,26 @@ public class DatabaseMetaDataImpl implements java.sql.DatabaseMetaData, JdbcV2Wr
     @Override
     public ResultSet getPrimaryKeys(String catalog, String schema, String table) throws SQLException {
         try {
-            String sql = "SELECT NULL::Nullable(String) AS TABLE_CAT, " +
+            // A comma inside parentheses, as in "cityHash64(a, b), id", does not separate key columns.
+            // Since 26.8 the server keeps the parentheses around a key column, so ORDER BY (id) gives "(id)".
+            // These parentheses are removed when the depth stays above zero up to the last character of the column.
+            // A comma at depth one means the column is a tuple such as "(a, b)", and its parentheses stay.
+            String sql = "WITH splitByString('', primary_key) AS chars, " +
+                    "arrayCumSum(arrayMap(x -> (x = '(') - (x = ')'), chars)) AS depths, " +
+                    "arrayFilter((i, x, d) -> x = ',' AND d = 0, arrayEnumerate(chars), chars, depths) AS commas, " +
+                    "arrayMap((b, e) -> trim(arrayStringConcat(arraySlice(chars, b + 1, e - b - 1))), " +
+                    "arrayPushFront(commas, 0), arrayPushBack(commas, length(chars) + 1)) AS keys " +
+                    "SELECT NULL::Nullable(String) AS TABLE_CAT, " +
                     "system.tables.database AS TABLE_SCHEM, " +
                     "system.tables.name AS TABLE_NAME, " +
-                    "trim(c.1) AS COLUMN_NAME, " +
+                    "if(startsWith(c.1, '(') AND endsWith(c.1, ')') " +
+                    "AND arrayAll((x, d) -> d > 1 OR (d = 1 AND x != ','), arrayPopBack(splitByString('', c.1) AS key_chars), " +
+                    "arrayPopBack(arrayCumSum(arrayMap(x -> (x = '(') - (x = ')'), key_chars)))), " +
+                    "substring(c.1, 2, length(c.1) - 2), c.1) AS COLUMN_NAME, " +
                     "CAST(c.2 AS Int16) AS KEY_SEQ, " +
                     "'PRIMARY' AS PK_NAME " +
                     "FROM system.tables " +
-                    "ARRAY JOIN arrayZip(splitByChar(',', primary_key), arrayEnumerate(splitByChar(',', primary_key))) as c " +
+                    "ARRAY JOIN arrayZip(keys, arrayEnumerate(keys)) as c " +
                     "WHERE system.tables.primary_key <> '' " +
                     "AND system.tables.database ILIKE ? " +
                     "AND system.tables.name ILIKE ? " +
