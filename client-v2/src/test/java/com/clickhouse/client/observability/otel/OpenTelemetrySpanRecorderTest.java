@@ -57,6 +57,8 @@ public class OpenTelemetrySpanRecorderTest extends BaseIntegrationTest {
                 .setPassword(ClickHouseServerForTest.getPassword())
                 .setDefaultDatabase(database)
                 .setSpanRecorder(new OpenTelemetrySpanRecorder(openTelemetry))
+                // Cloud can route a query to a replica that has not seen the previous insert yet
+                .serverSetting("select_sequential_consistency", isCloud() ? "1" : "0")
                 .build();
         client.execute("DROP TABLE IF EXISTS " + TABLE).get();
         client.execute("CREATE TABLE " + TABLE + " (id Int32, name String) ORDER BY id").get();
