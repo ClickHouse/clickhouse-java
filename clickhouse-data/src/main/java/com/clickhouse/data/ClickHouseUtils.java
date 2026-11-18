@@ -1544,7 +1544,12 @@ public final class ClickHouseUtils {
                     char c = args.charAt(j);
                     i = j;
                     builder.append(c);
-                    if (c == ch && args.charAt(j - 1) != '\\') {
+                    if (c == '\\') {
+                        if (j + 1 < len) {
+                            builder.append(args.charAt(++j));
+                            i = j;
+                        }
+                    } else if (c == ch) {
                         if (j + 1 < len && args.charAt(j + 1) == ch) {
                             builder.append(ch);
                             i = ++j;
