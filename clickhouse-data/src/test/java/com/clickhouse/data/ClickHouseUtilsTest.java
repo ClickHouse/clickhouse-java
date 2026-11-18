@@ -17,6 +17,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.testng.Assert;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 public class ClickHouseUtilsTest {
@@ -45,6 +46,56 @@ public class ClickHouseUtilsTest {
         Assert.assertEquals(ClickHouseUtils.escape("\\", '\0'), "\\\\");
         Assert.assertEquals(ClickHouseUtils.escape("\\'", '\0'), "\\\\'");
         Assert.assertEquals(ClickHouseUtils.escape("\\'", '\''), "\\\\\\'");
+    }
+
+    @DataProvider(name = "unescapeProvider")
+    private Object[][] unescapeProvider() {
+        return new Object[][] {
+                { null, null },
+                { "", "" },
+                { "abc", "abc" },
+                { "'abc", "'abc" },
+                { "''", "" },
+                { "'it''s'", "it's" },
+                { "'it\\'s'", "it's" },
+                { "'a\\\\b'", "a\\b" },
+                { "'a\\nb'", "a\nb" },
+                { "'a\\tb'", "a\tb" },
+                { "'a\\rb'", "a\rb" },
+                { "'a\\bb'", "a\bb" },
+                { "'a\\fb'", "a\fb" },
+                { "'a\\0b'", "a" + '\0' + "b" },
+                { "'a\\012'", "a" + '\0' + "12" },
+                { "'a\\ab'", "a\u0007b" },
+                { "'a\\eb'", "a\u001Bb" },
+                { "'a\\vb'", "a\u000Bb" },
+                { "'a\\\"b'", "a\"b" },
+                { "'a\\`b'", "a`b" },
+                { "'a\\/b'", "a/b" },
+                { "'a\\=b'", "a=b" },
+                { "'a\\Nb'", "ab" },
+                { "'a\\\nb'", "a\nb" },
+                { "'a\\zb'", "a\\zb" },
+                { "'100\\%'", "100\\%" },
+                { "'a\\\u00e9'", "a\\\u00e9" },
+                { "'a\\x41b'", "aAb" },
+                { "'\\xC3\\xA9'", "\u00e9" },
+                { "'\\xe2\\x82\\xac'", "\u20ac" },
+                { "'a\\x41\\\\x42'", "aA\\x42" },
+                { "'\\xC3\\N\\xA9'", "é" },
+                { "'a\\x41\\N\\N\\x42\\Nb'", "aABb" },
+                { "'a\\x4'", "a\\x4" },
+                { "'a\\x4g'", "a\\x4g" },
+                { "'a\\'", "a\\" },
+                { "`a\\nb`", "a\nb" },
+                { "`a``b`", "a`b" },
+                { "\"a\\tb\"", "a\tb" },
+        };
+    }
+
+    @Test(groups = { "unit" }, dataProvider = "unescapeProvider")
+    public void testUnescape(String str, String expected) {
+        Assert.assertEquals(ClickHouseUtils.unescape(str), expected);
     }
 
     @Test(groups = { "unit" })
