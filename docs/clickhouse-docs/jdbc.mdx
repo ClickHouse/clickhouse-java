@@ -831,6 +831,7 @@ For more information, see our [GitHub repository](https://github.com/ClickHouse/
 ### Logging {#logging}
 The driver uses [slf4j](https://www.slf4j.org/) for logging, and will use the first available implementation on the `classpath`.
 The driver never writes HTTP wire logs. See [HTTP wire logs](/integrations/java#http-wire-logs).
+The driver does not log SQL, parameter values, credentials, or other application data at any level, `TRACE` included. The client logs query IDs and the server address with request failures. See [What the client and the driver log](/integrations/java#what-the-client-logs) and the copy-ready [Safe logging configuration](/integrations/java#safe-logging-configuration) for Logback and Log4j 2.
 
 ### Resolving JDBC Timeout on Large Inserts {#resolving-jdbc-timeout-on-large-inserts}
 
