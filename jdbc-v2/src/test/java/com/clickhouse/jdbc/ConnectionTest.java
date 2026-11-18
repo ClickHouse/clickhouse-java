@@ -35,6 +35,7 @@ import java.sql.Date;
 import java.sql.JDBCType;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLClientInfoException;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
@@ -779,6 +780,50 @@ public class ConnectionTest extends JdbcIntegrationTest {
                 {null, "Array(Int32)", JDBCType.ARRAY},
                 {"true", "Array(Int32)", JDBCType.ARRAY},
                 {"false", "Int32", JDBCType.INTEGER},
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "createArrayOfElementTypes")
+    public void testCreateArrayOfResultSetMatchesReadArray(String typeName, Object[] elements, String literal)
+            throws Exception {
+        try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT " + literal + "::Array(" + typeName + ")")) {
+            assertTrue(rs.next());
+            ResultSet expected = rs.getArray(1).getResultSet();
+            Array array = conn.createArrayOf(typeName, elements);
+            ResultSet actual = array.getResultSet();
+
+            ResultSetMetaData expectedMetaData = expected.getMetaData();
+            ResultSetMetaData actualMetaData = actual.getMetaData();
+            assertEquals(actualMetaData.getColumnTypeName(2), typeName);
+            assertEquals(actualMetaData.getColumnTypeName(2), expectedMetaData.getColumnTypeName(2));
+            assertEquals(actualMetaData.getColumnType(2), expectedMetaData.getColumnType(2));
+            assertEquals(actualMetaData.getColumnClassName(2), expectedMetaData.getColumnClassName(2));
+            assertEquals(array.getResultSet(0, elements.length).getMetaData().getColumnTypeName(2), typeName);
+
+            for (int i = 0; i < elements.length; i++) {
+                assertTrue(expected.next());
+                assertTrue(actual.next());
+                assertEquals(actual.getInt(1), expected.getInt(1));
+                assertEquals(actual.getObject(2), expected.getObject(2));
+            }
+            assertFalse(expected.next());
+            assertFalse(actual.next());
+            assertEquals(expectThrows(SQLException.class, () -> actual.getObject(2)).getMessage(), "No current row");
+        }
+    }
+
+    @DataProvider
+    public static Object[][] createArrayOfElementTypes() {
+        return new Object[][] {
+                {"Int32", new Integer[] {1, -2}, "[1, -2]"},
+                {"Int32", new Integer[] {}, "[]"},
+                {"Nullable(String)", new String[] {"a", null}, "['a', NULL]"},
+                {"LowCardinality(String)", new String[] {"a", "b"}, "['a', 'b']"},
+                {"Date", new Date[] {Date.valueOf("2024-01-02")}, "['2024-01-02']"},
+                {"Tuple(String, Int8)", new Object[] {new Object[] {"a", (byte) 1}, new Object[] {"b", (byte) 2}},
+                        "[('a', 1), ('b', 2)]"},
+                {"Map(String, Int32)", new Object[] {Collections.singletonMap("k", 1)}, "[map('k', 1)]"},
         };
     }
 
