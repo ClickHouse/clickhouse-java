@@ -228,6 +228,12 @@ public class SerializerUtils {
     }
 
     public static ClickHouseColumn valueToColumnForDynamicType(Object value) {
+        return valueToColumnForDynamicType(value, null);
+    }
+
+    // enclosingMap is null when no map holds the value. Otherwise it is a pair of the map that holds
+    // the value and the enclosingMap of that map.
+    private static ClickHouseColumn valueToColumnForDynamicType(Object value, Object[] enclosingMap) {
         ClickHouseColumn column;
         if (value instanceof ZonedDateTime) {
             ZonedDateTime dt = (ZonedDateTime) value;
@@ -275,10 +281,16 @@ public class SerializerUtils {
             column = ClickHouseColumn.of("v", decType.name() + "(" + scale + ")");
         } else if (value instanceof Map<?,?>) {
             Map<?, ?> map = (Map<?, ?>) value;
+            for (Object[] holder = enclosingMap; holder != null; holder = (Object[]) holder[1]) {
+                if (holder[0] == map) {
+                    throw containsItself(map);
+                }
+            }
+            Object[] entryHolder = {map, enclosingMap};
             // TODO: handle empty map?
             Map.Entry<?, ?> entry = map.entrySet().iterator().next();
-            ClickHouseColumn keyInfo = valueToColumnForDynamicType(entry.getKey());
-            ClickHouseColumn valueInfo = valueToColumnForDynamicType(entry.getValue());
+            ClickHouseColumn keyInfo = valueToColumnForDynamicType(entry.getKey(), entryHolder);
+            ClickHouseColumn valueInfo = valueToColumnForDynamicType(entry.getValue(), entryHolder);
             column = ClickHouseColumn.of("v", "Map(" + keyInfo.getOriginalTypeName() + ", " + valueInfo.getOriginalTypeName() + ")");
         } else if (value instanceof Enum<?>) {
             column = enumValue2Column((Enum)value);
@@ -299,6 +311,12 @@ public class SerializerUtils {
         return column;
     }
 
+    // No column type fits a value that contains itself, because the type would never end.
+    private static ClientException containsItself(Object container) {
+        return new ClientException("Cannot serialize " + container.getClass()
+                + " into a Dynamic column because it contains itself");
+    }
+
     // Returns null if cannot convert
     // The problem here is that >2-dimensional array would require traversing all value
     // to detect correct depth. Consider this example
@@ -316,8 +334,9 @@ public class SerializerUtils {
         }
 
         if (value instanceof List<?> || (value.getClass().isArray())) {
+            // An entry is the array or list, its depth and the entry of the array or list that holds it
             Stack<Object[]> arrays = new Stack<>();
-            arrays.push(new Object[]{value, 1});
+            arrays.push(new Object[]{value, 1, null});
             int maxDepth = 0;
             boolean hasNulls = false;
             ClickHouseColumn arrayBaseColumn = null;
@@ -325,6 +344,11 @@ public class SerializerUtils {
             int insertPos = 0;
             while (!arrays.isEmpty()) {
                 Object[] arr = arrays.pop();
+                for (Object[] holder = (Object[]) arr[2]; holder != null; holder = (Object[]) holder[2]) {
+                    if (holder[0] == arr[0]) {
+                        throw containsItself(arr[0]);
+                    }
+                }
                 int depth = (Integer) arr[1];
                 if (depth > maxDepth) {
                     maxDepth = depth;
@@ -340,7 +364,7 @@ public class SerializerUtils {
                     if (!hasNulls && item == null) {
                         hasNulls = true;
                     } else if (item != null && (item instanceof List<?> || item.getClass().isArray())) {
-                        arrays.push(new Object[]{item, depth + 1});
+                        arrays.push(new Object[]{item, depth + 1, arr});
                     } else if (arrayBaseColumn == null && item != null) {
                         arrayBaseColumn = PREDEFINED_TYPE_COLUMNS.get(item.getClass());
                         if (arrayBaseColumn == null) {
