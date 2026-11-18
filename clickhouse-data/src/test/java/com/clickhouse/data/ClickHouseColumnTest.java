@@ -198,6 +198,76 @@ public class ClickHouseColumnTest {
         Assert.assertEquals(list.size(), 2);
     }
 
+    @DataProvider(name = "nullableTypesProvider")
+    private Object[][] getNullableTypes() {
+        return new Object[][] {
+                { "Nullable(Tuple(Int32, String))", ClickHouseDataType.Tuple,
+                        new String[] { "", "" }, new String[] { "Int32", "String" } },
+                { "Nullable(Tuple(a Int32, b String))", ClickHouseDataType.Tuple,
+                        new String[] { "a", "b" }, new String[] { "Int32", "String" } },
+                { "Nullable(Tuple(a Nullable(Tuple(Int8)), b Int8))", ClickHouseDataType.Tuple,
+                        new String[] { "a", "b" }, new String[] { "Nullable(Tuple(Int8))", "Int8" } },
+                { "Nullable(JSON(a Int32))", ClickHouseDataType.JSON,
+                        new String[] { "a" }, new String[] { "Int32" } },
+                { "Nullable(QBit(Float32, 8))", ClickHouseDataType.QBit,
+                        new String[] { "" }, new String[] { "Float32" } },
+                { "LowCardinality(Nullable(String))", ClickHouseDataType.String, new String[0], new String[0] },
+                { "Nullable(String)", ClickHouseDataType.String, new String[0], new String[0] },
+        };
+    }
+
+    @Test(groups = { "unit" }, dataProvider = "nullableTypesProvider")
+    public void testNullableTypeName(String typeName, ClickHouseDataType dataType, String[] nestedNames,
+            String[] nestedTypes) {
+        assertNullableColumn(ClickHouseColumn.of("c", typeName), "c", typeName, dataType, nestedNames, nestedTypes);
+        assertNullableColumn(ClickHouseColumn.of("c", "Array(" + typeName + ")").getArrayBaseColumn(), "", typeName,
+                dataType, nestedNames, nestedTypes);
+        assertNullableColumn(ClickHouseColumn.of("c", "Map(String, " + typeName + ")").getValueInfo(), "", typeName,
+                dataType, nestedNames, nestedTypes);
+
+        List<ClickHouseColumn> elements = ClickHouseColumn.of("c", "Tuple(x " + typeName + ", y Int8)")
+                .getNestedColumns();
+        Assert.assertEquals(elements.size(), 2);
+        assertNullableColumn(elements.get(0), "x", typeName, dataType, nestedNames, nestedTypes);
+        Assert.assertEquals(elements.get(1).getColumnName(), "y");
+        Assert.assertEquals(elements.get(1).getOriginalTypeName(), "Int8");
+    }
+
+    private static void assertNullableColumn(ClickHouseColumn column, String name, String typeName,
+            ClickHouseDataType dataType, String[] nestedNames, String[] nestedTypes) {
+        Assert.assertEquals(column.getColumnName(), name);
+        Assert.assertEquals(column.getOriginalTypeName(), typeName);
+        Assert.assertEquals(column.getDataType(), dataType);
+        Assert.assertTrue(column.isNullable());
+        List<ClickHouseColumn> nested = column.getNestedColumns();
+        Assert.assertEquals(nested.size(), nestedNames.length);
+        for (int i = 0; i < nested.size(); i++) {
+            Assert.assertEquals(nested.get(i).getColumnName(), nestedNames[i]);
+            Assert.assertEquals(nested.get(i).getOriginalTypeName(), nestedTypes[i]);
+        }
+    }
+
+    @Test(groups = { "unit" })
+    public void testNullableTupleInColumnList() {
+        List<ClickHouseColumn> columns = ClickHouseColumn.parse("a Nullable(Tuple(Int32, String)) DEFAULT (1, 'x'), "
+                + "b Nullable(Tuple(c Int8)) CODEC(ZSTD(1)), d Int8");
+        Assert.assertEquals(columns.size(), 3);
+        Assert.assertEquals(columns.get(0).getColumnName(), "a");
+        Assert.assertEquals(columns.get(0).getOriginalTypeName(), "Nullable(Tuple(Int32, String))");
+        Assert.assertEquals(columns.get(1).getColumnName(), "b");
+        Assert.assertEquals(columns.get(1).getOriginalTypeName(), "Nullable(Tuple(c Int8))");
+        Assert.assertEquals(columns.get(2).getColumnName(), "d");
+        Assert.assertEquals(columns.get(2).getOriginalTypeName(), "Int8");
+
+        String args = "Nullable(Tuple(Int32, String)), b Int8";
+        Assert.assertEquals(ClickHouseColumn.readColumn(args, 0, args.length(), "a", new LinkedList<>()),
+                args.lastIndexOf(','));
+
+        IllegalArgumentException e = Assert.expectThrows(IllegalArgumentException.class,
+                () -> ClickHouseColumn.parse("a Array(Nullable(Tuple(Int32, String)), b Int8"));
+        Assert.assertEquals(e.getMessage(), "Missing ')' for '(' at position 7");
+    }
+
     @Test(groups = { "unit" })
     public void testAggregationFunction() {
         ClickHouseColumn column = ClickHouseColumn.of("aggFunc", "AggregateFunction(groupBitmap, UInt32)");
