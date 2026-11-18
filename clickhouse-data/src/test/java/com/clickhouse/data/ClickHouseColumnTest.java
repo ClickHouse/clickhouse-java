@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.function.Function;
 
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
@@ -262,6 +263,37 @@ public class ClickHouseColumnTest {
         Assert.assertEquals(column.getEnumConstants().value("Query'Finish"), 10);
         Assert.assertTrue(column.isFixedLength(), "Should have fixed length in byte");
         Assert.assertEquals(column.getEstimatedLength(), column.getDataType().getByteLength());
+    }
+
+    @DataProvider(name = "enumLabelBackslashProvider")
+    private Object[][] enumLabelBackslashProvider() {
+        Function<ClickHouseColumn, ClickHouseColumn> self = c -> c;
+        Function<ClickHouseColumn, ClickHouseColumn> first = c -> c.getNestedColumns().get(0);
+        return new Object[][] {
+                { "Enum8('a\\\\' = 1, 'z' = 2)", self, new String[] { "a\\", "z" }, new int[] { 1, 2 } },
+                { "Enum8('z' = 2, 'a\\\\' = 1)", self, new String[] { "z", "a\\" }, new int[] { 2, 1 } },
+                { "Enum16('a\\\\\\\\' = 1, 'z' = 2)", self, new String[] { "a\\\\", "z" }, new int[] { 1, 2 } },
+                { "Enum8('\\\\\\'' = 1, 'z' = 2)", self, new String[] { "\\'", "z" }, new int[] { 1, 2 } },
+                { "Nullable(Enum8('a\\\\' = 1, 'z' = 2))", self, new String[] { "a\\", "z" }, new int[] { 1, 2 } },
+                { "Array(Enum8('a\\\\' = 1, 'z' = 2))",
+                        (Function<ClickHouseColumn, ClickHouseColumn>) ClickHouseColumn::getArrayBaseColumn,
+                        new String[] { "a\\", "z" }, new int[] { 1, 2 } },
+                { "Map(String, Enum8('a\\\\' = 1, 'z' = 2))",
+                        (Function<ClickHouseColumn, ClickHouseColumn>) ClickHouseColumn::getValueInfo,
+                        new String[] { "a\\", "z" }, new int[] { 1, 2 } },
+                { "Tuple(Enum8('a\\\\' = 1, 'z' = 2), String)", first, new String[] { "a\\", "z" },
+                        new int[] { 1, 2 } },
+                { "Variant(Enum8('a\\\\' = 1, 'z' = 2), String)", first, new String[] { "a\\", "z" },
+                        new int[] { 1, 2 } },
+        };
+    }
+
+    @Test(groups = { "unit" }, dataProvider = "enumLabelBackslashProvider")
+    public void testEnumLabelEndsWithBackslash(String typeName,
+            Function<ClickHouseColumn, ClickHouseColumn> enumColumn, String[] names, int[] values) {
+        ClickHouseColumn column = enumColumn.apply(ClickHouseColumn.of("e", typeName));
+        Assert.assertEquals(column.getEnumConstants().getNames(), names);
+        Assert.assertEquals(column.getEnumConstants().getValues(), values);
     }
 
     @DataProvider(name = "enumWidthProvider")
