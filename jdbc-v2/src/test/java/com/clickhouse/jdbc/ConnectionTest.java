@@ -827,6 +827,39 @@ public class ConnectionTest extends JdbcIntegrationTest {
         };
     }
 
+    @Test(groups = {"integration"}, dataProvider = "createArrayOfGeoElementTypes")
+    public void testCreateArrayOfGeoElementType(String typeName, Object[] elements, String partTypeName)
+            throws Exception {
+        try (Connection conn = getJdbcConnection()) {
+            Array array = conn.createArrayOf(typeName, elements);
+            assertEquals(array.getBaseTypeName(), typeName);
+            assertEquals(array.getResultSet(0, elements.length).getMetaData().getColumnTypeName(2), typeName);
+
+            ResultSet rs = array.getResultSet();
+            assertEquals(rs.getMetaData().getColumnTypeName(2), typeName);
+            for (int i = 0; i < elements.length; i++) {
+                assertTrue(rs.next());
+                assertEquals(rs.getInt(1), i + 1);
+                Array element = rs.getArray(2);
+                assertEquals(element.getBaseTypeName(), typeName);
+                assertEquals(element.getResultSet().getMetaData().getColumnTypeName(2), partTypeName);
+            }
+            assertFalse(rs.next());
+        }
+    }
+
+    @DataProvider
+    public static Object[][] createArrayOfGeoElementTypes() {
+        return new Object[][] {
+                {"Point", new Object[] {new double[] {1.5, 2.5}, new double[] {3.5, 4.5}}, "Float64"},
+                {"Ring", new Object[] {new double[][] {{1.5, 2.5}, {3.5, 4.5}}}, "Point"},
+                {"LineString", new Object[] {new double[][] {{1.5, 2.5}, {3.5, 4.5}}}, "Point"},
+                {"Polygon", new Object[] {new double[][][] {{{1.5, 2.5}, {3.5, 4.5}}}}, "Ring"},
+                {"MultiLineString", new Object[] {new double[][][] {{{1.5, 2.5}, {3.5, 4.5}}}}, "LineString"},
+                {"MultiPolygon", new Object[] {new double[][][][] {{{{1.5, 2.5}, {3.5, 4.5}}}}}, "Polygon"},
+        };
+    }
+
     @Test(groups = { "integration" })
     public void testCreateStruct() throws SQLException {
         try (Connection conn = this.getJdbcConnection()) {
