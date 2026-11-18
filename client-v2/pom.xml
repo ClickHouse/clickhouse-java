@@ -222,7 +222,7 @@
                             <version>1.18.38</version>
                         </path>
                         <path>
-                            <!-- generates ClientConfigPropertiesDescriptions from the @Description annotations -->
+                            <!-- generates ClientConfigPropertiesDescriptions from the @ConfigDescription annotations -->
                             <groupId>${project.parent.groupId}</groupId>
                             <artifactId>clickhouse-annotation-processor</artifactId>
                             <version>${revision}</version>

@@ -40,10 +40,10 @@ import static org.testng.Assert.expectThrows;
 
 public class DescriptionProcessorTest {
 
-    private static final String DESCRIPTION_SOURCE = "package com.clickhouse.client.api;\n"
+    private static final String DESCRIPTION_SOURCE = "package com.clickhouse.client.api.internal;\n"
         + "@java.lang.annotation.Retention(java.lang.annotation.RetentionPolicy.SOURCE)\n"
         + "@java.lang.annotation.Target(java.lang.annotation.ElementType.FIELD)\n"
-        + "public @interface Description { String value(); }\n";
+        + "public @interface ConfigDescription { String value(); }\n";
 
     private Path outputDir;
 
@@ -68,11 +68,12 @@ public class DescriptionProcessorTest {
     public void testGeneratesDescriptions() throws Exception {
         assertTrue(compile("p.Settings",
             "package p;\n"
-                + "import com.clickhouse.client.api.Description;\n"
+                + "import com.clickhouse.client.api.internal.ConfigDescription;\n"
                 + "public enum Settings {\n"
-                + "    @Description(\"Plain text.\") PLAIN(\"plain\"),\n"
-                + "    @Deprecated @Description(\"Quote \\\" and backslash \\\\ and \\\\u0022.\") QUOTED(\"quoted\"),\n"
-                + "    @Description(\"Line 1\\nline 2\\ttab \\u00b5s \\u20ac.\") ESCAPED(\"escaped\") {\n"
+                + "    @ConfigDescription(\"Plain text.\") PLAIN(\"plain\"),\n"
+                + "    @Deprecated @ConfigDescription(\"Quote \\\" and backslash \\\\ and \\\\u0022.\")\n"
+                + "        QUOTED(\"quoted\"),\n"
+                + "    @ConfigDescription(\"Line 1\\nline 2\\ttab \\u00b5s \\u20ac.\") ESCAPED(\"escaped\") {\n"
                 + "        @Override public String key() { return \"other\"; }\n"
                 + "    };\n"
                 + "    private final String key;\n"
@@ -102,7 +103,7 @@ public class DescriptionProcessorTest {
     public void testPackagePrivateEnum() throws Exception {
         assertTrue(compile("p.Hidden",
             "package p;\n"
-                + "enum Hidden { @com.clickhouse.client.api.Description(\"Only constant.\") ONLY }\n"),
+                + "enum Hidden { @com.clickhouse.client.api.internal.ConfigDescription(\"Only constant.\") ONLY }\n"),
             diagnostics.getDiagnostics().toString());
 
         try (URLClassLoader loader = new URLClassLoader(new URL[] {outputDir.toUri().toURL()})) {
@@ -123,18 +124,18 @@ public class DescriptionProcessorTest {
     @DataProvider(name = "invalidUses")
     public Object[][] invalidUses() {
         return new Object[][] {
-            {"package p;\nimport com.clickhouse.client.api.Description;\n"
-                + "public enum Invalid { @Description(\"First.\") FIRST, SECOND }\n",
-                "Enum constant Invalid.SECOND has no @Description"},
-            {"package p;\nimport com.clickhouse.client.api.Description;\n"
-                + "public enum Invalid { @Description(\"First.\") FIRST, @Description(\" \") SECOND }\n",
-                "Enum constant Invalid.SECOND has a blank @Description"},
-            {"package p;\nimport com.clickhouse.client.api.Description;\n"
-                + "public class Invalid { @Description(\"Field.\") static final String FIELD = \"field\"; }\n",
-                "@Description is allowed only on enum constants"},
-            {"package p;\nimport com.clickhouse.client.api.Description;\n"
-                + "public class Invalid { enum Nested { @Description(\"Nested.\") NESTED } }\n",
-                "@Description is allowed only on constants of top-level enums"},
+            {"package p;\nimport com.clickhouse.client.api.internal.ConfigDescription;\n"
+                + "public enum Invalid { @ConfigDescription(\"First.\") FIRST, SECOND }\n",
+                "Enum constant Invalid.SECOND has no @ConfigDescription"},
+            {"package p;\nimport com.clickhouse.client.api.internal.ConfigDescription;\n"
+                + "public enum Invalid { @ConfigDescription(\"First.\") FIRST, @ConfigDescription(\" \") SECOND }\n",
+                "Enum constant Invalid.SECOND has a blank @ConfigDescription"},
+            {"package p;\nimport com.clickhouse.client.api.internal.ConfigDescription;\n"
+                + "public class Invalid { @ConfigDescription(\"Field.\") static final String FIELD = \"field\"; }\n",
+                "@ConfigDescription is allowed only on enum constants"},
+            {"package p;\nimport com.clickhouse.client.api.internal.ConfigDescription;\n"
+                + "public class Invalid { enum Nested { @ConfigDescription(\"Nested.\") NESTED } }\n",
+                "@ConfigDescription is allowed only on constants of top-level enums"},
         };
     }
 
@@ -156,7 +157,8 @@ public class DescriptionProcessorTest {
     }
 
     /**
-     * Compiles the source together with the {@code Description} annotation, with only {@link DescriptionProcessor}.
+     * Compiles the source together with the {@code ConfigDescription} annotation, with only
+     * {@link DescriptionProcessor}.
      * Writes the generated sources and the classes to {@link #outputDir}.
      */
     private boolean compile(String className, String source) throws IOException {
@@ -169,7 +171,7 @@ public class DescriptionProcessorTest {
             fileManager.setLocation(StandardLocation.SOURCE_OUTPUT, output);
             JavaCompiler.CompilationTask task = compiler.getTask(null, fileManager, diagnostics,
                 Arrays.asList("-Xlint:deprecation,rawtypes,unchecked", "-implicit:none"), null,
-                Arrays.asList(source("com.clickhouse.client.api.Description", DESCRIPTION_SOURCE),
+                Arrays.asList(source("com.clickhouse.client.api.internal.ConfigDescription", DESCRIPTION_SOURCE),
                     source(className, source)));
             task.setProcessors(Collections.singletonList(new DescriptionProcessor()));
             return task.call();

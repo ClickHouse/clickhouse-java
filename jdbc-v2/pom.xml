@@ -150,7 +150,7 @@
                         <configuration>
                             <annotationProcessorPaths>
                                 <path>
-                                    <!-- generates DriverPropertiesDescriptions from the @Description annotations -->
+                                    <!-- generates DriverPropertiesDescriptions from the @ConfigDescription annotations -->
                                     <groupId>${project.parent.groupId}</groupId>
                                     <artifactId>clickhouse-annotation-processor</artifactId>
                                     <version>${revision}</version>

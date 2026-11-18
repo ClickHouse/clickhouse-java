@@ -101,7 +101,7 @@ For each change:
 - The declared `valueType` must match parsing behavior and the default value must parse into that type.
 - If the property affects connection, retry, timeout, compression, SQL rendering, or authentication behavior, treat it as compatibility-sensitive and add focused tests.
 - If the property becomes user-visible in `client-v2` or `jdbc-v2`, consider whether `docs/features.md` should be updated.
-- A new `ClientConfigProperties` or `DriverProperties` constant has a short, useful `@Description` annotation. `Driver#getPropertyInfo` returns this description. The build fails when a constant has no description.
+- A new `ClientConfigProperties` or `DriverProperties` constant has a short, useful `@ConfigDescription` annotation. `Driver#getPropertyInfo` returns this description. The build fails when a constant has no description.
 
 # Existing configuration property changed
 
@@ -114,7 +114,7 @@ For each change:
 ## Context Check
 
 - For `ClientConfigProperties`, no key change is allowed accidentally.
-- If the units, the default, or the meaning change, update the `@Description` annotation of the property.
+- If the units, the default, or the meaning change, update the `@ConfigDescription` annotation of the property.
 - If the default changes, review behavior for callers who never set the property explicitly.
 - If the value type changes, verify parsing, stored defaults, docs, and all call sites that cast or compare values.
 - If the property is passed through JDBC URLs, HTTP parameters, or headers, check the full end-to-end path.

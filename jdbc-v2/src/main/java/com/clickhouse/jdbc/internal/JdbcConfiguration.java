@@ -454,7 +454,7 @@ public class JdbcConfiguration {
 
     /**
      * Returns the descriptions of the client and driver properties by property key. The descriptions come from the
-     * {@code @Description} annotations of {@link ClientConfigProperties} and {@link DriverProperties}.
+     * {@code @ConfigDescription} annotations of {@link ClientConfigProperties} and {@link DriverProperties}.
      */
     private static Map<String, String> propertyDescriptions() {
         Map<String, String> descriptions = new HashMap<>();
