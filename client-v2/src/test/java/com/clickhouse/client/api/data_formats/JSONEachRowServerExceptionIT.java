@@ -53,6 +53,8 @@ public class JSONEachRowServerExceptionIT extends BaseIntegrationTest {
                 .setUsername("default")
                 .setPassword(ClickHouseServerForTest.getPassword())
                 .setDefaultDatabase(ClickHouseServerForTest.getDatabase())
+                // a compressed response is buffered by the server, so no in-band exception is streamed
+                .compressServerResponse(false)
                 .build();
     }
 
@@ -148,11 +150,6 @@ public class JSONEachRowServerExceptionIT extends BaseIntegrationTest {
                 factory.createJsonParser(response.getInputStream()), detectServerException);
     }
 
-    /**
-     * {@code Client.query()} throws when the response carries {@code X-ClickHouse-Exception-Code},
-     * so the caller never sees the body. The reader is used on that body, so the test reads it
-     * over HTTP.
-     */
     /**
      * Retries while the server answers with only the exception object. That response is HTTP 500
      * with {@code X-ClickHouse-Exception-Code} and is already handled before a caller receives a
