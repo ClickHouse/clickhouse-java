@@ -1630,7 +1630,9 @@ public class BinaryStreamReader {
         byte tag = readByte();
 
         ClickHouseDataType type = ClickHouseDataType.binTag2Type.get(tag);
-        if (type == null) {
+        // The tag of an unnamed tuple is also the tag of ClickHouseDataType.Tuple, so the lookup finds it.
+        // Both tuple tags are decoded below, where the number of elements and their types are read.
+        if (type == null || type == ClickHouseDataType.Tuple) {
             if (tag == ClickHouseDataType.DateTime64.getBinTag() - 1) {
                 // without timezone
                 byte scale = readByte();
