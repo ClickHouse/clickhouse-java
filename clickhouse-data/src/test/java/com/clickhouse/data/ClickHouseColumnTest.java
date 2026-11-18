@@ -735,4 +735,24 @@ public class ClickHouseColumnTest {
         Assert.assertEquals(column.getArrayBaseColumn().getDataType(), ClickHouseDataType.Int16);
         Assert.assertEquals(column.getPrecision(), 4);
     }
+
+    @DataProvider(name = "enumLabelEscapesProvider")
+    private Object[][] enumLabelEscapesProvider() {
+        return new Object[][] {
+                { "Enum8('a\\nb' = 1)", "a\nb" },
+                { "Enum8('a\\tb' = 1)", "a\tb" },
+                { "Enum8('a\\0b' = 1)", "a" + '\0' + "b" },
+                { "Enum8('a\\\\zb' = 1)", "a\\zb" },
+                { "Enum8('it\\'s' = 1)", "it's" },
+                { "Enum16('a\\zb' = 1)", "a\\zb" },
+                { "Enum8('\\xC3\\xA9' = 1)", "\u00e9" },
+        };
+    }
+
+    @Test(groups = { "unit" }, dataProvider = "enumLabelEscapesProvider")
+    public void testEnumLabelEscapes(String typeName, String label) {
+        ClickHouseEnum constants = ClickHouseColumn.of("e", typeName).getEnumConstants();
+        Assert.assertEquals(constants.name(1), label);
+        Assert.assertEquals(constants.value(label), 1);
+    }
 }
