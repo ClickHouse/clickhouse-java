@@ -18,11 +18,13 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TimeZone;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 @Test(groups = {"unit"})
 public class SerializerUtilsTest {
@@ -441,6 +443,66 @@ public class SerializerUtilsTest {
     public void testValueToColumnForDynamicTypeRejectsOversizedDecimal(BigDecimal value) {
         Assert.assertThrows(ClientException.class,
                 () -> SerializerUtils.valueToColumnForDynamicType(value));
+    }
+
+    @DataProvider(name = "dynamicValuesThatContainThemselves")
+    public Object[][] dynamicValuesThatContainThemselves() {
+        Object[] array = new Object[1];
+        array[0] = array;
+        List<Object> list = new ArrayList<>();
+        list.add(list);
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("self", map);
+        Object[] arrayInList = new Object[1];
+        List<Object> listInArray = new ArrayList<>();
+        arrayInList[0] = listInArray;
+        listInArray.add(arrayInList);
+        Map<String, Object> outerMap = new LinkedHashMap<>();
+        Map<String, Object> innerMap = new LinkedHashMap<>();
+        outerMap.put("inner", innerMap);
+        innerMap.put("outer", outerMap);
+        // Test reports print the parameters, and two maps that hold each other cannot be printed,
+        // so each value is passed as a supplier.
+        return new Object[][]{
+                {(Supplier<?>) () -> array, Object[].class},
+                {(Supplier<?>) () -> list, ArrayList.class},
+                {(Supplier<?>) () -> map, LinkedHashMap.class},
+                {(Supplier<?>) () -> arrayInList, Object[].class},
+                {(Supplier<?>) () -> outerMap, LinkedHashMap.class},
+                {(Supplier<?>) () -> Collections.singletonList(array), Object[].class},
+                {(Supplier<?>) () -> Collections.singletonMap("map", map), LinkedHashMap.class},
+        };
+    }
+
+    @Test(dataProvider = "dynamicValuesThatContainThemselves", timeOut = 10000)
+    public void testValueToColumnForDynamicTypeRejectsValueThatContainsItself(Supplier<?> value, Class<?> repeatedClass) {
+        ClientException ex = Assert.expectThrows(ClientException.class,
+                () -> SerializerUtils.valueToColumnForDynamicType(value.get()));
+        Assert.assertEquals(ex.getMessage(),
+                "Cannot serialize " + repeatedClass + " into a Dynamic column because it contains itself");
+    }
+
+    @DataProvider(name = "dynamicValuesWithSharedContainers")
+    public Object[][] dynamicValuesWithSharedContainers() {
+        Object[] array = {1};
+        List<Integer> list = Arrays.asList(1, 2);
+        Object[] arrayOfEmptyArray = {new Object[0]};
+        Map<String, Integer> map = new LinkedHashMap<>();
+        map.put("a", 1);
+        Map<Map<String, Integer>, Map<String, Integer>> mapOfMaps = new LinkedHashMap<>();
+        mapOfMaps.put(map, map);
+        return new Object[][]{
+                {new Object[]{array, array}, "Array(Array(Int32))"},
+                {Arrays.asList(list, list), "Array(Array(Int32))"},
+                // The shared array is read twice before a value is found
+                {new Object[]{new Object[]{new Object[]{1}}, arrayOfEmptyArray, arrayOfEmptyArray}, "Array(Array(Array(Int32)))"},
+                {mapOfMaps, "Map(Map(String, Int32), Map(String, Int32))"},
+        };
+    }
+
+    @Test(dataProvider = "dynamicValuesWithSharedContainers")
+    public void testValueToColumnForDynamicTypeAcceptsSharedContainers(Object value, String expectedType) {
+        Assert.assertEquals(SerializerUtils.valueToColumnForDynamicType(value).getOriginalTypeName(), expectedType);
     }
 
     @Test(dataProvider = "nonNullableEnumTypes")
