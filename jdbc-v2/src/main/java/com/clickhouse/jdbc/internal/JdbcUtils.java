@@ -328,8 +328,13 @@ public class JdbcUtils {
             if (column != null && column.getArrayBaseColumn() != null) {
                 ClickHouseColumn baseColumn = column.getArrayBaseColumn();
                 ClickHouseDataType baseType = baseColumn.isNested() ? ClickHouseDataType.Tuple : baseColumn.getDataType();
-                Object[] convertedValues = convertList(listValue, convertToJavaClass(baseType),
-                        getArrayDimensions(column));
+                Class<?> elementClass = convertToJavaClass(baseType);
+                if (elementClass == java.sql.Array.class) {
+                    // A geo element such as a Ring is read as a Java array. There is no element column here
+                    // to build an Array from, so the element is kept as read.
+                    elementClass = Object.class;
+                }
+                Object[] convertedValues = convertList(listValue, elementClass, getArrayDimensions(column));
                 return new Array(column, convertedValues, multiDimensionalArrayElementType);
             }
 
