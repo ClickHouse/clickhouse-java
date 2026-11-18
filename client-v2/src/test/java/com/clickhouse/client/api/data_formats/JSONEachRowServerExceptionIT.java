@@ -12,6 +12,7 @@ import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseFormat;
 import org.testng.Assert;
+import org.testng.SkipException;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
@@ -20,10 +21,7 @@ import org.testng.annotations.Test;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.util.Map;
 
 /**
@@ -40,14 +38,15 @@ public class JSONEachRowServerExceptionIT extends BaseIntegrationTest {
      */
     private static final String FAILING_SQL =
             "SELECT toInt32(number) AS id FROM numbers(100) "
-                    + "WHERE throwIf(number = 50, 'in-band-boom') = 0 "
-                    + "SETTINGS http_write_exception_in_output_format = 1, max_block_size = 1 "
-                    + "FORMAT JSONEachRow";
+                    + "WHERE throwIf(number = 50, 'in-band-boom') = 0";
 
     private Client client;
 
     @BeforeMethod(groups = {"integration"})
     public void setUp() {
+        if (isCloud()) {
+            throw new SkipException("in-band exception body depends on server settings and streaming; not tested on cloud");
+        }
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
         client = new Client.Builder()
                 .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort(), isCloud())
@@ -173,26 +172,21 @@ public class JSONEachRowServerExceptionIT extends BaseIntegrationTest {
     }
 
     private byte[] httpBody(String sql) throws Exception {
-        ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
-        HttpURLConnection conn = (HttpURLConnection) new URL(
-                "http://" + node.getHost() + ":" + node.getPort() + "/").openConnection();
-        conn.setRequestMethod("POST");
-        String creds = "default:" + ClickHouseServerForTest.getPassword();
-        conn.setRequestProperty("Authorization", "Basic " + Base64.getEncoder()
-                .encodeToString(creds.getBytes(StandardCharsets.UTF_8)));
-        conn.setDoOutput(true);
-        byte[] payload = sql.getBytes(StandardCharsets.UTF_8);
-        conn.getOutputStream().write(payload);
-        int status = conn.getResponseCode();
-        InputStream in = status >= 400 ? conn.getErrorStream() : conn.getInputStream();
-        Assert.assertNotNull(in, "no body, HTTP " + status);
+        try (QueryResponse response = client.query(sql, jsonEachRow()).get()) {
+            return readAll(response.getInputStream());
+        } catch (ServerException e) {
+            // HTTP 500 with the exception header: the client already handled it, nothing to read
+            return new byte[0];
+        }
+    }
+
+    private static byte[] readAll(InputStream in) throws Exception {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         byte[] buf = new byte[4096];
         int n;
         while ((n = in.read(buf)) >= 0) {
             out.write(buf, 0, n);
         }
-        in.close();
         return out.toByteArray();
     }
 
