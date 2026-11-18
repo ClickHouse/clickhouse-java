@@ -12,6 +12,7 @@ Main modules:
 
 - `clickhouse-data`: shared data types and low-level conversion utilities
 - `clickhouse-client` and `clickhouse-http-client`: legacy v1 client stack
+- `clickhouse-annotation-processor`: annotation processors that the build of `client-v2` and `jdbc-v2` uses (not published)
 - `client-v2`: current HTTP client implementation
 - `clickhouse-jdbc` and `jdbc-v2`: JDBC drivers and compatibility layers
 - `clickhouse-r2dbc`: R2DBC integration
