@@ -317,6 +317,7 @@ public class ClickHouseColumnTest {
                         new int[] { 127, 128 } },
                 { "Enum8('x=y', 'b')", ClickHouseDataType.Enum8, new String[] { "x=y", "b" }, new int[] { 1, 2 } },
                 { "Enum8('it''s', 'b')", ClickHouseDataType.Enum8, new String[] { "it's", "b" }, new int[] { 1, 2 } },
+                { "Enum8('a', 'A')", ClickHouseDataType.Enum8, new String[] { "a", "A" }, new int[] { 1, 2 } },
         };
     }
 
@@ -345,6 +346,34 @@ public class ClickHouseColumnTest {
     @Test(dataProvider = "enumMixedValuesProvider", groups = { "unit" })
     public void testEnumMixedValues(String typeName) {
         Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseColumn.of("e", typeName));
+    }
+
+    @DataProvider(name = "enumDuplicatesProvider")
+    private Object[][] getEnumDuplicates() {
+        return new Object[][] {
+                { "Enum8('a' = 1, 'b' = 1)", "Duplicate enum value 1 for names 'a' and 'b'" },
+                { "Enum8('a', 'b' = 1)", "Duplicate enum value 1 for names 'a' and 'b'" },
+                { "Enum16('a' = 1, 'a' = 2)", "Duplicate enum name 'a' for values 1 and 2" },
+                { "Enum('a' = 1, 'b' = 2, 'a' = 3)", "Duplicate enum name 'a' for values 1 and 3" },
+                { "Enum8('a', 'a')", "Duplicate enum name 'a' for values 1 and 2" },
+        };
+    }
+
+    @Test(dataProvider = "enumDuplicatesProvider", groups = { "unit" })
+    public void testEnumDuplicates(String typeName, String message) {
+        IllegalArgumentException e = Assert.expectThrows(IllegalArgumentException.class,
+                () -> ClickHouseColumn.of("e", typeName));
+        Assert.assertEquals(e.getMessage(), message);
+        Assert.assertThrows(IllegalArgumentException.class,
+                () -> ClickHouseColumn.of("e", "Tuple(Int32, Nullable(" + typeName + "))"));
+    }
+
+    @Test(groups = { "unit" })
+    public void testEnumDuplicatesFromArrays() {
+        Assert.assertThrows(IllegalArgumentException.class,
+                () -> new ClickHouseEnum(new String[] { "a", "b" }, new int[] { 1, 1 }));
+        Assert.assertThrows(IllegalArgumentException.class,
+                () -> new ClickHouseEnum(new String[] { "a", "a" }, new int[] { 1, 2 }));
     }
 
     @Test(groups = { "unit" })

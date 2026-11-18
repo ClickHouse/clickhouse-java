@@ -4,6 +4,8 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 
 public class ClickHouseEnum implements Serializable {
@@ -77,6 +79,24 @@ public class ClickHouseEnum implements Serializable {
                 values[i] = base + i;
             }
         }
+        checkUnique(names, values);
+    }
+
+    private static void checkUnique(String[] names, int[] values) {
+        Map<String, Integer> valueByName = new HashMap<>();
+        Map<Integer, String> nameByValue = new HashMap<>();
+        for (int i = 0; i < names.length; i++) {
+            Integer previousValue = valueByName.put(names[i], values[i]);
+            if (previousValue != null) {
+                throw new IllegalArgumentException("Duplicate enum name '" + names[i] + "' for values "
+                        + previousValue + " and " + values[i]);
+            }
+            String previousName = nameByValue.put(values[i], names[i]);
+            if (previousName != null) {
+                throw new IllegalArgumentException("Duplicate enum value " + values[i] + " for names '"
+                        + previousName + "' and '" + names[i] + "'");
+            }
+        }
     }
 
     private static int quotedNameEnd(String entry) {
@@ -107,6 +127,7 @@ public class ClickHouseEnum implements Serializable {
         } else if (names.length != values.length) {
             throw new IllegalArgumentException("Names and values should have same length");
         }
+        checkUnique(names, values);
 
         this.size = names.length;
         this.names = names;
