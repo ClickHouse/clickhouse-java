@@ -640,10 +640,31 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
 
         ClickHouseColumn column = ClickHouseColumn.of("array", typeName);
         try {
-            return new com.clickhouse.jdbc.types.Array(column, elements,
+            return new com.clickhouse.jdbc.types.Array(arrayOfColumn(column), elements,
                     config.isFlagSet(DriverProperties.MULTI_DIMENSIONAL_ARRAY_ELEMENT_TYPE));
         } catch (Exception e) {
             throw new SQLException("Failed to create array", ExceptionUtils.SQL_STATE_CLIENT_ERROR, e);
+        }
+    }
+
+    /**
+     * A geo value such as {@code Ring} is read as an array of its parts. An array that {@code createArrayOf}
+     * creates with a geo element type holds whole geo values, so it gets the column of {@code Array(T)}, the
+     * same as an array of that type read from the server.
+     */
+    private static ClickHouseColumn arrayOfColumn(ClickHouseColumn elementColumn) {
+        switch (elementColumn.getDataType()) {
+            case Point:
+            case Ring:
+            case LineString:
+            case MultiPoint:
+            case Polygon:
+            case MultiLineString:
+            case MultiPolygon:
+                return ClickHouseColumn.of(elementColumn.getColumnName(),
+                        "Array(" + elementColumn.getOriginalTypeName() + ")");
+            default:
+                return elementColumn;
         }
     }
 

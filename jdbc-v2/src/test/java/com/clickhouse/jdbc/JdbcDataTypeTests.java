@@ -3501,6 +3501,53 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
         }
     }
 
+    @Test(groups = { "integration" }, dataProvider = "geoArrayElementTypes")
+    public void testGeoArrayResultSet(String sql, String unsupportedVersions, String[] elementTypeNames)
+            throws Exception {
+        if (unsupportedVersions != null && isVersionMatch(unsupportedVersions)) {
+            throw new SkipException("The type is not supported by this ClickHouse version");
+        }
+
+        try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            assertTrue(rs.next());
+            Array array = rs.getArray(1);
+            for (String elementTypeName : elementTypeNames) {
+                Object expected = ((Object[]) array.getArray())[0];
+                ResultSet elements = array.getResultSet();
+                assertEquals(elements.getMetaData().getColumnTypeName(2), elementTypeName);
+                assertEquals(array.getResultSet(0, 1).getMetaData().getColumnTypeName(2), elementTypeName);
+                assertTrue(elements.next());
+                Object element = elements.getObject(2);
+                if (element instanceof Array) {
+                    array = (Array) element;
+                    assertEquals(array.getBaseTypeName(), elementTypeName);
+                    assertEquals(array.getArray(), expected);
+                } else {
+                    assertEquals(element, expected);
+                }
+            }
+        }
+    }
+
+    @DataProvider
+    public static Object[][] geoArrayElementTypes() {
+        return new Object[][] {
+                {"SELECT (1.5, 2.5)::Point", null, new String[] {"Float64"}},
+                {"SELECT [(1.5, 2.5), (3.5, 4.5)]::Ring", null, new String[] {"Point", "Float64"}},
+                {"SELECT [(1.5, 2.5), (3.5, 4.5)]::LineString", null, new String[] {"Point", "Float64"}},
+                {"SELECT [(1.5, 2.5), (3.5, 4.5)]::MultiPoint", MULTI_POINT_UNSUPPORTED_VERSIONS,
+                        new String[] {"Point", "Float64"}},
+                {"SELECT [[(1.5, 2.5)], [(3.5, 4.5)]]::Polygon", null, new String[] {"Ring", "Point", "Float64"}},
+                {"SELECT [[(1.5, 2.5)], [(3.5, 4.5)]]::MultiLineString", null,
+                        new String[] {"LineString", "Point", "Float64"}},
+                {"SELECT [[[(1.5, 2.5)]], [[(3.5, 4.5)]]]::MultiPolygon", null,
+                        new String[] {"Polygon", "Ring", "Point", "Float64"}},
+                {"SELECT [(1.5, 2.5), (3.5, 4.5)]::Ring::Geometry SETTINGS allow_suspicious_variant_types = 1",
+                        "(,25.10]", new String[] {"Geometry"}},
+        };
+    }
+
     private static Object createGeometryParameter(Connection conn, Object value) throws SQLException {
         if (value instanceof double[]) {
             return conn.createStruct("Tuple(Float32, Float32)", Arrays.stream((double[]) value).boxed().toArray(Double[]::new));
