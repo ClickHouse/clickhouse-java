@@ -3249,6 +3249,28 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
         }
     }
 
+    @Test(groups = { "integration" }, dataProvider = "arraysOfPoints")
+    public void testReadArrayOfPoints(String type, String value, String expected) throws Exception {
+        try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT toInt32(1) AS lead, CAST(" + value + " AS " + type
+                     + ") AS points, toInt64(42) AS tail")) {
+            assertTrue(rs.next());
+            assertEquals(rs.getInt("lead"), 1);
+            assertEquals(rs.getString("points"), expected);
+            assertEquals(rs.getLong("tail"), 42L);
+            assertFalse(rs.next());
+        }
+    }
+
+    @DataProvider
+    public static Object[][] arraysOfPoints() {
+        return new Object[][] {
+                {"Array(Point)", "[(1.5, 2.5), (3.5, 4.5)]", "[(1.5,2.5), (3.5,4.5)]"},
+                {"Array(Array(Point))", "[[(1.5, 2.5), (3.5, 4.5)], [], [(5.5, 6.5)]]",
+                        "[[(1.5,2.5), (3.5,4.5)], [], [(5.5,6.5)]]"},
+        };
+    }
+
     @Test(groups = { "integration" })
     public void testGeoMultiLineString() throws Exception {
         final Double[][][] row = new Double[][][] {
