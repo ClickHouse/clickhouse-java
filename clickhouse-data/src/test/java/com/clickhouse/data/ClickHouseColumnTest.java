@@ -302,6 +302,80 @@ public class ClickHouseColumnTest {
         Assert.assertEquals(variant.getNestedColumns().get(1).getDataType(), expectedType);
     }
 
+    @DataProvider(name = "enumImplicitValuesProvider")
+    private Object[][] getEnumImplicitValues() {
+        return new Object[][] {
+                { "Enum8('a', 'b')", ClickHouseDataType.Enum8, new String[] { "a", "b" }, new int[] { 1, 2 } },
+                { "Enum16('a', 'b')", ClickHouseDataType.Enum16, new String[] { "a", "b" }, new int[] { 1, 2 } },
+                { "Enum('a', 'b')", ClickHouseDataType.Enum8, new String[] { "a", "b" }, new int[] { 1, 2 } },
+                { "Enum8('a' = 5, 'b', 'c')", ClickHouseDataType.Enum8, new String[] { "a", "b", "c" },
+                        new int[] { 5, 6, 7 } },
+                { "Enum8('a' = -3, 'b')", ClickHouseDataType.Enum8, new String[] { "a", "b" }, new int[] { -3, -2 } },
+                { "Enum8('a', 'b' = 5, 'c' = 9)", ClickHouseDataType.Enum8, new String[] { "a", "b", "c" },
+                        new int[] { 1, 5, 9 } },
+                { "Enum('a' = 127, 'b')", ClickHouseDataType.Enum16, new String[] { "a", "b" },
+                        new int[] { 127, 128 } },
+                { "Enum8('x=y', 'b')", ClickHouseDataType.Enum8, new String[] { "x=y", "b" }, new int[] { 1, 2 } },
+                { "Enum8('it''s', 'b')", ClickHouseDataType.Enum8, new String[] { "it's", "b" }, new int[] { 1, 2 } },
+                { "Enum8('a', 'A')", ClickHouseDataType.Enum8, new String[] { "a", "A" }, new int[] { 1, 2 } },
+        };
+    }
+
+    @Test(dataProvider = "enumImplicitValuesProvider", groups = { "unit" })
+    public void testEnumImplicitValues(String typeName, ClickHouseDataType expectedType, String[] names,
+            int[] values) {
+        ClickHouseColumn column = ClickHouseColumn.of("e", typeName);
+        Assert.assertEquals(column.getDataType(), expectedType);
+        Assert.assertEquals(column.getEnumConstants().getNames(), names);
+        Assert.assertEquals(column.getEnumConstants().getValues(), values);
+
+        ClickHouseColumn tuple = ClickHouseColumn.of("e", "Tuple(Int32, Nullable(" + typeName + "), Float64)");
+        Assert.assertEquals(tuple.getNestedColumns().get(1).getEnumConstants(), column.getEnumConstants());
+        Assert.assertEquals(tuple.getNestedColumns().get(2).getDataType(), ClickHouseDataType.Float64);
+    }
+
+    @DataProvider(name = "enumMixedValuesProvider")
+    private Object[][] getEnumMixedValues() {
+        return new Object[][] {
+                { "Enum8('a' = 5, 'b', 'c' = 10, 'd')" },
+                { "Enum8('a' = 1, 'b' = 2, 'c')" },
+                { "Enum8('a', 'b' = 5, 'c')" },
+        };
+    }
+
+    @Test(dataProvider = "enumMixedValuesProvider", groups = { "unit" })
+    public void testEnumMixedValues(String typeName) {
+        Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseColumn.of("e", typeName));
+    }
+
+    @DataProvider(name = "enumDuplicatesProvider")
+    private Object[][] getEnumDuplicates() {
+        return new Object[][] {
+                { "Enum8('a' = 1, 'b' = 1)", "Duplicate enum value 1 for names 'a' and 'b'" },
+                { "Enum8('a', 'b' = 1)", "Duplicate enum value 1 for names 'a' and 'b'" },
+                { "Enum16('a' = 1, 'a' = 2)", "Duplicate enum name 'a' for values 1 and 2" },
+                { "Enum('a' = 1, 'b' = 2, 'a' = 3)", "Duplicate enum name 'a' for values 1 and 3" },
+                { "Enum8('a', 'a')", "Duplicate enum name 'a' for values 1 and 2" },
+        };
+    }
+
+    @Test(dataProvider = "enumDuplicatesProvider", groups = { "unit" })
+    public void testEnumDuplicates(String typeName, String message) {
+        IllegalArgumentException e = Assert.expectThrows(IllegalArgumentException.class,
+                () -> ClickHouseColumn.of("e", typeName));
+        Assert.assertEquals(e.getMessage(), message);
+        Assert.assertThrows(IllegalArgumentException.class,
+                () -> ClickHouseColumn.of("e", "Tuple(Int32, Nullable(" + typeName + "))"));
+    }
+
+    @Test(groups = { "unit" })
+    public void testEnumDuplicatesFromArrays() {
+        Assert.assertThrows(IllegalArgumentException.class,
+                () -> new ClickHouseEnum(new String[] { "a", "b" }, new int[] { 1, 1 }));
+        Assert.assertThrows(IllegalArgumentException.class,
+                () -> new ClickHouseEnum(new String[] { "a", "a" }, new int[] { 1, 2 }));
+    }
+
     @Test(groups = { "unit" })
     public void testBareEnumWidthFromDataType() {
         Assert.assertEquals(ClickHouseColumn.of("e", ClickHouseDataType.Enum, false, false, "'a'=1").getDataType(),

@@ -4,6 +4,8 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 
 public class ClickHouseEnum implements Serializable {
@@ -39,17 +41,84 @@ public class ClickHouseEnum implements Serializable {
         names = new String[size];
         values = new int[size];
 
+        boolean[] hasValue = new boolean[size];
         int i = 0;
         for (String p : params) {
-            int index = p.lastIndexOf('=');
-            if (index > 0) {
-                names[i] = ClickHouseUtils.unescape(p.substring(0, index));
-                values[i] = Integer.parseInt(p.substring(index + 1));
+            int nameEnd = quotedNameEnd(p);
+            if (nameEnd == p.length()) {
+                names[i] = ClickHouseUtils.unescape(p);
             } else {
-                throw new IllegalArgumentException("Invalid enum entry: " + p);
+                int index = nameEnd > 0 ? nameEnd : p.lastIndexOf('=');
+                if (index > 0 && p.charAt(index) == '=') {
+                    names[i] = ClickHouseUtils.unescape(p.substring(0, index));
+                    values[i] = Integer.parseInt(p.substring(index + 1));
+                    hasValue[i] = true;
+                } else {
+                    throw new IllegalArgumentException("Invalid enum entry: " + p);
+                }
             }
             i++;
         }
+
+        // The server gives an entry without a value the number base + position. The base is the value of the
+        // first entry, or 1 when the first entry has no value. All entries after the first one need a value, or
+        // none of them.
+        int valuesAfterFirst = 0;
+        for (i = 1; i < size; i++) {
+            if (hasValue[i]) {
+                valuesAfterFirst++;
+            }
+        }
+        if (valuesAfterFirst != 0 && valuesAfterFirst != size - 1) {
+            throw new IllegalArgumentException(
+                    "Either all or none of the enum entries after the first one must have a value, got " + params);
+        }
+        int base = size > 0 && hasValue[0] ? values[0] : 1;
+        for (i = 0; i < size; i++) {
+            if (!hasValue[i]) {
+                values[i] = base + i;
+            }
+        }
+        checkUnique(names, values);
+    }
+
+    private static void checkUnique(String[] names, int[] values) {
+        Map<String, Integer> valueByName = new HashMap<>();
+        Map<Integer, String> nameByValue = new HashMap<>();
+        for (int i = 0; i < names.length; i++) {
+            Integer previousValue = valueByName.put(names[i], values[i]);
+            if (previousValue != null) {
+                throw new IllegalArgumentException("Duplicate enum name '" + names[i] + "' for values "
+                        + previousValue + " and " + values[i]);
+            }
+            String previousName = nameByValue.put(values[i], names[i]);
+            if (previousName != null) {
+                throw new IllegalArgumentException("Duplicate enum value " + values[i] + " for names '"
+                        + previousName + "' and '" + names[i] + "'");
+            }
+        }
+    }
+
+    private static int quotedNameEnd(String entry) {
+        int len = entry.length();
+        if (len == 0 || !ClickHouseUtils.isQuote(entry.charAt(0))) {
+            return -1;
+        }
+
+        char quote = entry.charAt(0);
+        for (int i = 1; i < len; i++) {
+            char ch = entry.charAt(i);
+            if (ch == '\\') {
+                i++;
+            } else if (ch == quote) {
+                if (i + 1 < len && entry.charAt(i + 1) == quote) {
+                    i++;
+                } else {
+                    return i + 1;
+                }
+            }
+        }
+        return -1;
     }
 
     public ClickHouseEnum(String[] names, int[] values) {
@@ -58,6 +127,7 @@ public class ClickHouseEnum implements Serializable {
         } else if (names.length != values.length) {
             throw new IllegalArgumentException("Names and values should have same length");
         }
+        checkUnique(names, values);
 
         this.size = names.length;
         this.names = names;
