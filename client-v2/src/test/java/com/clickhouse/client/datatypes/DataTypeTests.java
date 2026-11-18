@@ -1684,6 +1684,35 @@ public class DataTypeTests extends BaseIntegrationTest {
     }
 
     @Test(groups = {"integration"})
+    public void testDynamicWithEnumConstantBody() throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+        final String table = "test_dynamic_enum_constant_body";
+        final int tail = 987654321;
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        client.execute(tableDefinition(table, "rowId Int32", "field Dynamic", "tail Int32"),
+                (CommandSettings) new CommandSettings().serverSetting("allow_experimental_dynamic_type", "1")).get();
+        client.register(DTOForDynamicDecimalTests.class, client.getTableSchema(table));
+
+        client.insert(table, Arrays.asList(
+                new DTOForDynamicDecimalTests(1, DataTypesTestingPOJO.EnumWithConstantBody.WITH_BODY, tail),
+                new DTOForDynamicDecimalTests(2, DataTypesTestingPOJO.EnumWithConstantBody.PLAIN, tail))).get().close();
+
+        List<GenericRecord> rows = client.queryAll(
+                "SELECT rowId, field, tail, dynamicType(field) AS type FROM " + table + " ORDER BY rowId");
+        Assert.assertEquals(rows.size(), 2);
+        String[] expectedNames = {"WITH_BODY", "PLAIN"};
+        for (int i = 0; i < rows.size(); i++) {
+            GenericRecord row = rows.get(i);
+            Assert.assertEquals(row.getInteger("rowId"), i + 1);
+            Assert.assertEquals(row.getString("field"), expectedNames[i]);
+            Assert.assertEquals(row.getInteger("tail"), tail);
+            Assert.assertEquals(row.getString("type"), "Enum8('PLAIN' = 0, 'WITH_BODY' = 1, 'LAST' = 2)");
+        }
+    }
+
+    @Test(groups = {"integration"})
     public void testDynamicWithParametrizedTypesInsideMapAndTuple() throws Exception {
         if (isVersionMatch("(,24.8]")) {
             return;
