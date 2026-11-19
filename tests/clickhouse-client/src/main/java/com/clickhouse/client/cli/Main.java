@@ -57,7 +57,7 @@ public final class Main {
 
     private static int runLogged(String[] argv, InputStream stdin, OutputStream stdout, PrintStream stderr,
                                  Function<String, String> env, InvocationLog log) {
-        log.add("argv", String.join(" ", argv));
+        log.add("argv", String.join(" ", CliOptions.redactPassword(argv)));
         if (argv.length > 0 && argv[0].equals("extract-from-config")) {
             return extractFromConfig(argv, stdout);
         }

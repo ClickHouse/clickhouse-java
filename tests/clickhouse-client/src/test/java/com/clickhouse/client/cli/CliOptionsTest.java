@@ -81,6 +81,58 @@ public class CliOptionsTest {
         assertThrows(ParseException.class, () -> CliOptions.parse(new String[] {"--query"}));
     }
 
+    @DataProvider
+    public Object[][] passwordArgv() {
+        return new Object[][] {
+                {new String[] {"--user", "u", "--password", "secret", "--password=secret2", "--query", "SELECT 1",
+                        "--password"},
+                        new String[] {"--user", "u", "--password", "***", "--password=***", "--query", "SELECT 1",
+                                "--password"}},
+                // Each --password hides the next argument, also when that argument is a --password. (The parser
+                // rejects this command line: -u has no value. The log still hides x.)
+                {new String[] {"-u", "--password", "--password", "x"},
+                        new String[] {"-u", "--password", "***", "***"}},
+                // The parser drops the unknown short options, and takes the next argument after them.
+                {new String[] {"--password", "-x", "-y", "secret", "--query", "SELECT 1"},
+                        new String[] {"--password", "***", "***", "***", "--query", "SELECT 1"}},
+                // -s is a known option, so the parser keeps it: the hidden arguments stop there.
+                {new String[] {"--password", "-s", "-q", "SELECT 1"},
+                        new String[] {"--password", "***", "-q", "SELECT 1"}},
+                // After the unknown option --p, the parser also reads -password as the password option.
+                {new String[] {"--p", "-password", "secret", "-password=s2", "-passwords3"},
+                        new String[] {"--p", "-password", "***", "-password=***", "-password***"}},
+        };
+    }
+
+    @Test(dataProvider = "passwordArgv")
+    public void testRedactPassword(String[] argv, String[] expected) {
+        String[] copy = argv.clone();
+        assertEquals(CliOptions.redactPassword(argv), expected);
+        assertEquals(argv, copy);
+    }
+
+    @DataProvider
+    public Object[][] parsedPasswords() {
+        return new Object[][] {
+                {new String[] {"--password", "secret", "--query", "SELECT 1"}, "secret"},
+                {new String[] {"--password=secret", "--query", "SELECT 1"}, "secret"},
+                {new String[] {"--password", "-x", "secret"}, "secret"},
+                {new String[] {"--log_comment", "--password", "secret"}, "secret"},
+                {new String[] {"--password", "-5"}, "-5"},
+                {new String[] {"--p", "-password", "secret"}, "secret"},
+                {new String[] {"--p=1", "-password=secret"}, "secret"},
+                {new String[] {"--p=1", "-passwordsecret"}, "secret"},
+        };
+    }
+
+    /** The redacted arguments do not contain the password that the parser takes. */
+    @Test(dataProvider = "parsedPasswords")
+    public void testRedactPasswordHidesTheParsedPassword(String[] argv, String password) throws ParseException {
+        assertEquals(CliOptions.parse(argv).password, password);
+        String logged = String.join(" ", CliOptions.redactPassword(argv));
+        assertFalse(logged.contains(password), logged);
+    }
+
     @Test
     public void testHttpPort() {
         Map<String, String> env = new HashMap<>();

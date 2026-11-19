@@ -96,8 +96,7 @@ final class CliOptions {
                 if (!name.isEmpty() && !known.contains(name) && !options.hasLongOption(name)) {
                     options.addOption(Option.builder().longOpt(name).hasArg().optionalArg(true).build());
                 }
-            } else if (arg.length() > 1 && arg.charAt(0) == '-' && Character.isLetter(arg.charAt(1))
-                    && !options.hasShortOption(arg.substring(1, 2))) {
+            } else if (isIgnoredShortOption(arg, options)) {
                 continue;
             }
             args.add(arg);
@@ -141,6 +140,43 @@ final class CliOptions {
             }
         }
         return o;
+    }
+
+    /** An unknown short option, such as {@code -x}. {@link #parse} drops it before commons-cli reads the arguments. */
+    private static boolean isIgnoredShortOption(String arg, Options options) {
+        return arg.length() > 1 && arg.charAt(0) == '-' && Character.isLetter(arg.charAt(1))
+                && !options.hasShortOption(arg.substring(1, 2));
+    }
+
+    /**
+     * Returns the arguments with the password replaced by {@code ***}, for the invocation log. {@link #parse} takes
+     * the password from {@code --password X} and {@code --password=X}, and, after an unknown option {@code --p}, also
+     * from {@code -password X}, {@code -password=X} and {@code -passwordX}. After {@code --password} or
+     * {@code -password}, each argument is hidden up to and including the next argument that {@link #parse} keeps:
+     * {@link #parse} drops unknown short options, so in {@code --password -x secret} the password is {@code secret}.
+     * All other arguments stay as they are.
+     */
+    static String[] redactPassword(String[] argv) {
+        Options options = baseOptions();
+        String[] out = argv.clone();
+        for (int i = 0; i < argv.length; i++) {
+            String arg = argv[i];
+            boolean doubleDash = arg.startsWith("--");
+            String name = doubleDash ? arg.substring(2) : arg.startsWith("-") ? arg.substring(1) : "";
+            if (name.equals("password")) {
+                for (int j = i + 1; j < argv.length; j++) {
+                    out[j] = "***";
+                    if (!isIgnoredShortOption(argv[j], options)) {
+                        break;
+                    }
+                }
+            } else if (name.startsWith("password=")) {
+                out[i] = (doubleDash ? "--" : "-") + "password=***";
+            } else if (!doubleDash && name.startsWith("password")) {
+                out[i] = "-password***";
+            }
+        }
+        return out;
     }
 
     static String usage() {

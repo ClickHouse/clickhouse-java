@@ -14,12 +14,16 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertNotEquals;
 import static org.testng.Assert.assertTrue;
 
@@ -65,7 +69,10 @@ public class LiveTest {
     }
 
     private ShimResult runShim(String backend, String query, String... extraArgs) {
-        Map<String, String> env = new HashMap<>();
+        return runShim(backend, new HashMap<>(), query, extraArgs);
+    }
+
+    private ShimResult runShim(String backend, Map<String, String> env, String query, String... extraArgs) {
         env.put(Main.IMPL_ENV, backend);
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         ByteArrayOutputStream err = new ByteArrayOutputStream();
@@ -251,6 +258,31 @@ public class LiveTest {
         ShimResult r = runShim(backend, query);
         assertEquals(r.code, 0, r.stderr);
         assertEquals(r.stdout, expected);
+    }
+
+    /**
+     * The invocation log does not contain the password. Only the log is checked: the server can refuse the password,
+     * and then the error also goes to the log.
+     */
+    @Test(dataProvider = "backends")
+    public void testLogHidesPassword(String backend) throws Exception {
+        String password = "pw-" + UUID.randomUUID();
+        Path logFile = Files.createTempFile("clickhouse-client-cli-", ".log");
+        try {
+            Map<String, String> env = new HashMap<>();
+            env.put(InvocationLog.LOG_PATH_ENV, logFile.toString());
+            runShim(backend, env, "SELECT 1", "--password", password + "-1");
+            runShim(backend, env, "SELECT 1", "--password=" + password + "-2");
+            runShim(backend, env, "SELECT 1", "--password", "-x", password + "-3");
+            String log = new String(Files.readAllBytes(logFile), StandardCharsets.UTF_8);
+            assertFalse(log.contains(password), log);
+            assertTrue(log.contains("--password ***"), log);
+            assertTrue(log.contains("--password=***"), log);
+            // Each of the three invocations got to the backend.
+            assertEquals(log.split("\nimpl=" + backend + "\n", -1).length - 1, 3, log);
+        } finally {
+            Files.deleteIfExists(logFile);
+        }
     }
 
     @Test(dataProvider = "backends")

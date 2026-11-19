@@ -123,7 +123,7 @@ CLICKHOUSE_CLIENT_CLI_LIVE=1 SKIP_CLIENT_INSTALL=1 tests/clickhouse-client/scrip
 | Variable | Default | Description |
 |---|---|---|
 | `CLICKHOUSE_CLIENT_CLI_IMPL` | `client` | The backend: `client`, `jdbc` or `text`. |
-| `CLICKHOUSE_CLIENT_CLI_LOG` | (none) | A file. Each invocation of the shim adds its arguments, statements and errors to it. |
+| `CLICKHOUSE_CLIENT_CLI_LOG` | (none) | A file. Each invocation of the shim adds its arguments (the `--password` value hidden), statements and errors to it. |
 | `UPSTREAM_CLICKHOUSE_DIR` | `.upstream/ClickHouse` | The checkout of `ClickHouse/ClickHouse`. |
 | `UPSTREAM_REPO_URL` | `ClickHouse/ClickHouse` on GitHub | The repository that `fetch-upstream.sh` checks out. |
 | `UPSTREAM_TEST_LIST` | `allowlist.txt` | The file with the tests to run. |
