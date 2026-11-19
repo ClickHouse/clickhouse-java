@@ -15,7 +15,7 @@ final class OutputFormat {
     final boolean names;
     /** A header line with the column types. */
     final boolean types;
-    /** Top-level strings are not escaped. */
+    /** Top-level strings and the header lines are not escaped. */
     final boolean raw;
     /** The {@code Null} format: the values are read, but not written. */
     final boolean discard;
