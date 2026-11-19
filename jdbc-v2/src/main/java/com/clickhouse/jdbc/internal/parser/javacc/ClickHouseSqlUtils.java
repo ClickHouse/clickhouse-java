@@ -166,6 +166,23 @@ public final class ClickHouseSqlUtils {
         return sb.toString();
     }
 
+    /**
+     * Get the body of a heredoc string literal, {@code $$body$$} or {@code $tag$body$tag$}. A heredoc has no escape
+     * sequences, so the body is returned as is.
+     *
+     * @param str heredoc string literal
+     * @return body of the heredoc, or the given string when it is not a heredoc
+     */
+    static String unwrapHeredoc(String str) {
+        if (str == null || str.length() < 4 || str.charAt(0) != '$' || str.charAt(str.length() - 1) != '$') {
+            return str;
+        }
+
+        int bodyStart = str.indexOf('$', 1) + 1;
+        int bodyEnd = str.lastIndexOf('$', str.length() - 2);
+        return bodyEnd < bodyStart ? str : str.substring(bodyStart, bodyEnd);
+    }
+
     private ClickHouseSqlUtils() {
     }
 }

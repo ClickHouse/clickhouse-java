@@ -534,6 +534,10 @@ public abstract class BaseSqlParserFacadeTest {
                         "($$-- still data\nmore data$$, 1)"},
                 {"INSERT INTO t VALUES ($$/* still data\n*/$$, 1)", true, "t", "($$/* still data\n*/$$, 1)"},
                 {"SELECT $$line1\nline2$$ AS x FROM t", false, "t", null},
+                // A heredoc is an interval string, like a quoted string literal
+                {"SELECT now() + INTERVAL $$1 day$$ AS d FROM t", false, "t", null},
+                {"SELECT now() + INTERVAL $tag$1 day$tag$ AS d FROM t", false, "t", null},
+                {"INSERT INTO t VALUES (now() - INTERVAL $$1 day$$, 1)", true, "t", "(now() - INTERVAL $$1 day$$, 1)"},
         };
     }
 
@@ -638,6 +642,32 @@ public abstract class BaseSqlParserFacadeTest {
                 {"INSERT INTO t VALUES ($$a;b$$, 1)", "($$a;b$$, 1)"},
                 // Empty body
                 {"INSERT INTO t VALUES ($$$$, 1)", "($$$$, 1)"},
+        };
+    }
+
+    @Test(dataProvider = "javaCcHeredocClusterNameDP")
+    public void testHeredocClusterNameJavaCcOnly(String sql, String expectedTable) {
+        // The ANTLR4 grammars do not accept a heredoc cluster name yet, so the expectations only hold
+        // for the JavaCC backend.
+        if (!javaCcBackend) {
+            return;
+        }
+        ParsedPreparedStatement stmt = parser.parsePreparedStatement(sql);
+        Assert.assertFalse(stmt.isHasErrors(), "Query should parse without errors: " + sql);
+        Assert.assertFalse(stmt.isInsert(), "Should not be an INSERT: " + sql);
+        Assert.assertFalse(stmt.isHasResultSet(), "Should have no result set: " + sql);
+        Assert.assertEquals(stmt.getTable(), expectedTable, "Table name mismatch for: " + sql);
+    }
+
+    @DataProvider
+    public static Object[][] javaCcHeredocClusterNameDP() {
+        return new Object[][] {
+                // A heredoc is a cluster name, like a quoted string literal
+                {"ALTER TABLE t ON CLUSTER $$c$$ DELETE WHERE 1", "t"},
+                {"ALTER TABLE t ON CLUSTER $tag$c$tag$ ADD COLUMN b Int", "t"},
+                {"UPDATE t ON CLUSTER $$c$$ SET a = 1 WHERE 1", "t"},
+                // Contrast: a quoted string literal keeps its existing handling
+                {"ALTER TABLE t ON CLUSTER 'c' DELETE WHERE 1", "t"},
         };
     }
 

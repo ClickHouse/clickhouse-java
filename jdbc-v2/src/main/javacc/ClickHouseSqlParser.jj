@@ -465,8 +465,11 @@ void alterStmt(): {} {
 }
 
 void clusterClause(): { Token t; } {
-    <ON> <CLUSTER> (LOOKAHEAD(2) t = anyIdentifier() | t = <STRING_LITERAL>)
-    { token_source.cluster = ClickHouseSqlUtils.unescape(t.image); }
+    <ON> <CLUSTER> (LOOKAHEAD(2) t = anyIdentifier() | t = <STRING_LITERAL> | t = <HEREDOC_LITERAL>)
+    {
+        token_source.cluster = t.kind == HEREDOC_LITERAL
+                ? ClickHouseSqlUtils.unwrapHeredoc(t.image) : ClickHouseSqlUtils.unescape(t.image);
+    }
 }
 
 // https://clickhouse.tech/docs/en/sql-reference/statements/attach/
@@ -804,7 +807,7 @@ void nestedExpr(): {} {
     LOOKAHEAD(2) (<DASH> | <NOT>) nestedExpr()
     | LOOKAHEAD(2) <CASE> (LOOKAHEAD({ getToken(1).kind != WHEN }) nestedExpr())? 
         (<WHEN> nestedExpr() <THEN> nestedExpr())+ (<ELSE> nestedExpr())? <END>
-    | LOOKAHEAD(2) <INTERVAL> (LOOKAHEAD(2) <STRING_LITERAL> | nestedExpr() interval())
+    | LOOKAHEAD(2) <INTERVAL> (LOOKAHEAD(2) (<STRING_LITERAL> | <HEREDOC_LITERAL>) | nestedExpr() interval())
     | columnExpr()
     (LOOKAHEAD(2) <LBRACKET> anyExprList() <RBRACKET>)*
     (
