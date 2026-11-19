@@ -325,7 +325,8 @@ change this directory or the workflow.
   much more than a few minutes, increase the number of shards: change the
   `shard` list and `SHARD_TOTAL` together.
 - CI does not set `RETRY_FAILED`: no known client bug makes random tests fail,
-  so a failed test fails the job. If such a bug appears, set `RETRY_FAILED`
+  so a failed test fails the job. The script also turns off the runner's own
+  retries (`--dont_retry_failures`). If such a bug appears, set `RETRY_FAILED`
   in the workflow and name the group of the bug in the comment there. A test
   that passes on a retry is then a warning; a test that fails on every
   attempt fails the job. Remove the retry when the bug is fixed. Do not use

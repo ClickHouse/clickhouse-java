@@ -184,7 +184,11 @@ build_selectors "${tests[@]}"
 
 echo "Backend: ${backend}" >&2
 cd "${UPSTREAM_CLICKHOUSE_DIR}"
-runner=(python3 tests/clickhouse-test --no-stateful --no-random-settings --no-random-merge-tree-settings)
+# --dont_retry_failures: by default the runner runs a failed test again when its
+# output has one of its MESSAGES_TO_RETRY (for example "No such file or
+# directory"), and reports a pass as OK. RETRY_FAILED is the only retry here.
+runner=(python3 tests/clickhouse-test --no-stateful --no-random-settings --no-random-merge-tree-settings
+  --dont_retry_failures)
 
 retries="${RETRY_FAILED:-0}"
 if ! [[ "${retries}" =~ ^[0-9]+$ ]]; then

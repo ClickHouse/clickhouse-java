@@ -154,7 +154,7 @@ final class SqlText {
         return sql.substring(i, j).toUpperCase(Locale.ROOT);
     }
 
-    /** Returns the words of sql outside quotes, comments and parentheses. */
+    /** Returns the words of sql outside quotes, heredocs, comments and parentheses. */
     static List<String> topLevelWords(String sql) {
         List<String> words = new ArrayList<>();
         int depth = 0;
@@ -163,6 +163,9 @@ final class SqlText {
             char c = sql.charAt(i);
             if (c == '\'' || c == '"' || c == '`') {
                 i = skipQuoted(sql, i);
+            } else if (c == '$') {
+                int end = heredocEnd(sql, i);
+                i = end > 0 ? end : i + 1;
             } else if (lineCommentAt(sql, i)) {
                 i = skipLineComment(sql, i);
             } else if (sql.startsWith("/*", i)) {

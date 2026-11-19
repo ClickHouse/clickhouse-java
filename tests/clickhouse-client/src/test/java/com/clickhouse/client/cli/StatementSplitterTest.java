@@ -49,6 +49,9 @@ public class StatementSplitterTest {
                         new String[] {"INSERT INTO t SELECT 1 AS format FROM numbers(1);", "SELECT 1;"}},
                 {"INSERT INTO t SELECT format x FROM s;\nSELECT 1;", new String[] {"INSERT INTO t SELECT format x FROM s;", "SELECT 1;"}},
                 {"INSERT INTO t SELECT format DIV 2 FROM s;\nSELECT 1;", new String[] {"INSERT INTO t SELECT format DIV 2 FROM s;", "SELECT 1;"}},
+                // A FROM in a heredoc is not the FROM of the SELECT.
+                {"INSERT INTO t SELECT $$a FROM b$$, format x FROM s;\nSELECT 1;",
+                        new String[] {"INSERT INTO t SELECT $$a FROM b$$, format x FROM s;", "SELECT 1;"}},
                 {"INSERT INTO t SELECT x FROM s WHERE format GLOBAL IN (1);\nSELECT 1;",
                         new String[] {"INSERT INTO t SELECT x FROM s WHERE format GLOBAL IN (1);", "SELECT 1;"}},
                 {"INSERT INTO t (a) SETTINGS async_insert = 0 FORMAT CSV\n1\n\nSELECT 1;",
@@ -104,6 +107,21 @@ public class StatementSplitterTest {
         assertEquals(SqlText.leadingKeyword("  -- c\n/* d */ (select 1)"), "SELECT");
         assertEquals(SqlText.leadingKeyword("insert into t values (1)"), "INSERT");
         assertEquals(SqlText.leadingKeyword("-- only a comment"), "");
+    }
+
+    @DataProvider
+    public Object[][] topLevelWords() {
+        return new Object[][] {
+                {"SELECT a, 'b c', `d`, \"e\", $$f g$$, $t$h$t$ -- i\nFROM (SELECT j) /* k */", "SELECT a FROM"},
+                {"INSERT INTO t SELECT $$x FROM y$$ FROM s", "INSERT INTO t SELECT FROM s"},
+                // A $ that does not start a heredoc.
+                {"SELECT a$b$c, $1 FROM t", "SELECT a b c 1 FROM t"},
+        };
+    }
+
+    @Test(dataProvider = "topLevelWords")
+    public void testTopLevelWords(String sql, String expected) {
+        assertEquals(String.join(" ", SqlText.topLevelWords(sql)), expected, sql);
     }
 
     @Test

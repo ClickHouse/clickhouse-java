@@ -144,10 +144,10 @@ final class Runner {
             renderers.add(new TsvRenderer(t));
         }
         if (!discard && format.names) {
-            writeHeader(names);
+            writeHeader(names, format.raw);
         }
         if (!discard && format.types) {
-            writeHeader(types);
+            writeHeader(types, format.raw);
         }
         while (rs.next()) {
             for (int i = 0; i < renderers.size(); i++) {
@@ -170,12 +170,20 @@ final class Runner {
         }
     }
 
-    private void writeHeader(List<String> values) {
+    /**
+     * Writes a header line (names or types). A Raw format writes it without escapes, as its rows: the server does
+     * the same (TabSeparatedRowOutputFormat::writeLine).
+     */
+    private void writeHeader(List<String> values, boolean raw) {
         for (int i = 0; i < values.size(); i++) {
             if (i > 0) {
                 result.write('\t');
             }
-            TsvRenderer.writeEscaped(result, values.get(i), false);
+            if (raw) {
+                result.write(values.get(i));
+            } else {
+                TsvRenderer.writeEscaped(result, values.get(i), false);
+            }
         }
         result.write('\n');
     }

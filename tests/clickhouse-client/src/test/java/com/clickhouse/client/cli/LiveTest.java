@@ -230,6 +230,28 @@ public class LiveTest {
         assertEquals(r.stdout, plan + plan);
     }
 
+    @DataProvider
+    public Object[][] headerFormats() {
+        List<Object[]> out = new ArrayList<>();
+        for (String backend : BACKENDS) {
+            // Contrast: TSVWithNames escapes the header.
+            for (String format : new String[] {"TSVWithNames", "TSVRawWithNames", "TabSeparatedRawWithNamesAndTypes"}) {
+                out.add(new Object[] {backend, format});
+            }
+        }
+        return out.toArray(new Object[0][]);
+    }
+
+    /** The header of a Raw format has no escapes, as its rows. */
+    @Test(dataProvider = "headerFormats")
+    public void testHeaderOfFormat(String backend, String format) throws Exception {
+        String query = "SELECT 1 AS `a\\tb\\\\c'd`, 'x' AS `é\\nf` FORMAT " + format;
+        String expected = serverTsv(query);
+        ShimResult r = runShim(backend, query);
+        assertEquals(r.code, 0, r.stderr);
+        assertEquals(r.stdout, expected);
+    }
+
     @Test(dataProvider = "backends")
     public void testEcho(String backend) {
         ShimResult r = runShim(backend, "SELECT 1; -- { echoOn }\nSELECT 2;\nSELECT 3 -- { echoOff }\n;\nSELECT 4\n");
