@@ -1,8 +1,22 @@
 #!/usr/bin/env bash
+# Starts the clickhouse-client imitation (target/clickhouse-client-cli-1.0.0.jar).
+# tests/clickhouse-test calls `clickhouse-client` and `clickhouse` from PATH;
+# both names come here (bin/clickhouse-client is a symlink to this file).
+#
+# The runner starts the shim once per test, so the JVM must start fast: C1
+# only, the serial collector, and a class data sharing archive of the classes
+# that the backend loads (CLICKHOUSE_CLIENT_CLI_CDS, default
+# target/clickhouse-client-cli-<backend>.jsa, which run-upstream-tests.sh
+# makes; set it to an empty value to disable it). JVM log output is off: the
+# JVM writes its warnings to stdout, and any extra output fails a test.
+# The heap is small (-Xmx384m): the runner starts many shims in parallel, and
+# the shim streams the results. CLICKHOUSE_CLIENT_CLI_JAVA_OPTS adds JVM
+# options (a later -Xmx in it wins).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 JAR_PATH="${SCRIPT_DIR}/../target/clickhouse-client-cli-1.0.0.jar"
+CDS_PATH="${CLICKHOUSE_CLIENT_CLI_CDS-${SCRIPT_DIR}/../target/clickhouse-client-cli-${CLICKHOUSE_CLIENT_CLI_IMPL:-client}.jsa}"
 
 if [[ "${1:-}" == "extract-from-config" ]]; then
   shift
@@ -11,7 +25,7 @@ if [[ "${1:-}" == "extract-from-config" ]]; then
     case "$1" in
       --key)
         key="${2:-}"
-        shift 2
+        shift 2 || shift
         ;;
       --key=*)
         key="${1#--key=}"
@@ -23,7 +37,8 @@ if [[ "${1:-}" == "extract-from-config" ]]; then
     esac
   done
 
-  # Minimal compatibility for clickhouse-test usage.
+  # tests/clickhouse-test reads only listen_host; other keys are not in the
+  # config, as for a key that the server does not have.
   if [[ "${key}" == "listen_host" ]]; then
     echo "127.0.0.1"
   fi
@@ -32,8 +47,15 @@ fi
 
 if [[ ! -f "${JAR_PATH}" ]]; then
   echo "Jar not found: ${JAR_PATH}" >&2
-  echo "Build it first: (cd ${SCRIPT_DIR} && mvn package -DskipTests)" >&2
+  echo "Build it first: $(cd "${SCRIPT_DIR}/.." && pwd)/scripts/build.sh" >&2
   exit 1
 fi
 
-exec java -jar "${JAR_PATH}" "$@"
+jvm_opts=(-XX:TieredStopAtLevel=1 -XX:+UseSerialGC -Xmx384m -Xss4m -XX:-UsePerfData -Xlog:disable)
+if [[ -n "${CDS_PATH}" && -f "${CDS_PATH}" ]]; then
+  jvm_opts+=("-XX:SharedArchiveFile=${CDS_PATH}" -Xshare:auto)
+fi
+# shellcheck disable=SC2206
+jvm_opts+=(${CLICKHOUSE_CLIENT_CLI_JAVA_OPTS:-})
+
+exec java "${jvm_opts[@]}" -jar "${JAR_PATH}" "$@"
