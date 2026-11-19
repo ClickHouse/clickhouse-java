@@ -1,0 +1,239 @@
+name: Upstream SQL tests
+
+# Runs a curated subset of the ClickHouse core SQL tests
+# (tests/queries/0_stateless) through clickhouse-java, with the `client`
+# (client-v2) and the `jdbc` (jdbc-v2) backend of tests/clickhouse-client.
+# See tests/clickhouse-client/README.md.
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      clickhouse_version:
+        description: "ClickHouse version to try, for example 26.11.1.10 (default: tests/clickhouse-client/clickhouse-version)"
+        required: false
+        default: ""
+        type: string
+  schedule:
+    - cron: "0 4 * * *"
+  push:
+    branches:
+      - main
+    paths:
+      - "tests/clickhouse-client/**"
+      - ".github/workflows/upstream-sql-tests.yml"
+  pull_request:
+    paths:
+      - "tests/clickhouse-client/**"
+      - ".github/workflows/upstream-sql-tests.yml"
+
+# A new push to a pull request cancels the older run of that pull request.
+# Other runs (nightly, manual tries of other versions, pushes) do not cancel
+# each other.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  # Builds the shim against the clickhouse-java source of this commit, runs its
+  # unit and live tests, and gives the jar to the test jobs.
+  build:
+    name: Build the shim
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install JDK 8 and 17, and Maven
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: |
+            8
+            17
+          cache: "maven"
+
+      # The same toolchain as in build.yml (see CONTRIBUTING.md).
+      - name: Setup Toolchain
+        shell: bash
+        run: |
+          mkdir -p "$HOME/.m2" \
+          && cat << EOF > "$HOME/.m2/toolchains.xml"
+          <?xml version="1.0" encoding="UTF8"?>
+          <toolchains>
+            <toolchain>
+              <type>jdk</type>
+              <provides>
+                <version>17</version>
+              </provides>
+              <configuration>
+                <jdkHome>${{ env.JAVA_HOME }}</jdkHome>
+              </configuration>
+            </toolchain>
+          </toolchains>
+          EOF
+
+      # The server version and the upstream tests are pinned together in
+      # tests/clickhouse-client/clickhouse-version: the `.reference` files of
+      # another release do not match the output of the server. A new server
+      # release changes nothing here until a pull request bumps the pin. The
+      # `clickhouse_version` input of a manual run tries another version
+      # without a commit.
+      - name: Select the ClickHouse version
+        id: version
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.clickhouse_version }}
+        run: |
+          version="${INPUT_VERSION:-$(tests/clickhouse-client/scripts/pinned-version.sh)}"
+          if ! [[ "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::clickhouse_version must be a full version such as 26.10.4.207 (got: '${version}')"
+            exit 1
+          fi
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+
+      # The stock server configuration. CLICKHOUSE_SKIP_USER_SETUP keeps the
+      # `default` user of the image's users.xml: network access, access
+      # management and named-collection control (tests create users, roles
+      # and named collections). Without it, the image allows the user without
+      # a password only from localhost in the container.
+      #
+      # The server gets the host name of the runner: tests/clickhouse-test
+      # replaces its own host name with `localhost` in the output of each
+      # test, and some `.reference` files have `localhost` for hostName().
+      - name: Start ClickHouse ${{ steps.version.outputs.version }}
+        env:
+          CLICKHOUSE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          docker run -d --name clickhouse -p 8123:8123 -p 9000:9000 \
+            --hostname "$(hostname)" \
+            --ulimit nofile=262144:262144 -e CLICKHOUSE_SKIP_USER_SETUP=1 \
+            "clickhouse/clickhouse-server:${CLICKHOUSE_VERSION}"
+          for _ in $(seq 1 60); do
+            if curl -fsS "http""://localhost:8123/ping" > /dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs clickhouse
+          echo "::error::ClickHouse did not start"
+          exit 1
+
+      # The checkout also generates the error code table of the shim, so that
+      # the jar knows the error names of the tests of this version.
+      - name: Get the upstream tests of ClickHouse ${{ steps.version.outputs.version }}
+        run: tests/clickhouse-client/scripts/fetch-upstream.sh "${{ steps.version.outputs.version }}"
+
+      # For the pinned version, the generated table must be the committed one.
+      - name: Check the committed error code table
+        if: github.event.inputs.clickhouse_version == ''
+        run: |
+          file=tests/clickhouse-client/src/main/resources/com/clickhouse/client/cli/error-codes.tsv
+          if ! git diff --exit-code -- "${file}"; then
+            echo "::error::${file} does not match the pinned version. Run scripts/fetch-upstream.sh and commit the file."
+            exit 1
+          fi
+
+      - name: Build the shim, with its unit and live tests
+        env:
+          CLICKHOUSE_CLIENT_CLI_LIVE: "1"
+        run: tests/clickhouse-client/scripts/build.sh
+
+      - name: Upload the shim
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: clickhouse-client-cli
+          path: tests/clickhouse-client/target/clickhouse-client-cli-1.0.0.jar
+          if-no-files-found: error
+          # A re-run of failed test jobs does not build again.
+          retention-days: 7
+
+  upstream-sql-tests:
+    name: Upstream SQL tests (${{ matrix.backend }}, shard ${{ matrix.shard }})
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        backend: [client, jdbc]
+        # Round-robin shards of the allowlist, about 1,260 tests each. One
+        # jdbc shard took about 3.5 minutes at -j 4 with the server and the
+        # shim on 4 CPUs, so a shard takes a few minutes on a 4-vCPU runner.
+        # Change SHARD_TOTAL below together with this list.
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: 17
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies of tests/clickhouse-test
+        run: pip install jinja2
+
+      # The same server as in the build job.
+      - name: Start ClickHouse ${{ needs.build.outputs.version }}
+        env:
+          CLICKHOUSE_VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          docker run -d --name clickhouse -p 8123:8123 -p 9000:9000 \
+            --hostname "$(hostname)" \
+            --ulimit nofile=262144:262144 -e CLICKHOUSE_SKIP_USER_SETUP=1 \
+            "clickhouse/clickhouse-server:${CLICKHOUSE_VERSION}"
+          for _ in $(seq 1 60); do
+            if curl -fsS "http""://localhost:8123/ping" > /dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs clickhouse
+          echo "::error::ClickHouse did not start"
+          exit 1
+
+      - name: Get the upstream tests of ClickHouse ${{ needs.build.outputs.version }}
+        id: upstream
+        run: tests/clickhouse-client/scripts/fetch-upstream.sh "${{ needs.build.outputs.version }}"
+
+      - name: Download the shim
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: clickhouse-client-cli
+          path: tests/clickhouse-client/target
+
+      # No RETRY_FAILED: no known client bug makes random tests fail, so a
+      # failed test fails the job.
+      - name: Run upstream SQL tests
+        env:
+          CLICKHOUSE_CLIENT_CLI_IMPL: ${{ matrix.backend }}
+          CLICKHOUSE_CLIENT_CLI_LOG: ${{ github.workspace }}/upstream-run.log
+          SKIP_BUILD: "1"
+          SHARD_INDEX: ${{ matrix.shard }}
+          SHARD_TOTAL: 8
+        run: tests/clickhouse-client/scripts/run-upstream-tests.sh -j 4
+
+      # The runner writes the diff of a failed test to the job log, and the
+      # output of the test next to it (<test>.<pid>.stdout and .stderr).
+      - name: Upload test artifacts
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: upstream-sql-tests-${{ steps.upstream.outputs.ref }}-${{ matrix.backend }}-shard-${{ matrix.shard }}
+          retention-days: 14
+          if-no-files-found: ignore
+          path: |
+            upstream-run.log
+            tests/clickhouse-client/.upstream/ClickHouse/tests/queries/**/*.stdout
+            tests/clickhouse-client/.upstream/ClickHouse/tests/queries/**/*.stderr
