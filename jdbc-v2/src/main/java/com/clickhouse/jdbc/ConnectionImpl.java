@@ -475,7 +475,12 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
             if (!parsedStatement.isInsertWithSelect() && parsedStatement.getAssignValuesGroups() == 1
                     && !parsedStatement.isUseFunction()
                     && table != null && !ClickHouseSqlStatement.DEFAULT_TABLE.equals(table)) {
-                TableSchema tableSchema = client.getTableSchema(table, schema);
+                TableSchema tableSchema;
+                try {
+                    tableSchema = client.getTableSchema(table, schema);
+                } catch (Exception e) {
+                    throw ExceptionUtils.toSqlState(e);
+                }
                 return new WriterStatementImpl(this, sql, tableSchema, parsedStatement);
             }
         }

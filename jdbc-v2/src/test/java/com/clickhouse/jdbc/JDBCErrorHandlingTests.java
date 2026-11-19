@@ -2,7 +2,9 @@ package com.clickhouse.jdbc;
 
 
 import com.clickhouse.client.api.ServerException;
+import com.clickhouse.jdbc.internal.ExceptionUtils;
 import org.testng.Assert;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.io.ByteArrayOutputStream;
@@ -51,6 +53,30 @@ public class JDBCErrorHandlingTests extends JdbcIntegrationTest {
         }
 
         Assert.assertEquals(queryIds.size(), requests);
+    }
+
+    @DataProvider(name = "writerSchemaLookupFailures")
+    public static Object[][] writerSchemaLookupFailures() {
+        return new Object[][] {
+                {"INSERT INTO unknown_table_for_writer VALUES (?)", "42S02", ServerException.ErrorCodes.TABLE_NOT_FOUND.getCode()},
+                {"INSERT INTO unknown_db_for_writer.t VALUES (?)", ExceptionUtils.SQL_STATE_DATA_EXCEPTION, ServerException.ErrorCodes.DATABASE_NOT_FOUND.getCode()},
+        };
+    }
+
+    /**
+     * With the RowBinary writer enabled, {@code prepareStatement()} asks the server for the table schema.
+     * A failure of that lookup must be reported as {@link SQLException}, not as an unchecked client exception.
+     */
+    @Test(groups = {"integration"}, dataProvider = "writerSchemaLookupFailures")
+    public void testWriterSchemaLookupFailureThrowsSQLException(String sql, String sqlState, int errorCode) throws Exception {
+        Properties properties = new Properties();
+        properties.setProperty(DriverProperties.BETA_ROW_BINARY_WRITER.getKey(), "true");
+        try (Connection conn = getJdbcConnection(properties)) {
+            SQLException e = Assert.expectThrows(SQLException.class, () -> conn.prepareStatement(sql));
+            Assert.assertEquals(e.getSQLState(), sqlState);
+            Assert.assertEquals(e.getErrorCode(), errorCode);
+            Assert.assertTrue(e.getCause() instanceof ServerException, "cause: " + e.getCause());
+        }
     }
 
     /**
