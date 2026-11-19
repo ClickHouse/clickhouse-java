@@ -1,0 +1,5 @@
+# The root .gitignore ignores *.sh; the scripts of the harness are part of it.
+!scripts/*.sh
+.bin-real-client/
+.upstream/
+.real-client/
