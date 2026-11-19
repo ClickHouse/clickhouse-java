@@ -283,6 +283,12 @@ public class DataTypeConverter {
             // the value). Escape those three characters so any String value round-trips.
             return escapeStringParameter((CharSequence) value);
         }
+        if (value instanceof LocalDateTime) {
+            return DataTypeUtils.DATETIME_WITH_NANOS_FORMATTER.format((LocalDateTime) value);
+        }
+        if (value instanceof LocalTime) {
+            return DataTypeUtils.TIME_WITH_NANOS_FORMATTER.format((LocalTime) value);
+        }
         // Other scalars have no escapable characters and are read verbatim by the server, so they
         // are passed through unquoted (e.g. Date, numbers, Identifier).
         return String.valueOf(value);
