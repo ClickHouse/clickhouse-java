@@ -63,6 +63,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
@@ -1859,6 +1860,26 @@ public class QueryTests extends BaseIntegrationTest {
         // manual DataTypeConverter pre-formatting workaround; the query is built from the parameter's type.
         Map<String, Object> params = Collections.singletonMap("p", value);
         List<GenericRecord> records = client.queryAll("SELECT toString({p:" + clickHouseType + "}) AS v", params);
+
+        Assert.assertEquals(records.size(), 1);
+        Assert.assertEquals(records.get(0).getString("v"), expected);
+    }
+
+    @DataProvider(name = "scalarTemporalQueryParameters")
+    Object[][] scalarTemporalQueryParameters() {
+        return new Object[][]{
+                {"DateTime('UTC')", LocalDateTime.of(2026, 11, 19, 0, 0), "2026-11-19 00:00:00"},
+                {"DateTime64(9, 'UTC')", LocalDateTime.of(2026, 11, 19, 12, 34, 0, 123_456_789), "2026-11-19 12:34:00.123456789"},
+                {"Time", LocalTime.of(9, 0), "09:00:00"},
+                {"Time64(3)", LocalTime.of(12, 34, 0, 500_000_000), "12:34:00.500"},
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "scalarTemporalQueryParameters")
+    public void testScalarTemporalQueryParamsRoundTrip(String clickHouseType, Object value, String expected) {
+        QuerySettings settings = new QuerySettings().serverSetting("allow_experimental_time_time64_type", "1");
+        Map<String, Object> params = Collections.singletonMap("p", value);
+        List<GenericRecord> records = client.queryAll("SELECT toString({p:" + clickHouseType + "}) AS v", params, settings);
 
         Assert.assertEquals(records.size(), 1);
         Assert.assertEquals(records.get(0).getString("v"), expected);

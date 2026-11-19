@@ -201,6 +201,12 @@ public class DataTypeConverterTest {
                 // --- Scalars: bare, UNQUOTED text form. The server reads a scalar {name:Type} value
                 // verbatim, so quoting it (e.g. '2026-05-13' for a Date) is rejected. ---
                 {LocalDate.of(2026, 5, 13), "2026-05-13"},
+                {LocalDateTime.of(2026, 11, 19, 0, 0), "2026-11-19 00:00:00"},
+                {LocalDateTime.of(2026, 11, 19, 12, 34, 56), "2026-11-19 12:34:56"},
+                {LocalDateTime.of(2026, 11, 19, 12, 34, 0, 500_000_000), "2026-11-19 12:34:00.5"},
+                {LocalTime.of(9, 0), "09:00:00"},
+                {LocalTime.of(12, 34, 56), "12:34:56"},
+                {LocalTime.of(12, 34, 0, 500_000_000), "12:34:00.5"},
                 {"hello", "hello"},
                 {42, "42"},
                 {new BigDecimal("1.50"), "1.50"},
