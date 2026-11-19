@@ -199,7 +199,11 @@ public class QuerySettings {
     }
 
     /**
-     * Requests the server to wait for the and of the query before sending response. Useful for getting accurate summary.
+     * Sets the HTTP parameter {@code wait_end_of_query} (server setting {@code http_wait_end_of_query}). When
+     * {@code true}, the server keeps the full response and sends it only after the query ends. Then the server
+     * metrics in {@link QueryResponse#getMetrics()} are complete, and the client gets a query error before any data.
+     * The first row is available only after the query ends. When {@code false} (the server default), the server
+     * sends the data while the query runs.
      */
     public QuerySettings waitEndOfQuery(Boolean waitEndOfQuery) {
         serverSetting(ServerSettings.WAIT_END_OF_QUERY, waitEndOfQuery ? "1" : "0");

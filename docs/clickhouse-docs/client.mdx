@@ -884,7 +884,7 @@ Configuration options for query operations.
 | `setQueryId(String queryId)`                 | Sets query ID that will be assigned to the operation.                                                                      |
 | `setFormat(ClickHouseFormat format)`         | Sets response format. See `RowBinaryWithNamesAndTypes` for the full list.                                                  |
 | `setMaxExecutionTime(Integer maxExecutionTime)` | Sets operation execution time on server. Won't affect read timeout.                                                    |
-| `waitEndOfQuery(Boolean waitEndOfQuery)`     | Requests the server to wait for the end of the query before sending a response.                                            |
+| `waitEndOfQuery(Boolean waitEndOfQuery)`     | Sets the HTTP parameter `wait_end_of_query`. When `true`, the server sends the response only after the query ends. The server metrics of the response are then complete, but the first row is available only after the query ends. The `Client#queryRecords` methods and the `Client#queryAll` methods that return `List<GenericRecord>` always set it to `true`. See [Waiting for the End of a Query](/integrations/language-clients/java/jdbc#wait-end-of-query). |
 | `setUseServerTimeZone(Boolean useServerTimeZone)` | Server timezone (see client config) will be used to parse date/time types in the result of an operation. Default `false`.  |
 | `setUseTimeZone(String timeZone)`            | Requests server to use `timeZone` for time conversion. See [session_timezone](/reference/settings/session-settings#session_timezone). |
 | `serverSetting(String name, String value)`   | Sets individual server settings for an operation.                                                                          |
@@ -1201,6 +1201,8 @@ public void inspectResponseMetrics(Client client) throws Exception {
 }
 ```
 
+The server metrics come from the `X-ClickHouse-Summary` response header. For a query with a result set, the server sends this header before the first rows. Thus, the values show only the progress up to that point. To get complete values, set `QuerySettings#waitEndOfQuery(true)`. `Client#queryRecords` sets it, so the metrics of the `Records` that it returns are complete.
+
 ### Spans Reported {#v2-o11y-spans}
 
 Tracing in Client V2 produces two types of spans arranged in a parent-child hierarchy:
@@ -1451,7 +1453,7 @@ Table below shows what old options are supported in the new client and their new
 | `ClickHouseClientOption#MAX_RESULT_ROWS` | ✗ | Is server side setting |
 | `ClickHouseClientOption#RESULT_OVERFLOW_MODE` | ✗ | Is server side setting |
 | `ClickHouseHttpOption#RECEIVE_QUERY_PROGRESS` | ✗ | Server side setting |
-| `ClickHouseHttpOption#WAIT_END_OF_QUERY` | ✗ | Server side setting |
+| `ClickHouseHttpOption#WAIT_END_OF_QUERY` | ✗ | HTTP parameter. See `QuerySettings#waitEndOfQuery` |
 | `ClickHouseHttpOption#REMEMBER_LAST_SET_ROLES` | `Client#setDBRoles` | Runtime config now. See also `QuerySettings#setDBRoles` and `InsertSettings#setDBRoles` |
 
 </Tab>
