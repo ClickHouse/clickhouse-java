@@ -435,4 +435,52 @@ public class WriterStatementImplTest extends JdbcIntegrationTest {
         }
         return false;
     }
+
+    @Test(groups = {"integration"})
+    public void testWriterInsertsIntoDatabaseSelectedWithSetSchema() throws Exception {
+        String otherDb = getDatabase() + "_set_schema_" + UUID.randomUUID().toString().replace('-', '_').substring(0, 8);
+        String table = "writer_set_schema";
+        String onlyInOther = "writer_set_schema_only";
+        runQuery("CREATE DATABASE IF NOT EXISTS " + otherDb);
+        try {
+            runQuery("CREATE TABLE " + otherDb + "." + table + " (x UInt32) ENGINE = Memory");
+            runQuery("CREATE TABLE " + otherDb + "." + onlyInOther + " (x UInt32) ENGINE = Memory");
+            runQuery("DROP TABLE IF EXISTS " + getDatabase() + "." + table);
+            runQuery("CREATE TABLE " + getDatabase() + "." + table + " (x UInt32) ENGINE = Memory");
+
+            Properties properties = new Properties();
+            properties.setProperty(DriverProperties.BETA_ROW_BINARY_WRITER.getKey(), "true");
+            try (Connection connection = getJdbcConnection(properties)) {
+                connection.setSchema(otherDb);
+                // same table name in both databases: the row must go to the selected one
+                try (PreparedStatement stmt = connection.prepareStatement("INSERT INTO " + table + " VALUES (?)")) {
+                    Assert.assertTrue(stmt instanceof WriterStatementImpl);
+                    stmt.setInt(1, 1);
+                    Assert.assertEquals(stmt.executeUpdate(), 1);
+                }
+                // table exists only in the selected database
+                try (PreparedStatement stmt = connection.prepareStatement("INSERT INTO " + onlyInOther + " VALUES (?)")) {
+                    Assert.assertTrue(stmt instanceof WriterStatementImpl);
+                    stmt.setInt(1, 2);
+                    Assert.assertEquals(stmt.executeUpdate(), 1);
+                }
+            }
+
+            try (Connection connection = getJdbcConnection(); Statement stmt = connection.createStatement()) {
+                Assert.assertEquals(countRows(stmt, otherDb + "." + table), 1);
+                Assert.assertEquals(countRows(stmt, getDatabase() + "." + table), 0);
+                Assert.assertEquals(countRows(stmt, otherDb + "." + onlyInOther), 1);
+            }
+        } finally {
+            runQuery("DROP DATABASE IF EXISTS " + otherDb);
+            runQuery("DROP TABLE IF EXISTS " + getDatabase() + "." + table);
+        }
+    }
+
+    private static long countRows(Statement stmt, String table) throws SQLException {
+        try (ResultSet rs = stmt.executeQuery("SELECT count() FROM " + table)) {
+            Assert.assertTrue(rs.next());
+            return rs.getLong(1);
+        }
+    }
 }
