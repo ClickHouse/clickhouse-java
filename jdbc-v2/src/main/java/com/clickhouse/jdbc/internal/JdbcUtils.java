@@ -352,7 +352,8 @@ public class JdbcUtils {
                 ClickHouseDataType baseType = column.getArrayBaseColumn().getDataType();
                 Object[] convertedValues = convertArray(arrayValue.getArray(), convertToJavaClass(baseType),
                         column.getArrayNestedLevel());
-                return new Array(column, convertedValues, multiDimensionalArrayElementType);
+                return new Array(column, convertedValues, multiDimensionalArrayElementType,
+                        arrayToObjectArray(arrayValue.getArray()));
             }
 
             return new Array(column, arrayValue.getArrayOfObjects(), multiDimensionalArrayElementType);
