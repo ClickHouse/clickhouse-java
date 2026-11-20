@@ -108,14 +108,11 @@ public final class ValueConverters {
         mapBuilder.put(String.class, stringMapBuilder.build());
 
         mapBuilder.put(java.sql.Date.class, ImmutableMap.of(java.sql.Date.class, this::convertSqlDateToSqlDate,
-                String.class, this::convertDateToString,
-                java.time.LocalDate.class, this::convertSqlDateToLocalDate));
+                String.class, this::convertDateToString));
         mapBuilder.put(Time.class, ImmutableMap.of(Time.class, this::convertSqlTimeToSqlTime,
-                String.class, this::convertTimeToString,
-                java.time.LocalTime.class, this::convertSqlTimeToLocalTime));
+                String.class, this::convertTimeToString));
         mapBuilder.put(Timestamp.class, ImmutableMap.of(Timestamp.class, this::convertSqlTimestampToSqlTimestamp,
-                String.class, this::convertTimestampToString,
-                java.time.LocalDateTime.class, this::convertSqlTimestampToLocalDateTime));
+                String.class, this::convertTimestampToString));
 
         classConverters = mapBuilder.build();
     }
@@ -233,18 +230,6 @@ public final class ValueConverters {
 
     public Timestamp convertSqlTimestampToSqlTimestamp(Object value) {
         return (Timestamp) value;
-    }
-
-    public java.time.LocalDate convertSqlDateToLocalDate(Object value) {
-        return ((java.sql.Date) value).toLocalDate();
-    }
-
-    public java.time.LocalTime convertSqlTimeToLocalTime(Object value) {
-        return ((Time) value).toLocalTime();
-    }
-
-    public java.time.LocalDateTime convertSqlTimestampToLocalDateTime(Object value) {
-        return ((Timestamp) value).toLocalDateTime();
     }
 
     public String convertDateToString(Object value) {

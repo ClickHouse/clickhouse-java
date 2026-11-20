@@ -1,6 +1,8 @@
 package com.clickhouse.jdbc.types;
 
+import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.jdbc.internal.JdbcUtils;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
@@ -24,7 +26,12 @@ import java.sql.SQLException;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.GregorianCalendar;
+import java.util.TimeZone;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
@@ -631,23 +638,32 @@ public class ArrayResultSetTest {
     }
 
     @Test
-    void testJavaTimeConversions() throws Exception {
-        Date[] dates = {Date.valueOf("2020-01-01"), null};
-        ArrayResultSet rs = new ArrayResultSet(dates, ClickHouseColumn.parse("v Array(Date32)").get(0));
-        rs.next();
-        assertEquals(rs.getObject(2, java.time.LocalDate.class), java.time.LocalDate.of(2020, 1, 1));
-        rs.next();
-        assertEquals(rs.getObject(2, java.time.LocalDate.class), null);
+    void testJavaTimeTargetsReadFromSourceElements() throws SQLException {
+        TimeZone previous = TimeZone.getDefault();
+        // America/Sao_Paulo skipped 2018-11-04 00:00-01:00 (DST start): a java.sql.Timestamp round trip would shift it.
+        TimeZone.setDefault(TimeZone.getTimeZone("America/Sao_Paulo"));
+        try {
+            BinaryStreamReader.ArrayValue dates = new BinaryStreamReader.ArrayValue(LocalDate.class, 2);
+            dates.append(LocalDate.of(2018, 11, 4));
+            dates.append(null);
+            java.sql.Array dateArray = (java.sql.Array) JdbcUtils.convert(dates, java.sql.Array.class,
+                    ClickHouseColumn.parse("v Array(Nullable(Date32))").get(0), true);
+            ResultSet rs = dateArray.getResultSet();
+            assertTrue(rs.next());
+            assertEquals(rs.getObject(2, LocalDate.class), LocalDate.of(2018, 11, 4));
+            assertEquals(rs.getObject(2), Date.valueOf(LocalDate.of(2018, 11, 4)));
+            assertTrue(rs.next());
+            assertEquals(rs.getObject(2, LocalDate.class), null);
 
-        Timestamp[] timestamps = {Timestamp.valueOf("2020-01-01 12:34:56.789123"), null};
-        rs = new ArrayResultSet(timestamps, ClickHouseColumn.parse("v Array(DateTime64(6))").get(0));
-        rs.next();
-        assertEquals(rs.getObject(2, java.time.LocalDateTime.class),
-                java.time.LocalDateTime.of(2020, 1, 1, 12, 34, 56, 789123000));
-
-        Time[] times = {Time.valueOf("12:34:56"), null};
-        rs = new ArrayResultSet(times, ClickHouseColumn.parse("v Array(Time)").get(0));
-        rs.next();
-        assertEquals(rs.getObject(2, java.time.LocalTime.class), java.time.LocalTime.of(12, 34, 56));
+            BinaryStreamReader.ArrayValue times = new BinaryStreamReader.ArrayValue(ZonedDateTime.class, 1);
+            times.append(ZonedDateTime.of(2018, 11, 4, 0, 30, 0, 123456000, ZoneOffset.UTC));
+            java.sql.Array timeArray = (java.sql.Array) JdbcUtils.convert(times, java.sql.Array.class,
+                    ClickHouseColumn.parse("v Array(DateTime64(6, 'UTC'))").get(0), true);
+            ResultSet trs = timeArray.getResultSet(0, 1);
+            assertTrue(trs.next());
+            assertEquals(trs.getObject(2, LocalDateTime.class), LocalDateTime.of(2018, 11, 4, 0, 30, 0, 123456000));
+        } finally {
+            TimeZone.setDefault(previous);
+        }
     }
 }

@@ -24,6 +24,8 @@ public class Array implements java.sql.Array {
     private final ClickHouseDataType baseDataType;
     private final boolean multiDimensionalElementType;
     private ArrayResultSet arrayResultSet;
+    /** Elements as read from the wire (e.g. {@code LocalDate}), parallel to {@link #array}; may be {@code null}. */
+    private final Object[] sourceElements;
 
     public Array(ClickHouseColumn column, Object[] elements) throws SQLException {
         this(column, elements, true);
@@ -36,6 +38,19 @@ public class Array implements java.sql.Array {
      *                                    {@link com.clickhouse.jdbc.DriverProperties#MULTI_DIMENSIONAL_ARRAY_ELEMENT_TYPE}.
      */
     public Array(ClickHouseColumn column, Object[] elements, boolean multiDimensionalElementType) throws SQLException {
+        this(column, elements, multiDimensionalElementType, null);
+    }
+
+    /**
+     * @param sourceElements the elements as read from the wire, before conversion to the JDBC classes (for example
+     *                       {@code java.time.LocalDate} for {@code Date32}); same length as {@code elements}. They let
+     *                       {@link #getResultSet()} serve {@code getObject(i, LocalDate.class)} without a round trip
+     *                       through {@code java.sql.Date}. May be {@code null}.
+     */
+    public Array(ClickHouseColumn column, Object[] elements, boolean multiDimensionalElementType,
+                 Object[] sourceElements) throws SQLException {
+        this.sourceElements = sourceElements != null && elements != null && sourceElements.length == elements.length
+                ? sourceElements : null;
         this.column = column;
         this.array = elements;
         this.multiDimensionalElementType = multiDimensionalElementType;
@@ -109,7 +124,7 @@ public class Array implements java.sql.Array {
     public synchronized ResultSet getResultSet() throws SQLException {
         ensureValid();
         if (arrayResultSet == null) {
-            arrayResultSet = new ArrayResultSet(array, column, multiDimensionalElementType);
+            arrayResultSet = new ArrayResultSet(array, column, multiDimensionalElementType, sourceElements);
         }
         return arrayResultSet;
     }
@@ -122,7 +137,12 @@ public class Array implements java.sql.Array {
     @Override
     public ResultSet getResultSet(long index, int count) throws SQLException {
         ensureValid();
-        return new ArrayResultSet(getArray(index, count), column, multiDimensionalElementType);
+        Object[] sourceSlice = null;
+        if (sourceElements != null) {
+            sourceSlice = new Object[count];
+            System.arraycopy(sourceElements, (int) index, sourceSlice, 0, count);
+        }
+        return new ArrayResultSet(getArray(index, count), column, multiDimensionalElementType, sourceSlice);
     }
 
     @Override
