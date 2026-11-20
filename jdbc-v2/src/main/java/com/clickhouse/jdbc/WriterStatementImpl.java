@@ -122,6 +122,8 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
         InputStream in = new ByteArrayInputStream(out.toByteArray());
         InsertSettings settings = new InsertSettings();
         settings.setQueryId(setLastQueryID(settings.getQueryId()));
+        // Use the database the table schema was resolved in (the connection schema at prepare time).
+        settings.setDatabase(tableSchema.getDatabaseName());
 
         try (InsertResponse response = queryTimeout == 0 ?
                 connection.getClient().insert(tableSchema.getTableName(),in, writer.getFormat(), settings).get()
