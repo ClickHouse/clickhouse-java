@@ -32,9 +32,9 @@ import java.util.concurrent.TimeUnit;
 /**
  * Tests for {@link NativeFormatReader}.
  * <p>
- * The QBit tests are driven by Native-format blocks captured from ClickHouse 26.5.1 and by minimal hand-built
- * block headers. These run without a live server, so the block-level routing (decode a plain float QBit, reject
- * every other shape) stays covered on the coverage build, whose older server skips the QBit integration tests.
+ * The QBit tests are driven by Native-format blocks captured from ClickHouse 26.5.1 and 26.10, and by minimal
+ * hand-built block headers. These run without a live server, so the block-level routing (decode the supported
+ * QBit shapes, reject the other shapes) stays covered on servers that skip the QBit integration tests.
  */
 public class NativeFormatReaderTest extends BaseIntegrationTest {
 
@@ -248,15 +248,63 @@ public class NativeFormatReaderTest extends BaseIntegrationTest {
         Assert.assertNull(reader.next(), label);
     }
 
-    // QBit shapes the Native reader cannot decode: nested inside a container, strided, wrapped in Nullable,
-    // or a non-float element type. Each must be rejected up front instead of misreading the block.
+    // Three-row Native blocks captured from ClickHouse 26.10: a Nullable QBit column (null map, then a placeholder
+    // vector for the null row), and a QBit column as the element of a one-level Array (offsets, then the QBit column
+    // of all elements), with a non-empty, an empty and a one-element row.
+    @DataProvider(name = "decodableQBitContainerBlocks")
+    public static Object[][] decodableQBitContainerBlocks() {
+        return new Object[][] {
+                {"Nullable(QBit(Float32, 3))",
+                        "0103037665631a4e756c6c61626c65285142697428466c6f617433322c203329290001000202"
+                                + "02060707010000010000010000010000010000010000010000040505040404000000000000000000"
+                                + "00000000000000000000000000000000000000000000000000000000000000000000000000000000"
+                                + "0000000000000000000000000000",
+                        Arrays.asList(Arrays.asList(1f, -2f, 3.5f), null, Arrays.asList(3f, -2f, 3.5f))},
+                {"Array(QBit(Float32, 3))",
+                        "010303766563174172726179285142697428466c6f617433322c203329290200000000000000"
+                                + "02000000000000000300000000000000000000060707010000010000010000010000010000010006"
+                                + "01070104040100020100000400000000000000000000000000000000000000000000000000000000"
+                                + "0000000000000000000000000000000000000000000000000000000000000000",
+                        Arrays.asList(
+                                Arrays.asList(Arrays.asList(1f, 2f, 3f), Arrays.asList(4f, 5f, 6f)),
+                                Collections.emptyList(),
+                                Collections.singletonList(Arrays.asList(7f, 8f, 9f)))},
+                {"Array(Nullable(QBit(Float32, 3)))",
+                        "010303766563214172726179284e756c6c61626c65285142697428466c6f617433322c203329"
+                                + "29290200000000000000020000000000000003000000000000000001010000000600000100000100"
+                                + "00010000010000010000010000010000040000000000000000000000000000000000000000000000"
+                                + "00000000000000000000000000000000000000000000000000000000000000000000000000000000"
+                                + "0000000000",
+                        Arrays.asList(
+                                Arrays.asList(Arrays.asList(1f, 2f, 3f), null),
+                                Collections.emptyList(),
+                                Collections.singletonList(null))},
+        };
+    }
+
+    @Test(dataProvider = "decodableQBitContainerBlocks")
+    public void testDecodesQBitInNullableAndArray(String label, String blockHex, List<Object> expectedRows) {
+        NativeFormatReader reader = nativeReader(fromHex(blockHex));
+
+        for (int r = 0; r < expectedRows.size(); r++) {
+            Assert.assertNotNull(reader.next(), label + " row " + r);
+            Assert.assertEquals(reader.getList("vec"), expectedRows.get(r), label + " row " + r);
+        }
+        Assert.assertNull(reader.next(), label);
+    }
+
+    // QBit shapes the Native reader cannot decode: inside a Tuple, Map or multi-level Array, in LowCardinality,
+    // or with an element type other than Int8, BFloat16, Float32 and Float64. Each must be rejected up front
+    // instead of misreading the block.
     @DataProvider(name = "undecodableQBitTypes")
     public static Object[][] undecodableQBitTypes() {
         return new Object[][] {
                 {"m", "Map(String, QBit(Float32, 3))"},
-                {"vec", "QBit(Float32, 4, 2)"},
-                {"vec", "Nullable(QBit(Float32, 3))"},
-                {"vec", "QBit(Int8, 3)"},
+                {"t", "Tuple(Int32, QBit(Float32, 3))"},
+                {"a", "Array(Array(QBit(Float32, 3)))"},
+                {"vec", "LowCardinality(QBit(Float32, 3))"},
+                {"vec", "QBit(Int16, 3)"},
+                {"a", "Array(QBit(Int16, 3))"},
         };
     }
 
