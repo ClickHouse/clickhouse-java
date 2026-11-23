@@ -46,6 +46,8 @@
         <!-- client v1 -->
         <module>clickhouse-client</module>
         <module>clickhouse-http-client</module>
+        <!-- build tools (not published) -->
+        <module>clickhouse-annotation-processor</module>
         <!-- client v2 -->
         <module>client-v2</module>
         <!-- driver -->
@@ -580,6 +582,9 @@
                                 <compileSourceRoot>${project.basedir}/src/main/java11</compileSourceRoot>
                             </compileSourceRoots>
                             <multiReleaseOutput>true</multiReleaseOutput>
+                            <!-- not the default directory: a rebuild here would delete the sources that
+                                 annotation processors generated in default-compile -->
+                            <generatedSourcesDirectory>${project.build.directory}/generated-sources/annotations-java11</generatedSourcesDirectory>
                         </configuration>
                     </execution>
                     <execution>
@@ -597,6 +602,7 @@
                                 <compileSourceRoot>${project.basedir}/src/main/java17</compileSourceRoot>
                             </compileSourceRoots>
                             <multiReleaseOutput>true</multiReleaseOutput>
+                            <generatedSourcesDirectory>${project.build.directory}/generated-sources/annotations-java17</generatedSourcesDirectory>
                         </configuration>
                     </execution>
                 </executions>
@@ -953,6 +959,10 @@
                         <extensions>true</extensions>
                         <configuration>
                             <publishingServerId>central</publishingServerId>
+                            <excludeArtifacts>
+                                <!-- build-time tool of client-v2 and jdbc-v2, not a library -->
+                                <excludeArtifact>clickhouse-annotation-processor</excludeArtifact>
+                            </excludeArtifacts>
                         </configuration>
                     </plugin>
                 </plugins>

@@ -150,4 +150,14 @@ public class ClientConfigPropertiesTest {
         Assert.assertTrue(e.getMessage().contains(property.getKey()), e.getMessage());
         Assert.assertTrue(e.getMessage().contains("'Mars/Olympus_Mons'"), e.getMessage());
     }
+
+    @Test(groups = {"unit"})
+    public void testDescriptions() {
+        Map<ClientConfigProperties, String> descriptions = ClientConfigPropertiesDescriptions.getDescriptions();
+        Assert.assertEquals(new ArrayList<>(descriptions.keySet()), Arrays.asList(ClientConfigProperties.values()));
+        descriptions.forEach((p, d) -> Assert.assertFalse(d.trim().isEmpty(), "Description of " + p));
+        Assert.assertEquals(descriptions.get(ClientConfigProperties.USER), "User name for authentication.");
+        Assert.expectThrows(UnsupportedOperationException.class,
+                () -> descriptions.put(ClientConfigProperties.USER, "a"));
+    }
 }

@@ -323,6 +323,22 @@ public class ClientTests extends BaseIntegrationTest {
     }
 
     @Test(groups = {"integration"})
+    public void testServerTimeZoneAfterLoadingServerInfo() throws Exception {
+        try (Client client = newClient().build()) {
+            // Before loadServerInfo() the client returns the configured value.
+            Assert.assertEquals(client.getServerTimeZone(), "UTC");
+
+            String expected = client.queryAll("SELECT timezone()").get(0).getString(1);
+            client.loadServerInfo();
+            Assert.assertEquals(client.getServerTimeZone(), expected);
+        }
+
+        try (Client client = newClient().setServerTimeZone("Europe/Berlin").build()) {
+            Assert.assertEquals(client.getServerTimeZone(), "Europe/Berlin");
+        }
+    }
+
+    @Test(groups = {"integration"})
     public void testDisableNative() {
         try (Client client = newClient().disableNativeCompression(true).build()) {
             Assert.assertTrue(client.toString().contains("JavaSafe") || client.toString().contains("JavaUnsafe"));

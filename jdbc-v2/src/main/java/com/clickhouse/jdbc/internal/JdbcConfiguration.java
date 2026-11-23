@@ -2,11 +2,13 @@ package com.clickhouse.jdbc.internal;
 
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientConfigProperties;
+import com.clickhouse.client.api.ClientConfigPropertiesDescriptions;
 import com.clickhouse.client.api.enums.SSLMode;
 import com.clickhouse.client.api.http.ClickHouseHttpProto;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.jdbc.Driver;
 import com.clickhouse.jdbc.DriverProperties;
+import com.clickhouse.jdbc.DriverPropertiesDescriptions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
@@ -45,6 +47,9 @@ public class JdbcConfiguration {
     private static final String PARSE_URL_CONN_URL_PROP = "connection_url";
     private static final Pattern PATTERN_HTTP_TOKEN = Pattern.compile(
         "[A-Za-z0-9!#$%&'*+\\.\\^_`\\|~-]+");
+
+    static final String USER_DEFINED_PROPERTY_DESCRIPTION = "(User Defined)";
+    private static final Map<String, String> PROPERTY_DESCRIPTIONS = propertyDescriptions();
 
     private final boolean disableFrameworkDetection;
     private final Map<String, Class<?>> typeMap;
@@ -382,7 +387,7 @@ public class JdbcConfiguration {
         // create initial list of properties that will be passed to a client
         for (Map.Entry<String, String> prop : props.entrySet()) {
             DriverPropertyInfo propertyInfo = new DriverPropertyInfo(prop.getKey(), prop.getValue());
-            propertyInfo.description = "(User Defined)";
+            propertyInfo.description = PROPERTY_DESCRIPTIONS.getOrDefault(prop.getKey(), USER_DEFINED_PROPERTY_DESCRIPTION);
             propertyInfos.put(prop.getKey(), propertyInfo);
 
             if (DRIVER_PROP_KEYS.contains(prop.getKey())) {
@@ -428,7 +433,7 @@ public class JdbcConfiguration {
             DriverPropertyInfo propertyInfo = propertyInfos.get(clientProp.getKey());
             if (propertyInfo == null) {
                 propertyInfo = new DriverPropertyInfo(clientProp.getKey(), clientProp.getDefaultValue());
-                // TODO: read description from resource file
+                propertyInfo.description = PROPERTY_DESCRIPTIONS.get(clientProp.getKey());
                 propertyInfos.put(clientProp.getKey(), propertyInfo);
             }
         }
@@ -439,11 +444,23 @@ public class JdbcConfiguration {
             DriverPropertyInfo propertyInfo = propertyInfos.get(driverProp.getKey());
             if (propertyInfo == null) {
                 propertyInfo = new DriverPropertyInfo(driverProp.getKey(), driverProp.getDefaultValue());
+                propertyInfo.description = PROPERTY_DESCRIPTIONS.get(driverProp.getKey());
                 propertyInfos.put(driverProp.getKey(), propertyInfo);
             }
         }
 
         listOfProperties = propertyInfos.values().stream().sorted(Comparator.comparing(o -> o.name)).collect(Collectors.toList());
+    }
+
+    /**
+     * Returns the descriptions of the client and driver properties by property key. The descriptions come from the
+     * {@code @ConfigDescription} annotations of {@link ClientConfigProperties} and {@link DriverProperties}.
+     */
+    private static Map<String, String> propertyDescriptions() {
+        Map<String, String> descriptions = new HashMap<>();
+        ClientConfigPropertiesDescriptions.getDescriptions().forEach((p, d) -> descriptions.put(p.getKey(), d));
+        DriverPropertiesDescriptions.getDescriptions().forEach((p, d) -> descriptions.put(p.getKey(), d));
+        return Collections.unmodifiableMap(descriptions);
     }
 
     /**
