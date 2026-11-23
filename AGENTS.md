@@ -127,5 +127,3 @@ not only when a review is explicitly requested.
 
 If a module develops its own conventions, add a nested `AGENTS.md` inside that module.
 The nearest `AGENTS.md` to the edited files should be treated as the most specific guidance.
-
-- `tests/clickhouse-client/AGENTS.md`: the core SQL test harness (the ClickHouse core SQL tests through client-v2 and jdbc-v2) and the triage rules of its allowlist.

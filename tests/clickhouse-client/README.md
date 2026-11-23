@@ -160,7 +160,9 @@ The file has these kinds of lines:
 
 The known failures are at the end of the file, in one section per group. The
 header of a group describes the bug, gives a small reproduction, names the
-backends, gives the number of tests per backend, and has an `Issue:` line. A
+backends, gives the number of tests per backend, and has an `Issue:` line.
+When an issue is filed for a group, put its link on that line. Make a new
+group when no group fits, and mark a shim group `shim:` in its header. A
 line with a group per backend is in the section of its first group; the
 header of the other group names it. The comment at the start of the file gives
 the counts. Update them when you change the list: the run script prints
@@ -211,17 +213,27 @@ part). When all tests of a group pass, remove the group header.
 
    A test that passes on both backends is a candidate. For a test that
    passes on one backend only, find the cause of the failure on the other
-   one (see [`AGENTS.md`](AGENTS.md)): a client bug or a shim gap gives a
-   `known=<backend>` line, an environment cause an `only=<backend>` line.
+   one (see [Find the cause of a failure](#find-the-cause-of-a-failure)): a
+   client bug or a shim gap gives a `known=<backend>` line, an environment
+   cause an `only=<backend>` line.
 
 3. Run the new tests again, three times, with a higher `-j` than CI (CI uses
-   `-j 4`), each time on a fresh server. Find the cause of each failure
-   before you remove a test.
+   `-j 4`), each time on a fresh server. Tests change the state of the server
+   (row policies, settings profiles, users): a test that passes only after
+   other tests ran must not go in. Find the cause of each failure before you
+   remove a test.
 
-**Rule:** add only tests that pass reliably. Before you remove a test or
-decide not to add it, find out whether it fails because of a bug in
-clickhouse-java. The harness exists to find those bugs. See
-[`AGENTS.md`](AGENTS.md) for the steps.
+4. Run the full list for the checks, not only the new tests: a test that
+   passes alone can fail in a full run (see
+   [Environment causes](#environment-causes)).
+
+**Rule:** add only tests that pass reliably: on both backends, or on one
+backend with an `only=` reason or a `known=` group for the other. Before you
+remove a test or decide not to add it, find out whether it fails because of a
+bug in clickhouse-java. The harness exists to find those bugs. When an
+allowlisted test starts to fail intermittently, find the cause first. Remove
+it only when the cause is in the environment or in the test itself, and write
+the reason in the commit message.
 
 To compare with the real `clickhouse-client`, run the same tests through it,
 in the server container:
@@ -232,6 +244,97 @@ UPSTREAM_TEST_LIST=<(echo 01601_accurate_cast) tests/clickhouse-client/scripts/r
 
 A test that passes there and fails through clickhouse-java shows a bug in
 clickhouse-java or in the shim.
+
+## Find the cause of a failure
+
+A test fails because of the client (client-v2, jdbc-v2, or `clickhouse-data`,
+which they use), the shim, or the environment. [`AGENTS.md`](AGENTS.md) gives
+the rules for each cause. Do these steps in this order. Build the shim once
+(`scripts/build.sh`); the commands below use `SKIP_BUILD=1`.
+
+1. **Run the test on both backends:**
+
+   ```bash
+   UPSTREAM_TEST_LIST=<(echo <test>) SKIP_BUILD=1 tests/clickhouse-client/scripts/run-upstream-tests.sh
+   UPSTREAM_TEST_LIST=<(echo <test>) SKIP_BUILD=1 CLICKHOUSE_CLIENT_CLI_IMPL=jdbc tests/clickhouse-client/scripts/run-upstream-tests.sh
+   ```
+
+   Both backends use HTTP, so a test that passes on one backend and fails
+   on the other points to the client (client-v2 or jdbc-v2), unless the
+   cause is in the list below.
+2. **Run the test through the real `clickhouse-client`** in the server
+   container, on the same server:
+
+   ```bash
+   UPSTREAM_TEST_LIST=<(echo <test>) tests/clickhouse-client/scripts/run-with-real-client.sh
+   ```
+
+   If it also fails here, the cause is the environment. If it passes here,
+   the cause is the client or the shim.
+3. **Find the statement that fails.** Set `CLICKHOUSE_CLIENT_CLI_LOG` to a
+   file; the log shows each statement and the error. Read the diff in the
+   output of the runner, and the `.stdout` and `.stderr` files next to the
+   test.
+4. **Compare the shim with the server on that one statement.** Run it
+   through the shim (`tests/clickhouse-client/bin/clickhouse-client --query "<SQL>"`,
+   on both backends) and through the real client
+   (`docker exec clickhouse clickhouse-client --query "<SQL>"`). Then make the
+   statement smaller until it is as small as possible.
+5. **Decide between the client and the shim with a small Java program** that
+   uses only the public API: client-v2 `Client.query` and
+   `ClickHouseBinaryFormatReader.readValue` (or `getString`, `getLong`, ...),
+   jdbc-v2 `ResultSet.getObject`. A TestNG test in the module is a good
+   form: it can become the test of the fix (see "Testing expectations" in the
+   root [`AGENTS.md`](../../AGENTS.md)). If the program also gives a wrong
+   value or an error, the bug is in the client. If the program gives the
+   correct value, the bug is in the shim.
+
+### Environment causes
+
+A test cannot pass through any client on the CI server when it needs one of
+these:
+
+- A cluster, shards or replicas (`CLUSTER_DOESNT_EXIST`, `test_shard_localhost`).
+- ZooKeeper or Keeper (`NO_ZOOKEEPER`, `Replicated*` engines, `KeeperMap`).
+- External services: S3, Azure, HDFS, Kafka, MySQL, PostgreSQL, MongoDB, URL
+  sources.
+- Server configuration of the upstream CI: named collections, dictionaries,
+  storage policies, disks, users and grants, macros, transactions
+  (`NAMED_COLLECTION_DOESNT_EXIST`, `NO_ELEMENTS_IN_CONFIG`, `UNKNOWN_POLICY`,
+  `UNKNOWN_DISK`).
+- Features that the server build or platform does not have
+  (`SUPPORT_IS_DISABLED`).
+- Stateful datasets (`--no-stateful`) or long tests (`--no-long`).
+- Behavior of the HTTP interface itself. Both backends use HTTP. The server
+  sends no `WITH TOTALS` and no `extremes` rows in the binary output over
+  HTTP, and an HTTP request fails when the current database of the session
+  was dropped.
+- Features of `clickhouse-client` itself that are not part of a driver:
+  `INTO OUTFILE`, `FROM INFILE`, client-side parsing of `INSERT` data, and
+  client-only settings.
+- The tz database. The JVM and ClickHouse can give different historical
+  offsets for the same zone.
+- Tests that conflict with other tests of the set: a fixed table UUID, or
+  server state that a test leaves behind (failpoints that a failed test did
+  not disable, row policies, databases). A failure message with "Injected
+  failure" comes from a failpoint of another test.
+- Server results that depend on the load of the server: the pipeline shape
+  of `EXPLAIN PIPELINE` or `EXPLAIN ANALYZE` (the number of streams, read in
+  order or not), block sizes, and the total memory of the server
+  (`MEMORY_LIMIT_EXCEEDED` with "(total)"). Such a test passes alone on a
+  fresh server and fails in a full run, also through the real
+  `clickhouse-client`. The shim only sends the SQL text, so the shim and the
+  client cannot change these results.
+- Memory limits of the server, when the test also fails through the real
+  `clickhouse-client`.
+
+These are **not** environment causes. Find the bug:
+
+- A value that is different from the server's value.
+- A decode error or a client exception (`ClientException`, `SQLException`
+  from `getObject`, "Failed to read value").
+- A type name that the client cannot parse or gives wrong.
+- A failure on one backend only, when the cause is not in the list above.
 
 ## How the shim imitates clickhouse-client
 
@@ -339,8 +442,35 @@ change this directory or the workflow.
   [`clickhouse-version`](clickhouse-version). A new ClickHouse release
   changes nothing in CI, so a pull request never fails because of a release
   that it does not touch. A bump is a pull request of its own; see
-  [`AGENTS.md`](AGENTS.md#bump-the-server-version).
+  [Bump the server version](#bump-the-server-version).
 - The `clickhouse_version` input of a manual run tries another version
   without a commit, for example before a bump.
 - When an allowlisted test is not in the checkout (upstream renamed or
   removed it), the run shows a warning with the names.
+
+## Bump the server version
+
+The server version and the upstream tests are pinned together in
+[`clickhouse-version`](clickhouse-version). Bump the pin in a pull request of
+its own, and make that pull request pass before it merges:
+
+1. Select the version: a full version with a server image tag and a
+   `v<version>-stable` tag upstream, normally the version of the `latest`
+   image.
+2. Try it: start a manual run with the `clickhouse_version` input, or run
+   the allowlist locally on that version (`fetch-upstream.sh <version>`, and
+   a fresh server of that version).
+3. For each allowlisted test that now fails, find the cause (see
+   [Find the cause of a failure](#find-the-cause-of-a-failure)). A release
+   changes the tests and the server output, so many tests can fail at the
+   same time with no change in the client. To see whether the client is the
+   cause, run the same test through the real client
+   (`run-with-real-client.sh`) on the same server.
+4. Run the known failures on both backends (`KNOWN_FAILURES=all`). Enable the
+   tests that pass now.
+5. Fix the names of allowlisted tests that the run reports as not in the
+   checkout (upstream renamed or removed them).
+6. Optionally, try the new tests of the release (see
+   [Grow the allowlist](#grow-the-allowlist)).
+7. Change `clickhouse-version`, run `fetch-upstream.sh`, and commit
+   `src/main/resources/com/clickhouse/client/cli/error-codes.tsv` with it.
