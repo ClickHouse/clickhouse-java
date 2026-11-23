@@ -131,6 +131,49 @@ We deliberately avoid adding default settings to connection properties to avoid 
 However some users need to pass format settings (for example to read JSON as String) and we recommend using `readonly=2` profile.
 Read more about read-only profiles [here](/concepts/features/configuration/settings/constraints-on-settings#read-only).
 
+### Waiting for the End of a Query {#wait-end-of-query}
+
+The HTTP parameter `wait_end_of_query` controls when the server starts to send a response.
+The driver does not set it for the statements of the application. Thus, the server default `0` applies, and the server sends the rows of a result set while the query runs.
+With `wait_end_of_query=1`, the server keeps the full response. It sends the response only after the query ends.
+
+To enable it for a connection, set the property `clickhouse_setting_wait_end_of_query` to `1` in the connection properties, or add `clickhouse_setting_wait_end_of_query=1` to the JDBC URL:
+
+```java
+Properties properties = new Properties();
+properties.setProperty("user", "default");
+properties.setProperty("password", getPassword());
+properties.put(ClientConfigProperties.serverSetting("wait_end_of_query"), "1"); // clickhouse_setting_wait_end_of_query
+
+Connection conn = Driver.connect("jdbc:ch:http://localhost:8123/", properties);
+```
+
+To enable it for one statement, use `com.clickhouse.jdbc.StatementImpl#getLocalSettings` (see [Operation Identification](#operation-identification)):
+
+```java
+StatementImpl stmt = (StatementImpl) conn.createStatement();
+stmt.getLocalSettings().waitEndOfQuery(true);
+```
+
+The driver sends the property as the `wait_end_of_query` URL parameter. This parameter is not a setting, and the server reads it before it parses the query. Thus:
+- A `readonly=1` profile accepts the parameter. Do not use the setting name `http_wait_end_of_query` in the property: a `readonly=1` profile rejects it.
+- The `SETTINGS` clause of a query cannot enable it. The server rejects `SETTINGS wait_end_of_query=1` as an unknown setting. `SETTINGS http_wait_end_of_query=1` has no effect on the response.
+
+The server setting [`http_wait_end_of_query`](/reference/settings/session-settings#http_wait_end_of_query) gives the default value of the parameter. To enable it for all HTTP queries of a user, set it in the settings profile of that user.
+
+| Behavior | `wait_end_of_query=0` (default) | `wait_end_of_query=1` |
+|----------|---------------------------------|-----------------------|
+| First row of a result set | Available when the server sends the first data. | Available only after the query ends. |
+| Server resources | The server sends the data while the query runs. | The server keeps the full response. With the default [`http_response_buffer_size`](/reference/settings/session-settings#http_response_buffer_size) `0`, it writes each response to a temporary file on its disk, also a small response. |
+| Update count of `executeUpdate` and `executeBatch` | Not changed by this parameter. For a statement without a result set, the server sends the summary after the statement ends. | Not changed by this parameter. |
+| Statistics of a query with a result set, for example the span attributes `db.response.returned_rows` and `clickhouse.response.read_rows` | Can be incomplete. The server sends the `X-ClickHouse-Summary` header before the first rows. Thus, the header has only the progress up to that point, and `result_rows` can be `0`. | Complete. |
+| Error during a query | If the server already sent rows, `ResultSet.next()` can return rows before it throws the exception. The last of these rows can have wrong values, because the driver reads a part of the error message as row data. | `executeQuery` throws a `SQLException` with the server error code. The application gets no rows. |
+
+Recommendations:
+- Keep the default for queries that return many rows. The application can process the rows while the query runs, and the server does not keep the result.
+- Use `wait_end_of_query=1` for queries with small results when the application needs complete statistics, or when it must get an error before it processes rows.
+- With `wait_end_of_query=1`, the driver gets no data until the query ends. Make the socket timeout longer than the longest query. The property `socket_timeout` sets it (default `0`, no timeout), and `Connection#setNetworkTimeout` changes it.
+
 ### Client Identification {#client-identification}
 
 There are two ways to identify application originated a request: set `com.clickhouse.client.api.ClientConfigProperties#CLIENT_NAME` via
