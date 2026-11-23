@@ -4,6 +4,7 @@ import com.clickhouse.client.api.data_formats.ClickHouseFormatReader;
 import com.clickhouse.client.api.data_formats.internal.AbstractBinaryFormatReader;
 import com.clickhouse.client.api.enums.SSLMode;
 import com.clickhouse.client.api.internal.CompressedBlockOutputStream;
+import com.clickhouse.client.api.internal.ConfigDescription;
 import com.clickhouse.client.api.internal.WorkloadIdentitySupport;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
@@ -32,42 +33,64 @@ import java.util.stream.Collectors;
  */
 public enum ClientConfigProperties {
 
+    @ConfigDescription("Comma-separated list of roles that the server applies to each query.")
     SESSION_DB_ROLES("session_db_roles", List.class),
 
+    @ConfigDescription("Comment that the server writes to system.query_log for each query (server setting log_comment).")
     SETTING_LOG_COMMENT(serverSetting("log_comment"), String.class),
 
+    @ConfigDescription("Sends the user and the password with HTTP Basic authentication. Set to false to send them in the "
+            + "X-ClickHouse-User and X-ClickHouse-Key headers.")
     HTTP_USE_BASIC_AUTH("http_use_basic_auth", Boolean.class, "true"),
 
+    @ConfigDescription("User name for authentication.")
     USER("user", String.class, "default"),
 
+    @ConfigDescription("Password for authentication.")
     PASSWORD("password", String.class),
 
     /**
      * Maximum number of active connection in internal connection pool.
      */
+    @ConfigDescription("Maximum number of open connections to one server in the connection pool.")
     HTTP_MAX_OPEN_CONNECTIONS("max_open_connections", Integer.class, "10"),
 
     /**
      * HTTP keep-alive timeout override.
      */
+    @ConfigDescription("HTTP keep-alive timeout in milliseconds. It overrides the keep-alive timeout of the server. When it "
+            + "is not set, the client uses the server value.")
     HTTP_KEEP_ALIVE_TIMEOUT("http_keep_alive_timeout", Long.class),
 
+    @ConfigDescription("Uses the server time zone to decode Date and DateTime values.")
     USE_SERVER_TIMEZONE("use_server_time_zone", Boolean.class, "true"),
 
+    @ConfigDescription("Time zone ID that the client uses to decode Date and DateTime values instead of the server time "
+            + "zone.")
     USE_TIMEZONE("use_time_zone", TimeZone.class),
 
+    @ConfigDescription("Server version that Client#getServerVersion() of client-v2 returns before the client reads the "
+            + "version from the server. The JDBC driver does not use it.")
     SERVER_VERSION("server_version", String.class),
 
+    @ConfigDescription("Time zone ID of the server. The client uses it to decode Date and DateTime values when "
+            + "use_server_time_zone is true and the server response does not give a time zone.")
     SERVER_TIMEZONE("server_time_zone", TimeZone.class, "UTC"),
 
+    @ConfigDescription("Runs each operation in a separate thread.")
     ASYNC_OPERATIONS("async", Boolean.class, "false"),
 
+    @ConfigDescription("Time in milliseconds that a connection can stay in the connection pool. After this time, the pool "
+            + "does not reuse the connection. -1 means no limit.")
     CONNECTION_TTL("connection_ttl", Long.class, "-1"),
 
+    @ConfigDescription("Timeout in milliseconds to open a connection to the server.")
     CONNECTION_TIMEOUT("connection_timeout", Long.class),
 
+    @ConfigDescription("Order in which the connection pool reuses idle connections. Choices: FIFO, LIFO.")
     CONNECTION_REUSE_STRATEGY("connection_reuse_strategy", ConnectionReuseStrategy.class, String.valueOf(ConnectionReuseStrategy.FIFO)),
 
+    @ConfigDescription("Timeout in milliseconds to wait for data from the server. 0 means no timeout.")
     SOCKET_OPERATION_TIMEOUT("socket_timeout", Integer.class, "0"),
 
     /**
@@ -75,6 +98,8 @@ public enum ClientConfigProperties {
      * sizes and auto-tunes the buffer. Setting it disables that auto-tuning and is not recommended
      * unless a measurement shows a benefit.
      */
+    @ConfigDescription("Socket receive buffer size in bytes (SO_RCVBUF). When it is not set, the operating system sets and "
+            + "tunes the size.")
     SOCKET_RCVBUF_OPT("socket_rcvbuf", Integer.class),
 
     /**
@@ -82,78 +107,124 @@ public enum ClientConfigProperties {
      * sizes and auto-tunes the buffer. Setting it disables that auto-tuning and is not recommended
      * unless a measurement shows a benefit.
      */
+    @ConfigDescription("Socket send buffer size in bytes (SO_SNDBUF). When it is not set, the operating system sets and "
+            + "tunes the size.")
     SOCKET_SNDBUF_OPT("socket_sndbuf", Integer.class),
 
+    @ConfigDescription("Reserved for the socket option SO_REUSEADDR. The client does not apply it.")
     SOCKET_REUSEADDR_OPT("socket_reuseaddr", Boolean.class),
 
+    @ConfigDescription("Reserved for the socket option SO_KEEPALIVE. The client does not apply it.")
     SOCKET_KEEPALIVE_OPT("socket_keepalive", Boolean.class),
 
+    @ConfigDescription("Sets the socket option TCP_NODELAY. This disables the Nagle algorithm.")
     SOCKET_TCP_NO_DELAY_OPT("socket_tcp_nodelay", Boolean.class),
 
+    @ConfigDescription("Socket linger time in seconds (SO_LINGER).")
     SOCKET_LINGER_OPT("socket_linger", Integer.class),
 
+    @ConfigDescription("Default database for operations.")
     DATABASE("database", String.class, "default"),
 
+    @ConfigDescription("Asks the server to compress the response data.")
     COMPRESS_SERVER_RESPONSE("compress", Boolean.class, "true"), // actually a server setting, but has client effect too
 
+    @ConfigDescription("Compresses the request data that the client sends to the server.")
     COMPRESS_CLIENT_REQUEST("decompress", Boolean.class, "false"), // actually a server setting, but has client effect too
 
+    @ConfigDescription("Uses HTTP compression. The Content-Encoding and Accept-Encoding headers control the compression of "
+            + "requests and responses.")
     USE_HTTP_COMPRESSION("client.use_http_compression", Boolean.class, "false"),
 
+    @ConfigDescription("Size in bytes of the buffer for uncompressed data in block compression and decompression (LZ4 and "
+            + "ZSTD).")
     COMPRESSION_LZ4_UNCOMPRESSED_BUF_SIZE("compression.lz4.uncompressed_buffer_size", Integer.class, String.valueOf(CompressedBlockOutputStream.UNCOMPRESSED_BUFF_SIZE)),
 
+    @ConfigDescription("Compression method for the request data that the client sends. Choices: LZ4, ZSTD.")
     COMPRESSION_METHOD("compression.method", CompressionMethod.class, CompressionMethod.ZSTD.name()),
 
+    @ConfigDescription("Uses the Java implementation of LZ4 instead of the native implementation.")
     DISABLE_NATIVE_COMPRESSION("disable_native_compression", Boolean.class, "false"),
 
+    @ConfigDescription("Type of the proxy server, in upper case. Choices: HTTP, SOCKS.")
     PROXY_TYPE("proxy_type", String.class), // "http"
 
+    @ConfigDescription("Host name or IP address of the proxy server.")
     PROXY_HOST("proxy_host", String.class),
 
+    @ConfigDescription("Port of the proxy server.")
     PROXY_PORT("proxy_port", Integer.class),
 
+    @ConfigDescription("User name for authentication with the HTTP proxy server.")
     PROXY_USER("proxy_user", String.class),
 
+    @ConfigDescription("Password for authentication with the HTTP proxy server.")
     PROXY_PASSWORD("proxy_password", String.class),
 
+    @ConfigDescription("Maximum time in milliseconds that the client waits for the result of a blocking operation, for "
+            + "example ping or queryAll. 0 means no limit. The client does not send it to the server. For the server "
+            + "limit, use clickhouse_setting_max_execution_time (seconds).")
     MAX_EXECUTION_TIME("max_execution_time", Integer.class,"0"),
 
+    @ConfigDescription("Path to the trust store file that the client uses to verify the server certificate.")
     SSL_TRUST_STORE("trust_store", String.class),
 
+    @ConfigDescription("Type of the trust store file, for example JKS or PKCS12.")
     SSL_KEYSTORE_TYPE("key_store_type", String.class),
 
+    @ConfigDescription("Reserved. The client does not use this property.")
     SSL_KEY_STORE("ssl_key_store", String.class),
 
+    @ConfigDescription("Password of the trust store file.")
     SSL_KEY_STORE_PASSWORD("key_store_password",  String.class),
 
+    @ConfigDescription("File path or PEM content of the private key of the client certificate.")
     SSL_KEY("ssl_key",  String.class),
 
+    @ConfigDescription("File path or PEM content of the CA certificate that the client uses to verify the server "
+            + "certificate.")
     CA_CERTIFICATE("sslrootcert", String.class),
 
+    @ConfigDescription("File path or PEM content of the client certificate for mutual TLS and for SSL authentication.")
     SSL_CERTIFICATE("sslcert", String.class),
 
+    @ConfigDescription("How the client verifies the server on secure connections. Choices: STRICT, VERIFY_CA, TRUST, "
+            + "DISABLED. The JDBC driver also accepts none for TRUST.")
     SSL_MODE("ssl_mode", SSLMode.class, SSLMode.STRICT.name()),
 
+    @ConfigDescription("A javax.net.ssl.SSLContext object for secure connections. Set it with Properties.put(). A string "
+            + "value is not accepted.")
     SSL_CONTEXT("ssl_context", SSLContext.class),
 
+    @ConfigDescription("Maximum number of retries for the failure causes in client_retry_on_failures.")
     RETRY_ON_FAILURE("retry", Integer.class, "3"),
 
+    @ConfigDescription("Default data format of query results.")
     INPUT_OUTPUT_FORMAT("format", ClickHouseFormat.class, ClickHouseFormat.RowBinaryWithNamesAndTypes.name()),
 
+    @ConfigDescription("Reserved. The client does not use this property.")
     MAX_THREADS_PER_CLIENT("max_threads_per_client", Integer.class, "0"),
 
+    @ConfigDescription("Query ID that the client sends with the request.")
     QUERY_ID("query_id", String.class), // actually a server setting, but has client effect too
 
+    @ConfigDescription("Size in bytes of the buffer that copies data between the socket and the application.")
     CLIENT_NETWORK_BUFFER_SIZE("client_network_buffer_size", Integer.class, "300000"),
 
+    @ConfigDescription("Access token for authentication. The client sends it as is in the HTTP Authorization header.")
     ACCESS_TOKEN("access_token", String.class),
 
+    @ConfigDescription("Uses the client certificate (sslcert) for authentication with the server.")
     SSL_AUTH("ssl_authentication", Boolean.class, "false"),
 
+    @ConfigDescription("Enables the connection pool.")
     CONNECTION_POOL_ENABLED("connection_pool_enabled",  Boolean.class, "true"),
 
+    @ConfigDescription("Timeout in milliseconds to get a connection from the connection pool.")
     CONNECTION_REQUEST_TIMEOUT("connection_request_timeout", Long.class, "10000"),
 
+    @ConfigDescription("Comma-separated list of failure causes that the client retries. The values are the names of "
+            + "ClientFaultCause constants. None disables the retries.")
     CLIENT_RETRY_ON_FAILURE("client_retry_on_failures", List.class,
             String.join(",", ClientFaultCause.NoHttpResponse.name(), ClientFaultCause.ConnectTimeout.name(),
             ClientFaultCause.ConnectionRequestTimeout.name(), ClientFaultCause.ServerRetryable.name())) {
@@ -170,33 +241,43 @@ public enum ClientConfigProperties {
         }
     },
 
+    @ConfigDescription("Name of the application. The client sends it at the start of the User-Agent header.")
     CLIENT_NAME("client_name", String.class, ""),
 
     /**
      * An old alias to {@link ClientConfigProperties#CLIENT_NAME}. Using the last one is preferred.
      */
     @Deprecated
+    @ConfigDescription("Deprecated. Use client_name.")
     PRODUCT_NAME("product_name", String.class),
 
+    @ConfigDescription("Bearer token for authentication. The client sends it in the HTTP Authorization header after the "
+            + "Bearer prefix.")
     BEARERTOKEN_AUTH ("bearer_token", String.class),
     /**
      * Indicates that data provided for write operation is compressed by application.
      */
+    @ConfigDescription("Tells the client that the application compresses the data that it inserts.")
     APP_COMPRESSED_DATA("app_compressed_data", Boolean.class, "false"),
 
     /**
      * Name of the group under which client metrics appear
      */
+    @ConfigDescription("Name of the group of the connection pool metrics.")
     METRICS_GROUP_NAME("metrics_name", String.class, "ch-http-pool"),
 
+    @ConfigDescription("Keeps the HTTP cookies from the server and sends them back to the server.")
     HTTP_SAVE_COOKIES("client.http.cookies_enabled",  Boolean.class, "false"),
 
+    @ConfigDescription("Lets the binary format reader reuse its buffers for numbers. This decreases memory allocation.")
     BINARY_READER_USE_PREALLOCATED_BUFFERS("client_allow_binary_reader_to_reuse_buffers", Boolean.class, "false"),
 
     /**
      * Defines mapping between ClickHouse data type and target Java type
      * Used by binary readers to convert values into desired Java type.
      */
+    @ConfigDescription("Mapping of ClickHouse data types to the Java classes that the binary readers of client-v2 use for "
+            + "values. The JDBC driver sets its own mapping. Use jdbc_type_mappings.")
     TYPE_HINT_MAPPING("type_hint_mapping", Map.class),
 
     /**
@@ -204,11 +285,14 @@ public enum ClientConfigProperties {
      * instead of decoding them into a {@link String}. Improves working with large strings and lets
      * {@link ClickHouseFormatReader#getByteArray} be used more effectively. Can be configured per operation.
      */
+    @ConfigDescription("Reads String and FixedString columns into byte arrays instead of String objects.")
     BINARY_STRING_SUPPORT("binary_string_support", Boolean.class, "false"),
 
     /**
      * SNI SSL parameter that will be set for each outbound SSL socket.
      */
+    @ConfigDescription("Server name for SNI (Server Name Indication) on each SSL socket. When it is set, the client also "
+            + "sends this name in the Host header and does not verify the host name in the server certificate.")
     SSL_SOCKET_SNI("ssl_socket_sni", String.class,""),
 
     /**
@@ -216,18 +300,23 @@ public enum ClientConfigProperties {
      * Note: work only with Server side compression. If compression is enabled on client level it will be disabled
      * for query requests with parameters.
      */
+    @ConfigDescription("Sends a query that has parameters as HTTP form data in the request body. This works only with "
+            + "server compression.")
     HTTP_SEND_PARAMS_IN_BODY("client.http.use_form_request_for_query", Boolean.class, "false"),
 
     /**
      * When enabled for JSONEachRow queries, asks ClickHouse to emit large integer,
      * floating-point, and decimal values as JSON numbers instead of quoted strings.
      */
+    @ConfigDescription("For JSONEachRow queries, asks the server to write large integer, floating-point and decimal values "
+            + "as JSON numbers instead of quoted strings.")
     JSON_DISABLE_NUMBER_QUOTING("json_disable_number_quoting", Boolean.class, "false"),
 
     /**
      *  Prefix for custom settings. Should be aligned with server configuration.
      *  See <a href="https://clickhouse.com/docs/operations/settings/query-level#custom_settings">ClickHouse Docs</a>
      */
+    @ConfigDescription("Prefix of custom server settings. It must agree with the server configuration.")
     CUSTOM_SETTINGS_PREFIX("custom_settings_prefix", String.class, "custom_"),
 
     /**
@@ -244,6 +333,8 @@ public enum ClientConfigProperties {
      * Appended at the end of the enum on purpose: adding a constant in the middle would shift the ordinal
      * of every following constant (see {@code docs/changes_checklist.md}).
      */
+    @ConfigDescription("Comma-separated list of TLS cipher suites that the client can use. When it is not set, the client "
+            + "uses the default cipher suites of the transport.")
     SSL_CIPHER_SUITES("ssl_cipher_suites", List.class) {
         @Override
         @SuppressWarnings("unchecked")
@@ -265,6 +356,7 @@ public enum ClientConfigProperties {
      * setting: it is not read from operation settings. See {@link Client.Builder#setClientName(String, Map)} for the
      * format and the rules for keys and values.
      */
+    @ConfigDescription("Comma-separated key=value pairs that the client adds to the comment part of the User-Agent header.")
     CLIENT_ID_METADATA("client_id_metadata", Map.class) {
         @Override
         @SuppressWarnings("unchecked")
