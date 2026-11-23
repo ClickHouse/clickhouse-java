@@ -228,7 +228,8 @@ public class QuerySettings {
             throw new ValidationUtils.SettingsValidationException(ClientConfigProperties.USE_TIMEZONE.getKey(),
                     "Cannot set both use_time_zone and use_server_time_zone");
         }
-        settings.setOption(ClientConfigProperties.USE_TIMEZONE.getKey(), TimeZone.getTimeZone(timeZone));
+        settings.setOption(ClientConfigProperties.USE_TIMEZONE.getKey(),
+                ValidationUtils.toTimeZone(timeZone, ClientConfigProperties.USE_TIMEZONE.getKey()));
         return this;
     }
 

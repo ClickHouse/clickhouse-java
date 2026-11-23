@@ -9,6 +9,7 @@ import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.internal.SslContextProvider;
 import com.clickhouse.client.api.query.QuerySettings;
 import org.testng.Assert;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import javax.net.ssl.SSLContext;
@@ -20,6 +21,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 
 @Test(groups = {"unit"})
@@ -236,6 +238,50 @@ public class SettingsTests {
             settings.clearSession();
             Assert.assertEquals(settings.getDatabase(), "db1");
         }
+    }
+
+    @DataProvider(name = "validTimeZoneIds")
+    public static Object[][] validTimeZoneIds() {
+        return new Object[][]{
+                // time zone ID -> expected TimeZone ID
+                {"America/Los_Angeles", "America/Los_Angeles"},
+                {"UTC", "UTC"},
+                {"GMT", "GMT"},
+                {"Etc/GMT+5", "Etc/GMT+5"},
+                {"Africa/Monrovia", "Africa/Monrovia"},
+                {"GMT+05:30", "GMT+05:30"},
+                {"+05:30", "GMT+05:30"},
+                {"+05:30:00", "GMT+05:30"},
+                {"-09:30", "GMT-09:30"},
+                {"UTC+05:30", "GMT+05:30"},
+                {"UT-03:00", "GMT-03:00"},
+        };
+    }
+
+    @Test(dataProvider = "validTimeZoneIds")
+    void testQuerySettingsUseTimeZone(String timeZoneId, String expectedId) {
+        QuerySettings settings = new QuerySettings().setUseTimeZone(timeZoneId);
+        TimeZone timeZone = (TimeZone) settings.getAllSettings().get(ClientConfigProperties.USE_TIMEZONE.getKey());
+        Assert.assertEquals(timeZone.getID(), expectedId);
+        Assert.assertEquals(timeZone, TimeZone.getTimeZone(expectedId));
+    }
+
+    @DataProvider(name = "invalidTimeZoneIds")
+    public static Object[][] invalidTimeZoneIds() {
+        return new Object[][]{
+                {"Mars/Olympus_Mons"}, {"America/Los_Angels"}, {""}, {" UTC"}, {"+25:00"}, {"UTC+5:3"},
+                {"+05:30:45"}, {"-05:30:45"}, {"UTC+05:30:45"}, {"GMT+05:30:45"},
+        };
+    }
+
+    @Test(dataProvider = "invalidTimeZoneIds")
+    void testQuerySettingsUseTimeZoneRejectsInvalidId(String timeZoneId) {
+        QuerySettings settings = new QuerySettings();
+        IllegalArgumentException e = Assert.expectThrows(IllegalArgumentException.class,
+                () -> settings.setUseTimeZone(timeZoneId));
+        Assert.assertTrue(e.getMessage().contains(ClientConfigProperties.USE_TIMEZONE.getKey()), e.getMessage());
+        Assert.assertTrue(e.getMessage().contains("'" + timeZoneId + "'"), e.getMessage());
+        Assert.assertFalse(settings.getAllSettings().containsKey(ClientConfigProperties.USE_TIMEZONE.getKey()));
     }
 
     @Test

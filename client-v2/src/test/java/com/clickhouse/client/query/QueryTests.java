@@ -62,6 +62,7 @@ import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -2044,6 +2045,37 @@ public class QueryTests extends BaseIntegrationTest {
         } catch (Exception e) {
             e.printStackTrace();
             Assert.fail("Failed to get server time zone from header", e);
+        }
+    }
+
+    @DataProvider(name = "useTimeZones")
+    public static Object[][] useTimeZones() {
+        return new Object[][]{
+                // time zone ID -> epoch 0 as local date-time in that time zone
+                {"Europe/Berlin", LocalDateTime.of(1970, 1, 1, 1, 0)},
+                {"UTC+05:30", LocalDateTime.of(1970, 1, 1, 5, 30)},
+                {"+05:30", LocalDateTime.of(1970, 1, 1, 5, 30)},
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "useTimeZones")
+    public void testUseTimeZone(String timeZoneId, LocalDateTime expected) throws Exception {
+        try (Client client = newClient().useTimeZone(timeZoneId).build()) {
+            assertEpochReadAs(client, new QuerySettings(), expected);
+        }
+        try (Client client = newClient().useTimeZone("UTC").build()) {
+            assertEpochReadAs(client, new QuerySettings().setUseTimeZone(timeZoneId), expected);
+        }
+    }
+
+    private static void assertEpochReadAs(Client client, QuerySettings settings, LocalDateTime expected)
+            throws Exception {
+        try (QueryResponse response = client.query("SELECT toDateTime(0) AS t", settings).get(10, TimeUnit.SECONDS)) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+            Assert.assertNotNull(reader.next());
+            ZonedDateTime t = reader.getZonedDateTime("t");
+            Assert.assertEquals(t.toInstant(), Instant.EPOCH);
+            Assert.assertEquals(t.toLocalDateTime(), expected);
         }
     }
 

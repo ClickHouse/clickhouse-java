@@ -5,6 +5,7 @@ import com.clickhouse.client.api.data_formats.internal.AbstractBinaryFormatReade
 import com.clickhouse.client.api.enums.SSLMode;
 import com.clickhouse.client.api.internal.CompressedBlockOutputStream;
 import com.clickhouse.client.api.internal.ConfigDescription;
+import com.clickhouse.client.api.internal.ValidationUtils;
 import com.clickhouse.client.api.internal.WorkloadIdentitySupport;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
@@ -491,7 +492,7 @@ public enum ClientConfigProperties {
         }
 
         if (valueType.equals(TimeZone.class)) {
-            return TimeZone.getTimeZone(value);
+            return ValidationUtils.toTimeZone(value, key);
         }
 
         if (valueType.equals(Map.class)) {
