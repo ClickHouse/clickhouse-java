@@ -16,6 +16,8 @@ public final class ParsedPreparedStatement {
 
     private String[] insertColumns;
 
+    private boolean unresolvedInsertColumns;
+
     private boolean useFunction;
 
     private boolean hasErrors;
@@ -72,6 +74,14 @@ public final class ParsedPreparedStatement {
 
     public void setInsertColumns(String[] insertColumns) {
         this.insertColumns = insertColumns;
+    }
+
+    public boolean hasUnresolvedInsertColumns() {
+        return unresolvedInsertColumns;
+    }
+
+    public void setUnresolvedInsertColumns(boolean unresolvedInsertColumns) {
+        this.unresolvedInsertColumns = unresolvedInsertColumns;
     }
 
     public String getTable() {
