@@ -11,6 +11,7 @@ import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.internal.ServerSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
+import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.client.datatypes.DataSetPojoGenerator;
@@ -24,6 +25,7 @@ import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseVersion;
+import lombok.Value;
 import org.testng.Assert;
 import org.testng.SkipException;
 import org.testng.annotations.BeforeClass;
@@ -91,6 +93,72 @@ public class PojoWriterDataSetTest extends BaseIntegrationTest {
             }
         }
         return cases.toArray(new Object[0][]);
+    }
+
+    @DataProvider
+    public Object[][] variantDefaults() {
+        return new Object[][] {{false}, {true}};
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "variantDefaults")
+    public void testWriteNullVariantWithPojo(boolean defaults) throws Exception {
+        if (serverVersion.check("(,24.8]")) {
+            throw new SkipException("Variant requires ClickHouse newer than 24.8 in this suite");
+        }
+        String table = "pojo_writer_variant_null_" + defaults;
+        String fallback = defaults ? ", fallback Variant(Int32, String) DEFAULT CAST('fallback', 'Variant(Int32, String)')" : "";
+        try (Client client = newClientBuilder().serverSetting(ServerSettings.ASYNC_INSERT, "0")
+                .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1")
+                .serverSetting("allow_experimental_variant_type", "1").build()) {
+            client.execute("CREATE TABLE " + table + " (id Int32, v Variant(Int32, String, Array(Int32)), "
+                    + "nested Array(Variant(Int32, String)), tail Int32" + fallback + ") ORDER BY id")
+                    .get(TIMEOUT_SECONDS, TimeUnit.SECONDS).close();
+            try {
+                Object nullVariant = client.queryAll("SELECT CAST(NULL, 'Variant(Int32, String)') AS v")
+                        .get(0).getObject("v");
+                Assert.assertNull(nullVariant);
+                client.register(VariantPojo.class, client.getTableSchema(table));
+                client.insert(table, Arrays.asList(
+                        new VariantPojo(1, "hello", new Object[] {"one", 7}, 41, null),
+                        new VariantPojo(2, nullVariant, new Object[] {null, 5, null}, 42, null),
+                        new VariantPojo(3, new Integer[] {3, 4}, new Object[] {"last"}, 43, null)))
+                        .get(TIMEOUT_SECONDS, TimeUnit.SECONDS).close();
+
+                List<GenericRecord> rows = client.queryAll("SELECT id, toString(variantType(v)) AS kind, "
+                        + "isNull(v) AS is_null, toString(v) AS value, toJSONString(nested) AS nested_value, tail"
+                        + (defaults ? ", toString(fallback) AS fallback_value" : "")
+                        + " FROM " + table + " ORDER BY id");
+                String[][] expected = {
+                        {"String", "hello", "[\"one\",7]"},
+                        {"None", "", "[null,5,null]"},
+                        {"Array(Int32)", "[3,4]", "[\"last\"]"},
+                };
+                Assert.assertEquals(rows.size(), expected.length);
+                for (int i = 0; i < expected.length; i++) {
+                    GenericRecord row = rows.get(i);
+                    Assert.assertEquals(row.getInteger("id"), i + 1);
+                    Assert.assertEquals(row.getString("kind"), expected[i][0]);
+                    Assert.assertEquals(row.getBoolean("is_null"), i == 1);
+                    Assert.assertEquals(row.getString("value"), expected[i][1]);
+                    Assert.assertEquals(row.getString("nested_value"), expected[i][2]);
+                    Assert.assertEquals(row.getInteger("tail"), i + 41);
+                    if (defaults) {
+                        Assert.assertEquals(row.getString("fallback_value"), "fallback");
+                    }
+                }
+            } finally {
+                dropTable(client, table);
+            }
+        }
+    }
+
+    @Value
+    public static class VariantPojo {
+        int id;
+        Object v;
+        Object[] nested;
+        int tail;
+        Object fallback;
     }
 
     @Test(groups = {"integration"}, dataProvider = "dataSetEntries")

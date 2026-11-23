@@ -889,14 +889,17 @@ public class SerializerUtils {
     }
 
     public static void serializerVariant(OutputStream out, ClickHouseColumn column, Object value) throws IOException {
-        int typeOrdNum = column.getVariantOrdNum(value);
-        if (typeOrdNum != -1) {
-            BinaryStreamUtils.writeUnsignedInt8(out, typeOrdNum);
-            serializeData(out, value, column.getNestedColumns().get(typeOrdNum));
-        } else {
-            throw new IllegalArgumentException("Cannot write value of class " + (value == null ? "<null value>" : value.getClass())
+        if (value == null) {
+            out.write(0xFF);
+            return;
+        }
+        int tag = column.getVariantOrdNum(value);
+        if (tag == -1) {
+            throw new IllegalArgumentException("Cannot write value of class " + value.getClass()
                     + " into column with variant type " + column.getOriginalTypeName());
         }
+        BinaryStreamUtils.writeUnsignedInt8(out, tag);
+        serializeData(out, value, column.getNestedColumns().get(tag));
     }
 
     public static void serializerGeometry(OutputStream out, ClickHouseColumn column, Object value) throws IOException {
