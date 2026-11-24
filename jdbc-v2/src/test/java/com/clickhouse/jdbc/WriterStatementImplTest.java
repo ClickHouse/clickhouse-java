@@ -427,6 +427,94 @@ public class WriterStatementImplTest extends JdbcIntegrationTest {
         }
     }
 
+    @DataProvider(name = "integerTypeBounds")
+    Object[][] integerTypeBounds() {
+        return new Object[][]{
+                {"Int8", "-128", "127"},
+                {"UInt8", "0", "255"},
+                {"Int16", "-32768", "32767"},
+                {"UInt16", "0", "65535"},
+                {"Int32", "-2147483648", "2147483647"},
+                {"UInt32", "0", "4294967295"},
+                {"Int64", "-9223372036854775808", "9223372036854775807"},
+                {"UInt64", "0", "18446744073709551615"},
+                {"Int128", "-170141183460469231731687303715884105728", "170141183460469231731687303715884105727"},
+                {"UInt128", "0", "340282366920938463463374607431768211455"},
+                {"Int256", "-57896044618658097711785492504343953926634992332820282019728792003956564819968",
+                        "57896044618658097711785492504343953926634992332820282019728792003956564819967"},
+                {"UInt256", "0", "115792089237316195423570985008687907853269984665640564039457584007913129639935"},
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "integerTypeBounds")
+    public void testSetStringIntoIntegerColumnBounds(String type, String min, String max) throws SQLException {
+        String table = "bt_writer_int_bounds_" + UUID.randomUUID().toString().replace('-', '_');
+        Properties properties = new Properties();
+        properties.setProperty(DriverProperties.BETA_ROW_BINARY_WRITER.getKey(), "true");
+        properties.setProperty(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF);
+        try (Connection connection = getJdbcConnection(properties)) {
+            try (Statement stmt = connection.createStatement()) {
+                stmt.execute("CREATE TABLE " + table + " (id Int32, v " + type + ", tail Int32) ORDER BY id");
+            }
+
+            try {
+                try (PreparedStatement ps = connection.prepareStatement("INSERT INTO " + table + " VALUES (?, ?, ?)")) {
+                    Assert.assertTrue(ps instanceof WriterStatementImpl);
+                    String[] values = {min, max};
+                    for (int i = 0; i < values.length; i++) {
+                        ps.setInt(1, i);
+                        ps.setString(2, values[i]);
+                        ps.setInt(3, 7);
+                        ps.addBatch();
+                    }
+                    ps.executeBatch();
+                }
+
+                try (Statement stmt = connection.createStatement();
+                     ResultSet rs = stmt.executeQuery("SELECT toString(v), tail FROM " + table + " ORDER BY id")) {
+                    Assert.assertTrue(rs.next());
+                    Assert.assertEquals(rs.getString(1), min);
+                    Assert.assertEquals(rs.getInt(2), 7);
+                    Assert.assertTrue(rs.next());
+                    Assert.assertEquals(rs.getString(1), max);
+                    Assert.assertEquals(rs.getInt(2), 7);
+                    Assert.assertFalse(rs.next());
+                }
+            } finally {
+                try (Statement stmt = connection.createStatement()) {
+                    stmt.execute("DROP TABLE IF EXISTS " + table);
+                }
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testSetLongOutOfIntegerColumnRangeFails() throws SQLException {
+        String table = "bt_writer_int_range_" + UUID.randomUUID().toString().replace('-', '_');
+        Properties properties = new Properties();
+        properties.setProperty(DriverProperties.BETA_ROW_BINARY_WRITER.getKey(), "true");
+        try (Connection connection = getJdbcConnection(properties)) {
+            try (Statement stmt = connection.createStatement()) {
+                stmt.execute("CREATE TABLE " + table + " (id Int32, v Int32, tail Int32) ORDER BY id");
+            }
+
+            try (PreparedStatement ps = connection.prepareStatement("INSERT INTO " + table + " VALUES (?, ?, ?)")) {
+                Assert.assertTrue(ps instanceof WriterStatementImpl);
+                ps.setInt(1, 1);
+                ps.setLong(2, 2147483648L);
+                ps.setInt(3, 7);
+                SQLException thrown = Assert.expectThrows(SQLException.class, ps::addBatch);
+                Assert.assertTrue(thrown.getCause() instanceof IllegalArgumentException
+                                && thrown.getCause().getMessage().contains("should be between"),
+                        "Expected an out-of-range error, but got: " + thrown);
+            } finally {
+                try (Statement stmt = connection.createStatement()) {
+                    stmt.execute("DROP TABLE IF EXISTS " + table);
+                }
+            }
+        }
+    }
+
     private static boolean hasInjectedCause(Throwable t) {
         for (Throwable c = t; c != null; c = c.getCause()) {
             if (c instanceof IOException && "injected buffer close failure".equals(c.getMessage())) {

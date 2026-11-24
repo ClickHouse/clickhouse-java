@@ -19,6 +19,8 @@ import com.clickhouse.client.api.query.GenericRecord;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseVersion;
+import com.clickhouse.data.format.BinaryStreamUtils;
+import com.clickhouse.data.value.UnsignedLong;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.testng.Assert;
 import org.testng.annotations.BeforeMethod;
@@ -630,6 +632,55 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
     @Test (groups = { "integration" }, dataProvider = "stringValuesForUInt64AndUUID")
     public void writeStringIntoUInt64AndUUIDTest(String columnType, Object value, String expected) throws Exception {
         String tableName = "rowBinaryFormatWriterTest_stringUInt64UUID_" + UUID.randomUUID().toString().replace('-', '_');
+        initTable(tableName,
+                "CREATE TABLE \"" + tableName + "\" (id Int32, c " + columnType + ", tail Float64) ORDER BY id",
+                new CommandSettings());
+        TableSchema schema = client.getTableSchema(tableName);
+        ClickHouseFormat format = ClickHouseFormat.RowBinaryWithDefaults;
+
+        try (InsertResponse response = client.insert(tableName, out -> {
+            RowBinaryFormatWriter w = new RowBinaryFormatWriter(out, schema, format);
+            w.setValue(schema.nameToColumnIndex("id"), 1);
+            w.setValue(schema.nameToColumnIndex("c"), value);
+            w.setValue(schema.nameToColumnIndex("tail"), 0.5d);
+            w.commitRow();
+        }, format, settings).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS)) {
+        }
+
+        List<GenericRecord> records = client.queryAll(
+                "SELECT id, toString(c) AS c, tail FROM \"" + tableName + "\" ORDER BY id");
+        Assert.assertEquals(records.size(), 1);
+        GenericRecord row = records.get(0);
+        Assert.assertEquals(row.getInteger("id"), 1);
+        Assert.assertEquals(row.getString("c"), expected);
+        Assert.assertEquals(row.getDouble("tail"), 0.5d);
+    }
+
+    @DataProvider(name = "integerColumnValues")
+    private Object[][] integerColumnValues() {
+        BigInteger int128Max = BigInteger.ONE.shiftLeft(127).subtract(BigInteger.ONE);
+        BigInteger int256Min = BigInteger.ONE.shiftLeft(255).negate();
+        return new Object[][] {
+                {"Int8", (short) -128, "-128"},
+                {"Int16", -3.99f, "-3"},
+                {"Int32", 2147483647L, "2147483647"},
+                {"Int32", 2.75d, "2"},
+                {"Int64", BigInteger.valueOf(Long.MIN_VALUE), "-9223372036854775808"},
+                {"Int64", new BigDecimal("-7.9"), "-7"},
+                {"UInt64", new BigDecimal("18446744073709551615"), "18446744073709551615"},
+                {"UInt64", UnsignedLong.MAX_VALUE, "18446744073709551615"},
+                {"UInt64", 1.0E19d, "10000000000000000000"},
+                {"Int128", int128Max.toString(), int128Max.toString()},
+                {"Int128", new BigDecimal(int128Max), int128Max.toString()},
+                {"UInt128", new BigDecimal(BinaryStreamUtils.U_INT128_MAX), BinaryStreamUtils.U_INT128_MAX.toString()},
+                {"Int256", new BigDecimal(int256Min), int256Min.toString()},
+                {"UInt256", new BigDecimal(BinaryStreamUtils.U_INT256_MAX), BinaryStreamUtils.U_INT256_MAX.toString()},
+        };
+    }
+
+    @Test (groups = { "integration" }, dataProvider = "integerColumnValues")
+    public void writeIntegerColumnValueTest(String columnType, Object value, String expected) throws Exception {
+        String tableName = "rowBinaryFormatWriterTest_integer_" + UUID.randomUUID().toString().replace('-', '_');
         initTable(tableName,
                 "CREATE TABLE \"" + tableName + "\" (id Int32, c " + columnType + ", tail Float64) ORDER BY id",
                 new CommandSettings());

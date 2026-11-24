@@ -4,6 +4,7 @@ import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatRe
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.format.BinaryStreamUtils;
+import com.clickhouse.data.value.UnsignedLong;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
@@ -123,6 +124,32 @@ public class SerializerUtilsPrimitiveSerializationTests {
                 {"UInt64", "18446744073709551616"},
                 {"UUID", "not-a-uuid"},
                 {"UUID", ""},
+        };
+    }
+
+    @Test(dataProvider = "outOfRangeIntegerValues")
+    public void testSerializeIntegerColumnRejectsOutOfRangeValue(String type, Object value, String message) {
+        IllegalArgumentException e = Assert.expectThrows(IllegalArgumentException.class,
+                () -> serializeSingleValue(type, value));
+        Assert.assertTrue(e.getMessage().contains(message),
+                "Unexpected message for " + value + " in " + type + ": " + e.getMessage());
+    }
+
+    @DataProvider(name = "outOfRangeIntegerValues")
+    private Object[][] outOfRangeIntegerValues() {
+        String outOfRange = "should be between";
+        return new Object[][] {
+                {"Int8", 4294967296L, outOfRange},
+                {"Int32", 2147483648L, outOfRange},
+                {"Int32", "2147483648", "For input string"},
+                {"UInt32", BigInteger.ONE.shiftLeft(64), outOfRange},
+                {"Int64", new BigInteger("9223372036854775808"), outOfRange},
+                {"Int64", 1.0E19d, outOfRange},
+                {"Int64", UnsignedLong.MAX_VALUE, outOfRange},
+                {"Int64", new CustomNumber("1e20"), outOfRange},
+                {"UInt64", Double.NaN, "Cannot convert NaN"},
+                {"Int128", BigInteger.ONE.shiftLeft(127).toString(), outOfRange},
+                {"Int256", new BigDecimal(BigInteger.ONE.shiftLeft(255).negate().subtract(BigInteger.ONE)), outOfRange},
         };
     }
 

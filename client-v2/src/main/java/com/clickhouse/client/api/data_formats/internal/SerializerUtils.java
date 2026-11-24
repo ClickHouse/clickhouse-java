@@ -4,9 +4,11 @@ import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.ClientException;
 import com.clickhouse.client.api.serde.POJOFieldDeserializer;
 import com.clickhouse.data.ClickHouseAggregateFunction;
+import com.clickhouse.data.ClickHouseChecker;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseEnum;
+import com.clickhouse.data.ClickHouseValues;
 import com.clickhouse.data.format.BinaryStreamUtils;
 import com.clickhouse.data.value.ClickHouseBitmap;
 import com.clickhouse.data.value.ClickHouseGeoMultiPolygonValue;
@@ -666,10 +668,12 @@ public class SerializerUtils {
                 BinaryStreamUtils.writeInt64(stream, convertToLong(value));
                 break;
             case Int128:
-                BinaryStreamUtils.writeInt128(stream, NumberConverter.toBigInteger(value));
+                BinaryStreamUtils.writeInt128(stream, ClickHouseChecker.between(convertToBigInteger(value),
+                        ClickHouseValues.TYPE_BIG_INTEGER, INT128_MIN, INT128_MAX));
                 break;
             case Int256:
-                BinaryStreamUtils.writeInt256(stream, NumberConverter.toBigInteger(value));
+                BinaryStreamUtils.writeInt256(stream, ClickHouseChecker.between(convertToBigInteger(value),
+                        ClickHouseValues.TYPE_BIG_INTEGER, INT256_MIN, INT256_MAX));
                 break;
             case UInt8:
                 BinaryStreamUtils.writeUnsignedInt8(stream, convertToInteger(value));
@@ -681,13 +685,13 @@ public class SerializerUtils {
                 BinaryStreamUtils.writeUnsignedInt32(stream, convertToLong(value));
                 break;
             case UInt64:
-                BinaryStreamUtils.writeUnsignedInt64(stream, NumberConverter.toBigInteger(value));
+                BinaryStreamUtils.writeUnsignedInt64(stream, convertToBigInteger(value));
                 break;
             case UInt128:
-                BinaryStreamUtils.writeUnsignedInt128(stream, NumberConverter.toBigInteger(value));
+                BinaryStreamUtils.writeUnsignedInt128(stream, convertToBigInteger(value));
                 break;
             case UInt256:
-                BinaryStreamUtils.writeUnsignedInt256(stream, NumberConverter.toBigInteger(value));
+                BinaryStreamUtils.writeUnsignedInt256(stream, convertToBigInteger(value));
                 break;
             case BFloat16:
                 BinaryStreamUtils.writeBFloat16(stream, (float) value);
@@ -1053,11 +1057,21 @@ public class SerializerUtils {
         }
     }
 
+    private static final BigInteger LONG_MIN = BigInteger.valueOf(Long.MIN_VALUE);
+    private static final BigInteger LONG_MAX = BigInteger.valueOf(Long.MAX_VALUE);
+    private static final BigInteger INT128_MIN = BigInteger.ONE.shiftLeft(127).negate();
+    private static final BigInteger INT128_MAX = BigInteger.ONE.shiftLeft(127).subtract(BigInteger.ONE);
+    private static final BigInteger INT256_MIN = BigInteger.ONE.shiftLeft(255).negate();
+    private static final BigInteger INT256_MAX = BigInteger.ONE.shiftLeft(255).subtract(BigInteger.ONE);
+
     public static Integer convertToInteger(Object value) {
         if (value instanceof Integer) {
             return (Integer) value;
-        } else if (value instanceof Number) {
+        } else if (value instanceof Short || value instanceof Byte) {
             return ((Number) value).intValue();
+        } else if (value instanceof Number) {
+            return (int) ClickHouseChecker.between(convertToLong(value), ClickHouseValues.TYPE_LONG,
+                    Integer.MIN_VALUE, Integer.MAX_VALUE);
         } else if (value instanceof String) {
             return Integer.parseInt((String) value);
         } else if (value instanceof Boolean) {
@@ -1070,14 +1084,44 @@ public class SerializerUtils {
     public static Long convertToLong(Object value) {
         if (value instanceof Long) {
             return (Long) value;
-        } else if (value instanceof Number) {
+        } else if (value instanceof Integer || value instanceof Short || value instanceof Byte) {
             return ((Number) value).longValue();
+        } else if ((value instanceof Double || value instanceof Float)
+                && ((Number) value).doubleValue() >= -0x1p63 && ((Number) value).doubleValue() < 0x1p63) {
+            return (long) ((Number) value).doubleValue();
+        } else if (value instanceof Number) {
+            return ClickHouseChecker.between(convertToBigInteger(value), ClickHouseValues.TYPE_BIG_INTEGER,
+                    LONG_MIN, LONG_MAX).longValue();
         } else if (value instanceof String) {
             return Long.parseLong((String) value);
         } else if (value instanceof Boolean) {
             return ((Boolean) value) ? 1L : 0L;
         } else {
             throw new IllegalArgumentException("Cannot convert " + value + " to Long");
+        }
+    }
+
+    /**
+     * Converts a value for an integer column to {@link BigInteger}. A fractional part is dropped, but the
+     * integer part is kept exactly, so a range check of the column type sees the real value.
+     */
+    private static BigInteger convertToBigInteger(Object value) {
+        if (value instanceof BigInteger) {
+            return (BigInteger) value;
+        } else if (value instanceof Long || value instanceof Integer || value instanceof Short || value instanceof Byte) {
+            return BigInteger.valueOf(((Number) value).longValue());
+        } else if (value instanceof Double || value instanceof Float) {
+            double d = ((Number) value).doubleValue();
+            if (Double.isNaN(d) || Double.isInfinite(d)) {
+                throw new IllegalArgumentException("Cannot convert " + value + " to BigInteger");
+            }
+            return new BigDecimal(d).toBigInteger();
+        } else if (value instanceof BigDecimal) {
+            return ((BigDecimal) value).toBigInteger();
+        } else if (value instanceof Number) {
+            return new BigDecimal(value.toString()).toBigInteger();
+        } else {
+            return NumberConverter.toBigInteger(value);
         }
     }
 
