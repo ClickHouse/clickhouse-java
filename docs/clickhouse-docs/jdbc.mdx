@@ -34,22 +34,8 @@ We recommend using the latest java client directly if performance/direct access 
     <artifactId>clickhouse-jdbc</artifactId>
     <version>0.10.0</version>
     <classifier>all</classifier>
-    <exclusions>
-        <exclusion>
-            <groupId>*</groupId>
-            <artifactId>*</artifactId>
-        </exclusion>
-    </exclusions>
-</dependency>
-{/* https://mvnrepository.com/artifact/org.slf4j/slf4j-api */}
-<dependency>
-    <groupId>org.slf4j</groupId>
-    <artifactId>slf4j-api</artifactId>
-    <version>2.0.16</version>
 </dependency>
 ```
-
-The `all` classifier uses the POM of the standard artifact. Without the exclusion, Maven also adds the dependencies of the standard artifact, and some classes are then on the classpath two times, with different content. The shaded jar does not contain SLF4J, thus add `slf4j-api`.
 
 If you are using JDBC driver within an application that requires jar to be added to the classpath, you need to add download the jar from:
 - [Maven Central](https://mvnrepository.com/artifact/com.clickhouse/clickhouse-jdbc) and add it to the classpath
