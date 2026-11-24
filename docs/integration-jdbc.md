@@ -33,6 +33,28 @@ Two distributions are published under the same artifact:
 - **Standard artifact** (default, no classifier) — the driver together with its dependencies declared as ordinary transitive Maven dependencies. Recommended for managed builds in which the application controls the dependency tree.
 - **Shaded artifact** (`all` classifier) — a single self-contained archive that bundles and **relocates** most third-party dependencies. Recommended when transitive dependencies cannot be managed.
 
+The `all` classifier uses the POM of the standard artifact. Thus Maven also adds the dependencies of the standard artifact (`jdbc-v2`, `client-v2`, `clickhouse-data`, and others), and some classes are then on the classpath two times, with different content. To use only the shaded archive, exclude all transitive dependencies and add `slf4j-api`, because the shaded archive does not contain SLF4J:
+
+```xml
+<dependency>
+    <groupId>com.clickhouse</groupId>
+    <artifactId>clickhouse-jdbc</artifactId>
+    <version>${clickhouse-java.version}</version>
+    <classifier>all</classifier>
+    <exclusions>
+        <exclusion>
+            <groupId>*</groupId>
+            <artifactId>*</artifactId>
+        </exclusion>
+    </exclusions>
+</dependency>
+<dependency>
+    <groupId>org.slf4j</groupId>
+    <artifactId>slf4j-api</artifactId>
+    <version>${slf4j.version}</version>
+</dependency>
+```
+
 ---
 
 ## Integration path at a glance
