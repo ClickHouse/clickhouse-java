@@ -1,5 +1,6 @@
 package com.clickhouse.client.api.internal;
 
+import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.data.ClickHouseColumn;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
@@ -13,9 +14,16 @@ import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNull;
+import static org.testng.Assert.assertTrue;
 
 @Test(groups = {"unit"})
 public class DataTypeConverterTest {
@@ -193,6 +201,77 @@ public class DataTypeConverterTest {
         // no variant matches the two dimensional shape, thus the value keeps the plain array form
         assertEquals(converter.convertToString(value, ClickHouseColumn.of("field", "Variant(String, Polygon)")),
                 "[[1.0, 2.0], [3.0, 4.0]]");
+    }
+
+    @DataProvider(name = "arrayContainers")
+    public static Object[][] arrayContainers() {
+        return new Object[][] {
+                {(Function<Object[], Object>) Arrays::asList},
+                {(Function<Object[], Object>) items -> items},
+                {(Function<Object[], Object>) items -> {
+                    BinaryStreamReader.ArrayValue array = new BinaryStreamReader.ArrayValue(Object.class, items.length);
+                    for (int i = 0; i < items.length; i++) {
+                        array.set(i, items[i]);
+                    }
+                    return array;
+                }},
+        };
+    }
+
+    @Test(dataProvider = "arrayContainers")
+    public void testArrayToStringWithSharedInstanceInParallel(Function<Object[], Object> container) throws Exception {
+        DataTypeConverter converter = DataTypeConverter.INSTANCE;
+        BlockingValue first = new BlockingValue("1");
+        BlockingValue second = new BlockingValue("b");
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<String> intArray = executor.submit(() -> converter.convertToString(
+                    container.apply(new Object[] {first, 2}), ClickHouseColumn.of("v", "Array(Int32)")));
+            first.awaitEntered();
+            Future<String> strArray = executor.submit(() -> converter.convertToString(
+                    container.apply(new Object[] {second, "c"}), ClickHouseColumn.of("v", "Array(String)")));
+            second.awaitEntered();
+
+            first.release();
+            assertEquals(intArray.get(10, TimeUnit.SECONDS), "[1, 2]");
+            second.release();
+            assertEquals(strArray.get(10, TimeUnit.SECONDS), "['b', 'c']");
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    /** Array element whose conversion waits until the test releases it, to interleave two conversions. */
+    private static final class BlockingValue {
+        private final String text;
+        private final CountDownLatch entered = new CountDownLatch(1);
+        private final CountDownLatch released = new CountDownLatch(1);
+
+        BlockingValue(String text) {
+            this.text = text;
+        }
+
+        void awaitEntered() throws InterruptedException {
+            assertTrue(entered.await(10, TimeUnit.SECONDS), "conversion did not start");
+        }
+
+        void release() {
+            released.countDown();
+        }
+
+        @Override
+        public String toString() {
+            entered.countDown();
+            try {
+                if (!released.await(10, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("value was not released");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException(e);
+            }
+            return text;
+        }
     }
 
     @DataProvider(name = "queryParameters")

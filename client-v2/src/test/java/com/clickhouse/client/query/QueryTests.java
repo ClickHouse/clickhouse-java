@@ -2128,6 +2128,38 @@ public class QueryTests extends BaseIntegrationTest {
     }
 
     @Test(groups = {"integration"})
+    public void testGetStringOfArraysInParallelReaders() throws Exception {
+        final int concurrency = 4;
+        final int rows = 10_000;
+        final String sql = "SELECT number, [toString(number), 'x'] AS s, [number, number + 1] AS n FROM numbers(" + rows + ")";
+        ExecutorService executor = Executors.newFixedThreadPool(concurrency);
+        try {
+            List<Future<Integer>> futures = new ArrayList<>();
+            for (int i = 0; i < concurrency; i++) {
+                futures.add(executor.submit(() -> {
+                    int count = 0;
+                    try (QueryResponse response = client.query(sql).get();
+                         ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response)) {
+                        while (reader.hasNext()) {
+                            reader.next();
+                            long number = reader.getLong("number");
+                            Assert.assertEquals(reader.getString("s"), "['" + number + "', 'x']");
+                            Assert.assertEquals(reader.getString("n"), "[" + number + ", " + (number + 1) + "]");
+                            count++;
+                        }
+                    }
+                    return count;
+                }));
+            }
+            for (Future<Integer> future : futures) {
+                Assert.assertEquals(future.get(30, TimeUnit.SECONDS).intValue(), rows);
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test(groups = {"integration"})
     public void testQueryReadToPOJO() {
         int limit = 10;
         final String sql = "SELECT toInt32(rand32()) as id, toInt32(number * 10) as age, concat('name_', toString(number + 1)) as name, true as bool " +
