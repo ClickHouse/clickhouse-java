@@ -1117,12 +1117,32 @@ public class SerializerUtils {
             }
             return new BigDecimal(d).toBigInteger();
         } else if (value instanceof BigDecimal) {
-            return ((BigDecimal) value).toBigInteger();
+            return toIntegerPart((BigDecimal) value);
         } else if (value instanceof Number) {
-            return new BigDecimal(value.toString()).toBigInteger();
+            return toIntegerPart(new BigDecimal(value.toString()));
         } else {
             return NumberConverter.toBigInteger(value);
         }
+    }
+
+    /** 2^256 has 78 decimal digits, so a value with more integer digits fits no integer column. */
+    private static final int MAX_INTEGER_DIGITS = 78;
+
+    /**
+     * Returns the integer part of the value. The number of integer digits is checked first, because
+     * {@link BigDecimal#toBigInteger()} on a short value such as {@code 1E+500000000} or {@code 1E-500000000}
+     * computes a power of ten with hundreds of millions of digits.
+     */
+    private static BigInteger toIntegerPart(BigDecimal value) {
+        long integerDigits = (long) value.precision() - value.scale();
+        if (value.signum() == 0 || integerDigits <= 0) {
+            return BigInteger.ZERO;
+        }
+        if (integerDigits > MAX_INTEGER_DIGITS) {
+            throw new IllegalArgumentException("Cannot convert " + value + " to BigInteger: " + integerDigits
+                    + " integer digits do not fit any integer type");
+        }
+        return value.toBigInteger();
     }
 
     public static String convertToString(Object value) {
