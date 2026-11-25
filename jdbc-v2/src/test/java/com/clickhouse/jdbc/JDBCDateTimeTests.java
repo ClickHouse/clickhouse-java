@@ -325,20 +325,23 @@ public class JDBCDateTimeTests extends JdbcIntegrationTest {
         try (Connection conn = getJdbcConnection(props);
              Statement stmt = conn.createStatement()) {
             stmt.executeUpdate("DROP TABLE IF EXISTS test_set_object_sql_date");
-            stmt.executeUpdate("CREATE TABLE test_set_object_sql_date " +
-                    "(d Date, d32 Date32, arr Array(Date32), t Tuple(Date32, Int32), n Nullable(Date32)) ENGINE = Memory");
+            stmt.executeUpdate("CREATE TABLE test_set_object_sql_date (d Date, d32 Date32, " +
+                    "arr Array(Date32), t Tuple(Date32, Int32), n Nullable(Date32), m Map(String, Date32)) ENGINE = Memory");
             try (PreparedStatement ps = conn.prepareStatement(
-                    "INSERT INTO test_set_object_sql_date VALUES (?, ?, ?, ?, ?)")) {
+                    "INSERT INTO test_set_object_sql_date VALUES (?, ?, ?, ?, ?, ?)")) {
+                java.util.Map<String, Object> dateMap = new java.util.HashMap<>();
+                dateMap.put("k", d);
                 ps.setObject(1, d);                       // Date
                 ps.setObject(2, d);                       // Date32
                 ps.setObject(3, new Date[] { d, d });     // Array(Date32)
                 ps.setObject(4, new Object[] { d, 7 });   // Tuple(Date32, Int32)
                 ps.setObject(5, d);                       // Nullable(Date32)
+                ps.setObject(6, dateMap);                 // Map(String, Date32)
                 ps.addBatch();
                 ps.executeBatch();
             }
             try (ResultSet rs = stmt.executeQuery("SELECT d, d32, arrayElement(arr, 1) AS a1, " +
-                    "t.1 AS t1, t.2 AS t2, length(arr) AS alen, n FROM test_set_object_sql_date")) {
+                    "t.1 AS t1, t.2 AS t2, length(arr) AS alen, n, m['k'] AS mk FROM test_set_object_sql_date")) {
                 Assert.assertTrue(rs.next());
                 Assert.assertEquals(rs.getDate("d").toLocalDate(), expected);
                 Assert.assertEquals(rs.getDate("d32").toLocalDate(), expected);
@@ -347,6 +350,7 @@ public class JDBCDateTimeTests extends JdbcIntegrationTest {
                 Assert.assertEquals(rs.getInt("t2"), 7);
                 Assert.assertEquals(rs.getInt("alen"), 2);
                 Assert.assertEquals(rs.getDate("n").toLocalDate(), expected);
+                Assert.assertEquals(rs.getDate("mk").toLocalDate(), expected);
                 Assert.assertFalse(rs.next());
             }
             stmt.executeUpdate("DROP TABLE IF EXISTS test_set_object_sql_date");
