@@ -2071,6 +2071,73 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
         }
     }
 
+    @Test(groups = { "integration" }, dataProvider = "testFixedStringTextReadDP")
+    public void testFixedStringTextRead(String expression, String expected, boolean binaryStringSupport)
+            throws Exception {
+        Properties props = new Properties();
+        props.put(ClientConfigProperties.BINARY_STRING_SUPPORT.getKey(), String.valueOf(binaryStringSupport));
+        try (Connection conn = getJdbcConnection(props);
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT " + expression + " AS v")) {
+            assertTrue(rs.next());
+            assertEquals(rs.getString(1), expected);
+            assertEquals(rs.getString("v"), expected);
+            assertEquals(rs.getObject(1), expected);
+            assertEquals(rs.getObject("v", String.class), expected);
+            assertEquals(rs.getObject(1, Object.class), expected);
+            assertEquals(rs.getObject("v", Map.of("FixedString", String.class)), expected);
+            assertFalse(rs.wasNull());
+            assertFalse(rs.next());
+        }
+    }
+
+    @DataProvider(name = "testFixedStringTextReadDP")
+    public Object[][] testFixedStringTextReadDP() {
+        Object[][] values = {
+                { "toFixedString('Dario', 10)", "Dario" },
+                { "toFixedString('Dario  ', 10)", "Dario  " },
+                { "toFixedString('abcd', 4)", "abcd" },
+                { "toFixedString('', 4)", "" },
+                { "toFixedString('a\u00e9\u20ac\ud83d\ude00', 14)", "a\u00e9\u20ac\ud83d\ude00" },
+                { "toFixedString(left('Jos\u00e9', 4), 4)", "Jos" },
+                { "toFixedString(left('a\u20ac', 3), 6)", "a" },
+                { "CAST(unhex('6100620000') AS FixedString(5))", "a\0b" },
+                { "CAST(unhex('61FF62') AS FixedString(4))", "a\uFFFDb" },
+                { "CAST('ab' AS Nullable(FixedString(4)))", "ab" },
+                { "CAST('ab' AS LowCardinality(FixedString(4)))", "ab" },
+                { "CAST('ab' AS LowCardinality(Nullable(FixedString(4))))", "ab" },
+                { "CAST('ab' AS SimpleAggregateFunction(any, FixedString(4)))", "ab" },
+        };
+        List<Object[]> rows = new ArrayList<>();
+        for (Object[] value : values) {
+            rows.add(new Object[] { value[0], value[1], false });
+            rows.add(new Object[] { value[0], value[1], true });
+        }
+        return rows.toArray(new Object[0][]);
+    }
+
+    @Test(groups = { "integration" })
+    public void testFixedStringTextReadKeepsOtherValues() throws Exception {
+        try (Connection conn = getJdbcConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT toFixedString('ab', 4) AS fixed, 'ab\\0\\0' AS str, "
+                     + "[toFixedString('ab', 4)] AS arr, CAST(NULL AS Nullable(FixedString(4))) AS nul")) {
+            assertTrue(rs.next());
+            byte[] padded = { 'a', 'b', 0, 0 };
+            assertEquals(rs.getBytes("fixed"), padded);
+            assertEquals(rs.getBinaryStream("fixed").readAllBytes(), padded);
+            assertEquals(rs.getObject("fixed", byte[].class), padded);
+            assertEquals(rs.getString("str"), "ab\0\0");
+            assertEquals(rs.getObject("str"), "ab\0\0");
+            assertEquals(java.lang.reflect.Array.get(rs.getArray("arr").getArray(), 0), "ab\0\0");
+            assertNull(rs.getString("nul"));
+            assertTrue(rs.wasNull());
+            assertNull(rs.getObject("nul"));
+            assertTrue(rs.wasNull());
+            assertFalse(rs.next());
+        }
+    }
+
     private static byte[] readClickHouseLogo() {
         try (InputStream is = JdbcDataTypeTests.class.getResourceAsStream("/ch_logo.png")) {
             Assert.assertNotNull(is, "ch_logo.png not found in test resources");
