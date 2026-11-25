@@ -1555,6 +1555,9 @@ public class SerializerUtils {
 
     public static void writeDate(OutputStream output, Object value, ZoneId targetTz) throws IOException {
         int epochDays = 0;
+        if (value instanceof java.sql.Date) {
+            value = ((java.sql.Date) value).toLocalDate();
+        }
         if (value instanceof LocalDate) {
             LocalDate d = (LocalDate) value;
             epochDays = (int) d.atStartOfDay(targetTz).toLocalDate().toEpochDay();
@@ -1572,6 +1575,9 @@ public class SerializerUtils {
 
     public static void writeDate32(OutputStream output, Object value, ZoneId targetTz) throws IOException {
         int epochDays= 0;
+        if (value instanceof java.sql.Date) {
+            value = ((java.sql.Date) value).toLocalDate();
+        }
         if (value instanceof LocalDate) {
             LocalDate d = (LocalDate) value;
             epochDays = (int) d.atStartOfDay(targetTz).toLocalDate().toEpochDay();
