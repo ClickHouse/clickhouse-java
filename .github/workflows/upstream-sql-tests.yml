@@ -4,11 +4,15 @@ name: Upstream SQL tests
 # (tests/queries/0_stateless) through clickhouse-java, with the `client`
 # (client-v2) and the `jdbc` (jdbc-v2) backend of tests/clickhouse-client.
 # See tests/clickhouse-client/README.md.
+#
+# upstream-sql-tests-label.yml also calls it, for the tests:run-core-sql
+# label on a pull request.
 
 permissions:
   contents: read
 
 on:
+  workflow_call:
   workflow_dispatch:
     inputs:
       clickhouse_version:

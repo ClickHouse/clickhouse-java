@@ -418,6 +418,15 @@ tests read their own queries from `system.query_log`.
 runs the allowlist nightly, manually, and on pushes and pull requests that
 change this directory or the workflow.
 
+A pull request that changes only the clients (for example the fix of a
+client bug, rule 2 of [`AGENTS.md`](AGENTS.md)) does not start it. To run
+it on such a pull request, add the `tests:run-core-sql` label
+([`upstream-sql-tests-label.yml`](../../.github/workflows/upstream-sql-tests-label.yml)).
+The run tests the pull request as it is when the label is added, and removes
+the label when it ends: to test a later push, add the label again. The token
+of a pull request from a fork cannot remove the label, so remove it by hand
+before you add it again.
+
 - The `build` job builds the shim against the source of the commit, runs its
   unit and live tests on the pinned server, and gives the jar to the test
   jobs.
