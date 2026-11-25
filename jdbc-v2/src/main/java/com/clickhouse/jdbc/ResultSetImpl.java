@@ -332,9 +332,10 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
      * Cuts the text of a {@code FixedString} column after its last valid UTF-8 character. The server pads a
      * {@code FixedString(N)} value that is shorter than {@code N} bytes with zero bytes, and a value that is cut to
      * {@code N} bytes can end in an incomplete multi-byte character. The UTF-8 decoding gives {@code '\0'} for a zero
-     * byte and the replacement character U+FFFD for bytes that are not valid UTF-8, so these characters are removed
-     * from the end. The same characters inside the value are kept. The text of other column types is returned
-     * unchanged.
+     * byte and the replacement character U+FFFD for bytes that are not valid UTF-8: the first 1, 2 or 3 bytes of a
+     * 2-, 3- or 4-byte character decode to one U+FFFD. These characters are removed from the end, so the text ends
+     * with the last complete character. The same characters inside the value are kept. The text of other column
+     * types is returned unchanged.
      */
     private String trimFixedString(String columnLabel, String value) {
         int end = value.length();
