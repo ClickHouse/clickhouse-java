@@ -62,6 +62,20 @@ import static org.objectweb.asm.Opcodes.RETURN;
 @SuppressWarnings("deprecation")
 public class SerializerUtils {
 
+    // Default time zone for DateTime/DateTime64 columns that declare no zone of their own.
+    // The RowBinary writer sets it to the server time zone so stored values match the text path
+    // and the reader; it stays UTC for every other caller. See clickhouse-java#3394.
+    private static final ThreadLocal<ZoneId> WRITER_DEFAULT_TIME_ZONE =
+            ThreadLocal.withInitial(() -> ZoneId.of("UTC"));
+
+    public static void setWriterDefaultTimeZone(ZoneId zoneId) {
+        WRITER_DEFAULT_TIME_ZONE.set(zoneId == null ? ZoneId.of("UTC") : zoneId);
+    }
+
+    public static void resetWriterDefaultTimeZone() {
+        WRITER_DEFAULT_TIME_ZONE.remove();
+    }
+
     public static void serializeData(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
         //Serialize the value to the stream based on the data type
         switch (column.getDataType()) {
@@ -733,12 +747,12 @@ public class SerializerUtils {
                 writeDate32(stream, value, ZoneId.of("UTC")); // TODO: check
                 break;
             case DateTime: {
-                ZoneId zoneId = column.getTimeZone() == null ? ZoneId.of("UTC") : column.getTimeZone().toZoneId();
+                ZoneId zoneId = column.getTimeZone() == null ? WRITER_DEFAULT_TIME_ZONE.get() : column.getTimeZone().toZoneId();
                 writeDateTime(stream, value, zoneId);
                 break;
             }
             case DateTime64: {
-                ZoneId zoneId = column.getTimeZone() == null ? ZoneId.of("UTC") : column.getTimeZone().toZoneId();
+                ZoneId zoneId = column.getTimeZone() == null ? WRITER_DEFAULT_TIME_ZONE.get() : column.getTimeZone().toZoneId();
                 writeDateTime64(stream, value, column.getScale(), zoneId);
                 break;
             }

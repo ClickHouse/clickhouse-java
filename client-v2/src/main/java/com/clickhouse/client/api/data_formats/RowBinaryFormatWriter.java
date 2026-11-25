@@ -13,6 +13,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.List;
@@ -36,11 +37,22 @@ public class RowBinaryFormatWriter implements ClickHouseBinaryFormatWriter {
 
     private final boolean defaultSupport;
 
+    private final ZoneId defaultTimeZone;
+
     private int rowCount = 0;
 
     private boolean rowStarted = false; // indicates if at least one value was written to a row
 
     public RowBinaryFormatWriter(OutputStream out, TableSchema tableSchema, ClickHouseFormat format) {
+        this(out, tableSchema, format, ZoneId.of("UTC"));
+    }
+
+    /**
+     * @param defaultTimeZone time zone used for DateTime/DateTime64 columns that declare no zone of
+     *                        their own. Pass the server time zone so stored values match the text
+     *                        path and the reader (clickhouse-java#3394).
+     */
+    public RowBinaryFormatWriter(OutputStream out, TableSchema tableSchema, ClickHouseFormat format, ZoneId defaultTimeZone) {
         if (format != ClickHouseFormat.RowBinary && format != ClickHouseFormat.RowBinaryWithDefaults) {
             throw new IllegalArgumentException("Only RowBinary and RowBinaryWithDefaults are supported");
         }
@@ -49,6 +61,7 @@ public class RowBinaryFormatWriter implements ClickHouseBinaryFormatWriter {
         this.tableSchema = tableSchema;
         this.row = new Object[tableSchema.getColumns().size()];
         this.defaultSupport = format == ClickHouseFormat.RowBinaryWithDefaults;
+        this.defaultTimeZone = defaultTimeZone == null ? ZoneId.of("UTC") : defaultTimeZone;
     }
 
     @Override
@@ -89,14 +102,19 @@ public class RowBinaryFormatWriter implements ClickHouseBinaryFormatWriter {
     public void commitRow() throws IOException {
         if (rowStarted) {
             List<ClickHouseColumn> columnList = tableSchema.getColumns();
-            for (int i = 0; i < row.length; i++) {
-                ClickHouseColumn column = columnList.get(i);
-                // here we skip if we have a default value that is MATERIALIZED or ALIAS or ...
-                if (column.hasDefault() && column.getDefaultValue() != ClickHouseColumn.DefaultValue.DEFAULT)
-                    continue;
-                if (RowBinaryFormatSerializer.writeValuePreamble(out, defaultSupport, column, row[i])) {
-                    SerializerUtils.serializeData(out, row[i], column);
+            SerializerUtils.setWriterDefaultTimeZone(defaultTimeZone);
+            try {
+                for (int i = 0; i < row.length; i++) {
+                    ClickHouseColumn column = columnList.get(i);
+                    // here we skip if we have a default value that is MATERIALIZED or ALIAS or ...
+                    if (column.hasDefault() && column.getDefaultValue() != ClickHouseColumn.DefaultValue.DEFAULT)
+                        continue;
+                    if (RowBinaryFormatSerializer.writeValuePreamble(out, defaultSupport, column, row[i])) {
+                        SerializerUtils.serializeData(out, row[i], column);
+                    }
                 }
+            } finally {
+                SerializerUtils.resetWriterDefaultTimeZone();
             }
             clearRow();
             rowCount++;

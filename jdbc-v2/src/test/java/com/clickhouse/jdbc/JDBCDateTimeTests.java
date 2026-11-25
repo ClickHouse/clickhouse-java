@@ -15,6 +15,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -311,6 +312,46 @@ public class JDBCDateTimeTests extends JdbcIntegrationTest {
                     Assert.assertFalse(rs.next());
                 }
             }
+        }
+    }
+
+    // Regression for #3394: the RowBinary writer must store DateTime in the server time zone
+    // (like the text path), not UTC, for columns without their own zone.
+    @Test(groups = {"integration"})
+    void testRowBinaryWriterDateTimeServerTimeZone() throws Exception {
+        Properties writerProps = new Properties();
+        writerProps.put("beta.row_binary_for_simple_insert", "true");
+        Timestamp ts = Timestamp.valueOf("2024-01-15 12:00:00");
+        try (Connection text = getJdbcConnection();
+             Connection writer = getJdbcConnection(writerProps);
+             Statement stmt = text.createStatement()) {
+            stmt.executeUpdate("DROP TABLE IF EXISTS test_writer_dt_tz");
+            stmt.executeUpdate("CREATE TABLE test_writer_dt_tz (path String, t DateTime, " +
+                    "t64 DateTime64(3), tb DateTime('Asia/Tokyo')) ENGINE = MergeTree ORDER BY path");
+            insertWriterDateTimeRow(text, "text", ts);
+            insertWriterDateTimeRow(writer, "writer", ts);
+            try (ResultSet rs = stmt.executeQuery("SELECT " +
+                    "anyIf(toString(t,'UTC'), path='writer') AS wt, anyIf(toString(t,'UTC'), path='text') AS tt, " +
+                    "anyIf(toString(t64,'UTC'), path='writer') AS wt64, anyIf(toString(t64,'UTC'), path='text') AS tt64, " +
+                    "anyIf(toString(tb,'UTC'), path='writer') AS wtb, anyIf(toString(tb,'UTC'), path='text') AS ttb " +
+                    "FROM test_writer_dt_tz")) {
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getString("wt"), rs.getString("tt"));
+                Assert.assertEquals(rs.getString("wt64"), rs.getString("tt64"));
+                Assert.assertEquals(rs.getString("wtb"), rs.getString("ttb"));
+            }
+            stmt.executeUpdate("DROP TABLE IF EXISTS test_writer_dt_tz");
+        }
+    }
+
+    private void insertWriterDateTimeRow(Connection conn, String path, Timestamp ts) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("INSERT INTO test_writer_dt_tz VALUES (?, ?, ?, ?)")) {
+            ps.setString(1, path);
+            ps.setObject(2, ts);
+            ps.setObject(3, ts);
+            ps.setObject(4, ts);
+            ps.addBatch();
+            ps.executeBatch();
         }
     }
 }
