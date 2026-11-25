@@ -313,4 +313,34 @@ public class JDBCDateTimeTests extends JdbcIntegrationTest {
             }
         }
     }
+
+    // Regression for #3127: a LocalDateTime via setObject on the text path must be interpreted in
+    // the server time zone (like a string literal and Timestamp), not the JVM default time zone.
+    @Test(groups = {"integration"})
+    void testSetObjectLocalDateTimeTextPathServerTimeZone() throws Exception {
+        LocalDateTime ldt = LocalDateTime.parse("2024-01-15T12:00:00");
+        try (Connection conn = getJdbcConnection();
+             Statement stmt = conn.createStatement()) {
+            stmt.executeUpdate("DROP TABLE IF EXISTS test_ldt_tz");
+            stmt.executeUpdate("CREATE TABLE test_ldt_tz (kind String, t DateTime, t64 DateTime64(3)) ENGINE = MergeTree ORDER BY kind");
+            try (PreparedStatement ps = conn.prepareStatement("INSERT INTO test_ldt_tz VALUES (?, ?, ?)")) {
+                ps.setString(1, "ldt");
+                ps.setObject(2, ldt);
+                ps.setObject(3, ldt);
+                ps.addBatch();
+                ps.executeBatch();
+            }
+            // The same wall clock as a string literal: the server always interprets it in its own zone.
+            stmt.executeUpdate("INSERT INTO test_ldt_tz VALUES ('str', '2024-01-15 12:00:00', '2024-01-15 12:00:00')");
+            try (ResultSet rs = stmt.executeQuery("SELECT " +
+                    "anyIf(toString(t), kind = 'ldt') AS lt, anyIf(toString(t), kind = 'str') AS st, " +
+                    "anyIf(toString(t64), kind = 'ldt') AS lt64, anyIf(toString(t64), kind = 'str') AS st64 " +
+                    "FROM test_ldt_tz")) {
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getString("lt"), rs.getString("st"));
+                Assert.assertEquals(rs.getString("lt64"), rs.getString("st64"));
+            }
+            stmt.executeUpdate("DROP TABLE IF EXISTS test_ldt_tz");
+        }
+    }
 }

@@ -780,7 +780,12 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
             } else if (x instanceof Timestamp) {
                 return QUOTE + DataTypeUtils.DATE_TIME_WITH_OPTIONAL_NANOS.format(((Timestamp) x).toLocalDateTime()) + QUOTE;
             } else if (x instanceof LocalDateTime) {
-                return "fromUnixTimestamp64Nano(" + DataTypeUtils.toUnixTimestampString((LocalDateTime) x, defaultCalendar.getTimeZone()) + ")";
+                if (connection.getJdbcConfig().isFlagSet(DriverProperties.LEGACY_LOCALDATETIME_JVM_TIMEZONE)) {
+                    // Legacy (pre-#3127): bake the JVM default time zone into the stored instant.
+                    return "fromUnixTimestamp64Nano(" + DataTypeUtils.toUnixTimestampString((LocalDateTime) x, defaultCalendar.getTimeZone()) + ")";
+                }
+                // Send the local date-time unchanged; the server interprets it in the column/server time zone (#3127).
+                return QUOTE + DataTypeUtils.DATE_TIME_WITH_OPTIONAL_NANOS.format((LocalDateTime) x) + QUOTE;
             } else if (x instanceof OffsetDateTime) {
                 return encodeObject(((OffsetDateTime) x).toInstant());
             } else if (x instanceof ZonedDateTime) {

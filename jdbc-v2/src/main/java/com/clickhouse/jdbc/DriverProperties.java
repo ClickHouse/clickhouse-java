@@ -72,6 +72,12 @@ public enum DriverProperties {
             + "max_result_rows with result_overflow_mode=break. This overrides the overflow mode that the user sets.")
     USE_MAX_RESULT_ROWS("jdbc_use_max_result_rows", String.valueOf(Boolean.FALSE)),
 
+    @ConfigDescription("Legacy. When true, a LocalDateTime bound through setObject on the text path is "
+            + "converted using the JVM default time zone (the behaviour before the fix for issue #3127). "
+            + "The default false sends the local date-time unchanged, so the server interprets it in the "
+            + "column or server time zone, matching Timestamp and the reader.")
+    LEGACY_LOCALDATETIME_JVM_TIMEZONE("jdbc_legacy_localdatetime_jvm_timezone", String.valueOf(Boolean.FALSE)),
+
     /**
      * Configures what SQL parser will be used. Choices:
      * <ul>
