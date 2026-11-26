@@ -197,6 +197,7 @@ public class RowBinaryFormatSerializer {
     }
 
     public static boolean writeValuePreamble(OutputStream out, boolean defaultsSupport, Object value, boolean isNullable, ClickHouseDataType dataType, boolean hasDefault, String column) throws IOException {
+        boolean encodesNull = dataType == ClickHouseDataType.Dynamic || dataType == ClickHouseDataType.Variant;
         if (defaultsSupport) {
             if (value != null) {//Because we now support defaults, we have to send nonNull
                 SerializerUtils.writeNonNull(out);//Write 0 for no default
@@ -212,8 +213,7 @@ public class RowBinaryFormatSerializer {
                     SerializerUtils.writeNonNull(out);
                     SerializerUtils.writeNull(out);//Then we send null, write 1
                     return false;//And we're done
-                } else if (dataType == ClickHouseDataType.Dynamic) {
-                    // A Dynamic column can hold a null: it is serialized below as the implicit `Nothing` type.
+                } else if (encodesNull) {
                     SerializerUtils.writeNonNull(out);//Write 0 for no default
                 } else {
                     throw new IllegalArgumentException(String.format("An attempt to write null into not nullable column '%s'", column));
@@ -226,12 +226,8 @@ public class RowBinaryFormatSerializer {
                     return false;
                 }
                 SerializerUtils.writeNonNull(out);
-            } else if (value == null) {
-                if (dataType == ClickHouseDataType.Dynamic) {
-                    // A Dynamic column can hold a null: it is serialized below as the implicit `Nothing` type.
-                } else {
-                    throw new IllegalArgumentException(String.format("An attempt to write null into not nullable column '%s'", column));
-                }
+            } else if (value == null && !encodesNull) {
+                throw new IllegalArgumentException(String.format("An attempt to write null into not nullable column '%s'", column));
             }
         }
 
