@@ -1700,6 +1700,9 @@ public class Client implements AutoCloseable {
     /**
      * <p>Sends write request to database. Input data is read from the input stream.</p>
      *
+     * <p>See {@link #insert(String, List, InputStream, ClickHouseFormat, InsertSettings)} for how a retry uses
+     * {@code data}.</p>
+     *
      * @param tableName - destination table name
      * @param data  - data stream to insert
      * @param format - format of the data in the stream
@@ -1711,6 +1714,9 @@ public class Client implements AutoCloseable {
 
     /**
      * <p>Sends write request to database. Input data is read from the input stream.</p>
+     *
+     * <p>See {@link #insert(String, List, InputStream, ClickHouseFormat, InsertSettings)} for how a retry uses
+     * {@code data}.</p>
      *
      * @param tableName - destination table name
      * @param data  - data stream to insert
@@ -1726,6 +1732,9 @@ public class Client implements AutoCloseable {
     /**
      * Sends write request to database. Input data is read from the input stream.
      *
+     * <p>See {@link #insert(String, List, InputStream, ClickHouseFormat, InsertSettings)} for how a retry uses
+     * {@code data}.</p>
+     *
      * @param tableName - destination table name
      * @param data  - data stream to insert
      * @param format - format of the data in the stream
@@ -1740,6 +1749,13 @@ public class Client implements AutoCloseable {
     }
     /**
      * Sends write request to database. Input data is read from the input stream.
+     *
+     * <p>Before each retry, the client calls {@link InputStream#reset()} on {@code data}, also when the failed
+     * attempt read no data. The client does not call {@link InputStream#mark(int)}, so the application must set a
+     * mark at the start of the data (a {@link java.io.ByteArrayInputStream} has one by default). If
+     * {@code reset()} throws an {@link java.io.IOException}, the operation fails with a {@link ClientException}. For a
+     * stream that cannot be reset, use {@link #insert(String, List, DataStreamWriter, ClickHouseFormat, InsertSettings)},
+     * or set {@link ClientConfigProperties#CLIENT_RETRY_ON_FAILURE} to {@link ClientFaultCause#None}.</p>
      *
      * @param tableName - destination table name
      * @param columnNames - list of column names to insert data into. If null or empty, all columns will be used.

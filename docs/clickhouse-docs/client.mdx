@@ -167,8 +167,8 @@ Configuration is defined during client creation. See `com.clickhouse.client.api.
 | `setConnectionRequestTimeout(long timeout, ChronoUnit unit)` | `timeout` - timeout value<br/>`unit` - time unit | Sets connection request timeout. This take effect only for getting connection from a pool. | `10000` | `connection_request_timeout` |
 | `setSocketTimeout(long timeout, ChronoUnit unit)` | `timeout` - timeout value<br/>`unit` - time unit | Sets socket timeout that affects read and write operations | `0` | `socket_timeout` |
 | `setExecutionTimeout(long timeout, ChronoUnit timeUnit)` | `timeout` - timeout value<br/>`timeUnit` - time unit | Sets maximum execution timeout for queries | `0` | `max_execution_time` |
-| `retryOnFailures(ClientFaultCause ...causes)` | `causes` - enum constant of `ClientFaultCause` | Sets recoverable/retriable fault types. | `NoHttpResponse` `ConnectTimeout` `ConnectionRequestTimeout` | `client_retry_on_failures` |
-| `setMaxRetries(int maxRetries)` | `maxRetries` - number of retries | Sets maximum number of retries for failures defined by `retryOnFailures` | `3` | `retry` |
+| `retryOnFailures(ClientFaultCause ...causes)` | `causes` - enum constant of `ClientFaultCause` | Sets recoverable/retriable fault types. `ClientFaultCause.None` disables retries. | `NoHttpResponse` `ConnectTimeout` `ConnectionRequestTimeout` `ServerRetryable` | `client_retry_on_failures` |
+| `setMaxRetries(int maxRetries)` | `maxRetries` - number of retries | Sets maximum number of retries for failures defined by `retryOnFailures`. With more than one endpoint, the maximum is the larger of this value and the number of endpoints minus 1. See [Retries and Input Streams](#insert-stream-retries). | `3` | `retry` |
 
 </Tab>
 
@@ -654,6 +654,56 @@ try (InputStream dataStream = getDataStream()) {
 }
 
 ```
+
+#### Retries and Input Streams {#insert-stream-retries}
+
+The client retries an insert that fails for a cause in `retryOnFailures` (key `client_retry_on_failures`). The default causes are:
+
+- `NoHttpResponse`: the server closed the connection and sent no response.
+- `ConnectTimeout`: the client cannot connect to the server.
+- `ConnectionRequestTimeout`: the client cannot get a connection from the pool in time.
+- `ServerRetryable`: the server returned an error for which `ServerException#isRetryable()` returns `true`, for example `MEMORY_LIMIT_EXCEEDED` (241) or `TOO_MANY_PARTS` (252).
+
+The client makes at most `setMaxRetries` retries (key `retry`, default `3`). For more than one endpoint, see `setMaxRetries` in [Client Configuration](#client-configuration).
+
+Before each retry, the client calls `reset()` on the `InputStream`. It does this also when the failed attempt read no data, for example after a connection failure. The client does not call `mark()`. Thus, `reset()` moves the stream back to the last mark that the application set, and the insert fails if the stream has no valid mark:
+
+| Stream | Retry |
+|--------|-------|
+| `ByteArrayInputStream` | Works. Its mark is at the start of the data until the application sets a different mark. |
+| `BufferedInputStream` with no mark | Fails: `IOException: Resetting to invalid mark`. |
+| `BufferedInputStream` after `mark(readlimit)` | Works if the data is not larger than `readlimit`. The stream keeps in memory all data that it read after the mark. |
+| A stream for which `markSupported()` returns `false`, for example `FileInputStream` or `GZIPInputStream` | Fails: `IOException: mark/reset not supported`. |
+
+When `reset()` fails, the insert fails with `ClientException: Failed to reset stream before next attempt`, and the client makes no more attempts. The cause of this exception is the `IOException` from `reset()`. The client logs the error of the failed attempt at the `WARN` level.
+
+A retry after a server error can occur after the client sent all of the data. Thus, for a retry, the stream must keep all of the data. Use the procedure that applies to your data source:
+
+**The data fits in memory.** Use a `ByteArrayInputStream`, or call `mark()` at the start of the data before you call `insert`:
+
+```java
+BufferedInputStream data = new BufferedInputStream(source);
+data.mark(Integer.MAX_VALUE); // the stream keeps all data in memory
+client.insert(TABLE_NAME, data, ClickHouseFormat.CSV).get();
+```
+
+**You can open the source again, for example a file.** Use `insert(String tableName, DataStreamWriter writer, ClickHouseFormat format, InsertSettings settings)`. The client calls `DataStreamWriter#onOutput` for each request that it sends, so for a retry the writer reads the source again from the start. The client calls `DataStreamWriter#onRetry` before each retry.
+
+```java
+Path file = Paths.get("data.csv");
+client.insert(TABLE_NAME, out -> Files.copy(file, out), ClickHouseFormat.CSV, new InsertSettings()).get();
+```
+
+**You cannot reset the stream.** Disable retries. Then the client does not call `reset()`, and the insert fails with the error of the first attempt. For one insert:
+
+```java
+InsertSettings settings = new InsertSettings();
+settings.setOption(ClientConfigProperties.CLIENT_RETRY_ON_FAILURE.getKey(),
+        Collections.singletonList(ClientFaultCause.None));
+client.insert(TABLE_NAME, dataStream, ClickHouseFormat.CSV, settings).get();
+```
+
+For all operations of the client, use `Client.Builder#retryOnFailures(ClientFaultCause.None)`. `setMaxRetries(0)` disables retries only when the client has one endpoint.
 
 ### insert(String tableName, List&lt;?> data, InsertSettings settings) {#insertstring-tablename-listlt-data-insertsettings-settings}
 
