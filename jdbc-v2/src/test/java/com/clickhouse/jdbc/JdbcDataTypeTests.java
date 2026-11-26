@@ -3400,6 +3400,60 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
         }
     }
 
+    @Test(groups = { "integration" }, dataProvider = "arrayOfGeoTypes")
+    public void testArrayOfGeoTypes(String type, String unsupportedVersions, String value, Object expected,
+                                    String baseTypeName) throws Exception {
+        if (isVersionMatch(unsupportedVersions)) {
+            throw new SkipException(type + " is not supported by this ClickHouse version");
+        }
+
+        final String table = "test_array_of_geo_types";
+        try (Connection conn = getJdbcConnection(); Statement stmt = conn.createStatement()) {
+            stmt.executeUpdate("DROP TABLE IF EXISTS " + table);
+            stmt.executeUpdate("CREATE TABLE " + table + " (rowId Int32, geom " + type + ", tail Int64) ORDER BY ()");
+            stmt.executeUpdate("INSERT INTO " + table + " VALUES (1, " + value + ", 42)");
+
+            try (ResultSet rs = stmt.executeQuery("SELECT * FROM " + table)) {
+                assertTrue(rs.next());
+                assertEquals(rs.getInt("rowId"), 1);
+                Array asArray = rs.getArray("geom");
+                assertEquals(asArray.getBaseTypeName(), baseTypeName);
+                assertEquals(asArray.getBaseType(), Types.ARRAY);
+                assertEquals(asArray.getArray(), expected);
+                Array asObject = (Array) rs.getObject("geom");
+                assertEquals(asObject.getBaseTypeName(), baseTypeName);
+                assertEquals(asObject.getArray(), asArray.getArray());
+                assertEquals(rs.getLong("tail"), 42L);
+                assertFalse(rs.next());
+            }
+        }
+    }
+
+    @DataProvider
+    public static Object[][] arrayOfGeoTypes() {
+        return new Object[][] {
+                {"Array(Ring)", null, "[[(1.5, 2.5), (3.5, 4.5)], []]",
+                        new double[][][] {{{1.5, 2.5}, {3.5, 4.5}}, {}}, "Ring"},
+                {"Array(LineString)", null, "[[(1.5, 2.5), (3.5, 4.5)]]",
+                        new double[][][] {{{1.5, 2.5}, {3.5, 4.5}}}, "LineString"},
+                {"Array(MultiPoint)", MULTI_POINT_UNSUPPORTED_VERSIONS, "[[(1.5, 2.5), (3.5, 4.5)]]",
+                        new double[][][] {{{1.5, 2.5}, {3.5, 4.5}}}, "MultiPoint"},
+                {"Array(Polygon)", null, "[[[(1.5, 2.5), (3.5, 4.5)]], [[(5.5, 6.5)]]]",
+                        new double[][][][] {{{{1.5, 2.5}, {3.5, 4.5}}}, {{{5.5, 6.5}}}}, "Polygon"},
+                {"Array(MultiLineString)", null, "[[[(1.5, 2.5), (3.5, 4.5)]], [[(5.5, 6.5)]]]",
+                        new double[][][][] {{{{1.5, 2.5}, {3.5, 4.5}}}, {{{5.5, 6.5}}}}, "MultiLineString"},
+                {"Array(MultiPolygon)", null, "[[[[(1.5, 2.5), (3.5, 4.5)]]], [[[(5.5, 6.5)]]]]",
+                        new double[][][][][] {{{{{1.5, 2.5}, {3.5, 4.5}}}}, {{{{5.5, 6.5}}}}}, "MultiPolygon"},
+                {"Array(Geometry)", "(,25.10]", "[[(1.5, 2.5), (3.5, 4.5)], (1.5, 2.5), NULL]",
+                        new Object[] {new double[][] {{1.5, 2.5}, {3.5, 4.5}}, new double[] {1.5, 2.5}, null},
+                        "Geometry"},
+                {"Array(Nullable(Point))", "(,26.8]", "[(1.5, 2.5), NULL]",
+                        new Object[] {new double[] {1.5, 2.5}, null}, "Nullable(Point)"},
+                {"Array(Array(Ring))", null, "[[[(1.5, 2.5), (3.5, 4.5)]], []]",
+                        new double[][][][] {{{{1.5, 2.5}, {3.5, 4.5}}}, {}}, "Array(Ring)"},
+        };
+    }
+
     @Test(groups = { "integration" })
     public void testGeoGeometry() throws Exception {
         if (earlierThan(25, 11)) {
