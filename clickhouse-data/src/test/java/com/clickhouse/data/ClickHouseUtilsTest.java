@@ -523,6 +523,12 @@ public class ClickHouseUtilsTest {
         Assert.assertEquals(ClickHouseUtils.readParameters(args, args.indexOf('('), args.length(), params),
                 args.lastIndexOf(')') + 1);
         Assert.assertEquals(params, Arrays.asList("anyLast", "Nested(a string,b string)"));
+
+        params.clear();
+        args = "Enum8('a\\\\' = 1, 'b\\\\\\'' = 2, 'c' = 3)";
+        Assert.assertEquals(ClickHouseUtils.readParameters(args, args.indexOf('('), args.length(), params),
+                args.length());
+        Assert.assertEquals(params, Arrays.asList("'a\\\\'=1", "'b\\\\\\''=2", "'c'=3"));
     }
 
     @Test(groups = { "unit" })
