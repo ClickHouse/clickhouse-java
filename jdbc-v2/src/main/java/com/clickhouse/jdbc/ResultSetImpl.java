@@ -317,7 +317,8 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         try {
             if (reader.hasValue(columnLabel)) {
                 wasNull = false;
-                return reader.getString(columnLabel);
+                String value = reader.getString(columnLabel);
+                return value == null ? null : trimFixedString(columnLabel, value);
             } else {
                 wasNull = true;
                 return null;
@@ -325,6 +326,27 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
         } catch (Exception e) {
             throw ExceptionUtils.toSqlState(String.format("Method: getString(\"%s\") encountered an exception.", columnLabel), String.format("SQL: [%s]", parentStatement.getLastStatementSql()), e);
         }
+    }
+
+    /**
+     * Cuts the text of a {@code FixedString} column after its last valid UTF-8 character. The server pads a
+     * {@code FixedString(N)} value that is shorter than {@code N} bytes with zero bytes, and a value that is cut to
+     * {@code N} bytes can end in an incomplete multi-byte character. The UTF-8 decoding gives {@code '\0'} for a zero
+     * byte and the replacement character U+FFFD for bytes that are not valid UTF-8: the first 1, 2 or 3 bytes of a
+     * 2-, 3- or 4-byte character decode to one U+FFFD. These characters are removed from the end, so the text ends
+     * with the last complete character. The same characters inside the value are kept. The text of other column
+     * types is returned unchanged.
+     */
+    private String trimFixedString(String columnLabel, String value) {
+        int end = value.length();
+        while (end > 0 && (value.charAt(end - 1) == '\0' || value.charAt(end - 1) == '\uFFFD')) {
+            end--;
+        }
+        if (end == value.length()
+                || getSchema().getColumnByName(columnLabel).getValueDataType() != ClickHouseDataType.FixedString) {
+            return value;
+        }
+        return value.substring(0, end);
     }
 
     @Override
@@ -1556,7 +1578,8 @@ public class ResultSetImpl implements ResultSet, JdbcV2Wrapper {
                             "Use getObject(...) to read this column.");
                 }
 
-                return (T) JdbcUtils.convert(value, type, column, multiDimensionalArrayElementType);
+                Object result = JdbcUtils.convert(value, type, column, multiDimensionalArrayElementType);
+                return (T) (result instanceof String ? trimFixedString(columnLabel, (String) result) : result);
             } else {
                 wasNull = true;
                 return null;

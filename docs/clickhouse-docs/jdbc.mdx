@@ -358,7 +358,7 @@ There are few ways to change the mapping:
 | FixedString                 | VARCHAR     | java.lang.String            |
 
 - `String` can be read only as `java.lang.String` or `byte[]`.
-- `FixedString` is read as is and will be padded with zeros to the length of the column. (For example `FixedString(10)` for `'John'` will be read as `'John\0\0\0\0\0\0\0\0\0'`.)
+- `FixedString(N)` values are padded with zero bytes (`\0`) to `N` bytes. `getString(...)`, and `getObject(...)` when it returns a `String`, cut the value after its last valid UTF-8 character: they remove the trailing `\0` characters and an incomplete multi-byte character at the end (decoded as `U+FFFD`). For example `FixedString(10)` for `'John'` is read as `'John'`. `getBytes(...)`, `getBinaryStream(...)` and `getObject(..., byte[].class)` return all `N` bytes.
 
 **Enum Types**
 
@@ -1002,7 +1002,7 @@ try (Connection conn = DriverManager.getConnection(url, properties)) {
 | String                      | ✅                 | VARCHAR                    | java.lang.String           | VARCHAR                    | java.lang.String                        |
 | FixedString                 | ✅                 | VARCHAR                    | java.lang.String           | VARCHAR                    | java.lang.String                        |
 
-- `FixedString` is read as is in both versions. For example `FixedString(10)` for `'John'` will be read as `'John\0\0\0\0\0\0\0\0\0'`.
+- `FixedString` text is different: V1 reads it as is, and V2 `getString(...)` and `getObject(...)` (when it returns a `String`) remove the trailing `\0` padding and an incomplete multi-byte character at the end. For example `FixedString(10)` for `'John'` is read as `'John\0\0\0\0\0\0'` in V1 and as `'John'` in V2. In V2, `getBytes(...)` returns all `N` bytes.
 - When `PreparedStatement#setBytes` is used it will be converted to `unhex('<hex_string>')` and then read as `String`.
 - Strings are stored in UTF-8 encoding.
 
