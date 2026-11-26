@@ -21,7 +21,7 @@ jobs:
           days-before-issue-stale: 365
           days-before-issue-close: 30
           stale-issue-label: stale
-          exempt-issue-labels: type:Epic, no stalebot #, v2-feedback, client-api-v2
+          exempt-issue-labels: type:Epic, no stalebot #, v2-feedback, client
           stale-issue-message: >
             This issue has been automatically marked as stale because it has not had
             activity in the last year. It will be closed in 30 days if no further activity occurs. Please

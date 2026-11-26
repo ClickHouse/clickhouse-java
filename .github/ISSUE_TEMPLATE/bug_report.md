@@ -7,26 +7,29 @@ assignees: ''
 
 ---
 <!--
-    High Level Area Labels: 
-     - client-api-v2 
-     - client-v1
-     - jdbc-v2
+    Module Labels:
+     - client
+     - jdbc
+     - r2dbc
+     - legacy (only the v1 stack has the problem)
 
-    Specific Area Labels:
-      - packaging
-      - sql-parser
-      - data-type
-      - docs
-      - network
-      - performance
-      - jdbc-metadata
-      - jdbc-insert
-      - jdbc-read
-      - client-insert
-      - client-read
-      - client-pojo-serde
-      - format
-     
+    Area Labels:
+     - connectivity
+     - data-types
+     - queries
+     - configuration
+     - api-diagnostics
+     - environment
+     - documentation
+     - tests
+     - other
+
+    Detail Labels:
+     - sql-parser
+     - jdbc-metadata
+
+    Other Labels:
+     - performance
 -->
 ## Description
 
