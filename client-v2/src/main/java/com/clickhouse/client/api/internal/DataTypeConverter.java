@@ -29,7 +29,9 @@ import java.util.Map;
 /**
  * Class designed to convert different data types to Java objects.
  * First use-case is to convert ClickHouse data types to String representation.
- * Note: class is not thread-safe to avoid extra object creation.
+ * Note: this class is thread-safe. Conversion state is passed in method parameters, not kept in fields,
+ * so one instance (for example, {@link #INSTANCE}) can be used by many threads at the same time.
+ * A subclass that is shared in the same way must not keep per-call state in fields.
  */
 public class DataTypeConverter {
 
@@ -234,11 +236,11 @@ public class DataTypeConverter {
 
     public String arrayToString(Object value, ClickHouseColumn column) {
         if (value instanceof BinaryStreamReader.ArrayValue) {
-            return listAsStringWriter.convertAndReset(((BinaryStreamReader.ArrayValue) value).asList(), new StringBuilder(), column);
+            return listAsStringWriter.convert(((BinaryStreamReader.ArrayValue) value).asList(), new StringBuilder(), column);
         } else if (value.getClass().isArray()) {
-            return arrayAsStringWriter.convertAndReset(value, new StringBuilder(), column);
+            return arrayAsStringWriter.convert(value, new StringBuilder(), column);
         } else if (value instanceof List<?>) {
-            return listAsStringWriter.convertAndReset((List<?>) value, new StringBuilder(), column);
+            return listAsStringWriter.convert((List<?>) value, new StringBuilder(), column);
         }
         return value.toString();
     }
@@ -576,75 +578,35 @@ public class DataTypeConverter {
     }
 
     private final class ArrayAsStringWriter extends BaseCollectionConverter.BaseArrayWriter {
-        private ClickHouseColumn column;
 
         ArrayAsStringWriter() {
             super();
         }
 
-        public void setColumn(ClickHouseColumn column) {
-            this.column = column;
-        }
-
-
         @Override
-        protected void onItem(Object item, ListConversionState<Object> state) {
+        protected void onItem(Object item, ListConversionState<Object> state, Appendable appendable, ClickHouseColumn column) {
             if (item == null) {
-                append(NULL);
+                append(appendable, NULL);
                 return;
             }
             ClickHouseColumn elementColumn = column.getArrayBaseColumn() == null ? column : column.getArrayBaseColumn();
             String str = DataTypeConverter.this.convertToString(item, elementColumn);
             appendEnquotedArrayElement(str, elementColumn, appendable);
-        }
-
-        public String convertAndReset(Object list, Appendable acc, ClickHouseColumn column) {
-            // Save current state to handle re-entrancy (nested array conversion)
-            ClickHouseColumn prevColumn = this.column;
-            Appendable prevAppendable = this.appendable;
-            try {
-                setColumn(column);
-                return super.convert(list, acc);
-            } finally {
-                // Restore previous state for re-entrant calls
-                this.column = prevColumn;
-                setAccumulator(prevAppendable);
-            }
         }
     }
 
     private final class ListAsStringWriter extends BaseCollectionConverter.BaseListWriter {
 
-        private ClickHouseColumn column;
-
-        public void setColumn(ClickHouseColumn column) {
-            this.column = column;
-        }
-
         @Override
-        protected void onItem(Object item, ListConversionState<List<?>> state) {
+        protected void onItem(Object item, ListConversionState<List<?>> state, Appendable appendable, ClickHouseColumn column) {
             if (item == null) {
-                append(NULL);
+                append(appendable, NULL);
                 return;
             }
             ClickHouseColumn elementColumn = column.getArrayBaseColumn() == null ? column : column.getArrayBaseColumn();
             String str = DataTypeConverter.this.convertToString(item, elementColumn);
             appendEnquotedArrayElement(str, elementColumn, appendable);
 
-        }
-
-        public String convertAndReset(List<?> list, Appendable acc, ClickHouseColumn column) {
-            // Save current state to handle re-entrancy (nested array conversion)
-            ClickHouseColumn prevColumn = this.column;
-            Appendable prevAppendable = this.appendable;
-            try {
-                setColumn(column);
-                return super.convert(list, acc);
-            } finally {
-                // Restore previous state for re-entrant calls
-                this.column = prevColumn;
-                setAccumulator(prevAppendable);
-            }
         }
     }
 }

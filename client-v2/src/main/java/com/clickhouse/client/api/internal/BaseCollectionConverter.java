@@ -1,6 +1,7 @@
 package com.clickhouse.client.api.internal;
 
 import com.clickhouse.client.api.ClickHouseException;
+import com.clickhouse.data.ClickHouseColumn;
 
 import java.io.IOException;
 import java.lang.reflect.Array;
@@ -8,6 +9,11 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
 
+/**
+ * Walks a (possibly nested) collection and writes it into an accumulator.
+ * The accumulator and the column are passed to each call, so an instance holds no
+ * per-conversion state and can be used by many threads at the same time.
+ */
 public abstract class BaseCollectionConverter<ACC, LIST> {
     public static final String ARRAY_START = "[";
     public static final String ARRAY_END = "]";
@@ -18,17 +24,15 @@ public abstract class BaseCollectionConverter<ACC, LIST> {
         this.itemDelimiter = itemDelimiter;
     }
 
-    protected abstract void setAccumulator(ACC acc);
+    protected abstract void append(ACC acc, String str);
 
-    protected abstract void append(String str);
+    protected abstract String buildString(ACC acc);
 
-    protected abstract String buildString();
+    protected abstract void onStart(ListConversionState<LIST> state, ACC acc, ClickHouseColumn column);
 
-    protected abstract void onStart(ListConversionState<LIST> state);
+    protected abstract void onEnd(ListConversionState<LIST> state, ACC acc, ClickHouseColumn column);
 
-    protected abstract void onEnd(ListConversionState<LIST> state);
-
-    protected abstract void onItem(Object item, ListConversionState<LIST> state);
+    protected abstract void onItem(Object item, ListConversionState<LIST> state, ACC acc, ClickHouseColumn column);
 
     protected abstract String onEmptyCollection();
 
@@ -40,17 +44,16 @@ public abstract class BaseCollectionConverter<ACC, LIST> {
 
     protected abstract Object getNext(ListConversionState<LIST> state);
 
-    public final String convert(LIST value, ACC acc) {
+    public final String convert(LIST value, ACC acc, ClickHouseColumn column) {
         if (isEmpty(value)) {
             return onEmptyCollection();
         }
-        setAccumulator(acc);
 
         Deque<ListConversionState<LIST>> stack = new ArrayDeque<>();
         ListConversionState<LIST> state = new ListConversionState<>(value, listSize(value));
         while (state != null) {
             if (state.isFirst()) {
-                onStart(state);
+                onStart(state, acc, column);
             }
             if (state.hasNext()) {
                 Object item = getNext(state);
@@ -60,21 +63,21 @@ public abstract class BaseCollectionConverter<ACC, LIST> {
                     LIST list = (LIST) item;
                     state = new ListConversionState<>(list, listSize(list));
                 } else {
-                    onItem(item, state);
+                    onItem(item, state, acc, column);
                     if (state.hasNext()) {
-                        append(itemDelimiter);
+                        append(acc, itemDelimiter);
                     }
                 }
             } else {
-                onEnd(state);
+                onEnd(state, acc, column);
                 state = stack.isEmpty() ? null : stack.pop();
                 if (state != null && state.hasNext()) {
-                    append(itemDelimiter);
+                    append(acc, itemDelimiter);
                 }
             }
         }
 
-        return buildString();
+        return buildString(acc);
     }
 
     public static final class ListConversionState<LIST> {
@@ -167,19 +170,12 @@ public abstract class BaseCollectionConverter<ACC, LIST> {
     public abstract static class BaseCollectionWriter<T> extends
             BaseCollectionConverter<Appendable, T> {
 
-        protected Appendable appendable;
-
         protected BaseCollectionWriter(String itemDelimiter) {
             super(itemDelimiter);
         }
 
         @Override
-        protected void setAccumulator(Appendable appendable) {
-            this.appendable = appendable;
-        }
-
-        @Override
-        protected void append(String str) {
+        protected void append(Appendable appendable, String str) {
             try {
                 appendable.append(str);
             } catch (IOException e) {
@@ -188,12 +184,12 @@ public abstract class BaseCollectionConverter<ACC, LIST> {
         }
 
         @Override
-        protected String buildString() {
+        protected String buildString(Appendable appendable) {
             return appendable.toString();
         }
 
         @Override
-        protected void onStart(ListConversionState<T> state) {
+        protected void onStart(ListConversionState<T> state, Appendable appendable, ClickHouseColumn column) {
             try {
                 appendable.append(ARRAY_START);
             } catch (IOException e) {
@@ -202,7 +198,7 @@ public abstract class BaseCollectionConverter<ACC, LIST> {
         }
 
         @Override
-        protected void onEnd(ListConversionState<T> state) {
+        protected void onEnd(ListConversionState<T> state, Appendable appendable, ClickHouseColumn column) {
             try {
                 appendable.append(ARRAY_END);
             } catch (IOException e) {
