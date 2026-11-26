@@ -1744,6 +1744,59 @@ public class DataTypeTests extends BaseIntegrationTest {
         Assert.assertEquals(records.get(0).getInteger("num"), 10);
     }
 
+    @DataProvider(name = "dynamicUnnamedTuples")
+    public static Object[][] dynamicUnnamedTuples() {
+        return new Object[][]{
+                {"Tuple(Int32, String)", "(1, 'a')", Arrays.asList(1, "a")},
+                {"Tuple(Nullable(Int32), Int8)", "(1, 2)", Arrays.asList(1, (byte) 2)},
+                {"Tuple(Nullable(Int32), Int8)", "(NULL, 2)", Arrays.asList(null, (byte) 2)},
+                {"Tuple(Tuple(Int32, String), Int8)", "((1, 'a'), 2)", Arrays.asList(Arrays.asList(1, "a"), (byte) 2)},
+                {"Tuple(a Tuple(Int32, String), b Int8)", "((1, 'a'), 2)", Arrays.asList(Arrays.asList(1, "a"), (byte) 2)},
+                {"Array(Tuple(Int32, String))", "[(1, 'a'), (2, 'b')]",
+                        Arrays.asList(Arrays.asList(1, "a"), Arrays.asList(2, "b"))},
+                {"Array(Array(Tuple(Int32, String)))", "[[(1, 'a')], [(2, 'b'), (3, 'c')]]",
+                        Arrays.asList(Arrays.asList(Arrays.asList(1, "a")), Arrays.asList(Arrays.asList(2, "b"), Arrays.asList(3, "c")))},
+                {"Map(String, Tuple(Int32, String))", "map('k', (1, 'a'))", Collections.singletonMap("k", Arrays.asList(1, "a"))},
+                {"Array(Variant(String, Tuple(Int32, String)))", "[(1, 'a'), 'x']", Arrays.asList(Arrays.asList(1, "a"), "x")},
+                {"JSON(a Tuple(Int32, String))", "'{\"a\": [1, \"x\"]}'", Collections.singletonMap("a", Arrays.asList(1, "x"))},
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "dynamicUnnamedTuples")
+    public void testDynamicWithUnnamedTuple(String type, String value, Object expected) throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+
+        List<GenericRecord> records = client.queryAll("SELECT " + value + "::" + type + "::Dynamic AS d, 7::Int64 AS tail, dynamicType(d) AS type");
+        Assert.assertEquals(records.size(), 1);
+        GenericRecord row = records.get(0);
+        Assert.assertEquals(plainValue(row.getObject("d")), expected);
+        Assert.assertEquals(row.getLong("tail"), 7L);
+        Assert.assertEquals(row.getString("type"), type);
+    }
+
+    private static Object plainValue(Object value) {
+        if (value instanceof BinaryStreamReader.ArrayValue) {
+            value = ((BinaryStreamReader.ArrayValue) value).getArrayOfObjects();
+        }
+        if (value instanceof Object[]) {
+            List<Object> items = new ArrayList<>();
+            for (Object item : (Object[]) value) {
+                items.add(plainValue(item));
+            }
+            return items;
+        }
+        if (value instanceof Map) {
+            Map<Object, Object> entries = new HashMap<>();
+            for (Map.Entry<?, ?> entry : ((Map<?, ?>) value).entrySet()) {
+                entries.put(plainValue(entry.getKey()), plainValue(entry.getValue()));
+            }
+            return entries;
+        }
+        return value;
+    }
+
     @Test(groups = {"integration"})
     public void testDynamicWithFixedString() throws Exception {
         if (isVersionMatch("(,24.8]")) {
