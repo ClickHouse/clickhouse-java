@@ -8,6 +8,7 @@ import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.images.builder.ImageFromDockerfile;
+import org.testcontainers.utility.MountableFile;
 
 import java.time.Duration;
 import java.util.List;
@@ -27,7 +28,7 @@ public abstract class ClickHouseContainerStarter {
 
     static final String FRONTEND_ALIAS = "clickhouse";
     static final String CONTAINER_TMP_DIR = "/tmp";
-    private static final String CUSTOM_DIRECTORY = "/custom";
+    private static final String SERVER_CONFIG_DIRECTORY = "/etc/clickhouse-server";
     private static final String CONFIG_RESOURCE = "containers/clickhouse-server";
 
     protected final ClickHouseTestEnvironment environment;
@@ -124,12 +125,10 @@ public abstract class ClickHouseContainerStarter {
                         .from(environment.getImageRef())
                         .run("apt-get update && apt-get install -y " + additionalPackages))))
                 .withCreateContainerCmdModifier(command -> {
-                    command.withEntrypoint("/bin/sh");
                     if (containerName != null) {
                         command.withName(containerName);
                     }
                 })
-                .withCommand("-c", String.format("chmod +x %1$s/patch && %1$s/patch", CUSTOM_DIRECTORY))
                 .withEnv("TZ", environment.getTimezone())
                 .withExposedPorts(
                         ClickHouseProtocol.GRPC.getDefaultPort(),
@@ -139,7 +138,9 @@ public abstract class ClickHouseContainerStarter {
                         ClickHouseProtocol.TCP.getDefaultPort(),
                         ClickHouseProtocol.TCP.getDefaultSecurePort(),
                         ClickHouseProtocol.POSTGRESQL.getDefaultPort())
-                .withClasspathResourceMapping(CONFIG_RESOURCE, CUSTOM_DIRECTORY, BindMode.READ_ONLY)
+                // The default image has no shell: copy the files into the configuration directory of the
+                // image (a copy merges with the files of the image), and keep the entrypoint of the image.
+                .withCopyFileToContainer(MountableFile.forClasspathResource(CONFIG_RESOURCE), SERVER_CONFIG_DIRECTORY)
                 .withClasspathResourceMapping("empty.csv", "/var/lib/clickhouse/user_files/empty.csv",
                         BindMode.READ_ONLY)
                 .withFileSystemBind(System.getProperty("java.io.tmpdir"), CONTAINER_TMP_DIR, BindMode.READ_WRITE)
@@ -149,10 +150,12 @@ public abstract class ClickHouseContainerStarter {
             container = container
                     .withEnv("CLICKHOUSE_REPLICA", replicaName)
                     .withEnv("CLICKHOUSE_INTERSERVER_HOST", networkAlias)
-                    .withClasspathResourceMapping("containers/clickhouse-cluster/config.d/custom_config.xml",
-                            CUSTOM_DIRECTORY + "/config.d/custom_config.xml", BindMode.READ_ONLY)
-                    .withClasspathResourceMapping("containers/clickhouse-cluster/users.d/cluster_quorum.xml",
-                            CUSTOM_DIRECTORY + "/users.d/cluster_quorum.xml", BindMode.READ_ONLY);
+                    .withCopyFileToContainer(MountableFile.forClasspathResource(
+                            "containers/clickhouse-cluster/config.d/custom_config.xml"),
+                            SERVER_CONFIG_DIRECTORY + "/config.d/custom_config.xml")
+                    .withCopyFileToContainer(MountableFile.forClasspathResource(
+                            "containers/clickhouse-cluster/users.d/cluster_quorum.xml"),
+                            SERVER_CONFIG_DIRECTORY + "/users.d/cluster_quorum.xml");
         }
         return container.waitingFor(Wait.forHttp("/ping").forPort(HTTP_PORT)
                 .forStatusCode(200).withStartupTimeout(Duration.of(600, SECONDS)));

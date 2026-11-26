@@ -151,7 +151,7 @@ Integration tests usually require [Docker](https://docs.docker.com/engine/instal
 | `TEST_CLICKHOUSE_PASSWORD` | `test_default_password` | Password |
 | `TEST_CLICKHOUSE_SECURE` | `false` | `true` uses HTTPS on port 8443 (ClickHouse Cloud) |
 | `TEST_CLICKHOUSE_TIMEZONE` | `UTC` | Timezone inside a started container |
-| `TEST_CLICKHOUSE_ADDITIONAL_PACKAGES` | | Extra apt packages installed into the image |
+| `TEST_CLICKHOUSE_ADDITIONAL_PACKAGES` | | Extra apt packages installed into the image. Needs an image with `apt-get`: from ClickHouse 26.12, use a tag with the suffix `-ubuntu` (the default image has no shell) |
 | `TEST_DB_NAME` | generated | Database name. An external name must start with `clickhouse_java_test_` |
 | `TEST_PROXY_ADDRESS` | | External proxy as `host:port` |
 | `TEST_PROXY_IMAGE` | `ghcr.io/shopify/toxiproxy:2.5.0` | Toxiproxy image |
