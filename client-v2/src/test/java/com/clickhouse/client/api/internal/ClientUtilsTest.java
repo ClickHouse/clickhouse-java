@@ -82,6 +82,35 @@ public class ClientUtilsTest {
         Assert.assertTrue(map.isEmpty());
     }
 
+    @Test(groups = {"unit"}, dataProvider = "serverErrorCodes")
+    public void testParseServerErrorCode(String message, int expected) {
+        Assert.assertEquals(ClientUtils.parseServerErrorCode(message), expected);
+    }
+
+    @DataProvider(name = "serverErrorCodes")
+    public static Object[][] serverErrorCodes() {
+        return new Object[][]{
+                {"Code: 60. DB::Exception: X", 60},
+                {"Code: 60", 60},
+                {"Error: 57. DB::Exception: X", 57},
+                {"Code: 395. DB::Exception: boom", 395},
+                {"Code: . X", ClientUtils.SERVER_ERROR_CODE_UNKNOWN},
+                {"Code: 99999999999. DB::Exception: X", ClientUtils.SERVER_ERROR_CODE_UNKNOWN},
+                {"nope", ClientUtils.SERVER_ERROR_CODE_UNKNOWN},
+                {null, ClientUtils.SERVER_ERROR_CODE_UNKNOWN},
+        };
+    }
+
+    @Test(groups = {"unit"})
+    public void testHasServerErrorCodeRequiresExceptionMarker() {
+        Assert.assertTrue(ClientUtils.hasServerErrorCode(
+                "Code: 395. DB::Exception: boom. (FUNCTION_THROW_IF_VALUE_IS_NON_ZERO)"));
+        Assert.assertTrue(ClientUtils.hasServerErrorCode("Error: 57. DB::Exception: already exists"));
+        Assert.assertFalse(ClientUtils.hasServerErrorCode("Code: 1 is a value"));
+        Assert.assertFalse(ClientUtils.hasServerErrorCode("Code: x. DB::Exception"));
+        Assert.assertFalse(ClientUtils.hasServerErrorCode(null));
+    }
+
     @Test(groups = {"unit"}, dataProvider = "findCause")
     public void testFindCause(int wrappers, Integer maxDepth, boolean found) {
         ServerException target = new ServerException(ServerException.NOTHING_TO_KILL, "No query to kill", 500, "q1");

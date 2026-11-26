@@ -15,6 +15,62 @@ public final class ClientUtils {
 
     private ClientUtils() {}
 
+    /** Value used when a server error code cannot be read from a message. */
+    public static final int SERVER_ERROR_CODE_UNKNOWN = -1;
+
+    private static final String CODE_PREFIX = "Code: ";
+
+    private static final String ERROR_PREFIX = "Error: ";
+
+    /** Marker present in a ClickHouse exception text ({@code DB::Exception}, {@code NetException}, ...). */
+    private static final String EXCEPTION_MARK = "Exception";
+
+    /**
+     * @return {@code true} when {@code message} is a ClickHouse error text: a {@code Code:} or {@code Error:}
+     *         prefix, a numeric code, and an {@code Exception} marker. A bare {@code "Code: 1"} is not enough.
+     */
+    public static boolean hasServerErrorCode(String message) {
+        return message != null
+                && message.contains(EXCEPTION_MARK)
+                && parseServerErrorCode(message) != SERVER_ERROR_CODE_UNKNOWN;
+    }
+
+    /**
+     * Reads the code from a server error message such as {@code "Code: 395. DB::Exception: ..."}
+     * or {@code "Error: 57. DB::Exception: ..."}. The code is the digit run after the prefix.
+     * A dot is not required.
+     *
+     * @return the code or {@link #SERVER_ERROR_CODE_UNKNOWN} when the message has no leading code
+     */
+    public static int parseServerErrorCode(String message) {
+        int start = codeStart(message);
+        if (start < 0) {
+            return SERVER_ERROR_CODE_UNKNOWN;
+        }
+        int end = start;
+        while (end < message.length() && Character.isDigit(message.charAt(end))) {
+            end++;
+        }
+        int length = end - start;
+        if (length == 0 || length > 9) {
+            return SERVER_ERROR_CODE_UNKNOWN;
+        }
+        return Integer.parseInt(message.substring(start, end));
+    }
+
+    private static int codeStart(String message) {
+        if (message == null) {
+            return -1;
+        }
+        if (message.startsWith(CODE_PREFIX)) {
+            return CODE_PREFIX.length();
+        }
+        if (message.startsWith(ERROR_PREFIX)) {
+            return ERROR_PREFIX.length();
+        }
+        return -1;
+    }
+
     public static boolean isNotBlank(String str) {
         return !isBlank(str);
     }
