@@ -36,22 +36,23 @@ jobs:
     with:
       pr_number: ${{ github.event.pull_request.number || github.event.issue.number }}
       model: claude-fable-5
+      categories: bug,enhancement,refactor,performance,dependencies,documentation,tests,infra
       triage_instructions: |
         ## Category meanings
 
         | Category | When |
         |---|---|
-        | `bugfix` | Fixes a defect. Should have a regression test. |
-        | `feature` | New capability — new type, new API surface, new format. |
+        | `bug` | Fixes a defect. Should have a regression test. |
+        | `enhancement` | New capability — new type, new API surface, new format. |
         | `refactor` | Internal restructuring, no behavior change intended. |
-        | `perf` | Performance optimization. |
-        | `deps` | Dependency bump (NuGet, GitHub Actions). |
-        | `docs` | README / XML doc / CHANGELOG / RELEASENOTES only. |
+        | `performance` | Performance optimization. |
+        | `dependencies` | Dependency bump (NuGet, GitHub Actions). |
+        | `documentation` | README / XML doc / CHANGELOG / RELEASENOTES only. |
         | `tests` | Test-only changes, no source change. |
         | `infra` | CI, build scripts, tooling, llm workflows. |
 
-        If multiple apply, pick the most consequential (`bugfix`/`feature` outrank
-        `refactor`; `perf` outranks `refactor` if measurable).
+        If multiple apply, pick the most consequential (`bug`/`enhancement` outrank
+        `refactor`; `performance` outranks `refactor` if measurable).
 
         Flag intent drift (in Concerns) if:
         - Files touched are out of scope vs. the issue/body.
