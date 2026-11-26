@@ -1,6 +1,7 @@
 package com.clickhouse.jdbc;
 
 import com.clickhouse.client.api.Client;
+import java.time.ZoneId;
 import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.data_formats.JsonParserFactory;
 import com.clickhouse.client.api.metadata.TableSchema;
@@ -52,6 +53,7 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
 
     protected final String url;
     private final Client client; // this member is private to force using getClient()
+    private volatile ZoneId effectiveServerTimeZone;
     protected final JdbcConfiguration config;
 
     private boolean closed = false;
@@ -748,6 +750,32 @@ public class ConnectionImpl implements Connection, JdbcV2Wrapper {
     public Client getClient() throws SQLException {
         ensureOpen();
         return client;
+    }
+
+    /**
+     * Resolves the server time zone once per connection and caches it. The RowBinary writer uses it
+     * so DateTime/DateTime64 columns without their own zone are stored in the server zone, matching
+     * the text path and the reader (clickhouse-java#3394). Falls back to UTC.
+     */
+    public ZoneId getEffectiveServerTimeZone() {
+        ZoneId tz = effectiveServerTimeZone;
+        if (tz != null) {
+            return tz;
+        }
+        String zoneId = null;
+        try {
+            zoneId = client.getServerTimeZone();
+            if (zoneId == null || "UTC".equalsIgnoreCase(zoneId)) {
+                // The configured default is UTC and the real zone is only detected lazily; load it once.
+                client.loadServerInfo();
+                zoneId = client.getServerTimeZone();
+            }
+        } catch (Exception e) {
+            // fall back to UTC below
+        }
+        tz = ZoneId.of(zoneId == null ? "UTC" : zoneId);
+        effectiveServerTimeZone = tz;
+        return tz;
     }
 
     private void ensureOpenForClientInfo() throws SQLClientInfoException {

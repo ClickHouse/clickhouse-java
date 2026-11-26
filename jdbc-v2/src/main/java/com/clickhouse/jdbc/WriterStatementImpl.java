@@ -18,6 +18,7 @@ import java.io.InputStream;
 import java.io.Reader;
 import java.math.BigDecimal;
 import java.net.URL;
+import java.time.ZoneId;
 import java.sql.Array;
 import java.sql.Blob;
 import java.sql.Clob;
@@ -75,6 +76,12 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
         }
     }
 
+    // DateTime/DateTime64 columns without their own zone are stored in the server time zone,
+    // matching the text path and the reader (clickhouse-java#3394). Falls back to UTC.
+    private ZoneId resolveServerTimeZone() {
+        return connection.getEffectiveServerTimeZone();
+    }
+
     private void resetWriter() throws IOException {
         if (out != null) {
             out.close();
@@ -82,7 +89,7 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
 
         out = new ByteArrayOutputStream();
         writer = new RowBinaryFormatWriter(out, tableSchema, tableSchema.hasDefaults() ?
-                ClickHouseFormat.RowBinaryWithDefaults : ClickHouseFormat.RowBinary);
+                ClickHouseFormat.RowBinaryWithDefaults : ClickHouseFormat.RowBinary, resolveServerTimeZone());
     }
 
     @Override
