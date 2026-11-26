@@ -83,7 +83,9 @@ public final class ClickHouseSqlUtils {
                 // Appended 10/17/2026
                 "RANGES",
                 // Appended 10/29/2026
-                "RETURNING", "SHARED"
+                "RETURNING", "SHARED",
+                // Appended 11/26/2026
+                "SEGMENTS", "SHARDS"
             );
     }
 

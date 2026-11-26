@@ -758,6 +758,7 @@ public abstract class BaseSqlParserFacadeTest {
                 {"INSERT INTO function VALUES (?)", false, 1},
                 {"INSERT INTO TABLE function VALUES (?)", false, 1},
                 {"INSERT INTO function (id) VALUES (?)", false, 1},
+                {"INSERT INTO shards VALUES (?)", false, 1},
                 // Contrast: a function inside the values list is already reported as a function
                 {"INSERT INTO t VALUES (now(), ?)", true, 1},
         };
@@ -778,6 +779,8 @@ public abstract class BaseSqlParserFacadeTest {
                 {"INSERT INTO db.t VALUES (?)", "db.t"},
                 {"INSERT INTO function VALUES (?)", "function"},
                 {"INSERT INTO TABLE function VALUES (?)", "function"},
+                {"INSERT INTO shards VALUES (?)", "shards"},
+                {"INSERT INTO shards (segments) VALUES (?)", "shards"},
         };
     }
 
@@ -1097,6 +1100,11 @@ public abstract class BaseSqlParserFacadeTest {
                 {"SELECT * FROM t WHERE hasToken(message, 'DDLWorker')", 0},
                 {"SELECT * FROM t WHERE hasAllTokens(message, ['peak', 'memory'])", 0},
                 {"SELECT * FROM t WHERE hasAnyTokens(message, tokens('01442_merge_detach_attach'))", 0},
+                {"SELECT 1 AS shards, 2 AS segments", 0},
+                {"SELECT shards, segments FROM t WHERE shards = ?", 1},
+                {"SELECT * FROM (SELECT * FROM t shards) WHERE x = ?", 1},
+                {"CREATE TABLE shards (segments UInt8) ENGINE = MergeTree ORDER BY segments", 0},
+                {"GRANT MOVE PARTITION BETWEEN SHARDS ON *.* TO u", 0},
         };
     }
 
