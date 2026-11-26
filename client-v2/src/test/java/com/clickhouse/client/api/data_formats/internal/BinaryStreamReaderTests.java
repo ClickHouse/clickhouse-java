@@ -365,6 +365,54 @@ public class BinaryStreamReaderTests {
         }
     }
 
+    // Int8 and strided QBit(element_type, dimension, stride) column payloads captured from ClickHouse 26.10. A strided
+    // column has the bit planes of each stride group in turn, each plane ceil(stride / 8) bytes per row.
+    @DataProvider(name = "qbitNativeInt8AndStridedGoldenBytes")
+    public static Object[][] qbitNativeInt8AndStridedGoldenBytes() {
+        float[] f32Row0 = new float[16];
+        float[] f32Row1 = new float[16];
+        byte[] int8Strided = new byte[16];
+        for (int j = 0; j < 16; j++) {
+            f32Row0[j] = j;
+            f32Row1[j] = j + 100;
+            int8Strided[j] = (byte) (j - 8);
+        }
+        return new Object[][] {
+                {"Int8 dim 5 (8 bit planes)", "QBit(Int8, 5)", 1, "0a06060606060605",
+                        new Object[] {new byte[] {1, -2, 127, -128, 0}}},
+                {"Int8 dim 16 stride 8 (2 groups)", "QBit(Int8, 16, 8)", 1, "fffffffffff0ccaa0000000000f0ccaa",
+                        new Object[] {int8Strided}},
+                {"Float32 dim 16 stride 8, two rows (2 groups, column-major slicing)", "QBit(Float32, 16, 8)", 2,
+                        "0000fcff020002000200020002ff0200f2ffc8ffa00000f0000f00cc00aa0000000000000000"
+                                + "00000000000000000000000000000000000000000000000000000000ffff000000000000000000ff"
+                                + "ff0000fff0ffccf0aa0f000f00cc00aa000000000000000000000000000000000000000000000000"
+                                + "00000000000000000000",
+                        new Object[] {f32Row0, f32Row1}},
+        };
+    }
+
+    @Test(dataProvider = "qbitNativeInt8AndStridedGoldenBytes")
+    public void testReadQBitNativeDecodesInt8AndStridedGoldenBytes(String label, String columnType, int nRows,
+            String columnDataHex, Object[] expectedRows) throws Exception {
+        List<Object> rows = qbitReader(fromHex(columnDataHex))
+                .readQBitNative(ClickHouseColumn.of("vec", columnType), nRows);
+
+        Assert.assertEquals(rows.size(), nRows, label);
+        for (int r = 0; r < nRows; r++) {
+            Assert.assertEquals(((BinaryStreamReader.ArrayValue) rows.get(r)).getArray(), expectedRows[r],
+                    label + " row " + r);
+        }
+    }
+
+    @Test
+    public void testReadQBitNativeRejectsStrideThatDoesNotDivideDimension() {
+        ClickHouseColumn column = ClickHouseColumn.of("vec", "QBit(Float32, 12, 8)");
+        ClientException ex = Assert.expectThrows(ClientException.class,
+                () -> qbitReader(new byte[0]).readQBitNative(column, 1));
+        Assert.assertTrue(ex.getMessage().contains("stride"),
+                "Expected a stride rejection message, got: " + ex.getMessage());
+    }
+
     @Test
     public void testReadQBitNativeDecodesSpecialFloatValues() throws Exception {
         // NaN, +Inf, -Inf and -0.0 must survive the bit-plane transpose bit-for-bit.
@@ -382,9 +430,10 @@ public class BinaryStreamReaderTests {
 
     @Test
     public void testReadQBitNativeRejectsUnsupportedElementType() {
-        // readQBitNative reconstructs only float element types; a non-float element is rejected by its own
-        // guard (the Native reader also filters these earlier), which fires before any read.
-        ClickHouseColumn column = ClickHouseColumn.of("vec", "QBit(Int8, 3)");
+        // readQBitNative reconstructs only the Int8, BFloat16, Float32 and Float64 element types; another
+        // element type is rejected by its own guard (the Native reader also filters these earlier), which
+        // fires before any read.
+        ClickHouseColumn column = ClickHouseColumn.of("vec", "QBit(Int16, 3)");
         ClientException ex = Assert.expectThrows(ClientException.class,
                 () -> qbitReader(new byte[0]).readQBitNative(column, 1));
         Assert.assertTrue(ex.getMessage().contains("Float32"),

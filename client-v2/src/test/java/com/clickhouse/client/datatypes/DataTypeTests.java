@@ -130,6 +130,8 @@ public class DataTypeTests extends BaseIntegrationTest {
 
     // QBit was introduced in ClickHouse 25.10.
     private static final String QBIT_UNSUPPORTED_VERSIONS = "(,25.9]";
+    // The Int8 element type and the stride parameter of QBit were introduced in ClickHouse 26.7.
+    private static final String QBIT_INT8_STRIDE_UNSUPPORTED_VERSIONS = "(,26.6]";
 
     @Data
     @AllArgsConstructor
@@ -342,6 +344,96 @@ public class DataTypeTests extends BaseIntegrationTest {
             }
             Assert.assertFalse(reader.hasNext());
         }
+    }
+
+    @DataProvider(name = "qbitNativeShapes")
+    public static Object[][] qbitNativeShapes() {
+        // type, value of row `number` (0, 1, 2), expected value of each row, server versions without the type.
+        List<Object> int8Rows = new ArrayList<>();
+        List<Object> f32StridedRows = new ArrayList<>();
+        List<Object> f64StridedRows = new ArrayList<>();
+        for (int r = 0; r < 3; r++) {
+            int8Rows.add(Arrays.asList((byte) r, (byte) -2, (byte) 127, (byte) -128, (byte) 0));
+            List<Object> f32 = new ArrayList<>();
+            for (int j = 0; j < 16; j++) {
+                f32.add(j + r * 100f);
+            }
+            f32StridedRows.add(f32);
+            List<Object> f64 = new ArrayList<>();
+            for (int j = 0; j < 24; j++) {
+                f64.add(-j - r * 0.5d);
+            }
+            f64StridedRows.add(f64);
+        }
+        return new Object[][] {
+                {"QBit(Int8, 5)", "[toInt8(number), -2, 127, -128, 0]", int8Rows, QBIT_INT8_STRIDE_UNSUPPORTED_VERSIONS},
+                {"QBit(Float32, 16, 8)", "arrayMap(x -> toFloat32(x + number * 100), range(16))", f32StridedRows,
+                        QBIT_INT8_STRIDE_UNSUPPORTED_VERSIONS},
+                {"QBit(Float64, 24, 8)", "arrayMap(x -> -x - number * 0.5, range(24))", f64StridedRows,
+                        QBIT_INT8_STRIDE_UNSUPPORTED_VERSIONS},
+                {"Nullable(QBit(BFloat16, 3))", "if(number = 1, NULL, CAST([number + 1, -2, 0.5] AS QBit(BFloat16, 3)))",
+                        Arrays.asList(Arrays.asList(1f, -2f, 0.5f), null, Arrays.asList(3f, -2f, 0.5f)),
+                        QBIT_UNSUPPORTED_VERSIONS},
+                {"Array(QBit(Float32, 3))",
+                        "arrayMap(i -> CAST([i + 1, -(i + 1), (i + 1) * 0.5] AS QBit(Float32, 3)), "
+                                + "range(multiIf(number = 0, 2, number = 1, 0, 1)))",
+                        Arrays.asList(
+                                Arrays.asList(Arrays.asList(1f, -1f, 0.5f), Arrays.asList(2f, -2f, 1f)),
+                                Collections.emptyList(),
+                                Collections.singletonList(Arrays.asList(1f, -1f, 0.5f))),
+                        QBIT_UNSUPPORTED_VERSIONS},
+                {"Array(Nullable(QBit(Int8, 3)))",
+                        "multiIf(number = 0, [CAST([1, -2, 3] AS Nullable(QBit(Int8, 3))), NULL], "
+                                + "number = 1, CAST([] AS Array(Nullable(QBit(Int8, 3)))), "
+                                + "[CAST(NULL AS Nullable(QBit(Int8, 3)))])",
+                        Arrays.asList(
+                                Arrays.asList(Arrays.asList((byte) 1, (byte) -2, (byte) 3), null),
+                                Collections.emptyList(),
+                                Collections.singletonList(null)),
+                        QBIT_INT8_STRIDE_UNSUPPORTED_VERSIONS},
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "qbitNativeShapes")
+    public void testQBitNativeFormatShapes(String type, String valueSql, List<Object> expectedRows,
+                                           String unsupportedVersions) throws Exception {
+        if (isVersionMatch(unsupportedVersions)) {
+            throw new SkipException(type + " is not supported by this ClickHouse version");
+        }
+
+        // The rows go into a table, so that the server converts the values to the column type and the
+        // Native block holds the real QBit layout. The QBit column is between two fixed-width columns.
+        String table = "test_qbit_native_shapes";
+        CommandSettings ddl = (CommandSettings) new CommandSettings()
+                .serverSetting("allow_experimental_qbit_type", "1");
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        client.execute(tableDefinition(table, "rowId Int64", "vec " + type, "tail Int32"), ddl).get();
+        client.execute("INSERT INTO " + table + " SELECT number, " + valueSql + ", 42 FROM numbers(3)", ddl).get();
+
+        Map<ClickHouseFormat, List<String>> valueClasses = new HashMap<>();
+        for (ClickHouseFormat format : new ClickHouseFormat[] {
+                ClickHouseFormat.Native, ClickHouseFormat.RowBinaryWithNamesAndTypes}) {
+            List<String> classes = new ArrayList<>();
+            QuerySettings settings = new QuerySettings().setFormat(format);
+            try (QueryResponse response = client.query("SELECT * FROM " + table + " ORDER BY rowId", settings).get()) {
+                ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+                for (int r = 0; r < expectedRows.size(); r++) {
+                    Assert.assertNotNull(reader.next(), format + " row " + r);
+                    Assert.assertEquals(reader.getLong("rowId"), (long) r, format + " row " + r);
+                    Assert.assertEquals(reader.getList("vec"), expectedRows.get(r), format + " row " + r);
+                    Assert.assertEquals(reader.getInteger("tail"), 42, format + " row " + r);
+                    Object value = reader.readValue("vec");
+                    classes.add(value instanceof BinaryStreamReader.ArrayValue
+                            ? ((BinaryStreamReader.ArrayValue) value).getArray().getClass().getName()
+                            : String.valueOf(value));
+                }
+                Assert.assertFalse(reader.hasNext(), format.toString());
+            }
+            valueClasses.put(format, classes);
+        }
+        // The Native read gives each row the same Java array class as the RowBinary read.
+        Assert.assertEquals(valueClasses.get(ClickHouseFormat.Native),
+                valueClasses.get(ClickHouseFormat.RowBinaryWithNamesAndTypes));
     }
 
     @Test(groups = {"integration"})
