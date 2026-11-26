@@ -12,12 +12,15 @@ mapping below is wrong because the code moved, fix the boundary here.
 
 | Module label | Directory | Root package | What it is |
 | --- | --- | --- | --- |
-| `client-api-v2` | `client-v2/` | `com.clickhouse.client.api` | Current HTTP client (the "v2" client). |
-| `client-v1` | `clickhouse-client/`, `clickhouse-http-client/` | `com.clickhouse.client` (no `.api`) | Legacy v1 client stack. |
-| `client-v1` (data) | `clickhouse-data/` | `com.clickhouse.data` | Shared data types, codecs, formats, streams. Used by v1 and indirectly elsewhere. |
-| `jdbc-v2` | `jdbc-v2/` | `com.clickhouse.jdbc` | Current JDBC driver (built on client-v2). |
-| `jdbc-v1` | `clickhouse-jdbc/` | `com.clickhouse.jdbc` | Legacy JDBC driver (built on client-v1). |
-| `r2dbc` | `clickhouse-r2dbc/` | `com.clickhouse.r2dbc` | R2DBC integration. |
+| `client` | `client-v2/` | `com.clickhouse.client.api` | Current HTTP client (the "v2" client). |
+| `client` + `legacy` | `clickhouse-client/`, `clickhouse-http-client/` | `com.clickhouse.client` (no `.api`) | Legacy v1 client stack. |
+| label of the calling module | `clickhouse-data/` | `com.clickhouse.data` | Shared data types, codecs, formats, streams. Used by v1 and by client-v2. |
+| `jdbc` | `jdbc-v2/` | `com.clickhouse.jdbc` | Current JDBC driver (built on client-v2). |
+| `jdbc` + `legacy` | `clickhouse-jdbc/` | `com.clickhouse.jdbc` | Legacy JDBC driver (built on client-v1). |
+| `r2dbc` | `clickhouse-r2dbc/` | `com.clickhouse.r2dbc` | R2DBC integration (built on client-v1). |
+
+Add `legacy` only when only the v1 stack has the problem. An issue in v1 and v2
+gets only the component label.
 
 
 ## Disambiguating v1 vs v2 (important)
@@ -41,7 +44,7 @@ Package prefixes overlap between versions, so use class-name cues:
 ## Code area → source location
 
 Use these to find the code that implements an area. The JDBC metadata and SQL
-parser (jdbc-v2) areas also have a detail label: `jdbc-metadata` and `sql-parser`.
+parser areas (v1 and v2) also have a detail label: `jdbc-metadata` and `sql-parser`.
 
 - **Client insert** — `client-v2/.../api/insert/` (`InsertResponse`,
   `InsertSettings`) and `Client.insert*`. v1: `clickhouse-client`/`http-client`.
@@ -101,7 +104,7 @@ parser (jdbc-v2) areas also have a detail label: `jdbc-metadata` and `sql-parser
 
 Map the top app-owned frames (ignore JDK/third-party frames) by package:
 
-- `com.clickhouse.client.api.*` → **client-api-v2** (then the code area by sub-package:
+- `com.clickhouse.client.api.*` → **client-v2** (then the code area by sub-package:
   `insert`/`query`/`serde`/`data_formats`/`transport`).
 - `com.clickhouse.client.*` (no `.api`) / `com.clickhouse.client.http.*` →
   **client-v1**.

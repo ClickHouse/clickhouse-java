@@ -8,11 +8,10 @@ assignees: ''
 ---
 <!--
     Module Labels:
-     - client-api-v2
-     - client-v1
-     - jdbc-v2
-     - jdbc-v1
+     - client
+     - jdbc
      - r2dbc
+     - legacy (only the v1 stack has the problem)
 
     Area Labels:
      - connectivity
