@@ -1474,6 +1474,7 @@ keyword
     | SHA256_HASH
     | SHA256_PASSWORD
     | SHARD
+    | SHARDS
     | SHOW
     | SOURCE
     | SQL
@@ -1741,6 +1742,7 @@ keywordForAlias
     | SHA256_HASH
     | SHA256_PASSWORD
     | SHARD
+    | SHARDS
     | SHOW
     | SOURCE
     | SQL
