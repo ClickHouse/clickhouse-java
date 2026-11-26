@@ -339,6 +339,17 @@ public class DataTypesTestingPOJO {
         CONSTANT_1, CONSTANT_2, CONSTANT_3, CONSTANT_4, CONSTANT_5, CONSTANT_6, CONSTANT_7, CONSTANT_8, CONSTANT_9, CONSTANT_10;
     }
 
+    public enum EnumWithConstantBody {
+        PLAIN,
+        WITH_BODY {
+            @Override
+            public String toString() {
+                return "with body";
+            }
+        },
+        LAST
+    }
+
     public enum LargeEnum {
         CONSTANT_1, CONSTANT_2, CONSTANT_3, CONSTANT_4, CONSTANT_5, CONSTANT_6, CONSTANT_7, CONSTANT_8, CONSTANT_9, CONSTANT_10,
         CONSTANT_11, CONSTANT_12, CONSTANT_13, CONSTANT_14, CONSTANT_15, CONSTANT_16, CONSTANT_17, CONSTANT_18, CONSTANT_19, CONSTANT_20,

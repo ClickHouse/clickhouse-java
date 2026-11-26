@@ -1,11 +1,51 @@
 package com.clickhouse.data.value;
 
 import org.testng.Assert;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 import com.clickhouse.data.BaseClickHouseValueTest;
 import com.clickhouse.data.ClickHouseDataType;
+import com.clickhouse.data.ClickHouseEnum;
 
 public class ClickHouseEnumValueTest extends BaseClickHouseValueTest {
+    enum EnumWithConstantBody {
+        PLAIN,
+        WITH_BODY {
+            @Override
+            public String toString() {
+                return "with body";
+            }
+        },
+        LAST
+    }
+
+    @DataProvider(name = "enumClassProvider")
+    private Object[][] getEnumClasses() {
+        String[] names = { "PLAIN", "WITH_BODY", "LAST" };
+        int[] values = { 0, 1, 2 };
+        return new Object[][] {
+                { EnumWithConstantBody.class, names, values },
+                { EnumWithConstantBody.WITH_BODY.getClass(), names, values },
+                { null, new String[0], new int[0] },
+                { String.class, new String[0], new int[0] } };
+    }
+
+    @Test(dataProvider = "enumClassProvider", groups = { "unit" })
+    public void testEnumTypeOfClass(Class<? extends Enum> clazz, String[] names, int[] values) {
+        ClickHouseEnum type = ClickHouseEnum.of(clazz);
+        Assert.assertEquals(type.getNames(), names);
+        Assert.assertEquals(type.getValues(), values);
+    }
+
+    @Test(groups = { "unit" })
+    public void testOfEnumWithConstantBody() {
+        ClickHouseEnumValue v = ClickHouseEnumValue.of(EnumWithConstantBody.WITH_BODY);
+        Assert.assertEquals(v.asInteger(), 1);
+        Assert.assertEquals(v.asString(), "WITH_BODY");
+        Assert.assertEquals(v.asEnum(EnumWithConstantBody.class), EnumWithConstantBody.WITH_BODY);
+        Assert.assertEquals(v.update(EnumWithConstantBody.LAST).asString(), "LAST");
+    }
+
     @Test(groups = { "unit" })
     public void testCopy() {
         sameValue(ClickHouseEnumValue.ofNull(ClickHouseDataType.class),

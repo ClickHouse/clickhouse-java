@@ -16,12 +16,14 @@ public class ClickHouseEnum implements Serializable {
             return EMPTY;
         }
 
-        Enum<?>[] constants = clazz.getEnumConstants();
+        // A constant with a class body is an instance of an anonymous subclass of the enum class
+        Class<?> enumClass = clazz.isEnum() ? clazz : clazz.getSuperclass();
+        Enum<?>[] constants = (Enum<?>[]) enumClass.getEnumConstants();
         int size = constants.length;
         String[] names = new String[size];
         int[] values = new int[size];
         int i = 0;
-        for (Enum<?> e : clazz.getEnumConstants()) {
+        for (Enum<?> e : constants) {
             names[i] = e.name();
             values[i] = e.ordinal();
             i++;
