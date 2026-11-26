@@ -4,6 +4,7 @@ import com.clickhouse.client.api.data_formats.RowBinaryWithNamesAndTypesFormatRe
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.format.BinaryStreamUtils;
+import com.clickhouse.data.value.UnsignedLong;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
@@ -126,6 +127,82 @@ public class SerializerUtilsPrimitiveSerializationTests {
         };
     }
 
+    @Test(dataProvider = "outOfRangeIntegerValues")
+    public void testSerializeIntegerColumnRejectsOutOfRangeValue(String type, Object value, String message) {
+        IllegalArgumentException e = Assert.expectThrows(IllegalArgumentException.class,
+                () -> serializeSingleValue(type, value));
+        Assert.assertTrue(e.getMessage().contains(message),
+                "Unexpected message for " + value + " in " + type + ": " + e.getMessage());
+    }
+
+    @DataProvider(name = "outOfRangeIntegerValues")
+    private Object[][] outOfRangeIntegerValues() {
+        String outOfRange = "should be between";
+        return new Object[][] {
+                {"Int8", 4294967296L, outOfRange},
+                {"Int32", 2147483648L, outOfRange},
+                {"Int32", "2147483648", "For input string"},
+                {"UInt32", BigInteger.ONE.shiftLeft(64), outOfRange},
+                {"Int64", new BigInteger("9223372036854775808"), outOfRange},
+                {"Int64", 1.0E19d, outOfRange},
+                {"Int64", UnsignedLong.MAX_VALUE, outOfRange},
+                {"Int64", new CustomNumber("1e20"), outOfRange},
+                {"UInt64", Double.NaN, "Cannot convert NaN"},
+                {"Int128", BigInteger.ONE.shiftLeft(127).toString(), outOfRange},
+                {"Int256", new BigDecimal(BigInteger.ONE.shiftLeft(255).negate().subtract(BigInteger.ONE)), outOfRange},
+                {"UInt256", new BigDecimal("9.99E+77"), outOfRange},
+        };
+    }
+
+    @Test(dataProvider = "integerValuesWithLargeExponent", timeOut = 10000)
+    public void testSerializeIntegerColumnRejectsValueWithLargeExponent(String type, Number value) {
+        IllegalArgumentException e = Assert.expectThrows(IllegalArgumentException.class,
+                () -> serializeSingleValue(type, value));
+        Assert.assertTrue(e.getMessage().contains("integer digits do not fit any integer type"),
+                "Unexpected message for " + value + " in " + type + ": " + e.getMessage());
+    }
+
+    @DataProvider(name = "integerValuesWithLargeExponent")
+    private Object[][] integerValuesWithLargeExponent() {
+        return new Object[][] {
+                {"Int32", new BigDecimal("1E+500000000")},
+                {"Int64", new BigDecimal("-1E+500000000")},
+                {"UInt64", new BigDecimal("1E+500000000")},
+                {"Int256", new BigDecimal("-1E+500000000")},
+                {"UInt256", new BigDecimal("1E+500000000")},
+                {"UInt256", new BigDecimal("1E+78")},
+                {"Int32", new ScientificNumber("1E+500000000")},
+                {"UInt256", new ScientificNumber("1E+500000000")},
+        };
+    }
+
+    @Test(dataProvider = "integerPartValues", timeOut = 10000)
+    public void testSerializeIntegerColumnWritesIntegerPart(String type, Number value, BigInteger expected)
+            throws IOException {
+        RowBinaryWithNamesAndTypesFormatReader reader = serializeSingleValue(type, value);
+
+        reader.next();
+
+        Assert.assertEquals(reader.getBigInteger("value"), expected);
+    }
+
+    @DataProvider(name = "integerPartValues")
+    private Object[][] integerPartValues() {
+        BigInteger uint256Max = BigInteger.ONE.shiftLeft(256).subtract(BigInteger.ONE);
+        BigInteger int256Min = BigInteger.ONE.shiftLeft(255).negate();
+        return new Object[][] {
+                {"Int32", new BigDecimal("1E-500000000"), BigInteger.ZERO},
+                {"Int64", new BigDecimal("-1E-500000000"), BigInteger.ZERO},
+                {"UInt256", new BigDecimal("1E-500000000"), BigInteger.ZERO},
+                {"Int32", new ScientificNumber("1E-500000000"), BigInteger.ZERO},
+                {"Int32", new BigDecimal("0E+500000000"), BigInteger.ZERO},
+                {"Int32", new BigDecimal("-12.9"), BigInteger.valueOf(-12)},
+                {"UInt256", new BigDecimal("1E+77"), BigInteger.TEN.pow(77)},
+                {"UInt256", new BigDecimal(uint256Max).add(new BigDecimal("0.5")), uint256Max},
+                {"Int256", new BigDecimal(int256Min).subtract(new BigDecimal("0.5")), int256Min},
+        };
+    }
+
     @Test
     public void testSerializeBFloat16RoundTripAllValues() throws IOException {
         // Exhaustively round-trip every one of the 2^16 BFloat16 bit patterns. For pattern b the
@@ -210,6 +287,40 @@ public class SerializerUtilsPrimitiveSerializationTests {
         @Override
         public String toString() {
             return value.toPlainString();
+        }
+    }
+
+    /** A generic {@link Number} whose text is in scientific notation, such as {@code 1E+500000000}. */
+    private static final class ScientificNumber extends Number {
+        private final BigDecimal value;
+
+        private ScientificNumber(String value) {
+            this.value = new BigDecimal(value);
+        }
+
+        @Override
+        public int intValue() {
+            return value.intValue();
+        }
+
+        @Override
+        public long longValue() {
+            return value.longValue();
+        }
+
+        @Override
+        public float floatValue() {
+            return value.floatValue();
+        }
+
+        @Override
+        public double doubleValue() {
+            return value.doubleValue();
+        }
+
+        @Override
+        public String toString() {
+            return value.toString();
         }
     }
 }

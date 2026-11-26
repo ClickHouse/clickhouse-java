@@ -733,6 +733,8 @@ public void insertEventsBatch(Connection conn, List<Event> events) throws SQLExc
 
 **RowBinary streaming insert (beta):** enable `beta.row_binary_for_simple_insert=true` so simple `INSERT INTO t VALUES (?, ?, ?)` statements serialize as RowBinary via [`WriterStatementImpl`](../jdbc-v2/src/main/java/com/clickhouse/jdbc/WriterStatementImpl.java) instead of SQL text.
 
+With the RowBinary writer, the driver does not send SQL text, so the server does not convert the values. Bind each value with a Java type that matches the column type, for example `setLong` for `Int64`, or `setObject` with a `BigInteger` for `UInt64`, `Int128` and wider types. For an integer column, the writer converts other values to the column type: it accepts a `String` that holds an integer (for example `"18446744073709551615"`), and it drops the fractional part of a `float`, `double` or `BigDecimal`. If a value is out of the range of the column type, the insert fails with `SQLException` (from `addBatch()`, `execute()`, `executeUpdate()` or `executeBatch()`).
+
 ```java
 public Connection createRowBinaryInsertConnection() throws SQLException {
     Properties props = new Properties();
