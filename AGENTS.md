@@ -124,6 +124,14 @@ For review requests, follow `docs/ai-review.md` as the shared review standard ac
 Before treating implementation work as done, self-review your own diff against `docs/ai-review.md` —
 not only when a review is explicitly requested.
 
+## Issue triage
+
+To set, check, or explain the Priority of an issue, follow [`.claude/skills/issue-priority/SKILL.md`](.claude/skills/issue-priority/SKILL.md). It is the single source of truth for the priority rules.
+
+To classify an issue (its impacts, its area, and its native classes), follow [`.claude/skills/issue-classification/SKILL.md`](.claude/skills/issue-classification/SKILL.md).
+
+A vulnerability that is not public yet goes into a private security report (**Security** → **Report a vulnerability**), never into an issue or a pull request. The classification skill defines such a vulnerability, and the priority skill says how to handle the public issue.
+
 ## Optional nested AGENTS.md
 
 If a module develops its own conventions, add a nested `AGENTS.md` inside that module.
