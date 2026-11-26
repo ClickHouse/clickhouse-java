@@ -626,6 +626,43 @@ public class DatabaseMetaDataTest extends JdbcIntegrationTest {
         }
     }
 
+    @DataProvider(name = "primaryKeyExpressions")
+    public static Object[][] primaryKeyExpressions() {
+        return new Object[][] {
+                {"ORDER BY (id)", Arrays.asList("id"), Arrays.asList(1)},
+                {"ORDER BY ((name), id)", Arrays.asList("id", "name"), Arrays.asList(2, 1)},
+                {"PRIMARY KEY (id) ORDER BY (id, name)", Arrays.asList("id"), Arrays.asList(1)},
+                {"ORDER BY (cityHash64(a, b))", Arrays.asList("cityHash64(a, b)"), Arrays.asList(1)},
+                {"ORDER BY (cityHash64(a, b), id)", Arrays.asList("cityHash64(a, b)", "id"), Arrays.asList(1, 2)},
+                {"ORDER BY ((a + b) * (c + d), (id))", Arrays.asList("(a + b) * (c + d)", "id"), Arrays.asList(1, 2)},
+                {"ORDER BY ((a, b), id)", Arrays.asList("(a, b)", "id"), Arrays.asList(1, 2)},
+        };
+    }
+
+    @Test(groups = { "integration" }, dataProvider = "primaryKeyExpressions")
+    public void testGetPrimaryKeysForKeyExpressions(String keyClause, List<String> columnNames, List<Integer> keySeqs)
+            throws Exception {
+        final String tableName = "get_primary_keys_expressions_test";
+        try (Connection conn = getJdbcConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                stmt.executeUpdate("DROP TABLE IF EXISTS " + tableName);
+                stmt.executeUpdate("CREATE TABLE " + tableName
+                        + " (id Int64, name String, a Int32, b Int32, c Int32, d Int32) " + keyClause);
+            }
+            List<String> actualColumnNames = new ArrayList<>();
+            List<Integer> actualKeySeqs = new ArrayList<>();
+            try (ResultSet rs = conn.getMetaData().getPrimaryKeys(null, getDatabase(), tableName)) {
+                while (rs.next()) {
+                    assertEquals(rs.getString("TABLE_NAME"), tableName);
+                    actualColumnNames.add(rs.getString("COLUMN_NAME"));
+                    actualKeySeqs.add((int) rs.getShort("KEY_SEQ"));
+                }
+            }
+            assertEquals(actualColumnNames, columnNames, keyClause);
+            assertEquals(actualKeySeqs, keySeqs, keyClause);
+        }
+    }
+
     /**
      * A {@link DatabaseMetaData} lookup that takes a schema pattern and an object-name pattern.
      * Used to run the same assertions over the metadata methods that filter on caller-supplied
