@@ -302,6 +302,40 @@ public class ClickHouseColumnTest {
         Assert.assertEquals(variant.getNestedColumns().get(1).getDataType(), expectedType);
     }
 
+    @DataProvider(name = "enumDuplicatesProvider")
+    private Object[][] getEnumDuplicates() {
+        return new Object[][] {
+                { "Enum8('a' = 1, 'b' = 1)", "Duplicate enum value 1 for names 'a' and 'b'" },
+                { "Enum16('a' = 1, 'a' = 2)", "Duplicate enum name 'a' for values 1 and 2" },
+                { "Enum('a' = 1, 'b' = 2, 'a' = 3)", "Duplicate enum name 'a' for values 1 and 3" },
+                { "Enum8('x=y' = 5, 'b' = 5)", "Duplicate enum value 5 for names 'x=y' and 'b'" },
+        };
+    }
+
+    @Test(dataProvider = "enumDuplicatesProvider", groups = { "unit" })
+    public void testEnumDuplicates(String typeName, String message) {
+        IllegalArgumentException e = Assert.expectThrows(IllegalArgumentException.class,
+                () -> ClickHouseColumn.of("e", typeName));
+        Assert.assertEquals(e.getMessage(), message);
+        Assert.assertThrows(IllegalArgumentException.class,
+                () -> ClickHouseColumn.of("e", "Tuple(Int32, Nullable(" + typeName + "))"));
+    }
+
+    @Test(groups = { "unit" })
+    public void testEnumDuplicatesFromArrays() {
+        Assert.assertThrows(IllegalArgumentException.class,
+                () -> new ClickHouseEnum(new String[] { "a", "b" }, new int[] { 1, 1 }));
+        Assert.assertThrows(IllegalArgumentException.class,
+                () -> new ClickHouseEnum(new String[] { "a", "a" }, new int[] { 1, 2 }));
+    }
+
+    @Test(groups = { "unit" })
+    public void testEnumNamesThatDifferOnlyInCase() {
+        ClickHouseEnum constants = ClickHouseColumn.of("e", "Enum8('a' = 1, 'A' = 2)").getEnumConstants();
+        Assert.assertEquals(constants.value("a"), 1);
+        Assert.assertEquals(constants.value("A"), 2);
+    }
+
     @Test(groups = { "unit" })
     public void testBareEnumWidthFromDataType() {
         Assert.assertEquals(ClickHouseColumn.of("e", ClickHouseDataType.Enum, false, false, "'a'=1").getDataType(),
