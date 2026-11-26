@@ -49,6 +49,8 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
 
     private static final Logger LOG = LoggerFactory.getLogger(WriterStatementImpl.class);
 
+    private static final int STREAM_BUFFER_SIZE = 8192;
+
     private ByteArrayOutputStream out;
     private ClickHouseBinaryFormatWriter writer;
     private final TableSchema tableSchema;
@@ -204,7 +206,7 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
     @Override
     public void setBytes(int parameterIndex, byte[] x) throws SQLException {
         ensureOpen();
-
+        writer.setValue(parameterIndex, x);
     }
 
     @Override
@@ -224,69 +226,150 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
 
     @Override
     public void setAsciiStream(int parameterIndex, InputStream x, int length) throws SQLException {
-        ensureOpen();
+        setAsciiStream(parameterIndex, x, (long) length);
     }
 
     @Override
     public void setAsciiStream(int parameterIndex, InputStream x) throws SQLException {
         ensureOpen();
-
+        writer.setValue(parameterIndex, readBytes(parameterIndex, x, null));
     }
 
     @Override
     public void setAsciiStream(int parameterIndex, InputStream x, long length) throws SQLException {
         ensureOpen();
-
+        writer.setValue(parameterIndex, readBytes(parameterIndex, x, length));
     }
 
     @Override
     public void setUnicodeStream(int parameterIndex, InputStream x, int length) throws SQLException {
         ensureOpen();
+        writer.setValue(parameterIndex, readBytes(parameterIndex, x, (long) length));
     }
 
     @Override
     public void setBinaryStream(int parameterIndex, InputStream x, int length) throws SQLException {
-        ensureOpen();
+        setBinaryStream(parameterIndex, x, (long) length);
     }
-
 
     @Override
     public void setBinaryStream(int parameterIndex, InputStream x) throws SQLException {
         ensureOpen();
-
+        writer.setValue(parameterIndex, readBytes(parameterIndex, x, null));
     }
 
     @Override
     public void setBinaryStream(int parameterIndex, InputStream x, long length) throws SQLException {
         ensureOpen();
-
+        writer.setValue(parameterIndex, readBytes(parameterIndex, x, length));
     }
 
     @Override
     public void setCharacterStream(int parameterIndex, Reader x, int length) throws SQLException {
-        ensureOpen();
+        setCharacterStream(parameterIndex, x, (long) length);
     }
 
     @Override
     public void setCharacterStream(int parameterIndex, Reader x, long length) throws SQLException {
         ensureOpen();
+        writer.setString(parameterIndex, readChars(parameterIndex, x, length));
     }
 
     @Override
     public void setCharacterStream(int parameterIndex, Reader x) throws SQLException {
         ensureOpen();
+        writer.setString(parameterIndex, readChars(parameterIndex, x, null));
     }
 
     @Override
     public void setNCharacterStream(int parameterIndex, Reader x) throws SQLException {
-        ensureOpen();
-
+        setCharacterStream(parameterIndex, x);
     }
 
     @Override
     public void setNCharacterStream(int parameterIndex, Reader x, long length) throws SQLException {
-        ensureOpen();
+        setCharacterStream(parameterIndex, x, length);
+    }
 
+    /**
+     * Reads the bytes of a stream parameter. The writer keeps only the value, so the stream is read when
+     * the parameter is set.
+     *
+     * @param parameterIndex index of the parameter, for the error message
+     * @param x              stream, or {@code null}
+     * @param length         number of bytes to read, or {@code null} to read to the end of the stream
+     * @return the bytes, or {@code null} when {@code x} is {@code null}
+     * @throws SQLException when the length is negative, the stream ends before {@code length} bytes,
+     *                      or the stream cannot be read
+     */
+    private static byte[] readBytes(int parameterIndex, InputStream x, Long length) throws SQLException {
+        if (x == null) {
+            return null;
+        }
+        checkStreamLength(parameterIndex, length);
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        byte[] buffer = new byte[STREAM_BUFFER_SIZE];
+        long remaining = length == null ? Long.MAX_VALUE : length;
+        try {
+            int read;
+            while (remaining > 0 && (read = x.read(buffer, 0, (int) Math.min(buffer.length, remaining))) != -1) {
+                bytes.write(buffer, 0, read);
+                remaining -= read;
+            }
+        } catch (IOException e) {
+            throw new SQLException("Failed to read the stream of parameter " + parameterIndex,
+                    ExceptionUtils.SQL_STATE_SQL_ERROR, e);
+        }
+        checkStreamEnd(parameterIndex, length, remaining, "bytes");
+        return bytes.toByteArray();
+    }
+
+    /**
+     * Reads the characters of a character stream parameter. The writer keeps only the value, so the
+     * stream is read when the parameter is set.
+     *
+     * @param parameterIndex index of the parameter, for the error message
+     * @param x              reader, or {@code null}
+     * @param length         number of characters to read, or {@code null} to read to the end of the stream
+     * @return the characters, or {@code null} when {@code x} is {@code null}
+     * @throws SQLException when the length is negative, the stream ends before {@code length} characters,
+     *                      or the stream cannot be read
+     */
+    private static String readChars(int parameterIndex, Reader x, Long length) throws SQLException {
+        if (x == null) {
+            return null;
+        }
+        checkStreamLength(parameterIndex, length);
+        StringBuilder chars = new StringBuilder();
+        char[] buffer = new char[STREAM_BUFFER_SIZE];
+        long remaining = length == null ? Long.MAX_VALUE : length;
+        try {
+            int read;
+            while (remaining > 0 && (read = x.read(buffer, 0, (int) Math.min(buffer.length, remaining))) != -1) {
+                chars.append(buffer, 0, read);
+                remaining -= read;
+            }
+        } catch (IOException e) {
+            throw new SQLException("Failed to read the stream of parameter " + parameterIndex,
+                    ExceptionUtils.SQL_STATE_SQL_ERROR, e);
+        }
+        checkStreamEnd(parameterIndex, length, remaining, "characters");
+        return chars.toString();
+    }
+
+    private static void checkStreamLength(int parameterIndex, Long length) throws SQLException {
+        if (length != null && length < 0) {
+            throw new SQLException("Stream length cannot be negative: " + length + " (parameter " + parameterIndex
+                    + ")", ExceptionUtils.SQL_STATE_CLIENT_ERROR);
+        }
+    }
+
+    private static void checkStreamEnd(int parameterIndex, Long length, long remaining, String unit)
+            throws SQLException {
+        if (length != null && remaining > 0) {
+            throw new SQLException("The stream of parameter " + parameterIndex + " ended after "
+                    + (length - remaining) + " of " + length + " " + unit, ExceptionUtils.SQL_STATE_SQL_ERROR);
+        }
     }
 
     @Override
@@ -405,7 +488,7 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
     @Override
     public void setURL(int parameterIndex, URL x) throws SQLException {
         ensureOpen();
-
+        writer.setString(parameterIndex, x == null ? null : x.toString());
     }
 
     @Override

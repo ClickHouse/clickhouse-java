@@ -6,9 +6,15 @@ import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.Reader;
+import java.io.StringReader;
 import java.lang.reflect.Field;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.JDBCType;
 import java.sql.PreparedStatement;
@@ -131,6 +137,187 @@ public class WriterStatementImplTest extends JdbcIntegrationTest {
             Assert.assertEquals(rs.getInt("alen"), 2);
             Assert.assertEquals(rs.getString("acat"), "1,2");
             Assert.assertEquals(rs.getInt("tail"), 7);
+        }
+    }
+
+    @FunctionalInterface
+    private interface ParameterSetter {
+        void set(PreparedStatement stmt, int index, String value) throws Exception;
+    }
+
+    private static InputStream utf8Stream(String value) {
+        return value == null ? null : new ByteArrayInputStream(value.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static int utf8Length(String value) {
+        return value == null ? 0 : value.getBytes(StandardCharsets.UTF_8).length;
+    }
+
+    private static Reader reader(String value) {
+        return value == null ? null : new StringReader(value);
+    }
+
+    private static int charLength(String value) {
+        return value == null ? 0 : value.length();
+    }
+
+    @SuppressWarnings("deprecation")
+    @DataProvider(name = "bytesStreamAndUrlSetters")
+    public static Object[][] bytesStreamAndUrlSetters() {
+        String[] text = {"abc", "żółw", "", null};
+        String[] ascii = {"abc", "def", "", null};
+        return new Object[][] {
+                {"setBytes", (ParameterSetter) (s, i, v) -> s.setBytes(i, v == null ? null : v.getBytes(StandardCharsets.UTF_8)), text},
+                {"setAsciiStream", (ParameterSetter) (s, i, v) -> s.setAsciiStream(i, utf8Stream(v)), ascii},
+                {"setAsciiStream(int)", (ParameterSetter) (s, i, v) -> s.setAsciiStream(i, utf8Stream(v), utf8Length(v)), ascii},
+                {"setAsciiStream(long)", (ParameterSetter) (s, i, v) -> s.setAsciiStream(i, utf8Stream(v), (long) utf8Length(v)), ascii},
+                {"setUnicodeStream", (ParameterSetter) (s, i, v) -> s.setUnicodeStream(i, utf8Stream(v), utf8Length(v)), text},
+                {"setBinaryStream", (ParameterSetter) (s, i, v) -> s.setBinaryStream(i, utf8Stream(v)), text},
+                {"setBinaryStream(int)", (ParameterSetter) (s, i, v) -> s.setBinaryStream(i, utf8Stream(v), utf8Length(v)), text},
+                {"setBinaryStream(long)", (ParameterSetter) (s, i, v) -> s.setBinaryStream(i, utf8Stream(v), (long) utf8Length(v)), text},
+                {"setCharacterStream", (ParameterSetter) (s, i, v) -> s.setCharacterStream(i, reader(v)), text},
+                {"setCharacterStream(int)", (ParameterSetter) (s, i, v) -> s.setCharacterStream(i, reader(v), charLength(v)), text},
+                {"setCharacterStream(long)", (ParameterSetter) (s, i, v) -> s.setCharacterStream(i, reader(v), (long) charLength(v)), text},
+                {"setNCharacterStream", (ParameterSetter) (s, i, v) -> s.setNCharacterStream(i, reader(v)), text},
+                {"setNCharacterStream(long)", (ParameterSetter) (s, i, v) -> s.setNCharacterStream(i, reader(v), (long) charLength(v)), text},
+                {"setURL", (ParameterSetter) (s, i, v) -> s.setURL(i, v == null ? null : new URL(v)),
+                        new String[] {"http://example.com/a", "http://example.com/b", null}},
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "bytesStreamAndUrlSetters")
+    public void testWriterStoresValueOfBytesStreamAndUrlSetters(String setter, ParameterSetter bind, String[] values)
+            throws Exception {
+        String table = "writer_stmt_setter_" + UUID.randomUUID().toString().replace('-', '_');
+        Properties properties = new Properties();
+        properties.setProperty(DriverProperties.BETA_ROW_BINARY_WRITER.getKey(), "true");
+        properties.setProperty(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF);
+        try (Connection connection = getJdbcConnection(properties)) {
+            try (Statement stmt = connection.createStatement()) {
+                stmt.execute("CREATE TABLE " + table + " (id Int32, n Nullable(String), d String DEFAULT 'x', s String, "
+                        + "tail Int32) ORDER BY id");
+            }
+
+            try {
+                List<List<Object>> expected = new ArrayList<>();
+                try (PreparedStatement ps = connection.prepareStatement("INSERT INTO " + table + " VALUES (?, ?, ?, ?, ?)")) {
+                    Assert.assertTrue(ps instanceof WriterStatementImpl);
+                    for (int r = 0; r < values.length; r++) {
+                        String v = values[r];
+                        String plain = v == null ? values[0] : v;
+                        ps.setInt(1, r + 1);
+                        bind.set(ps, 2, v);
+                        bind.set(ps, 3, v);
+                        bind.set(ps, 4, plain);
+                        ps.setInt(5, 7);
+                        ps.addBatch();
+                        expected.add(Arrays.asList(r + 1, v, v == null ? "x" : v, plain, 7));
+                    }
+                    ps.executeBatch();
+                }
+
+                List<List<Object>> actual = new ArrayList<>();
+                try (Statement stmt = connection.createStatement();
+                     ResultSet rs = stmt.executeQuery("SELECT id, n, d, s, tail FROM " + table + " ORDER BY id")) {
+                    while (rs.next()) {
+                        actual.add(Arrays.asList(rs.getInt(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getInt(5)));
+                    }
+                }
+                Assert.assertEquals(actual, expected, setter);
+            } finally {
+                try (Statement stmt = connection.createStatement()) {
+                    stmt.execute("DROP TABLE IF EXISTS " + table);
+                }
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testWriterStoresRawBytesAndReadsOnlyStreamLength() throws Exception {
+        String table = "writer_stmt_stream_length_" + UUID.randomUUID().toString().replace('-', '_');
+        Properties properties = new Properties();
+        properties.setProperty(DriverProperties.BETA_ROW_BINARY_WRITER.getKey(), "true");
+        properties.setProperty(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF);
+        try (Connection connection = getJdbcConnection(properties)) {
+            try (Statement stmt = connection.createStatement()) {
+                stmt.execute("CREATE TABLE " + table + " (id Int32, f FixedString(3), b String, a String, c String, "
+                        + "tail Int32) ORDER BY id");
+            }
+
+            try {
+                byte[] raw = {0x00, (byte) 0xFF, (byte) 0x80, 0x41};
+                InputStream binary = new ByteArrayInputStream(raw);
+                InputStream ascii = utf8Stream("abcdef");
+                Reader chars = reader("żółwik");
+                try (PreparedStatement ps = connection.prepareStatement("INSERT INTO " + table + " VALUES (?, ?, ?, ?, ?, ?)")) {
+                    Assert.assertTrue(ps instanceof WriterStatementImpl);
+                    ps.setInt(1, 1);
+                    ps.setBytes(2, Arrays.copyOf(raw, 3));
+                    ps.setBinaryStream(3, binary, 3L);
+                    ps.setAsciiStream(4, ascii, 3);
+                    ps.setCharacterStream(5, chars, 4L);
+                    ps.setInt(6, 7);
+                    Assert.assertEquals(ps.executeUpdate(), 1);
+                }
+                Assert.assertEquals(binary.read(), 0x41);
+                Assert.assertEquals(ascii.read(), 'd');
+                Assert.assertEquals(chars.read(), 'i');
+
+                try (Statement stmt = connection.createStatement();
+                     ResultSet rs = stmt.executeQuery("SELECT id, hex(f), hex(b), a, c, tail FROM " + table)) {
+                    Assert.assertTrue(rs.next());
+                    Assert.assertEquals(Arrays.asList(rs.getInt(1), rs.getString(2), rs.getString(3), rs.getString(4),
+                                    rs.getString(5), rs.getInt(6)),
+                            Arrays.asList(1, "00FF80", "00FF80", "abc", "żółw", 7));
+                    Assert.assertFalse(rs.next());
+                }
+            } finally {
+                try (Statement stmt = connection.createStatement()) {
+                    stmt.execute("DROP TABLE IF EXISTS " + table);
+                }
+            }
+        }
+    }
+
+    @DataProvider(name = "unreadableStreams")
+    public static Object[][] unreadableStreams() {
+        InputStream failingStream = new InputStream() {
+            @Override
+            public int read() throws IOException {
+                throw new IOException("injected read failure");
+            }
+        };
+        Reader failingReader = new Reader() {
+            @Override
+            public int read(char[] buffer, int offset, int length) throws IOException {
+                throw new IOException("injected read failure");
+            }
+
+            @Override
+            public void close() {
+            }
+        };
+        return new Object[][] {
+                {"setBinaryStream shorter than length", (ParameterSetter) (s, i, v) -> s.setBinaryStream(i, utf8Stream("ab"), 3L), "07000"},
+                {"setCharacterStream shorter than length", (ParameterSetter) (s, i, v) -> s.setCharacterStream(i, reader("ab"), 3L), "07000"},
+                {"setBinaryStream negative length", (ParameterSetter) (s, i, v) -> s.setBinaryStream(i, utf8Stream("ab"), -1), "HY000"},
+                {"setCharacterStream negative length", (ParameterSetter) (s, i, v) -> s.setCharacterStream(i, reader("ab"), -1), "HY000"},
+                {"setBinaryStream read failure", (ParameterSetter) (s, i, v) -> s.setBinaryStream(i, failingStream), "07000"},
+                {"setCharacterStream read failure", (ParameterSetter) (s, i, v) -> s.setCharacterStream(i, failingReader), "07000"},
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "unreadableStreams")
+    public void testWriterStreamSetterFailsForUnreadableStream(String setter, ParameterSetter bind, String sqlState)
+            throws Exception {
+        Properties properties = new Properties();
+        properties.setProperty(DriverProperties.BETA_ROW_BINARY_WRITER.getKey(), "true");
+        try (Connection connection = getJdbcConnection(properties);
+             PreparedStatement ps = connection.prepareStatement("INSERT INTO system.numbers VALUES (?)")) {
+            Assert.assertTrue(ps instanceof WriterStatementImpl);
+            SQLException thrown = Assert.expectThrows(SQLException.class, () -> bind.set(ps, 1, null));
+            Assert.assertEquals(thrown.getSQLState(), sqlState, setter);
+            Assert.assertTrue(thrown.getMessage().contains("parameter 1"), thrown.getMessage());
         }
     }
 
