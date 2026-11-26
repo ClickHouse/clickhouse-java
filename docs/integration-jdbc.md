@@ -642,6 +642,33 @@ public void readSpecialTypes(ResultSet rs) throws SQLException {
 }
 ```
 
+### Decimal parameters in queries
+
+[`PreparedStatementImpl`](../jdbc-v2/src/main/java/com/clickhouse/jdbc/PreparedStatementImpl.java) puts the `?` values into the SQL text on the client side. `setBigDecimal()` and `setObject()` write a `BigDecimal` without quotes, with `BigDecimal.toString()`. ClickHouse reads an unquoted number with a decimal point or an exponent, or a number that is too large for 64 bits, as `Float64` (15–17 significant digits). Thus, `WHERE col_decimal < ?` compares the column with a `Float64` value. The result can be wrong for `Decimal(18, S)`, `Decimal(38, S)`, `Decimal(76, S)` and other high-precision columns.
+
+A `?` that is a full value in `INSERT INTO ... VALUES (?, ?)` is not affected. The server reads it with the type of the column, and the RowBinary writer (`beta.row_binary_for_simple_insert=true`) writes it in binary format. A `?` in an expression (`VALUES (? + 1)`) or in `INSERT INTO ... SELECT ?` is affected.
+
+Send the value as a string and cast it to the type of the column. The expression keeps its `Decimal` type, also in `SELECT` and in arithmetic:
+
+```java
+public List<BigDecimal> findBelowThreshold(Connection conn, BigDecimal threshold) throws SQLException {
+    String sql = "SELECT col_decimal FROM test_table WHERE col_decimal < CAST(? AS Decimal(38, 10))";
+    List<BigDecimal> results = new ArrayList<>();
+    try (PreparedStatement ps = conn.prepareStatement(sql)) {
+        // toPlainString() prevents scientific notation (for example 1E+20)
+        ps.setString(1, threshold.toPlainString());
+        try (ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                results.add(rs.getBigDecimal(1));
+            }
+        }
+    }
+    return results;
+}
+```
+
+With `setString()`, `toDecimal128(?, 10)` and `toDecimal256(?, 10)` also work. A plain `setString()` without a cast works only in a comparison with a `Decimal` column. In `? + 1`, `abs(?)` or `SELECT ?`, the value is a `String`. With the [Java Client](integration-client.md), a typed query parameter such as `{threshold:Decimal(38, 10)}` keeps the full precision. For details, see [Decimal and Float64 Values in Queries](https://clickhouse.com/docs/integrations/language-clients/java/jdbc#decimal-and-float64-values-in-queries).
+
 ### Operation configuration — tuning heavy reads
 
 | Setting | Property / method | Notes                              |
@@ -684,6 +711,8 @@ Avoid using this option until absolutely needed. This setting puts pressure on i
 
 <common-pitfalls>
 - **`getInt()` on `UInt64`/`Int128`** overflows — use `getBigDecimal`/`BigInteger` or a custom mapping.
+- **`setBigDecimal()` in a query condition** can lose precision — the value is a `Float64` literal; use `CAST(? AS Decimal(P, S))` with `setString()` ([Decimal parameters in queries](#decimal-parameters-in-queries)).
+- **`getString()` on `Float64`** uses `Double.toString()` — for example `1.0E-4` and `1.0E7`, not the text of the server (`0.0001`, `10000000`).
 - **Complex types** (`Array`, `Tuple`, `Map`, `Nested`, `Variant`, `Dynamic`, geometry) require `getObject()`/`getArray()`, not primitive getters.
 - **Scrollable/updatable result sets are unsupported** — forward-only, read-only.
 - **No server-side cursors** — the server streams the full result set.

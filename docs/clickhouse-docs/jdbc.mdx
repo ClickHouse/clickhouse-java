@@ -347,7 +347,8 @@ There are few ways to change the mapping:
     - `rs.getByte(1)` can return `Byte` value of `Int16` column if it fits into `Byte`.
 - conversion from wider to narrower type isn't recommend because of data coruption risk.
 - `Bool` type acts as number, too.
-- All number types can be read as `java.lang.String`.
+- All number types can be read as `java.lang.String`. For the text form of `Float64` values, see [Decimal and Float64 Values in Queries](#decimal-and-float64-values-in-queries).
+- A `BigDecimal` that is set with `PreparedStatement#setBigDecimal` can lose precision in a query condition. See [Decimal and Float64 Values in Queries](#decimal-and-float64-values-in-queries).
 - Storing java `Float.MAX_VALUE` as `Float` has issue (https://github.com/ClickHouse/clickhouse-java/issues/809). Saving same value as `Double` solves the issue.
 
 **String Types**
@@ -725,6 +726,58 @@ properties.put(ClientConfigProperties.serverSetting("output_format_json_quote_64
 properties.put(ClientConfigProperties.serverSetting("output_format_json_quote_64bit_floats"), "0");
 properties.put(ClientConfigProperties.serverSetting("output_format_json_quote_decimals"), "0");
 ```
+
+### Decimal and Float64 Values in Queries {#decimal-and-float64-values-in-queries}
+
+`PreparedStatement` puts the parameter values into the SQL text on the client side.
+`setBigDecimal()` and `setObject()` with a `BigDecimal` use `BigDecimal.toString()`, also when the target type is `Types.DECIMAL`. The value has no quotes, for example `123.45` or `1E+20`.
+ClickHouse reads an unquoted number that has a decimal point or an exponent, or that is too large for 64 bits, as `Float64`.
+A `Float64` value has only 15–17 significant digits.
+Thus, in a condition such as `WHERE col_decimal < ?`, the server compares the column with a `Float64` value. The result can be wrong for high-precision columns, for example `Decimal(18, S)`, `Decimal(38, S)` and `Decimal(76, S)`.
+The driver does not quote these values, because it cannot reliably find from the SQL text where quotes are necessary.
+
+Inserts are not affected when each `?` is a full value in `INSERT INTO ... VALUES (?, ?)`:
+- With the default `PreparedStatement`, the server reads the literal with the type of the column.
+- With `beta.row_binary_for_simple_insert=true`, an insert with one `VALUES` list that has only `?` values uses the `RowBinary` writer. This writer writes the `BigDecimal` value in binary format.
+
+A `?` in an expression, for example `VALUES (? + 1)`, or in `INSERT INTO ... SELECT ?`, is affected.
+
+To send a high-precision `BigDecimal` value in a query, use one of these options.
+
+**Option A: cast a string to `Decimal` (recommended).** Set the value with `setString(index, value.toPlainString())`, and cast it to the type of the column in the SQL text.
+The server parses the string directly as `Decimal(P, S)`, and the expression keeps its `Decimal` type. This works in `WHERE`, in `SELECT` and in arithmetic.
+`toPlainString()` prevents scientific notation, for example `1E+20`.
+
+```java
+public List<BigDecimal> findBelowThreshold(Connection conn, BigDecimal threshold) throws SQLException {
+    String sql = "SELECT col_decimal FROM test_table WHERE col_decimal < CAST(? AS Decimal(38, 10))";
+    List<BigDecimal> results = new ArrayList<>();
+    try (PreparedStatement ps = conn.prepareStatement(sql)) {
+        // toPlainString() prevents scientific notation (for example 1E+20)
+        ps.setString(1, threshold.toPlainString());
+        try (ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                results.add(rs.getBigDecimal(1));
+            }
+        }
+    }
+    return results;
+}
+```
+
+With `setString()`, `toDecimal64(?, S)`, `toDecimal128(?, S)` and `toDecimal256(?, S)` also work. Do not use these functions with `setBigDecimal()`: their argument is then a `Float64` value.
+
+**Option B: compare the column with a string (comparisons only).** `WHERE col_decimal < ?` with `setString(index, value.toPlainString())` also works, because the server converts the string constant to the `Decimal` type of the column.
+`setString()` sends a `String` literal. Do not use it in arithmetic (`? + 1`), in numeric functions (`abs(?)`), or as an untyped `SELECT ?`.
+The server rejects the first two with `ILLEGAL_TYPE_OF_ARGUMENT`, and `SELECT ?` returns a `String`.
+
+**Option C: typed query parameters of client-v2.** With client-v2 (`Client#query`) instead of JDBC `?` placeholders, use a typed parameter such as `{threshold:Decimal(38, 10)}`.
+The server parses the `BigDecimal` value directly as `Decimal(38, 10)`, with full precision. See [query parameters](/integrations/language-clients/java/client#querystring-sqlquery-mapltstring-object-queryparams-querysettings-settings).
+
+`Float64` values as text:
+- `ResultSet#getString` on a `Float64` column formats the value with `Double.toString(double)`. `ResultSet#getObject` does the same when the connection property `jdbc_type_mappings` is `Float64=java.lang.String`.
+  Absolute values from `0.001` (inclusive) to `10000000` (exclusive) use plain notation. Other values use scientific notation, for example `1.0E-4` and `1.0E7`. Thus, the text can be different from the text of the server (`0.0001`, `10000000`).
+- A number that is set with `setString()` is a `String` value for ClickHouse, not a `Float64` value. `ResultSet#getDouble` and `ResultSet#getBigDecimal` on a `String` column parse the text with `Double.parseDouble(String)` and `new BigDecimal(String)`, respectively.
 
 ### Handling Dates, Times, and Timezones {#handling-dates-times-and-timezones}
 
