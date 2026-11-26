@@ -2498,6 +2498,54 @@ public class DataTypeTests extends BaseIntegrationTest {
         }
     }
 
+    @DataProvider(name = "arraysOfPoints")
+    public static Object[][] arraysOfPoints() {
+        return new Object[][] {
+                {"Array(Point)", "[(1.5, 2.5), (3.5, 4.5)]",
+                        new Object[] {new double[] {1.5, 2.5}, new double[] {3.5, 4.5}}},
+                {"Array(Array(Point))", "[[(1.5, 2.5), (3.5, 4.5)], [], [(5.5, 6.5)]]",
+                        new Object[] {new Object[] {new double[] {1.5, 2.5}, new double[] {3.5, 4.5}},
+                                new Object[0], new Object[] {new double[] {5.5, 6.5}}}},
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "arraysOfPoints")
+    public void testReadArrayOfPoints(String type, String value, Object[] expected) throws Exception {
+        String sql = "SELECT toInt32(1) AS lead, CAST(" + value + " AS " + type + ") AS points, toInt64(42) AS tail";
+
+        GenericRecord record = client.queryAll(sql).get(0);
+        assertPointsRow(record.getInteger("lead"), record.getList("points"), record.getObjectArray("points"),
+                record.getLong("tail"), expected);
+
+        try (QueryResponse response = client.query(sql).get()) {
+            ClickHouseBinaryFormatReader reader = client.newBinaryFormatReader(response);
+            Assert.assertNotNull(reader.next());
+            assertPointsRow(reader.getInteger("lead"), reader.getList("points"), reader.getObjectArray("points"),
+                    reader.getLong("tail"), expected);
+            Assert.assertFalse(reader.hasNext());
+        }
+    }
+
+    private static void assertPointsRow(int lead, List<?> list, Object[] objects, long tail, Object[] expected) {
+        Assert.assertEquals(lead, 1);
+        Object[] listAsArray = (Object[]) listsToArrays(list);
+        Assert.assertTrue(Arrays.deepEquals(listAsArray, expected), Arrays.deepToString(listAsArray));
+        Assert.assertTrue(Arrays.deepEquals(objects, expected), Arrays.deepToString(objects));
+        Assert.assertEquals(tail, 42L);
+    }
+
+    private static Object listsToArrays(Object value) {
+        if (!(value instanceof List)) {
+            return value;
+        }
+        List<?> list = (List<?>) value;
+        Object[] array = new Object[list.size()];
+        for (int i = 0; i < array.length; i++) {
+            array[i] = listsToArrays(list.get(i));
+        }
+        return array;
+    }
+
     @Test(groups = {"integration"})
     public void testDates() throws Exception {
         LocalDate date = LocalDate.of(2024, 1, 15);

@@ -869,7 +869,8 @@ public class BinaryStreamReader {
 
             try {
                 if (itemType.isArray()) {
-                    array = Array.newInstance(Object[].class, length);
+                    // A primitive array such as the double[] of a Point is not an Object[], so it goes into an Object[].
+                    array = Array.newInstance(itemType.getComponentType().isPrimitive() ? Object.class : Object[].class, length);
                 } else {
                     array = Array.newInstance(itemType, length);
                 }
