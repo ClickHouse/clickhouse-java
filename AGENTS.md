@@ -52,7 +52,7 @@ Avoid broad dependency, formatting, or unrelated cleanup churn unless required b
 
 ## Editing expectations
 
-- Identify the affected module before editing.
+- Identify the affected module before editing. `docs/source-map.md` maps packages, classes, and stack traces to modules.
 - Read nearby code and follow existing local patterns before introducing new abstractions.
 - Prefer focused tests near the affected module over repo-wide runs.
 
