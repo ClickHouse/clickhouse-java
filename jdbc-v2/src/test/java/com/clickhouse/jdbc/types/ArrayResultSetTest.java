@@ -1,6 +1,8 @@
 package com.clickhouse.jdbc.types;
 
+import com.clickhouse.client.api.data_formats.internal.BinaryStreamReader;
 import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.jdbc.internal.JdbcUtils;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
@@ -24,7 +26,12 @@ import java.sql.SQLException;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.GregorianCalendar;
+import java.util.TimeZone;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
@@ -628,5 +635,35 @@ public class ArrayResultSetTest {
         assertEquals(rs.getInt(valueColumn), 2);
         assertEquals(rs.getObject(valueColumn, String.class), "2");
         assertEquals(rs.getString(valueColumn), rs.getObject(valueColumn, String.class));
+    }
+
+    @Test
+    void testJavaTimeTargetsReadFromSourceElements() throws SQLException {
+        TimeZone previous = TimeZone.getDefault();
+        // America/Sao_Paulo skipped 2018-11-04 00:00-01:00 (DST start): a java.sql.Timestamp round trip would shift it.
+        TimeZone.setDefault(TimeZone.getTimeZone("America/Sao_Paulo"));
+        try {
+            BinaryStreamReader.ArrayValue dates = new BinaryStreamReader.ArrayValue(LocalDate.class, 2);
+            dates.append(LocalDate.of(2018, 11, 4));
+            dates.append(null);
+            java.sql.Array dateArray = (java.sql.Array) JdbcUtils.convert(dates, java.sql.Array.class,
+                    ClickHouseColumn.parse("v Array(Nullable(Date32))").get(0), true);
+            ResultSet rs = dateArray.getResultSet();
+            assertTrue(rs.next());
+            assertEquals(rs.getObject(2, LocalDate.class), LocalDate.of(2018, 11, 4));
+            assertEquals(rs.getObject(2), Date.valueOf(LocalDate.of(2018, 11, 4)));
+            assertTrue(rs.next());
+            assertEquals(rs.getObject(2, LocalDate.class), null);
+
+            BinaryStreamReader.ArrayValue times = new BinaryStreamReader.ArrayValue(ZonedDateTime.class, 1);
+            times.append(ZonedDateTime.of(2018, 11, 4, 0, 30, 0, 123456000, ZoneOffset.UTC));
+            java.sql.Array timeArray = (java.sql.Array) JdbcUtils.convert(times, java.sql.Array.class,
+                    ClickHouseColumn.parse("v Array(DateTime64(6, 'UTC'))").get(0), true);
+            ResultSet trs = timeArray.getResultSet(0, 1);
+            assertTrue(trs.next());
+            assertEquals(trs.getObject(2, LocalDateTime.class), LocalDateTime.of(2018, 11, 4, 0, 30, 0, 123456000));
+        } finally {
+            TimeZone.setDefault(previous);
+        }
     }
 }

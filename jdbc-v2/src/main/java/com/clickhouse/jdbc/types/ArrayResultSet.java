@@ -38,6 +38,7 @@ import java.util.function.Function;
 public class ArrayResultSet implements ResultSet {
 
     private final Object array;
+    private final Object[] sourceArray;
     private final int length;
     private int pos;
     private boolean closed;
@@ -68,6 +69,18 @@ public class ArrayResultSet implements ResultSet {
      *                                    {@link com.clickhouse.jdbc.types.Array#Array(ClickHouseColumn, Object[], boolean)}
      */
     public ArrayResultSet(Object array, ClickHouseColumn column, boolean multiDimensionalElementType) {
+        this(array, column, multiDimensionalElementType, null);
+    }
+
+    /**
+     * @param sourceArray the elements as read from the wire (parallel to {@code array}), used for
+     *                    {@code java.time} targets so that no {@code java.sql.Date/Time/Timestamp} round trip (and thus
+     *                    no time zone dependent conversion) is involved. May be {@code null}.
+     */
+    public ArrayResultSet(Object array, ClickHouseColumn column, boolean multiDimensionalElementType,
+                          Object[] sourceArray) {
+        this.sourceArray = sourceArray != null && sourceArray.length == java.lang.reflect.Array.getLength(array)
+                ? sourceArray : null;
         this.array = array;
         this.multiDimensionalElementType = multiDimensionalElementType;
         this.length = java.lang.reflect.Array.getLength(array);
@@ -172,14 +185,24 @@ public class ArrayResultSet implements ResultSet {
                 return defaultValue;
             }
 
+            Object sourceValue = sourceArray == null ? null : sourceArray[pos];
             if (type == Array.class) {
                 return new com.clickhouse.jdbc.types.Array(elementColumn(column), JdbcUtils.arrayToObjectArray(value),
-                        multiDimensionalElementType);
+                        multiDimensionalElementType,
+                        sourceValue != null && sourceValue.getClass().isArray()
+                                ? JdbcUtils.arrayToObjectArray(sourceValue) : null);
+            } else if (sourceValue != null && !sourceValue.getClass().isArray() && isJavaTimeType(type)) {
+                return JdbcUtils.convert(sourceValue, type);
             } else {
                 Map<Class<?>, Function<Object, Object>> valueConverterMap = initValueConverterMapIfNeeded(value);
                 return convertValue(value, type, valueConverterMap);
             }
         }
+    }
+
+    private static boolean isJavaTimeType(Class<?> type) {
+        return type == java.time.LocalDate.class || type == java.time.LocalTime.class
+                || type == java.time.LocalDateTime.class;
     }
 
     private void throwReadOnlyException() throws SQLException {
