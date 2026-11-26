@@ -300,6 +300,10 @@ public class RowBinaryFormatWriterTest extends BaseIntegrationTest {
     private Object[][] enumTypesInSchema() {
         return new Object[][] {
                 {"Enum('a' = 1, 'b' = 1000)", "a"},
+                {"Enum8('a\\nb' = 1, 'a\\tb' = 2)", "a\nb"},
+                {"Enum8('a\\0b' = 1, 'a\\\\b' = 2)", "a" + '\0' + "b"},
+                {"Enum16('it\\'s' = 1, 'a\\zb' = 2)", "a\\zb"},
+                {"Enum8('a\\eb' = 1, '\\xC3\\xA9' = 2)", "\u00e9"},
                 {"enum('a' = 1, 'b' = 1000)", "b"},
                 {"ENUM('a' = -128, 'b' = 127)", "b"},
                 {"Variant(Bool, Enum('a' = 1, 'b' = 1000))", "b"},

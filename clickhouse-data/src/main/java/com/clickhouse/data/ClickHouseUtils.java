@@ -503,7 +503,12 @@ public final class ClickHouseUtils {
     }
 
     /**
-     * Unescape quoted string.
+     * Unescape quoted string. A doubled quote is one quote. Backslash escapes are decoded the same way as in a
+     * ClickHouse string literal. {@code \a}, {@code \b}, {@code \e}, {@code \f}, {@code \n}, {@code \r},
+     * {@code \t}, {@code \v} and {@code \0} are the matching control character, and {@code \xHH} is the byte
+     * {@code HH}, where a run of such bytes is read as UTF-8. {@code \N} is removed. A backslash before
+     * {@code \ ' " ` / =} or before a control character is removed. Any other backslash is kept, so {@code \z}
+     * stays {@code \z}.
      *
      * @param str quoted string
      * @return unescaped string
@@ -522,21 +527,131 @@ public final class ClickHouseUtils {
         StringBuilder sb = new StringBuilder(len = len - 1);
         for (int i = 1; i < len; i++) {
             char ch = str.charAt(i);
-
-            if (++i >= len) {
+            if (i + 1 >= len) {
                 sb.append(ch);
+            } else if (ch == quote && str.charAt(i + 1) == quote) {
+                sb.append(quote);
+                i++;
+            } else if (ch == '\\') {
+                i = unescapeSequence(str, i, len, sb);
             } else {
-                char nextChar = str.charAt(i);
-                if (ch == '\\' || (ch == quote && nextChar == quote)) {
-                    sb.append(nextChar);
-                } else {
-                    sb.append(ch);
-                    i--;
-                }
+                sb.append(ch);
             }
         }
 
         return sb.toString();
+    }
+
+    /**
+     * Decodes the escape sequence that starts with the backslash at {@code index} and appends the result.
+     *
+     * @param str   quoted string
+     * @param index index of the backslash
+     * @param len   index of the closing quote
+     * @param sb    builder for the result
+     * @return index of the last character of the escape sequence
+     */
+    private static int unescapeSequence(String str, int index, int len, StringBuilder sb) {
+        char ch = str.charAt(++index);
+        switch (ch) {
+            case 'a':
+                sb.append('\u0007');
+                break;
+            case 'b':
+                sb.append('\b');
+                break;
+            case 'e':
+                sb.append('\u001B');
+                break;
+            case 'f':
+                sb.append('\f');
+                break;
+            case 'n':
+                sb.append('\n');
+                break;
+            case 'r':
+                sb.append('\r');
+                break;
+            case 't':
+                sb.append('\t');
+                break;
+            case 'v':
+                sb.append('\u000B');
+                break;
+            case '0':
+                sb.append('\0');
+                break;
+            case 'N':
+                break;
+            case 'x':
+                return unescapeHex(str, index - 1, len, sb);
+            case '\\':
+            case '\'':
+            case '"':
+            case '`':
+            case '/':
+            case '=':
+                sb.append(ch);
+                break;
+            default:
+                // The server keeps the backslash unless the escaped character is a control character
+                if (ch >= ' ') {
+                    sb.append('\\');
+                }
+                sb.append(ch);
+                break;
+        }
+        return index;
+    }
+
+    /**
+     * Decodes a run of {@code \xHH} escapes, starting at the backslash at {@code index}, as UTF-8 bytes and appends
+     * the result. A {@code \N} inside the run adds no byte and does not end the run, the same as on the server. A
+     * {@code \x} without two hex digits is kept as it is.
+     *
+     * @param str   quoted string
+     * @param index index of the backslash
+     * @param len   index of the closing quote
+     * @param sb    builder for the result
+     * @return index of the last character that was read
+     */
+    private static int unescapeHex(String str, int index, int len, StringBuilder sb) {
+        byte[] bytes = new byte[(len - index) / 4];
+        int count = 0;
+        while (index + 1 < len && str.charAt(index) == '\\') {
+            char ch = str.charAt(index + 1);
+            if (ch == 'N') {
+                index += 2;
+                continue;
+            } else if (ch != 'x' || index + 3 >= len) {
+                break;
+            }
+            int high = hexDigit(str.charAt(index + 2));
+            int low = hexDigit(str.charAt(index + 3));
+            if (high < 0 || low < 0) {
+                break;
+            }
+            bytes[count++] = (byte) (high << 4 | low);
+            index += 4;
+        }
+
+        if (count == 0) {
+            sb.append('\\').append('x');
+            return index + 1;
+        }
+        sb.append(new String(bytes, 0, count, StandardCharsets.UTF_8));
+        return index - 1;
+    }
+
+    private static int hexDigit(char ch) {
+        if (ch >= '0' && ch <= '9') {
+            return ch - '0';
+        } else if (ch >= 'a' && ch <= 'f') {
+            return ch - 'a' + 10;
+        } else if (ch >= 'A' && ch <= 'F') {
+            return ch - 'A' + 10;
+        }
+        return -1;
     }
 
     /**
