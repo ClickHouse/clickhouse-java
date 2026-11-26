@@ -96,6 +96,12 @@
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>flatten-maven-plugin</artifactId>
+                <configuration>
+                    <!-- The shaded jar contains all dependencies. Do not declare them again in the published POM. -->
+                    <pomElements>
+                        <dependencies>remove</dependencies>
+                    </pomElements>
+                </configuration>
                 <executions>
                     <execution>
                         <id>flatten</id>
