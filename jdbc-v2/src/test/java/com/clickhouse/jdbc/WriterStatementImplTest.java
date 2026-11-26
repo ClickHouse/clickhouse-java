@@ -9,6 +9,7 @@ import org.testng.annotations.Test;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.JDBCType;
 import java.sql.PreparedStatement;
@@ -16,6 +17,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Types;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -26,19 +29,83 @@ import java.util.UUID;
 public class WriterStatementImplTest extends JdbcIntegrationTest {
 
 
-    @Test(groups = {"integration"})
-    public void testTargetTypeMethodThrowException() throws SQLException {
+    @FunctionalInterface
+    private interface TypedSetter {
+        void set(PreparedStatement stmt, int index, Object value, JDBCType type, int scaleOrLength) throws SQLException;
+    }
 
+    @DataProvider(name = "typedSetObjectOverloads")
+    public static Object[][] typedSetObjectOverloads() {
+        return new Object[][] {
+                {"int", (TypedSetter) (s, i, v, t, n) -> s.setObject(i, v, t.getVendorTypeNumber())},
+                {"int, int", (TypedSetter) (s, i, v, t, n) -> s.setObject(i, v, t.getVendorTypeNumber(), n)},
+                {"SQLType", (TypedSetter) (s, i, v, t, n) -> s.setObject(i, v, t)},
+                {"SQLType, int", (TypedSetter) (s, i, v, t, n) -> s.setObject(i, v, t, n)},
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "typedSetObjectOverloads")
+    public void testTypedSetObjectWritesValues(String overload, TypedSetter setter) throws Exception {
+        String table = "writer_stmt_typed_set_object_" + UUID.randomUUID().toString().replace('-', '_');
+        Properties properties = new Properties();
+        properties.setProperty(DriverProperties.BETA_ROW_BINARY_WRITER.getKey(), "true");
+        properties.setProperty(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF);
+        try (Connection connection = getJdbcConnection(properties)) {
+            try (Statement stmt = connection.createStatement()) {
+                stmt.execute("CREATE TABLE " + table + " (id Int32, d Date, ts DateTime64(3, 'UTC'), "
+                        + "dec Decimal(10, 2), s String, n Nullable(Date), tail Int32) ORDER BY id");
+            }
+
+            try {
+                try (PreparedStatement ps = connection.prepareStatement(
+                        "INSERT INTO " + table + " VALUES (?, ?, ?, ?, ?, ?, ?)")) {
+                    Assert.assertTrue(ps instanceof WriterStatementImpl);
+                    setter.set(ps, 1, 1, JDBCType.INTEGER, 0);
+                    setter.set(ps, 2, LocalDate.of(2024, 2, 29), JDBCType.DATE, 0);
+                    setter.set(ps, 3, LocalDateTime.of(2024, 2, 29, 13, 14, 15, 123_000_000), JDBCType.TIMESTAMP, 0);
+                    setter.set(ps, 4, new BigDecimal("12.34"), JDBCType.DECIMAL, 0);
+                    setter.set(ps, 5, "abcdef", JDBCType.VARCHAR, 3);
+                    setter.set(ps, 6, null, JDBCType.DATE, 0);
+                    setter.set(ps, 7, 7, JDBCType.VARCHAR, 0);
+                    Assert.assertEquals(ps.executeUpdate(), 1);
+                }
+
+                try (Statement stmt = connection.createStatement();
+                     ResultSet rs = stmt.executeQuery("SELECT id, toString(d), toString(ts), toString(dec), s, n, tail FROM "
+                             + table)) {
+                    Assert.assertTrue(rs.next());
+                    Assert.assertEquals(rs.getInt(1), 1);
+                    Assert.assertEquals(rs.getString(2), "2024-02-29");
+                    Assert.assertEquals(rs.getString(3), "2024-02-29 13:14:15.123");
+                    Assert.assertEquals(rs.getString(4), "12.34");
+                    Assert.assertEquals(rs.getString(5), "abcdef");
+                    Assert.assertNull(rs.getObject(6));
+                    Assert.assertEquals(rs.getInt(7), 7);
+                    Assert.assertFalse(rs.next());
+                }
+            } finally {
+                try (Statement stmt = connection.createStatement()) {
+                    stmt.execute("DROP TABLE IF EXISTS " + table);
+                }
+            }
+        }
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "typedSetObjectOverloads")
+    public void testTypedSetObjectRejectsValueOfOtherType(String overload, TypedSetter setter) throws SQLException {
         Properties properties = new Properties();
         properties.setProperty(DriverProperties.BETA_ROW_BINARY_WRITER.getKey(), "true");
         try (Connection connection = getJdbcConnection(properties);
              PreparedStatement stmt = connection.prepareStatement("INSERT INTO system.numbers VALUES (?, ?)")) {
             Assert.assertTrue(stmt instanceof WriterStatementImpl);
 
-            Assert.expectThrows(SQLException.class, () -> stmt.setObject(1, "", JDBCType.VARCHAR.getVendorTypeNumber()));
-            Assert.expectThrows(SQLException.class, () -> stmt.setObject(1, "", JDBCType.VARCHAR));
-            Assert.expectThrows(SQLException.class, () -> stmt.setObject(1, "", JDBCType.DECIMAL.getVendorTypeNumber(), 3));
-            Assert.expectThrows(SQLException.class, () -> stmt.setObject(1, "", JDBCType.DECIMAL, 3));
+            SQLException e = Assert.expectThrows(SQLException.class,
+                    () -> setter.set(stmt, 1, "2024-02-29", JDBCType.DATE, 0));
+            Assert.assertEquals(e.getMessage(), "Cannot convert value of type class java.lang.String to SQL type DATE");
+            e = Assert.expectThrows(SQLException.class, () -> setter.set(stmt, 1, "13:14:15", JDBCType.TIME, 0));
+            Assert.assertEquals(e.getMessage(), "Cannot convert value of type class java.lang.String to SQL type TIME");
+            e = Assert.expectThrows(SQLException.class, () -> setter.set(stmt, 1, 1L, JDBCType.TIMESTAMP, 0));
+            Assert.assertEquals(e.getMessage(), "Cannot convert value of type class java.lang.Long to SQL type TIMESTAMP");
         }
     }
 

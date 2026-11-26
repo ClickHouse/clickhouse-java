@@ -423,13 +423,15 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
     @Override
     public void setObject(int parameterIndex, Object x, int targetSqlType, int scaleOrLength) throws SQLException {
         ensureOpen();
-        throw new SQLException("This form of setObject is not supported yet", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        isValidForTargetType(x, targetSqlType);
+        setObject(parameterIndex, x);
     }
 
     @Override
     public void setObject(int parameterIndex, Object x, int targetSqlType) throws SQLException {
         ensureOpen();
-        throw new SQLException("This form of setObject is not supported yet", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        isValidForTargetType(x, targetSqlType);
+        setObject(parameterIndex, x);
     }
 
     @Override
@@ -441,13 +443,15 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
     @Override
     public void setObject(int parameterIndex, Object x, SQLType targetSqlType) throws SQLException {
         ensureOpen();
-        throw new SQLException("This form of setObject is not supported yet", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        isValidForTargetType(x, targetSqlType.getVendorTypeNumber());
+        setObject(parameterIndex, x);
     }
 
     @Override
     public void setObject(int parameterIndex, Object x, SQLType targetSqlType, int scaleOrLength) throws SQLException {
         ensureOpen();
-        throw new SQLException("This form of setObject is not supported yet", ExceptionUtils.SQL_STATE_FEATURE_NOT_SUPPORTED);
+        isValidForTargetType(x, targetSqlType.getVendorTypeNumber());
+        setObject(parameterIndex, x);
     }
 
     @Override

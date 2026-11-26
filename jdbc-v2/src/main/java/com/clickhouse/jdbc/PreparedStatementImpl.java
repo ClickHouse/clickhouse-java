@@ -999,7 +999,7 @@ public class PreparedStatementImpl extends StatementImpl implements PreparedStat
         }
     }
 
-    private void isValidForTargetType(Object value, int targetType) throws SQLException {
+    void isValidForTargetType(Object value, int targetType) throws SQLException {
         if (value == null) {
             return; // NULL is handled in encoding and server checks if value can be NULL
         }
