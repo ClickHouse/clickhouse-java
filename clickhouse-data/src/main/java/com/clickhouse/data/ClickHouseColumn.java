@@ -733,6 +733,20 @@ public final class ClickHouseColumn implements Serializable {
             column = new ClickHouseColumn(ClickHouseDataType.of(builder.toString()), name,
                     args.substring(startIndex, i), nullable, lowCardinality, params, null);
             builder.setLength(0);
+        } else if (brackets > 0) {
+            // The branches above end the type name at the closing bracket of their own type. Read the
+            // closing brackets of the Nullable and LowCardinality wrappers after it, so that the type
+            // name and the returned index include them.
+            for (int j = startIndex + column.originalTypeName.length(); brackets > 0 && j < len; j++) {
+                char ch = args.charAt(j);
+                if (ch == ')') {
+                    brackets--;
+                    i = j + 1;
+                    column.originalTypeName = args.substring(startIndex, i);
+                } else if (!Character.isWhitespace(ch)) {
+                    break;
+                }
+            }
         }
 
         if (nullable) {

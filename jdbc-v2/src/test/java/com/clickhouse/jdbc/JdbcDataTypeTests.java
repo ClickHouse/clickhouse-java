@@ -1887,6 +1887,53 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
     }
 
     @Test(groups = { "integration" })
+    public void testNullableTupleTypeName() throws SQLException {
+        if (isVersionMatch("(,26.1)")) {
+            throw new SkipException("Nullable Tuple requires ClickHouse 26.1 or later");
+        }
+
+        Properties props = new Properties();
+        if (isVersionMatch("(,26.9)")) {
+            props.setProperty(
+                    ClientConfigProperties.serverSetting("allow_experimental_nullable_tuple_type"), "1");
+        }
+
+        String tupleType = "Nullable(Tuple(a Int32, b String))";
+        String nestedType = "Nested(t " + tupleType + ", c Int8)";
+        String sql = "SELECT toInt32(1) AS lead, "
+                + "CAST((1, 'x'), '" + tupleType + "') AS tuple_value, "
+                + "CAST(NULL, '" + tupleType + "') AS null_tuple, "
+                + "CAST([((2, 'y'), 3), (NULL, 4)], '" + nestedType + "') AS nested_value, "
+                + "toInt64(777) AS trail";
+
+        try (Connection conn = getJdbcConnection(props);
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            ResultSetMetaData meta = rs.getMetaData();
+            assertEquals(meta.getColumnTypeName(2), tupleType);
+            assertEquals(meta.getColumnTypeName(3), tupleType);
+            assertEquals(meta.getColumnTypeName(4), nestedType);
+
+            assertTrue(rs.next());
+            assertEquals(rs.getInt("lead"), 1);
+            assertEquals((Object[]) rs.getObject("tuple_value"), new Object[] {1, "x"});
+            assertNull(rs.getObject("null_tuple"));
+
+            try (ResultSet nested = rs.getArray("nested_value").getResultSet()) {
+                assertEquals(nested.getMetaData().getColumnTypeName(2), "Tuple(t " + tupleType + ", c Int8)");
+                assertTrue(nested.next());
+                assertEquals((Object[]) nested.getObject(2), new Object[] {new Object[] {2, "y"}, (byte) 3});
+                assertTrue(nested.next());
+                assertEquals((Object[]) nested.getObject(2), new Object[] {null, (byte) 4});
+                assertFalse(nested.next());
+            }
+
+            assertEquals(rs.getLong("trail"), 777L);
+            assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = { "integration" })
     public void testNestedType() throws SQLException {
         runQuery("DROP TABLE IF EXISTS test_nested_jdbc");
         runQuery("CREATE TABLE test_nested_jdbc (order Int8, "
