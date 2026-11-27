@@ -94,6 +94,8 @@ public class DataTypeTests extends BaseIntegrationTest {
                 .useHttpCompression(useHttpCompression)
                 .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1")
                 .serverSetting(ServerSettings.WAIT_ASYNC_INSERT, "1")
+                // Cloud can route a query to a replica that has not seen the previous insert yet
+                .serverSetting("select_sequential_consistency", isCloud() ? "1" : "0")
                 .build();
     }
 
@@ -3692,6 +3694,8 @@ public class DataTypeTests extends BaseIntegrationTest {
                 .compressClientRequest(useClientCompression)
                 .useHttpCompression(useHttpCompression)
                 .serverSetting(ServerSettings.WAIT_END_OF_QUERY, "1")
-                .serverSetting(ServerSettings.WAIT_ASYNC_INSERT, "1");
+                .serverSetting(ServerSettings.WAIT_ASYNC_INSERT, "1")
+                // Cloud can route a query to a replica that has not seen the previous insert yet
+                .serverSetting("select_sequential_consistency", isCloud() ? "1" : "0");
     }
 }
