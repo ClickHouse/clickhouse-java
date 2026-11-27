@@ -99,10 +99,11 @@ public abstract class SqlParserFacade {
             stmt.setInsertWithSelect(parsedStmt.containsKeyword("SELECT") && (parsedStmt.getStatementType() == StatementType.INSERT));
             stmt.setAssignValuesGroups(parsedStmt.getValueGroups());
 
-            Integer startIndex = parsedStmt.getPositions().get(ClickHouseSqlStatement.KEYWORD_VALUES_START);
-            Integer endIndexValue = parsedStmt.getPositions().get(ClickHouseSqlStatement.KEYWORD_VALUES_END);
-            if (startIndex != null && endIndexValue != null) {
-                int endIndex = endIndexValue;
+            Map<String, Integer> positions = parsedStmt.getPositions();
+            stmt.setUnresolvedInsertColumns(positions.containsKey(ClickHouseSqlStatement.KEYWORD_TABLE_COLUMNS_START));
+            Integer startIndex = positions.get(ClickHouseSqlStatement.KEYWORD_VALUES_START);
+            Integer endIndex = positions.get(ClickHouseSqlStatement.KEYWORD_VALUES_END);
+            if (startIndex != null && endIndex != null) {
                 stmt.setAssignValuesListStartPosition(startIndex);
                 stmt.setAssignValuesListStopPosition(endIndex);
                 String query = parsedStmt.getSQL();
@@ -129,11 +130,8 @@ public abstract class SqlParserFacade {
         }
 
         /**
-         * The token manager records keyword positions as offsets into the SQL it rebuilds from the token stream, which
-         * is not always identical to the SQL it was given: semicolons are dropped and JDBC escape sequences are
-         * rewritten. Consumers of the values list positions slice the original SQL, so when the two have drifted apart
-         * the positions address the wrong characters or point past the end of the string. Discard them in that case to
-         * let the generic parameter substitution path handle the statement.
+         * Offsets refer to JavaCC's rebuilt SQL, which may omit semicolons or rewrite JDBC escapes.
+         * Discard offsets that do not match the original SQL so generic parameter substitution can handle the insert.
          */
         private void discardValuesListPositionsNotMatchingOriginalSql(String sql, ParsedPreparedStatement stmt) {
             int startPosition = stmt.getAssignValuesListStartPosition();

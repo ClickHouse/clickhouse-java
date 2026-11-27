@@ -7,6 +7,7 @@ import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
 import com.clickhouse.jdbc.internal.ParsedPreparedStatement;
@@ -52,6 +53,7 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
     private ByteArrayOutputStream out;
     private ClickHouseBinaryFormatWriter writer;
     private final TableSchema tableSchema;
+    private final boolean usesTableColumnOrder;
 
     public WriterStatementImpl(ConnectionImpl connection, String originalSql, TableSchema tableSchema,
                                ParsedPreparedStatement parsedStatement)
@@ -68,6 +70,13 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
         } else {
             this.tableSchema = tableSchema;
         }
+        // The wire insert has no column list, and the writer skips generated columns.
+        List<ClickHouseColumn> columns = this.tableSchema.getColumns();
+        this.usesTableColumnOrder = !parsedStatement.hasUnresolvedInsertColumns()
+                && columns.equals(tableSchema.getColumns())
+                && (!this.tableSchema.hasDefaults() || columns.stream().limit(parsedStatement.getArgCount())
+                        .noneMatch(column -> column.hasDefault()
+                                && column.getDefaultValue() != ClickHouseColumn.DefaultValue.DEFAULT));
         try {
             resetWriter();
         } catch (IOException e) {
@@ -435,6 +444,13 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
     @Override
     public void setObject(int parameterIndex, Object x) throws SQLException {
         ensureOpen();
+        if (usesTableColumnOrder && x instanceof Date) {
+            ClickHouseDataType type = tableSchema.getColumnByIndex(parameterIndex).getDataType();
+            if (type == ClickHouseDataType.Date || type == ClickHouseDataType.Date32) {
+                setDate(parameterIndex, (Date) x);
+                return;
+            }
+        }
         writer.setValue(parameterIndex, x);
     }
 

@@ -6,6 +6,7 @@ import com.clickhouse.client.api.ClientConfigProperties;
 import com.clickhouse.client.api.DataTypeUtils;
 import com.clickhouse.client.api.internal.ServerSettings;
 import org.testng.Assert;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.sql.Array;
@@ -85,6 +86,110 @@ public class JDBCDateTimeTests extends JdbcIntegrationTest {
                     Assert.assertEquals(dateStr, birthdate.format(DataTypeUtils.DATE_FORMATTER));
                 }
             }
+        }
+    }
+
+    @DataProvider
+    public static Object[][] rowBinaryDateInsertOrder() {
+        return new Object[][] {{"JAVACC", false}, {"ANTLR4", true}};
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "rowBinaryDateInsertOrder")
+    void testRowBinarySetObjectWithSqlDate(String parser, boolean explicitColumns) throws SQLException {
+        Properties properties = new Properties();
+        properties.setProperty(DriverProperties.BETA_ROW_BINARY_WRITER.getKey(), "true");
+        properties.setProperty(DriverProperties.SQL_PARSER.getKey(), parser);
+        String table = "test_row_binary_sql_date_" + parser;
+        String columns = explicitColumns ? " (id, d, d32, nullable_date, tail)" : "";
+        try (Connection connection = getJdbcConnection(properties);
+             Statement statement = connection.createStatement()) {
+            statement.executeUpdate("CREATE TABLE " + table
+                    + " (id Int32, d Date, d32 Date32, nullable_date Nullable(Date32), tail Int32) ORDER BY id");
+
+            try (PreparedStatement insert = connection.prepareStatement(
+                    "INSERT INTO " + table + columns + " VALUES (?, ?, ?, ?, ?)")) {
+                Assert.assertTrue(insert instanceof WriterStatementImpl);
+                insert.setInt(1, 1);
+                insert.setObject(2, Date.valueOf("2013-07-15"));
+                insert.setObject(3, Date.valueOf("1965-12-31"));
+                insert.setObject(4, Date.valueOf("1999-12-31"));
+                insert.setInt(5, 42);
+                insert.addBatch();
+
+                insert.setInt(1, 2);
+                insert.setDate(2, Date.valueOf("2013-07-15"));
+                insert.setDate(3, Date.valueOf("1965-12-31"));
+                insert.setObject(4, null);
+                insert.setInt(5, 43);
+                insert.addBatch();
+                insert.executeBatch();
+            }
+
+            try (ResultSet rows = statement.executeQuery(
+                    "SELECT id, toString(d), toString(d32), toString(nullable_date), tail "
+                    + "FROM " + table + " ORDER BY id")) {
+                Assert.assertTrue(rows.next());
+                Assert.assertEquals(rows.getInt(1), 1);
+                Assert.assertEquals(rows.getString(2), "2013-07-15");
+                Assert.assertEquals(rows.getString(3), "1965-12-31");
+                Assert.assertEquals(rows.getString(4), "1999-12-31");
+                Assert.assertEquals(rows.getInt(5), 42);
+                Assert.assertTrue(rows.next());
+                Assert.assertEquals(rows.getInt(1), 2);
+                Assert.assertEquals(rows.getString(2), "2013-07-15");
+                Assert.assertEquals(rows.getString(3), "1965-12-31");
+                Assert.assertNull(rows.getString(4));
+                Assert.assertEquals(rows.getInt(5), 43);
+                Assert.assertFalse(rows.next());
+            }
+        }
+    }
+
+    @DataProvider
+    public static Object[][] rowBinaryParsers() {
+        return new Object[][] {{"JAVACC"}, {"ANTLR4"}, {"ANTLR4_PARAMS_PARSER"}};
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "rowBinaryParsers")
+    void testRowBinarySetObjectRejectsSqlDateWithReorderedColumns(String parser) throws SQLException {
+        Properties properties = new Properties();
+        properties.setProperty(DriverProperties.BETA_ROW_BINARY_WRITER.getKey(), "true");
+        properties.setProperty(DriverProperties.SQL_PARSER.getKey(), parser);
+        String table = "test_row_binary_reordered_date_" + parser;
+        try (Connection connection = getJdbcConnection(properties);
+             Statement statement = connection.createStatement()) {
+            statement.executeUpdate("CREATE TABLE " + table
+                    + " (id Int32, first_date Date32, second_date Date32, tail Int32) ORDER BY id");
+            try (PreparedStatement insert = connection.prepareStatement("INSERT INTO "
+                    + table + " (id, second_date, first_date, tail) VALUES (?, ?, ?, ?)")) {
+                Assert.assertTrue(insert instanceof WriterStatementImpl);
+                insert.setInt(1, 1);
+                insert.setObject(2, Date.valueOf("1965-12-31"));
+                insert.setObject(3, Date.valueOf("2013-07-15"));
+                insert.setInt(4, 42);
+                Assert.expectThrows(SQLException.class, insert::addBatch);
+            }
+            try (ResultSet rows = statement.executeQuery("SELECT count() FROM " + table)) {
+                Assert.assertTrue(rows.next());
+                Assert.assertEquals(rows.getInt(1), 0);
+            }
+        }
+    }
+
+    @Test(groups = {"integration"})
+    void testRowBinarySetObjectRejectsSqlDateBeforeGeneratedColumn() throws SQLException {
+        Properties properties = new Properties();
+        properties.setProperty(DriverProperties.BETA_ROW_BINARY_WRITER.getKey(), "true");
+        String table = "test_row_binary_generated_date";
+        runQuery("CREATE TABLE " + table + " (d Date32, generated Int32 MATERIALIZED 99, "
+                + "first_number Int32, second_number Int32 DEFAULT -1) ORDER BY d");
+        try (Connection connection = getJdbcConnection(properties);
+             PreparedStatement insert = connection.prepareStatement("INSERT INTO " + table + " VALUES (?, ?, ?)")) {
+            Assert.assertTrue(insert instanceof WriterStatementImpl);
+            insert.setObject(1, Date.valueOf("1965-12-31"));
+            insert.setInt(2, 41);
+            insert.setInt(3, 42);
+            Assert.expectThrows(SQLException.class, insert::addBatch);
         }
     }
 
