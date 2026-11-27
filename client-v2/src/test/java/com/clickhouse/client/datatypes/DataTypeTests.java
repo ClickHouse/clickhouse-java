@@ -1551,6 +1551,56 @@ public class DataTypeTests extends BaseIntegrationTest {
                 });
     }
 
+    @DataProvider(name = "dynamicMapsWithEnums")
+    public Object[][] dynamicMapsWithEnums() {
+        String smallEnum = enumTypeName("Enum8", DataTypesTestingPOJO.SmallEnum.class);
+        String largeEnum = enumTypeName("Enum16", DataTypesTestingPOJO.LargeEnum.class);
+        return new Object[][]{
+                {Collections.singletonMap("k", DataTypesTestingPOJO.SmallEnum.CONSTANT_2),
+                        "{k=CONSTANT_2}", "Map(String, " + smallEnum + ")"},
+                {Collections.singletonMap("k", DataTypesTestingPOJO.LargeEnum.CONSTANT_200),
+                        "{k=CONSTANT_200}", "Map(String, " + largeEnum + ")"},
+                {Collections.singletonMap(DataTypesTestingPOJO.SmallEnum.CONSTANT_3, "v"),
+                        "{CONSTANT_3=v}", "Map(" + smallEnum + ", String)"},
+                {Collections.singletonMap("k", Collections.singletonMap("n", DataTypesTestingPOJO.SmallEnum.CONSTANT_1)),
+                        "{k={n=CONSTANT_1}}", "Map(String, Map(String, " + smallEnum + "))"},
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "dynamicMapsWithEnums")
+    public void testDynamicWithMapOfEnums(Map<?, ?> value, String expectedValue, String expectedType) throws Exception {
+        if (isVersionMatch("(,24.8]")) {
+            return;
+        }
+        final String table = "test_dynamic_map_of_enums";
+        final int tail = 987654321;
+        client.execute("DROP TABLE IF EXISTS " + table).get();
+        client.execute(tableDefinition(table, "rowId Int32", "field Dynamic", "tail Int32"),
+                (CommandSettings) new CommandSettings().serverSetting("allow_experimental_dynamic_type", "1")).get();
+        client.register(DTOForDynamicDecimalTests.class, client.getTableSchema(table));
+
+        client.insert(table, Collections.singletonList(new DTOForDynamicDecimalTests(1, value, tail))).get().close();
+
+        List<GenericRecord> rows = client.queryAll("SELECT rowId, field, tail, dynamicType(field) AS type FROM " + table);
+        Assert.assertEquals(rows.size(), 1);
+        GenericRecord row = rows.get(0);
+        Assert.assertEquals(row.getInteger("rowId"), 1);
+        Assert.assertEquals(row.getString("field"), expectedValue);
+        Assert.assertEquals(row.getInteger("tail"), tail);
+        Assert.assertEquals(row.getString("type"), expectedType);
+    }
+
+    private static String enumTypeName(String enumType, Class<? extends Enum<?>> enumClass) {
+        StringBuilder typeName = new StringBuilder(enumType).append('(');
+        for (Enum<?> constant : enumClass.getEnumConstants()) {
+            if (constant.ordinal() > 0) {
+                typeName.append(", ");
+            }
+            typeName.append('\'').append(constant.name()).append("' = ").append(constant.ordinal());
+        }
+        return typeName.append(')').toString();
+    }
+
     @Test(groups = {"integration"})
     public void testDynamicWithTime64Types() throws Exception {
         if (isVersionMatch("(,25.5]")) {
