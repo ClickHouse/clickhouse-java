@@ -372,6 +372,18 @@ public class SerializerUtils {
                 clickHouseEnum);
     }
 
+    private static int jsonLimit(ClickHouseColumn column, String name, int fallback) {
+        List<String> parameters = column.getParameters();
+        for (int i = 0; i < parameters.size(); i++) {
+            String parameter = parameters.get(i);
+            int eq = parameter.indexOf('=');
+            if (eq > 0 && parameter.substring(0, eq).trim().equals(name)) {
+                return Integer.parseInt(parameter.substring(eq + 1).trim());
+            }
+        }
+        return fallback;
+    }
+
     public static void writeDynamicTypeTag(OutputStream stream, ClickHouseColumn typeColumn)
             throws IOException {
 
@@ -485,7 +497,23 @@ public class SerializerUtils {
                 stream.write(binTag);
                 break;
             case JSON:
+                // 0x30 <version> <varint max_dynamic_paths> <uint8 max_dynamic_types>
+                // <varint typed paths> (path, type)* <varint skips> <varint regexps>
+                // Version 0 has no per-path flags. SKIP paths are not retained on the column, so a
+                // tag rebuilt from a parsed column does not repeat them.
                 stream.write(binTag);
+                stream.write(0);
+                BinaryStreamUtils.writeVarInt(stream, jsonLimit(typeColumn, "max_dynamic_paths", 1024));
+                BinaryStreamUtils.writeUnsignedInt8(stream, jsonLimit(typeColumn, "max_dynamic_types", 32));
+                List<ClickHouseColumn> typedPaths = typeColumn.getNestedColumns();
+                BinaryStreamUtils.writeVarInt(stream, typedPaths.size());
+                for (int i = 0; i < typedPaths.size(); i++) {
+                    ClickHouseColumn typedPath = typedPaths.get(i);
+                    BinaryStreamUtils.writeString(stream, typedPath.getColumnName());
+                    writeDynamicTypeTag(stream, typedPath);
+                }
+                BinaryStreamUtils.writeVarInt(stream, 0);
+                BinaryStreamUtils.writeVarInt(stream, 0);
                 break;
             case SimpleAggregateFunction:
             case AggregateFunction:
