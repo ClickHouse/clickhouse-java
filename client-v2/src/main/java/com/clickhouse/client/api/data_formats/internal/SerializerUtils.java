@@ -864,13 +864,12 @@ public class SerializerUtils {
         if (value instanceof String) {
             enumValue = column.getEnumConstants().value((String) value);
         } else if (value instanceof Number) {
-            enumValue = ((Number) value).intValue();
+            enumValue = column.getEnumConstants().validate(((Number) value).intValue());
         } else if (value instanceof Enum<?>) {
-            enumValue = ((Enum<?>)value).ordinal();
+            enumValue = column.getEnumConstants().value(((Enum<?>) value).name());
         } else {
             throw new IllegalArgumentException("Cannot write value of class " + value.getClass() + " into column with Enum type " + column.getOriginalTypeName());
         }
-
         if (column.getDataType() == ClickHouseDataType.Enum8) {
             BinaryStreamUtils.writeInt8(stream, enumValue);
         } else if (column.getDataType() == ClickHouseDataType.Enum16) {
