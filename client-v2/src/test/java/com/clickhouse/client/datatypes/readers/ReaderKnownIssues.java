@@ -67,8 +67,6 @@ final class ReaderKnownIssues {
             // valid conversions return wrong values
             KnownIssue.of(WRONG_VALUE, "getBigInteger converts large values through long")
                     .accessors(BIG_INTEGER).types(FLOATS + "|Decimal\\(38, 0\\)"),
-            KnownIssue.of(WRONG_VALUE, "negative Time64 values with a fraction are one second off")
-                    .accessors(DURATION, TEMPORAL_AMOUNT, INSTANT, LOCAL_DATE_TIME).types("Time64\\(\\d\\)"),
             KnownIssue.of(WRONG_VALUE, "IPv4-mapped IPv6 values are read as 4 byte IPv4 addresses")
                     .accessors(BYTE_ARRAY).types("IPv6").readersOnly(),
             KnownIssue.of(UNEXPECTED_EXCEPTION, "getBigDecimal parses the enum name as a number")
