@@ -1552,6 +1552,57 @@ public abstract class BaseSqlParserFacadeTest {
         }
     }
 
+    @DataProvider
+    public static Object[][] keywordColumnNamesDP() {
+        // lexer keywords that were missing from the grammar's `keyword` rule, so they could not be used
+        // as unquoted identifiers; several are common column names (CLIENT, SCHEMA, MODEL, CONDITION, PAGE)
+        return Arrays.stream(new String[] {
+                "ALLOW", "ARBITRARY", "ASYNCHRONOUS", "BLOCKING", "CANCEL", "CLIENT", "COLLECTIONS", "COMPILED",
+                "CONDITION", "CONFIG", "CUSTOM", "DNS", "EMBEDDED", "FAILPOINT", "FUZZER", "GRPC", "HIVE", "HTTPS",
+                "INTROSPECTION", "JDBC", "JEMALLOC", "KAFKA", "LISTEN", "LOAD", "LOADING", "MANAGEMENT", "MARK",
+                "MMAP", "MODEL", "MONGO", "MOVES", "MYSQL", "NATS", "ODBC", "PAGE", "POLICIES", "POSTGRES",
+                "POSTGRESQL", "PROMETHEUS", "PROXY", "PULLING", "QUEUE", "QUEUES", "QUOTAS", "RABBITMQ",
+                "READINESS", "REDIS", "REDUCE", "REPLICAS", "REPLICATION", "RESTART", "SCHEMA", "SECRETS",
+                "SECURE", "SHARDS", "SHUTDOWN", "SOURCES", "SQLITE", "TCP", "UNCOMPRESSED", "UNLOAD", "VIEWS",
+                "VIRTUAL", "WAIT"
+        }).map(k -> new Object[] {k}).toArray(Object[][]::new);
+    }
+
+    /**
+     * A keyword used as an unquoted column name must not break parsing: with errors the VALUES list is
+     * discarded and PreparedStatement#executeBatch sends one INSERT per row instead of a single INSERT.
+     */
+    @Test(dataProvider = "keywordColumnNamesDP")
+    public void testKeywordAsColumnName(String keyword) {
+        String insert = "INSERT INTO t (id, " + keyword + ", v) VALUES (?, ?, now())";
+        ParsedPreparedStatement parsedInsert = parser.parsePreparedStatement(insert);
+        assertFalse(parsedInsert.isHasErrors(), insert);
+        assertTrue(parsedInsert.isInsert(), insert);
+        assertEquals(parsedInsert.getArgCount(), 2, insert);
+        assertEquals(parsedInsert.getAssignValuesGroups(), 1, insert);
+        assertTrue(parsedInsert.getAssignValuesListStartPosition() > -1, insert);
+        assertTrue(parsedInsert.getAssignValuesListStopPosition() > -1, insert);
+
+        String lowerInsert = "insert into t (id, " + keyword.toLowerCase() + ") values (?, ?)";
+        ParsedPreparedStatement parsedLowerInsert = parser.parsePreparedStatement(lowerInsert);
+        assertFalse(parsedLowerInsert.isHasErrors(), lowerInsert);
+        assertEquals(parsedLowerInsert.getAssignValuesGroups(), 1, lowerInsert);
+
+        String select = "SELECT id, " + keyword + " FROM t WHERE " + keyword + " = ?";
+        ParsedPreparedStatement parsedSelect = parser.parsePreparedStatement(select);
+        assertFalse(parsedSelect.isHasErrors(), select);
+        assertEquals(parsedSelect.getArgCount(), 1, select);
+    }
+
+    @Test
+    public void testKeywordColumnNameInBrokenInsert() {
+        // still an error when the statement itself is malformed: the column list is never closed
+        String sql = "INSERT INTO t (id, CLIENT VALUES (?, ?)";
+        ParsedPreparedStatement parsed = parser.parsePreparedStatement(sql);
+        assertTrue(parsed.isHasErrors(), sql);
+        assertEquals(parsed.getAssignValuesListStartPosition(), -1, sql);
+    }
+
     /**
      * Test that keywords allowed as table names can be used as table names.
      */
