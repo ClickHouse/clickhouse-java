@@ -31,6 +31,7 @@ import java.sql.Time;
 import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.Calendar;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -46,6 +47,7 @@ public class ArrayResultSet implements ResultSet {
     private static final ClickHouseColumn INDEX_COLUMN = ClickHouseColumn.of("INDEX", ClickHouseDataType.UInt32, false, 0, 0);
     private static final String VALUE_COLUMN = "VALUE";
     private static final ValueConverters defaultValueConverters = new ValueConverters();
+    private static final Map<ClickHouseDataType, ClickHouseColumn> GEO_ELEMENT_COLUMNS = geoElementColumns();
 
     private int fetchDirection = ResultSet.FETCH_FORWARD;
     private int fetchSize = 0;
@@ -88,7 +90,11 @@ public class ArrayResultSet implements ResultSet {
      * Resolves the type of a single element of {@code column} (an array-like column). A
      * {@code Nested(f1 T1, ..., fN TN)} column is read as an array whose elements are
      * {@code Tuple(f1 T1, ..., fN TN)}, so its element is that tuple rather than the first nested
-     * field; every other array-like column keeps its existing base/nested-column resolution.
+     * field. A column without an array level is the element type itself, the same as in
+     * {@link com.clickhouse.jdbc.types.Array}, because {@code Connection#createArrayOf} creates the
+     * column from the element type. Geo columns are the exception. A geo value is read as an array,
+     * so its element is the type that the server returns for an element, for example {@code Point}
+     * for {@code Ring} and {@code Float64} for {@code Point}.
      */
     private static ClickHouseColumn elementColumn(ClickHouseColumn column) {
         List<ClickHouseColumn> nestedColumns = column.getNestedColumns();
@@ -104,7 +110,25 @@ public class ArrayResultSet implements ResultSet {
             tupleType.append(')');
             return ClickHouseColumn.of(VALUE_COLUMN, tupleType.toString());
         }
+        if (column.getArrayNestedLevel() == 0) {
+            return GEO_ELEMENT_COLUMNS.getOrDefault(column.getDataType(), column);
+        }
         return column.getArrayNestedLevel() == 1 ? column.getArrayBaseColumn() : nestedColumns.get(0);
+    }
+
+    private static Map<ClickHouseDataType, ClickHouseColumn> geoElementColumns() {
+        Map<ClickHouseDataType, ClickHouseColumn> columns = new EnumMap<>(ClickHouseDataType.class);
+        columns.put(ClickHouseDataType.Point, ClickHouseColumn.of(VALUE_COLUMN, ClickHouseDataType.Float64.name()));
+        ClickHouseColumn point = ClickHouseColumn.of(VALUE_COLUMN, ClickHouseDataType.Point.name());
+        columns.put(ClickHouseDataType.Ring, point);
+        columns.put(ClickHouseDataType.LineString, point);
+        columns.put(ClickHouseDataType.MultiPoint, point);
+        columns.put(ClickHouseDataType.Polygon, ClickHouseColumn.of(VALUE_COLUMN, ClickHouseDataType.Ring.name()));
+        columns.put(ClickHouseDataType.MultiLineString,
+                ClickHouseColumn.of(VALUE_COLUMN, ClickHouseDataType.LineString.name()));
+        columns.put(ClickHouseDataType.MultiPolygon,
+                ClickHouseColumn.of(VALUE_COLUMN, ClickHouseDataType.Polygon.name()));
+        return columns;
     }
 
     @Override
