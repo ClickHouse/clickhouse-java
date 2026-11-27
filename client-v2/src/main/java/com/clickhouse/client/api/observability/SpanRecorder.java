@@ -63,7 +63,8 @@ public interface SpanRecorder {
      *
      * @param settings - resolved settings of the operation; source of the target database and the
      *                 query id
-     * @param tableName - target table
+     * @param tableName - target table, or {@code null} when the client does not know it (an insert with an
+     *                  application-defined statement)
      * @param batchSize - number of items in the batch, or {@link #BATCH_SIZE_UNKNOWN} when the client
      *                  does not know it
      * @param endpoint - first configured endpoint, which the operation is expected to use; the endpoint

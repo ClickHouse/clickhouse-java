@@ -40,8 +40,10 @@ import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -53,7 +55,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.zip.GZIPOutputStream;
@@ -905,5 +910,148 @@ public class InsertTests extends BaseIntegrationTest {
             Mockito.verify(settings, Mockito.times(1)).setQueryId(Mockito.eq(uuid));
             Mockito.verifyNoMoreInteractions(settings);
         }
+    }
+
+    private static final String INSERT_QUERY_TABLE = "insert_query_table";
+    private static final String INSERT_QUERY_SELECT = "INSERT INTO " + INSERT_QUERY_TABLE + " (id, name, total)" +
+            " SELECT id, upper(name), sum(v) * %s FROM input('id UInt32, name String, v UInt64') GROUP BY id, name";
+    private static final String INSERT_QUERY_DATA = "1,a,10\n2,b,7\n1,a,5\n";
+
+    @DataProvider(name = "insertQueryDataProvider")
+    public static Object[][] insertQueryDataProvider() {
+        return new Object[][] {
+                {String.format(INSERT_QUERY_SELECT, "1"), null, ClickHouseFormat.CSV, false, 1},
+                {String.format(INSERT_QUERY_SELECT, "1") + " FORMAT CSV", null, null, false, 1},
+                {String.format(INSERT_QUERY_SELECT, "1") + " -- comment", null, ClickHouseFormat.CSV, false, 1},
+                {String.format(INSERT_QUERY_SELECT, "{k:UInt64}"), Collections.singletonMap("k", 10), ClickHouseFormat.CSV, false, 10},
+                {String.format(INSERT_QUERY_SELECT, "1"), null, ClickHouseFormat.CSV, true, 1},
+        };
+    }
+
+    @Test(groups = { "integration" }, dataProvider = "insertQueryDataProvider")
+    public void testInsertQuery(String sql, Map<String, Object> queryParams, ClickHouseFormat format,
+                                boolean useInputStream, int factor) throws Exception {
+        initTable(INSERT_QUERY_TABLE, "CREATE TABLE " + INSERT_QUERY_TABLE +
+                " (id UInt32, name String, total UInt64, flag UInt8 DEFAULT 7) ENGINE = MergeTree ORDER BY id");
+
+        byte[] data = INSERT_QUERY_DATA.getBytes(StandardCharsets.UTF_8);
+        CompletableFuture<InsertResponse> future = useInputStream
+                ? client.insertQuery(sql, new ByteArrayInputStream(data), format, new InsertSettings())
+                : client.insertQuery(sql, queryParams, out -> out.write(data), format, new InsertSettings());
+        try (InsertResponse response = future.get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS)) {
+            assertEquals(response.getWrittenRows(), 2);
+        }
+
+        List<GenericRecord> records = client.queryAll("SELECT * FROM " + INSERT_QUERY_TABLE + " ORDER BY id");
+        assertEquals(records.size(), 2);
+        Object[][] expected = {{1L, "A", 15L * factor, 7}, {2L, "B", 7L * factor, 7}};
+        for (int i = 0; i < expected.length; i++) {
+            GenericRecord r = records.get(i);
+            assertEquals(new Object[] {r.getLong("id"), r.getString("name"), r.getLong("total"), r.getInteger("flag")},
+                    expected[i]);
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testInsertQueryServerError() throws Exception {
+        initTable(INSERT_QUERY_TABLE, "CREATE TABLE " + INSERT_QUERY_TABLE +
+                " (id UInt32, name String, total UInt64, flag UInt8 DEFAULT 7) ENGINE = MergeTree ORDER BY id");
+        byte[] data = INSERT_QUERY_DATA.getBytes(StandardCharsets.UTF_8);
+
+        // The statement has a FORMAT clause and the client appends one more
+        String sql = String.format(INSERT_QUERY_SELECT, "1") + " FORMAT CSV";
+        try {
+            client.insertQuery(sql, out -> out.write(data), ClickHouseFormat.CSV, new InsertSettings())
+                    .get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS);
+            fail("Expected a server error");
+        } catch (Exception e) {
+            Throwable cause = e instanceof ExecutionException ? e.getCause() : e;
+            assertTrue(cause instanceof ServerException, "Unexpected exception: " + cause);
+        }
+        assertEquals(client.queryAll("SELECT * FROM " + INSERT_QUERY_TABLE).size(), 0);
+    }
+
+    @Test(groups = { "integration" })
+    public void testInsertQueryCompressedParquet() throws Exception {
+        String tableName = "insert_query_parquet_table";
+        initTable(tableName, "CREATE TABLE " + tableName +
+                " (id Int64, str String, dcml Decimal64(9), time DateTime('UTC')) ENGINE = MergeTree ORDER BY id");
+
+        // test_sample.parquet.gz: 100 rows (int, str, flt, dcml, time), compressed with gzip
+        String sql = "INSERT INTO " + tableName + " (id, str, dcml, time)" +
+                " SELECT int * 2, concat('s', str), dcml, time" +
+                " FROM input('int Int64, str String, dcml Decimal64(9), time DateTime(\\'UTC\\')')";
+        InsertSettings insertSettings = new InsertSettings().appCompressedData(true, "gzip");
+        try (InputStream data = InsertTests.class.getResourceAsStream("/data_samples/test_sample.parquet.gz");
+             InsertResponse response = client.insertQuery(sql, data, ClickHouseFormat.Parquet, insertSettings)
+                     .get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS)) {
+            assertEquals(response.getWrittenRows(), 100);
+        }
+
+        GenericRecord r = client.queryAll("SELECT count() AS cnt, sum(id) AS sum_id, uniqExact(str) AS uniq_str," +
+                " countIf(startsWith(str, 's')) AS s_cnt, max(dcml) AS max_dcml, toString(min(time)) AS min_time," +
+                " toString(max(time)) AS max_time FROM " + tableName).get(0);
+        assertEquals(new Object[] {r.getLong("cnt"), r.getLong("sum_id"), r.getLong("uniq_str"), r.getLong("s_cnt"),
+                        r.getBigDecimal("max_dcml"), r.getString("min_time"), r.getString("max_time")},
+                new Object[] {100L, 9900L, 100L, 100L, new BigDecimal("1.000000000"),
+                        "2020-01-01 00:00:00", "2020-01-01 00:01:39"});
+    }
+
+    @Test(groups = { "integration" })
+    public void testInsertQueryIntoTableFunction() throws Exception {
+        if (isCloud()) {
+            throw new SkipException("The file() table function is not available in ClickHouse Cloud");
+        }
+        String fileName = "insert_query_" + UUID.randomUUID().toString().replace('-', '_') + ".csv.gz";
+        String structure = "'id UInt32, name String, v UInt64'";
+
+        String sql = "INSERT INTO FUNCTION file('" + fileName + "', 'CSV', " + structure + ")";
+        byte[] data = INSERT_QUERY_DATA.getBytes(StandardCharsets.UTF_8);
+        try (InsertResponse response = client.insertQuery(sql, out -> out.write(data), ClickHouseFormat.CSV,
+                new InsertSettings()).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS)) {
+            assertEquals(response.getWrittenRows(), 3);
+        }
+
+        // The server compresses the file because of the .gz extension
+        List<GenericRecord> magic = client.queryAll("SELECT hex(substring(raw_blob, 1, 2)) AS magic FROM file('"
+                + fileName + "', 'RawBLOB', 'raw_blob String', 'none')");
+        assertEquals(magic.get(0).getString("magic"), "1F8B");
+
+        List<GenericRecord> records = client.queryAll("SELECT id, name, v FROM file('" + fileName + "', 'CSV', "
+                + structure + ")");
+        Object[][] expected = {{1L, "a", 10L}, {2L, "b", 7L}, {1L, "a", 5L}};
+        assertEquals(records.size(), expected.length);
+        for (int i = 0; i < expected.length; i++) {
+            GenericRecord r = records.get(i);
+            assertEquals(new Object[] {r.getLong("id"), r.getString("name"), r.getLong("v")}, expected[i]);
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testInsertQueryIntoNullFunction() throws Exception {
+        String sql = "INSERT INTO FUNCTION null('id UInt32, name String, v UInt64')";
+        byte[] data = INSERT_QUERY_DATA.getBytes(StandardCharsets.UTF_8);
+        try (InsertResponse response = client.insertQuery(sql, out -> out.write(data), ClickHouseFormat.CSV,
+                new InsertSettings()).get(EXECUTE_CMD_TIMEOUT, TimeUnit.SECONDS)) {
+            assertEquals(response.getWrittenRows(), 3);
+        }
+    }
+
+    @DataProvider(name = "insertQueryInvalidArgumentsDataProvider")
+    public static Object[][] insertQueryInvalidArgumentsDataProvider() {
+        DataStreamWriter writer = out -> { };
+        InsertSettings settings = new InsertSettings();
+        return new Object[][] {
+                {null, writer, settings},
+                {"  ", writer, settings},
+                {"INSERT INTO t", null, settings},
+                {"INSERT INTO t", writer, null},
+        };
+    }
+
+    @Test(groups = { "integration" }, dataProvider = "insertQueryInvalidArgumentsDataProvider")
+    public void testInsertQueryInvalidArguments(String sql, DataStreamWriter writer, InsertSettings settings) {
+        Assert.assertThrows(IllegalArgumentException.class,
+                () -> client.insertQuery(sql, writer, ClickHouseFormat.CSV, settings));
     }
 }

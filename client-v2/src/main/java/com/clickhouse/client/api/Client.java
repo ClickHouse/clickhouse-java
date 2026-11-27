@@ -1762,23 +1762,26 @@ public class Client implements AutoCloseable {
             throw new IllegalArgumentException("Buffer size must be greater than 0");
         }
 
-        return insert(tableName, columnNames, new DataStreamWriter() {
-                    @Override
-                    public void onOutput(OutputStream out) throws IOException {
-                        byte[] buffer = new byte[writeBufferSize];
-                        int bytesRead;
-                        while ((bytesRead = data.read(buffer)) > 0) {
-                            out.write(buffer, 0, bytesRead);
-                        }
-                        out.close();
-                    }
+        return insert(tableName, columnNames, inputStreamWriter(data, writeBufferSize), format, settings);
+    }
 
-                    @Override
-                    public void onRetry() throws IOException {
-                        data.reset();
-                    }
-                },
-                format, settings);
+    private static DataStreamWriter inputStreamWriter(InputStream data, int writeBufferSize) {
+        return new DataStreamWriter() {
+            @Override
+            public void onOutput(OutputStream out) throws IOException {
+                byte[] buffer = new byte[writeBufferSize];
+                int bytesRead;
+                while ((bytesRead = data.read(buffer)) > 0) {
+                    out.write(buffer, 0, bytesRead);
+                }
+                out.close();
+            }
+
+            @Override
+            public void onRetry() throws IOException {
+                data.reset();
+            }
+        };
     }
 
     /**
@@ -1812,11 +1815,142 @@ public class Client implements AutoCloseable {
                                      DataStreamWriter writer,
                                      ClickHouseFormat format,
                                      InsertSettings settings) {
+        StringBuilder sqlStmt = new StringBuilder("INSERT INTO ").append(tableName);
+        if (columnNames != null && !columnNames.isEmpty()) {
+            sqlStmt.append(" (");
+            for (String columnName : columnNames) {
+                sqlStmt.append(columnName).append(", ");
+            }
+            sqlStmt.deleteCharAt(sqlStmt.length() - 2);
+            sqlStmt.append(")");
+        }
+        sqlStmt.append(" FORMAT ").append(format.name());
+        return executeInsert(sqlStmt.toString(), tableName, null, writer, format, settings);
+    }
+
+    /**
+     * <p>Sends an insert request with an application-defined {@code INSERT} statement. Input data is read from
+     * the input stream.</p>
+     *
+     * @param sql - {@code INSERT} statement without the data. See
+     *            {@link #insertQuery(String, Map, DataStreamWriter, ClickHouseFormat, InsertSettings)}
+     * @param data - data stream to insert
+     * @param format - format of the data in the stream. When {@code null}, {@code sql} must have a
+     *               {@code FORMAT} clause
+     * @param settings - insert operation settings
+     * @return {@code CompletableFuture<InsertResponse>} - a promise to insert response
+     */
+    public CompletableFuture<InsertResponse> insertQuery(String sql,
+                                                         InputStream data,
+                                                         ClickHouseFormat format,
+                                                         InsertSettings settings) {
+        if (settings == null) {
+            throw new IllegalArgumentException("Settings cannot be null");
+        }
+        final int writeBufferSize = settings.getInputStreamCopyBufferSize() <= 0 ?
+                (int) configuration.get(ClientConfigProperties.CLIENT_NETWORK_BUFFER_SIZE.getKey()) :
+                settings.getInputStreamCopyBufferSize();
+
+        if (writeBufferSize <= 0) {
+            throw new IllegalArgumentException("Buffer size must be greater than 0");
+        }
+        return insertQuery(sql, null, inputStreamWriter(data, writeBufferSize), format, settings);
+    }
+
+    /**
+     * <p>Sends an insert request with an application-defined {@code INSERT} statement. Data is pushed when
+     * a {@link DataStreamWriter#onOutput(OutputStream)} is called.</p>
+     *
+     * @param sql - {@code INSERT} statement without the data. See
+     *            {@link #insertQuery(String, Map, DataStreamWriter, ClickHouseFormat, InsertSettings)}
+     * @param writer - {@link DataStreamWriter} implementation
+     * @param format - source format. When {@code null}, {@code sql} must have a {@code FORMAT} clause
+     * @param settings - operation settings
+     * @return {@code CompletableFuture<InsertResponse>} - a promise to insert response
+     */
+    public CompletableFuture<InsertResponse> insertQuery(String sql,
+                                                         DataStreamWriter writer,
+                                                         ClickHouseFormat format,
+                                                         InsertSettings settings) {
+        return insertQuery(sql, null, writer, format, settings);
+    }
+
+    /**
+     * <p>Sends an insert request with an application-defined {@code INSERT} statement. Data is pushed when
+     * a {@link DataStreamWriter#onOutput(OutputStream)} is called.</p>
+     *
+     * <p>Use this method when {@link #insert(String, List, DataStreamWriter, ClickHouseFormat, InsertSettings)}
+     * cannot express the statement. For example:
+     * {@code INSERT INTO t (a, b) SELECT a, sum(b) FROM input('a String, b UInt64') GROUP BY a}.</p>
+     *
+     * <ul>
+     * <li>The client sends {@code sql} to the server as it is: the client does not parse, validate or
+     * escape it. Do not put untrusted values into {@code sql}; use {@code queryParams} for them.</li>
+     * <li>When {@code format} is not {@code null}, the client appends a new line and {@code FORMAT <format>}
+     * to {@code sql}. In this case {@code sql} must not have a {@code FORMAT} clause.</li>
+     * <li>When {@code format} is {@code null}, {@code sql} must end with a {@code FORMAT} clause.</li>
+     * <li>The data in the stream must be in the format of the statement.</li>
+     * <li>The operation does not report a target table to the metrics and the spans.</li>
+     * </ul>
+     *
+     * @param sql - {@code INSERT} statement without the data
+     * @param queryParams - values of the server-side query parameters ({@code {name:Type}}) in {@code sql}.
+     *                    May be {@code null}
+     * @param writer - {@link DataStreamWriter} implementation
+     * @param format - source format. When {@code null}, {@code sql} must have a {@code FORMAT} clause
+     * @param settings - operation settings
+     * @return {@code CompletableFuture<InsertResponse>} - a promise to insert response
+     */
+    public CompletableFuture<InsertResponse> insertQuery(String sql,
+                                                         Map<String, Object> queryParams,
+                                                         DataStreamWriter writer,
+                                                         ClickHouseFormat format,
+                                                         InsertSettings settings) {
+        if (sql == null || sql.trim().isEmpty()) {
+            throw new IllegalArgumentException("SQL statement cannot be null or empty");
+        }
+        if (writer == null) {
+            throw new IllegalArgumentException("Writer cannot be null");
+        }
+        // A new line keeps the FORMAT clause out of a line comment at the end of the statement.
+        String sqlStmt = format == null ? sql : sql + "\nFORMAT " + format.name();
+        return executeInsert(sqlStmt, null, queryParams, writer, format, settings);
+    }
+
+    /**
+     * Formats the values of the query parameters here, so that the transport layer gets the text to send:
+     * Array/Map values are quoted as the {@code param_<name>} parser of the server expects
+     * (e.g. {@code {dates:Array(Date)}} from {@code List<LocalDate>} becomes {@code ['2026-05-13']}, not
+     * {@code [2026-05-13]}).
+     */
+    private static Map<String, String> formatQueryParams(Map<String, Object> queryParams) {
+        Map<String, String> formattedParams = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> param : queryParams.entrySet()) {
+            formattedParams.put(param.getKey(),
+                    DataTypeConverter.INSTANCE.convertParameterToString(param.getValue()));
+        }
+        return formattedParams;
+    }
+
+    private CompletableFuture<InsertResponse> executeInsert(String sqlStmt,
+                                                            String tableName,
+                                                            Map<String, Object> queryParams,
+                                                            DataStreamWriter writer,
+                                                            ClickHouseFormat format,
+                                                            InsertSettings settings) {
         if (settings == null) {
             throw new  IllegalArgumentException("Settings cannot be null");
         }
         final InsertSettings requestSettings = new InsertSettings(buildRequestSettings(settings.getAllSettings()));
-        requestSettings.setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), format);
+        if (format != null) {
+            requestSettings.setOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey(), format);
+        } else {
+            // The FORMAT clause of the statement sets the format. The default of the client must not get to the request.
+            requestSettings.resetOption(ClientConfigProperties.INPUT_OUTPUT_FORMAT.getKey());
+        }
+        if (queryParams != null) {
+            requestSettings.setOption(HttpAPIClientHelper.KEY_STATEMENT_PARAMS, formatQueryParams(queryParams));
+        }
 
         String operationId = requestSettings.getOperationId();
         ClientStatisticsHolder clientStats = null;
@@ -1843,17 +1977,7 @@ public class Client implements AutoCloseable {
             throw new IllegalArgumentException("Buffer size must be greater than 0");
         }
 
-        StringBuilder sqlStmt = new StringBuilder("INSERT INTO ").append(tableName);
-        if (columnNames != null && !columnNames.isEmpty()) {
-            sqlStmt.append(" (");
-            for (String columnName : columnNames) {
-                sqlStmt.append(columnName).append(", ");
-            }
-            sqlStmt.deleteCharAt(sqlStmt.length() - 2);
-            sqlStmt.append(")");
-        }
-        sqlStmt.append(" FORMAT ").append(format.name());
-        requestSettings.serverSetting(ClickHouseHttpProto.QPARAM_QUERY_STMT, sqlStmt.toString());
+        requestSettings.serverSetting(ClickHouseHttpProto.QPARAM_QUERY_STMT, sqlStmt);
         if (requestSettings.getQueryId() == null && queryIdGenerator != null) {
             requestSettings.setQueryId(queryIdGenerator.get());
         }
@@ -2000,15 +2124,7 @@ public class Client implements AutoCloseable {
         clientStats.start(ClientMetrics.OP_DURATION);
 
         if (queryParams != null) {
-            // Format parameter values here so the transport layer receives ready-to-send text:
-            // Array/Map values are quoted the way the server's param_<name> parser expects
-            // (e.g. {dates:Array(Date)} <- List<LocalDate> becomes ['2026-05-13'], not [2026-05-13]).
-            Map<String, String> formattedParams = new LinkedHashMap<>();
-            for (Map.Entry<String, Object> param : queryParams.entrySet()) {
-                formattedParams.put(param.getKey(),
-                        DataTypeConverter.INSTANCE.convertParameterToString(param.getValue()));
-            }
-            requestSettings.setOption(HttpAPIClientHelper.KEY_STATEMENT_PARAMS, formattedParams);
+            requestSettings.setOption(HttpAPIClientHelper.KEY_STATEMENT_PARAMS, formatQueryParams(queryParams));
         }
 
         if (requestSettings.getQueryId() == null && queryIdGenerator != null) {
