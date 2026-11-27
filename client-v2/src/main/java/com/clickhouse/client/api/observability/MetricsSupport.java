@@ -68,7 +68,8 @@ public class MetricsSupport {
      * Returns the attributes of an insert operation.
      *
      * @param settings - resolved settings of the operation
-     * @param tableName - target table
+     * @param tableName - target table, or {@code null} when the client does not know it (an insert with an
+     *                  application-defined statement)
      * @param failure - failure of the operation, or {@code null} when it succeeded
      * @return attributes, keyed by {@link MetricAttribute#getKey()}
      */

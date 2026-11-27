@@ -61,7 +61,8 @@ public interface MetricsRecorder {
      * Reports that an insert operation completed successfully.
      *
      * @param settings - resolved settings of the operation; source of the target database
-     * @param tableName - target table
+     * @param tableName - target table, or {@code null} when the client does not know it (an insert with an
+     *                  application-defined statement)
      * @param metrics - metrics of the completed operation; source of the operation and serialization
      *                durations and of what the server wrote. May be {@code null}
      */
@@ -82,7 +83,8 @@ public interface MetricsRecorder {
      * {@link #recordInsertSuccess(InsertSettings, String, OperationMetrics)}.
      *
      * @param settings - resolved settings of the operation
-     * @param tableName - target table
+     * @param tableName - target table, or {@code null} when the client does not know it (an insert with an
+     *                  application-defined statement)
      * @param duration - time the operation took before it failed, measured by the client
      * @param t - failure the caller receives
      */
@@ -103,7 +105,8 @@ public interface MetricsRecorder {
      * per retried attempt.
      *
      * @param settings - resolved settings of the operation
-     * @param tableName - target table
+     * @param tableName - target table, or {@code null} when the client does not know it (an insert with an
+     *                  application-defined statement)
      * @param cause - failure of the attempt that is retried
      */
     void recordInsertRetry(InsertSettings settings, String tableName, Throwable cause);

@@ -66,7 +66,8 @@ public class SpanSupport {
      * naming convention.
      *
      * @param settings - settings of the operation
-     * @param tableName - target table
+     * @param tableName - target table, or {@code null} when the client does not know it (an insert with an
+     *                  application-defined statement)
      * @return span name
      */
     public String insertSpanName(InsertSettings settings, String tableName) {
@@ -105,7 +106,8 @@ public class SpanSupport {
      *
      * @param span - span of the operation
      * @param settings - resolved settings of the operation
-     * @param tableName - target table
+     * @param tableName - target table, or {@code null} when the client does not know it (an insert with an
+     *                  application-defined statement)
      * @param batchSize - number of items in the batch, or {@link SpanRecorder#BATCH_SIZE_UNKNOWN}
      *                  when the client does not know it
      * @param endpoint - endpoint the operation is expected to use; may be {@code null}
