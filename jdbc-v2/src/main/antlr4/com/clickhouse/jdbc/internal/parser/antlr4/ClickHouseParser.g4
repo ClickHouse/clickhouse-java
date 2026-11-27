@@ -1230,10 +1230,12 @@ keyword
     | AFTER
     | ALIAS
     | ALL
+    | ALLOW
     | ALTER
     | AND
     | ANTI
     | ANY
+    | ARBITRARY
     | ARGUMENTS
     | ARRAY
     | AS
@@ -1241,6 +1243,7 @@ keyword
     | ASOF
     | AST
     | ASYNC
+    | ASYNCHRONOUS
     | ATTACH
     | AVG
     | AZURE
@@ -1248,10 +1251,12 @@ keyword
     | BCRYPT_HASH
     | BCRYPT_PASSWORD
     | BETWEEN
+    | BLOCKING
     | BOTH
     | BY
     | CACHE
     | CACHES
+    | CANCEL
     | CASE
     | CAST
     | CHANGEABLE_IN_READONLY
@@ -1259,15 +1264,20 @@ keyword
     | CHECK
     | CLEANUP
     | CLEAR
+    | CLIENT
     | CLUSTER
     | CLUSTERS
     | CN
     | CODEC
     | COLLATE
     | COLLECTION
+    | COLLECTIONS
     | COLUMN
     | COLUMNS
     | COMMENT
+    | COMPILED
+    | CONDITION
+    | CONFIG
     | CONNECTIONS
     | CONST
     | CONSTRAINT
@@ -1276,6 +1286,7 @@ keyword
     | CUBE
     | CURRENT
     | CURRENT_USER
+    | CUSTOM
     | DATABASE
     | DATABASES
     | DATE
@@ -1294,11 +1305,13 @@ keyword
     | DISK
     | DISTINCT
     | DISTRIBUTED
+    | DNS
     | DOUBLE_SHA1_HASH
     | DOUBLE_SHA1_PASSWORD
     | DROP
     | DRY
     | ELSE
+    | EMBEDDED
     | ENABLED
     | END
     | ENGINE
@@ -1312,6 +1325,7 @@ keyword
     | EXPRESSION
     | EXTENDED
     | EXTRACT
+    | FAILPOINT
     | FETCH
     | FETCHES
     | FILE
@@ -1328,18 +1342,22 @@ keyword
     | FULL
     | FUNCTION
     | FUNCTIONS
+    | FUZZER
     | GLOBAL
     | GRANT
     | GRANTEES
     | GRANTS
     | GRANULARITY
     | GROUP
+    | GRPC
     | HAVING
     | HDFS
     | HIERARCHICAL
+    | HIVE
     | HOST
     | HOUR
     | HTTP
+    | HTTPS
     | ID
     | IDENTIFIED
     | IF
@@ -1355,12 +1373,16 @@ keyword
     | INSERT
     | INTERVAL
     | INTO
+    | INTROSPECTION
     | IP
     | IS
     | IS_OBJECT_ID
+    | JDBC
+    | JEMALLOC
     | JOIN
     | JSON_FALSE
     | JSON_TRUE
+    | KAFKA
     | KERBEROS
     | KEY
     | KEYED
@@ -1377,10 +1399,15 @@ keyword
     | LIKE
     | LIMIT
     | LIMITS
+    | LISTEN
     | LIVE
+    | LOAD
+    | LOADING
     | LOCAL
     | LOG
     | LOGS
+    | MANAGEMENT
+    | MARK
     | MATERIALIZE
     | MATERIALIZED
     | MAX
@@ -1388,18 +1415,25 @@ keyword
     | METRICS
     | MIN
     | MINUTE
+    | MMAP
+    | MODEL
     | MODIFY
+    | MONGO
     | MONTH
     | MOVE
+    | MOVES
     | MUTATION
+    | MYSQL
     | NAME
     | NAMED
+    | NATS
     | NO
     | NONE
     | NO_PASSWORD
     | NOT
     | NULL_SQL
     | NULLS
+    | ODBC
     | OFFSET
     | ON
     | ONLY
@@ -1411,6 +1445,7 @@ keyword
     | OUTFILE
     | OVER
     | OVERRIDE
+    | PAGE
     | PART
     | PARTITION
     | PARTS
@@ -1418,8 +1453,11 @@ keyword
     | PIPELINE
     | PLAINTEXT_PASSWORD
     | PLAN
+    | POLICIES
     | POLICY
     | POPULATE
+    | POSTGRES
+    | POSTGRESQL
     | PRECEDING
     | PREWHERE
     | PRIMARY
@@ -1427,16 +1465,26 @@ keyword
     | PROFILE
     | PROFILES
     | PROJECTION
+    | PROMETHEUS
+    | PROXY
     | PULL
+    | PULLING
     | QUARTER
     | QUERIES
     | QUERY
+    | QUEUE
+    | QUEUES
     | QUOTA
+    | QUOTAS
+    | RABBITMQ
     | RANDOMIZED
     | RANGE
+    | READINESS
     | READONLY
     | REALM
     | RECURSIVE
+    | REDIS
+    | REDUCE
     | REFRESH
     | REGEXP
     | RELOAD
@@ -1445,8 +1493,11 @@ keyword
     | RENAME
     | REPLACE
     | REPLICA
+    | REPLICAS
     | REPLICATED
+    | REPLICATION
     | RESOURCE
+    | RESTART
     | RESTORE
     | RESTRICTIVE
     | RETURNS
@@ -1460,9 +1511,12 @@ keyword
     | RUN
     | S3
     | SAMPLE
+    | SCHEMA
     | SCRAM_SHA256_HASH
     | SCRAM_SHA256_PASSWORD
     | SECOND
+    | SECRETS
+    | SECURE
     | SECURITY
     | SELECT
     | SEMI
@@ -1474,9 +1528,13 @@ keyword
     | SHA256_HASH
     | SHA256_PASSWORD
     | SHARD
+    | SHARDS
     | SHOW
+    | SHUTDOWN
     | SOURCE
+    | SOURCES
     | SQL
+    | SQLITE
     | SSH_KEY
     | SSL_CERTIFICATE
     | START
@@ -1491,6 +1549,7 @@ keyword
     | TABLE
     | TABLES
     | TAG
+    | TCP
     | TEMPORARY
     | TEST
     | THEN
@@ -1510,9 +1569,11 @@ keyword
     | TTL
     | TYPE
     | UNBOUNDED
+    | UNCOMPRESSED
     | UNDROP
     | UNFREEZE
     | UNION
+    | UNLOAD
     | UNTIL
     | UPDATE
     | URL
@@ -1524,7 +1585,10 @@ keyword
     | VALID
     | VALUES
     | VIEW
+    | VIEWS
+    | VIRTUAL
     | VOLUME
+    | WAIT
     | WATCH
     | WEEK
     | WHEN
