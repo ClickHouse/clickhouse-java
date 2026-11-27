@@ -11,6 +11,7 @@ import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -21,8 +22,11 @@ public class ClickHouseResult implements Result {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseResult.class);
 
     private final Flux<? extends Result.Segment> segments;
+    private final ClickHouseResponse response;
+    private final AtomicBoolean closed = new AtomicBoolean();
 
     ClickHouseResult(ClickHouseResponse response) {
+        this.response = response;
         Flux<? extends RowSegment> rowSegments = Mono.just(response)
                 .flatMapMany(resp -> Flux
                         .fromStream(StreamSupport.stream(resp.records().spliterator(), false)
@@ -33,11 +37,18 @@ public class ClickHouseResult implements Result {
                 .map(ClickHouseResponseSummary::getProgress)
                 .map(ClickHouseResponseSummary.Progress::getWrittenRows)
                 .map(UpdateCount::new);
-        this.segments = Flux.concat(updatedCount, rowSegments).doOnComplete(response::close);
+        this.segments = Flux.concat(updatedCount, rowSegments).doFinally(signal -> close());
     }
 
     ClickHouseResult(Flux<? extends Result.Segment> rowSegments) {
+        this.response = null;
         this.segments = rowSegments;
+    }
+
+    void close() {
+        if (response != null && closed.compareAndSet(false, true)) {
+            response.close();
+        }
     }
 
     /**
