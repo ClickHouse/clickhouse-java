@@ -162,13 +162,15 @@ public class DataTypeUtils {
         int nanoSeconds = 0;
         if (precision > 0) {
             int factor = BinaryStreamReader.BASES[precision];
-            nanoSeconds = Math.abs((int) (value % factor)); // nanoseconds are stored separately and only positive values accepted
+            nanoSeconds = (int) (value % factor);
             value /= factor;
-
+            if (nanoSeconds < 0) {
+                nanoSeconds += factor;
+                value--;
+            }
             if (nanoSeconds > 0L) {
                 nanoSeconds *= BASES[9 - precision];
             }
-
         }
 
         return LocalDateTime.ofEpochSecond(value, nanoSeconds, ZoneOffset.UTC);

@@ -513,4 +513,24 @@ public class DataTypeUtilsTests {
             java.util.Locale.setDefault(original);
         }
     }
+
+    @DataProvider(name = "time64Values")
+    public Object[][] time64ValuesProvider() {
+        return new Object[][]{
+                {3, -3723456L, LocalDateTime.of(1969, 12, 31, 22, 57, 56, 544_000_000), Duration.parse("PT-1H-2M-3.456S")},
+                {9, -3723456789123L, LocalDateTime.of(1969, 12, 31, 22, 57, 56, 543_210_877), Duration.parse("PT-1H-2M-3.456789123S")},
+                {1, -5L, LocalDateTime.of(1969, 12, 31, 23, 59, 59, 500_000_000), Duration.parse("PT-0.5S")},
+                {3, -3723000L, LocalDateTime.of(1969, 12, 31, 22, 57, 57, 0), Duration.parse("PT-1H-2M-3S")},
+                {0, -3723L, LocalDateTime.of(1969, 12, 31, 22, 57, 57, 0), Duration.parse("PT-1H-2M-3S")},
+                {3, 3723456L, LocalDateTime.of(1970, 1, 1, 1, 2, 3, 456_000_000), Duration.parse("PT1H2M3.456S")},
+        };
+    }
+
+    @Test(groups = {"unit"}, dataProvider = "time64Values")
+    public void testLocalTimeFromTime64Integer(int precision, long rawValue, LocalDateTime expectedDateTime, Duration expectedDuration) {
+        LocalDateTime actualDateTime = DataTypeUtils.localTimeFromTime64Integer(precision, rawValue);
+        assertEquals(actualDateTime, expectedDateTime);
+        assertEquals(DataTypeUtils.localDateTimeToDuration(actualDateTime), expectedDuration);
+        assertEquals(actualDateTime.toInstant(ZoneOffset.UTC), DataTypeUtils.instantFromTime64Integer(precision, rawValue));
+    }
 }

@@ -1305,8 +1305,8 @@ public class JdbcDataTypeTests extends JdbcIntegrationTest {
                 LocalDateTime negativeTime = rs.getObject("time", LocalDateTime.class);
                 assertEquals(negativeTime.toEpochSecond(ZoneOffset.UTC), -(TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59));
                 LocalDateTime negativeTime64 = rs.getObject("time64", LocalDateTime.class);
-                assertEquals(negativeTime64.toEpochSecond(ZoneOffset.UTC), -(TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59), "value " + negativeTime64);
-                assertEquals(negativeTime64.getNano(), 999_999_999); // nanoseconds are stored separately and only positive values accepted
+                assertEquals(negativeTime64.toEpochSecond(ZoneOffset.UTC), -(TimeUnit.HOURS.toSeconds(999) + TimeUnit.MINUTES.toSeconds(59) + 59) - 1, "value " + negativeTime64);
+                assertEquals(negativeTime64.getNano(), 1);
 
                 // Positive values
                 assertTrue(rs.next());
