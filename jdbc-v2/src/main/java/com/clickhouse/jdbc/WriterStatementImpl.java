@@ -6,6 +6,7 @@ import com.clickhouse.client.api.data_formats.RowBinaryFormatWriter;
 import com.clickhouse.client.api.insert.InsertResponse;
 import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.metadata.TableSchema;
+import com.clickhouse.client.api.sql.SQLUtils;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.jdbc.internal.ExceptionUtils;
@@ -34,6 +35,7 @@ import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -52,6 +54,7 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
     private ByteArrayOutputStream out;
     private ClickHouseBinaryFormatWriter writer;
     private final TableSchema tableSchema;
+    private final List<String> insertColumnNames;
 
     public WriterStatementImpl(ConnectionImpl connection, String originalSql, TableSchema tableSchema,
                                ParsedPreparedStatement parsedStatement)
@@ -60,13 +63,17 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
 
         if (parsedStatement.getInsertColumns() != null) {
             List<ClickHouseColumn> insertColumns = new ArrayList<>();
+            List<String> colNames = new ArrayList<>();
             for (String column : parsedStatement.getInsertColumns()) {
                 insertColumns.add(tableSchema.getColumnByName(column));
+                colNames.add(SQLUtils.enquoteIdentifier(column, false));
             }
             this.tableSchema = new TableSchema(tableSchema.getTableName(), tableSchema.getQuery(),
                     tableSchema.getDatabaseName(), insertColumns);
+            this.insertColumnNames = colNames;
         } else {
             this.tableSchema = tableSchema;
+            this.insertColumnNames = Collections.emptyList();
         }
         try {
             resetWriter();
@@ -124,8 +131,8 @@ public class WriterStatementImpl extends PreparedStatementImpl implements Prepar
         settings.setQueryId(setLastQueryID(settings.getQueryId()));
 
         try (InsertResponse response = queryTimeout == 0 ?
-                connection.getClient().insert(tableSchema.getTableName(),in, writer.getFormat(), settings).get()
-                : connection.getClient().insert(tableSchema.getTableName(),in, writer.getFormat(), settings).get(queryTimeout, TimeUnit.SECONDS)) {
+                connection.getClient().insert(tableSchema.getTableName(), insertColumnNames, in, writer.getFormat(), settings).get()
+                : connection.getClient().insert(tableSchema.getTableName(), insertColumnNames, in, writer.getFormat(), settings).get(queryTimeout, TimeUnit.SECONDS)) {
             updateCount = Math.max(0, (int) response.getWrittenRows()); // when statement alters schema no result rows returned.
             lastQueryId = response.getQueryId();
         } catch (Exception e) {

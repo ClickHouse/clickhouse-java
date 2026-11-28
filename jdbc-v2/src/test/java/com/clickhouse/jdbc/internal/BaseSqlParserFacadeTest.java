@@ -712,6 +712,16 @@ public abstract class BaseSqlParserFacadeTest {
         // for both the doubled (``) and backslash-escaped (\`) forms
         assertInsertColumns("INSERT INTO t (`od``d`) VALUES (?)", "od`d");
         assertInsertColumns("INSERT INTO t (`od\\`d`) VALUES (?)", "od`d");
+
+        // Dollar sign in unquoted identifier (ClickHouse allows col$1)
+        assertInsertColumns("INSERT INTO t (col$1, col$2) VALUES (?, ?)", "col$1", "col$2");
+        assertInsertColumns("INSERT INTO t ($col) VALUES (?)", "$col");
+
+        // Column list with inline block comment
+        assertInsertColumns("INSERT INTO t (a /* first */, b) VALUES (?, ?)", "a", "b");
+
+        // Column list with trailing single-line comment
+        assertInsertColumns("INSERT INTO t (a, b -- columns\n) VALUES (?, ?)", "a", "b");
     }
 
     private void assertInsertColumns(String sql, String... expectedColumns) {
@@ -719,13 +729,7 @@ public abstract class BaseSqlParserFacadeTest {
         Assert.assertFalse(stmt.isHasErrors(), "Query should parse without errors: " + sql);
         Assert.assertTrue(stmt.isInsert(), "Should be an INSERT: " + sql);
         String[] actualColumns = stmt.getInsertColumns();
-        // The JavaCC backend does not extract INSERT column names, so null is allowed there. The
-        // ANTLR4 backends must extract them, so a null is a regression and must fail the test
-        // loudly instead of being silently skipped.
-        if (javaCcBackend) {
-            return;
-        }
-        Assert.assertNotNull(actualColumns, "ANTLR4 backend should extract INSERT column names for: " + sql);
+        Assert.assertNotNull(actualColumns, "All backends should extract INSERT column names for: " + sql);
         Assert.assertEquals(actualColumns, expectedColumns, "Insert column names mismatch for: " + sql);
     }
 

@@ -435,4 +435,176 @@ public class WriterStatementImplTest extends JdbcIntegrationTest {
         }
         return false;
     }
+
+    // --- Tests for issue #3422: RowBinary writer must respect the INSERT column list ---
+
+    @DataProvider(name = "allParsers")
+    Object[][] allParsers() {
+        return new Object[][]{
+                {"JAVACC"},
+                {"ANTLR4"},
+                {"ANTLR4_PARAMS_PARSER"},
+        };
+    }
+
+    /**
+     * INSERT INTO t (b, a) VALUES (?, ?) must store parameter 1 into column b and parameter 2 into
+     * column a, not the other way around. Before the fix, the writer ignored the column list and
+     * wrote values in the table's column order.
+     */
+    @Test(groups = {"integration"}, dataProvider = "allParsers")
+    public void testInsertColumnReordering(String parser) throws SQLException {
+        String table = "bt_writer_col_reorder_" + parser.toLowerCase();
+        Properties properties = new Properties();
+        properties.setProperty(DriverProperties.BETA_ROW_BINARY_WRITER.getKey(), "true");
+        properties.setProperty(DriverProperties.SQL_PARSER.getKey(), parser);
+        properties.setProperty(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF);
+        try (Connection connection = getJdbcConnection(properties)) {
+            try (Statement stmt = connection.createStatement()) {
+                stmt.execute("DROP TABLE IF EXISTS " + table);
+                stmt.execute("CREATE TABLE " + table + " (a Int32, b Int32) ORDER BY ()");
+            }
+
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "INSERT INTO " + table + " (b, a) VALUES (?, ?)")) {
+                Assert.assertTrue(ps instanceof WriterStatementImpl,
+                        "Expected WriterStatementImpl for parser " + parser);
+                ps.setInt(1, 10); // b = 10
+                ps.setInt(2, 20); // a = 20
+                Assert.assertEquals(ps.executeUpdate(), 1);
+            }
+
+            try (Statement stmt = connection.createStatement();
+                 ResultSet rs = stmt.executeQuery("SELECT a, b FROM " + table)) {
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getInt("a"), 20);
+                Assert.assertEquals(rs.getInt("b"), 10);
+                Assert.assertFalse(rs.next());
+            }
+        } finally {
+            runQuery("DROP TABLE IF EXISTS " + table);
+        }
+    }
+
+    /**
+     * INSERT INTO t (k, b) VALUES (?, ?) on a table (k Int32, a Nullable(Int32), b Nullable(Int32))
+     * must leave column a as NULL.
+     */
+    @Test(groups = {"integration"}, dataProvider = "allParsers")
+    public void testInsertColumnSubset(String parser) throws SQLException {
+        String table = "bt_writer_col_subset_" + parser.toLowerCase();
+        Properties properties = new Properties();
+        properties.setProperty(DriverProperties.BETA_ROW_BINARY_WRITER.getKey(), "true");
+        properties.setProperty(DriverProperties.SQL_PARSER.getKey(), parser);
+        properties.setProperty(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF);
+        try (Connection connection = getJdbcConnection(properties)) {
+            try (Statement stmt = connection.createStatement()) {
+                stmt.execute("DROP TABLE IF EXISTS " + table);
+                stmt.execute("CREATE TABLE " + table +
+                        " (k Int32, a Nullable(Int32), b Nullable(Int32)) ORDER BY ()");
+            }
+
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "INSERT INTO " + table + " (k, b) VALUES (?, ?)")) {
+                Assert.assertTrue(ps instanceof WriterStatementImpl,
+                        "Expected WriterStatementImpl for parser " + parser);
+                ps.setInt(1, 1);  // k = 1
+                ps.setInt(2, 42); // b = 42
+                Assert.assertEquals(ps.executeUpdate(), 1);
+            }
+
+            try (Statement stmt = connection.createStatement();
+                 ResultSet rs = stmt.executeQuery("SELECT k, a, b FROM " + table)) {
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getInt("k"), 1);
+                Assert.assertNull(rs.getObject("a"), "Column a should be NULL");
+                Assert.assertEquals(rs.getInt("b"), 42);
+                Assert.assertFalse(rs.next());
+            }
+        } finally {
+            runQuery("DROP TABLE IF EXISTS " + table);
+        }
+    }
+
+    /**
+     * executeBatch with a reordered column list must place values in the correct columns.
+     */
+    @Test(groups = {"integration"}, dataProvider = "allParsers")
+    public void testBatchInsertColumnReordering(String parser) throws SQLException {
+        String table = "bt_writer_batch_reorder_" + parser.toLowerCase();
+        Properties properties = new Properties();
+        properties.setProperty(DriverProperties.BETA_ROW_BINARY_WRITER.getKey(), "true");
+        properties.setProperty(DriverProperties.SQL_PARSER.getKey(), parser);
+        properties.setProperty(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF);
+        try (Connection connection = getJdbcConnection(properties)) {
+            try (Statement stmt = connection.createStatement()) {
+                stmt.execute("DROP TABLE IF EXISTS " + table);
+                stmt.execute("CREATE TABLE " + table + " (a Int32, b String) ORDER BY ()");
+            }
+
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "INSERT INTO " + table + " (b, a) VALUES (?, ?)")) {
+                Assert.assertTrue(ps instanceof WriterStatementImpl,
+                        "Expected WriterStatementImpl for parser " + parser);
+                ps.setString(1, "row1"); // b
+                ps.setInt(2, 1);         // a
+                ps.addBatch();
+                ps.setString(1, "row2"); // b
+                ps.setInt(2, 2);         // a
+                ps.addBatch();
+                int[] results = ps.executeBatch();
+                Assert.assertEquals(results.length, 2);
+            }
+
+            try (Statement stmt = connection.createStatement();
+                 ResultSet rs = stmt.executeQuery("SELECT a, b FROM " + table + " ORDER BY a")) {
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getInt("a"), 1);
+                Assert.assertEquals(rs.getString("b"), "row1");
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getInt("a"), 2);
+                Assert.assertEquals(rs.getString("b"), "row2");
+                Assert.assertFalse(rs.next());
+            }
+        } finally {
+            runQuery("DROP TABLE IF EXISTS " + table);
+        }
+    }
+
+    /**
+     * Backtick-quoted column names must be matched to the table schema correctly.
+     */
+    @Test(groups = {"integration"}, dataProvider = "allParsers")
+    public void testInsertQuotedColumnReordering(String parser) throws SQLException {
+        String table = "bt_writer_quoted_reorder_" + parser.toLowerCase();
+        Properties properties = new Properties();
+        properties.setProperty(DriverProperties.BETA_ROW_BINARY_WRITER.getKey(), "true");
+        properties.setProperty(DriverProperties.SQL_PARSER.getKey(), parser);
+        properties.setProperty(ASYNC_INSERT_SETTING_KEY, ServerSettings.OFF);
+        try (Connection connection = getJdbcConnection(properties)) {
+            try (Statement stmt = connection.createStatement()) {
+                stmt.execute("DROP TABLE IF EXISTS " + table);
+                stmt.execute("CREATE TABLE " + table + " (a Int32, b Int32) ORDER BY ()");
+            }
+
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "INSERT INTO " + table + " (`b`, `a`) VALUES (?, ?)")) {
+                Assert.assertTrue(ps instanceof WriterStatementImpl,
+                        "Expected WriterStatementImpl for parser " + parser);
+                ps.setInt(1, 10); // b = 10
+                ps.setInt(2, 20); // a = 20
+                Assert.assertEquals(ps.executeUpdate(), 1);
+            }
+
+            try (Statement stmt = connection.createStatement();
+                 ResultSet rs = stmt.executeQuery("SELECT a, b FROM " + table)) {
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getInt("a"), 20);
+                Assert.assertEquals(rs.getInt("b"), 10);
+                Assert.assertFalse(rs.next());
+            }
+        } finally {
+            runQuery("DROP TABLE IF EXISTS " + table);
+        }
+    }
 }

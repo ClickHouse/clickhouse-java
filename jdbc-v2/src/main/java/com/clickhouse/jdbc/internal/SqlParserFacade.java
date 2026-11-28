@@ -99,6 +99,17 @@ public abstract class SqlParserFacade {
             stmt.setInsertWithSelect(parsedStmt.containsKeyword("SELECT") && (parsedStmt.getStatementType() == StatementType.INSERT));
             stmt.setAssignValuesGroups(parsedStmt.getValueGroups());
 
+            // Extract the INSERT column list from the ColumnsStart/ColumnsEnd positions recorded by the
+            // grammar, so the RowBinary writer knows which columns the statement addresses and in what
+            // order. Without this, the writer falls back to the full table schema and values end up in
+            // the wrong columns when the INSERT lists columns in a different order or omits some.
+            if (parsedStmt.getStatementType() == StatementType.INSERT) {
+                String[] insertColumns = extractInsertColumns(parsedStmt);
+                if (insertColumns != null) {
+                    stmt.setInsertColumns(insertColumns);
+                }
+            }
+
             Integer startIndex = parsedStmt.getPositions().get(ClickHouseSqlStatement.KEYWORD_VALUES_START);
             Integer endIndexValue = parsedStmt.getPositions().get(ClickHouseSqlStatement.KEYWORD_VALUES_END);
             if (startIndex != null && endIndexValue != null) {
@@ -228,6 +239,123 @@ public abstract class SqlParserFacade {
             return null; // no roles present
         }
 
+
+        /**
+         * Extracts the column names from the INSERT column list recorded by the grammar between
+         * {@code ColumnsStart} and {@code ColumnsEnd}. Each identifier is unescaped so that
+         * backtick-quoted or double-quoted names match the plain names in the table schema.
+         * Nested identifiers ({@code `directory`.`id`}) are rejoined with {@code '.'}, mirroring
+         * the ANTLR4 parser behavior.
+         *
+         * @return the column names in statement order, or {@code null} when there is no column list
+         */
+        private static String[] extractInsertColumns(ClickHouseSqlStatement parsedStmt) {
+            Integer colStart = parsedStmt.getPositions().get(ClickHouseSqlStatement.KEYWORD_TABLE_COLUMNS_START);
+            Integer colEnd = parsedStmt.getPositions().get(ClickHouseSqlStatement.KEYWORD_TABLE_COLUMNS_END);
+            if (colStart == null || colEnd == null) {
+                return null;
+            }
+
+            // The content between the parentheses, e.g. "a, `b c`, `dir`.`id`"
+            String content = parsedStmt.getContentBetweenKeywords(
+                    ClickHouseSqlStatement.KEYWORD_TABLE_COLUMNS_START,
+                    ClickHouseSqlStatement.KEYWORD_TABLE_COLUMNS_END, 1);
+            if (content.isEmpty()) {
+                return null;
+            }
+
+            // Tokenize by commas, respecting quoted identifiers. The rebuilt SQL may contain
+            // comments (-- ... or /* ... */) because the JavaCC token manager appends them to the
+            // builder, so the loop must skip them. Dollar signs are part of identifiers in
+            // ClickHouse (the server accepts e.g. col$1), matching skipIdentifier() in this class.
+            List<String> columns = new ArrayList<>();
+            int len = content.length();
+            int i = 0;
+            while (i < len) {
+                char ch = content.charAt(i);
+
+                // Skip whitespace and commas between identifiers
+                if (ch == ',' || Character.isWhitespace(ch)) {
+                    i++;
+                    continue;
+                }
+
+                // Skip single-line comments: --, //, #
+                if (ch == '#' || (i + 1 < len && content.charAt(i + 1) == ch && (ch == '-' || ch == '/'))) {
+                    i = skipLineComment(content, ch == '#' ? i : i + 1, len);
+                    continue;
+                }
+
+                // Skip block comments: /* ... */
+                if (ch == '/' && i + 1 < len && content.charAt(i + 1) == '*') {
+                    i = ClickHouseUtils.skipMultiLineComment(content, i + 2, len);
+                    continue;
+                }
+
+                // Collect one possibly-nested identifier (components separated by '.')
+                StringBuilder column = new StringBuilder();
+                boolean first = true;
+                while (i < len) {
+                    if (!first) {
+                        column.append('.');
+                    }
+                    first = false;
+
+                    ch = content.charAt(i);
+                    if (ClickHouseSqlUtils.isQuote(ch)) {
+                        // Quoted identifier: find matching closing quote (with escape handling)
+                        int start = i;
+                        i++;
+                        while (i < len) {
+                            char c = content.charAt(i);
+                            if (c == '\\') {
+                                i += 2; // skip escaped character
+                            } else if (c == ch) {
+                                if (i + 1 < len && content.charAt(i + 1) == ch) {
+                                    i += 2; // doubled quote escape
+                                } else {
+                                    i++; // closing quote
+                                    break;
+                                }
+                            } else {
+                                i++;
+                            }
+                        }
+                        column.append(ClickHouseSqlUtils.unescape(content.substring(start, i)));
+                    } else if (isIdentifierChar(ch)) {
+                        // Unquoted identifier: word characters and dollar signs
+                        int start = i;
+                        while (i < len && isIdentifierChar(content.charAt(i))) {
+                            i++;
+                        }
+                        column.append(content.substring(start, i));
+                    } else {
+                        // Unexpected character — skip it to guarantee forward progress
+                        i++;
+                        first = true; // undo the dot we didn't actually add
+                        continue;
+                    }
+
+                    // Check if followed by '.' (nested identifier continues)
+                    if (i < len && content.charAt(i) == '.') {
+                        i++; // skip the dot, loop continues to read next component
+                    } else {
+                        break; // end of this identifier
+                    }
+                }
+
+                if (column.length() > 0) {
+                    columns.add(column.toString());
+                }
+            }
+
+            return columns.isEmpty() ? null : columns.toArray(new String[0]);
+        }
+
+        private static boolean isIdentifierChar(char ch) {
+            return ch == '_' || ch == '$' || (ch >= '0' && ch <= '9')
+                    || (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z');
+        }
 
         public ClickHouseSqlStatement parse(String sql) {
             JdbcParseHandler handler = JdbcParseHandler.getInstance();
